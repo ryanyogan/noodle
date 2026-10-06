@@ -486,7 +486,9 @@ function Filters({
 		<div className="grid gap-2 lg:flex lg:flex-wrap lg:items-end lg:gap-3">
 			{total !== null && total !== undefined ? (
 				// From lg the month's total ends the bar, as big as a headline.
-				<p className="flex items-baseline justify-between gap-3 px-1 text-sm lg:order-last lg:ms-auto lg:grid lg:justify-items-end lg:gap-0.5">
+				// Under 1440 the four selects need a line of their own to show their words whole (issue 73),
+				// so the total ends the search's line there.
+				<p className="flex items-baseline justify-between gap-3 px-1 text-sm lg:order-2 lg:ms-auto min-[90rem]:order-last lg:grid lg:justify-items-end lg:gap-0.5">
 					<span className="text-muted-foreground">
 						{totalLabel(filters.range, month, { filtered, current })}
 					</span>
@@ -499,7 +501,7 @@ function Filters({
 				</p>
 			) : null}
 			{/* A phone: the search on a line of its own, then Filters, Sort and Select on the next. */}
-			<div className="flex flex-wrap gap-2 lg:flex-[1_1_14rem]">
+			<div className="flex flex-wrap gap-2 lg:order-1 lg:flex-[1_1_14rem]">
 				<div className="relative min-w-0 flex-[1_1_10rem] max-sm:basis-full">
 					<label htmlFor="filter-search" className="sr-only">
 						Search notes and merchants
@@ -575,7 +577,7 @@ function Filters({
 					</Button>
 				) : null}
 			</div>
-			<div className="gap-3 max-lg:hidden lg:grid lg:flex-[3_1_26rem] lg:auto-cols-fr lg:grid-flow-col">
+			<div className="gap-3 max-lg:hidden lg:order-3 lg:grid lg:flex-[3_1_36rem] lg:auto-cols-fr lg:grid-flow-col">
 				{/* How many months the list shows (issue 99), each ending at the month in the header. */}
 				<FilterSelect
 					id="filter-range"

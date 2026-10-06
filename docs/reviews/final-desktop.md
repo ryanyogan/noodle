@@ -84,21 +84,21 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Transactions table | /transactions/$month | yes | — | — | — | — | — | — |  |
-| Transactions Filters sheet | Transactions › Filters | yes | — | — | — | — | — | — |  |
-| Selection bar and Delete sheet | select rows | yes | — | — | — | — | — | — |  |
-| Transaction in the panel, editor, Split, receipt | /transactions/$month/$id | yes | — | — | — | — | — | — |  |
-| Quick Add popover and capture | Sidebar › Quick Add | yes | — | — | — | — | — | — |  |
+| Transactions table | /transactions/$month | yes | fixed 73ax | fixed 73ax | ok | ok | ok | ok (layout) | 73ax: COMPLETE. Pics 10a, 10e (a range of months: month heading, day heading, range total), 10g (Assigned-to picker opens under its cell), 10i, 10j (nothing matches), 11a (the row opened in place, editor under its row) at all six. At 1024 and 1280 the four selects were cut ("This mon", "All Bucke", "Last 3 mont", "All Account"): under 1440 they now have a line of their own and the total ends the search’s line; retaken (10a, 10e, 10j). Amounts, day totals and the header end on one edge; checkboxes in one column. Not pictured: the name being typed in its cell (pic 10h taken, not opened), the "had no Buckets" picker of an old month, the loading state, the fresh Household’s empty table (10m taken, not opened). Seen, not changed: at 1024 a "Waiting for bank" row cuts its name to three letters ("Chi…"): Decision 9 |
+| Transactions Filters sheet | Transactions › Filters | yes | — | — | — | — | — | — | 73ax: from 1024 the filters are the selects in the bar (see the row above); the sheet is for phones and tablets. Pic 10k (Account select open) taken, not opened |
+| Selection bar and Delete sheet | select rows | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: COMPLETE. Pics 10b (three ticked: bar with Cancel, File in…, Delete and both "Select all"), 10c (Delete sheet, centred) at all six. "File in…" picker itself not pictured |
+| Transaction in the panel, editor, Split, receipt | /transactions/$month/$id | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: editor under its row (pic 11a) at all six: Name, Amount, Assigned to on one line from 1280, For below. Split and receipt not pictured |
+| Quick Add popover and capture | Sidebar › Quick Add | yes | — | — | — | — | — | — | 73ax: pic 10q added and taken at all six, NOT opened |
 | Upload a statement sheet | Accounts or Transactions › Upload | yes | — | — | — | — | — | — |  |
 
 ## Review (another agent)
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Review cards | /review | yes | — | — | — | — | — | — |  |
-| Review list | /review?view=list | yes | — | — | — | — | — | — |  |
+| Review cards | /review | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: COMPLETE for the card on top (pic 12 at all six): toolbar on one line, card, Skip and Undo, key hints. 12a to 12d taken, not opened. Finish state not pictured |
+| Review list | /review?view=list | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: COMPLETE (pic 13 at all six): one column at 1024, two from 1280, three from 1920; amounts on the cards’ right edge |
 | "Make a Rule" sheet | Review card › Make a Rule | yes | — | — | — | — | — | — |  |
-| Rules list | /review/rules | yes | — | — | — | — | — | — |  |
+| Rules list | /review/rules | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: COMPLETE (pic 14 at all six): list with its help beside it |
 | Rule in the panel | /review/rules/$ruleId | yes | — | — | — | — | — | — |  |
 | "Add a Rule" sheet | Rules › Add a Rule | yes | — | — | — | — | — | — |  |
 
@@ -172,7 +172,7 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 |---|---|---|---|---|---|---|---|---|---|
 | Insights | /insights (pic 24) | no | — | — | — | — | — | — |  |
 | Insights, empty | fresh Household (pic 39d) | no | — | — | — | — | — | — |  |
-| Perks, its row open, "Add a card or membership" sheets | /insights/perks | yes | — | — | — | — | — | — |  |
+| Perks, its row open, "Add a card or membership" sheets | /insights/perks | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: pic 25a (Amex Platinum open) at all six opened; in the full-page picture the Sidebar is drawn where the page was scrolled to (the picture, not the app). The seed has "Chase Sapphire Reserve ··0093" twice in Perk Sources. At 1280 and 1440 the "This year" card stretches to its neighbour’s height with empty room under the figures (judgement). 25, 25b taken, not opened |
 | Check-in | /check-in (pic 26) | no | ok (reduced) | ok (reduced) | ok | — | — | ok (reduced) | pic 26 opened again at 1440, clean |
 | Check-in footer | pic 26a | no | — | — | ok | — | — | — | 73at: pic 26a opened at 1440, clean. |
 | Check-in, each step done inline | work through the steps | no | fixed 915f53e4 | — | — | — | — | — | 73at: new pics 26b, 26c, 26d (Insights, Sweeps, Extra income, each reached with Skip for now). The "?" of the Sweeps and Extra income cards dropped to a line of its own under a two-line sentence: it follows the last word now; retaken and opened at 1024 (Sweeps). Seen, not fixed (packages/ui StepList): a done step's name starts 8px right of a waiting one's. Steps actually completed inline (a Sweep chosen, Extra income sent) not pictured. |
@@ -195,7 +195,7 @@ Not built; each waits for a yes or no.
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Household settings, whole page | /household (pic 27) | no | — | — | ok | — | — | — | two columns start on one line; Danger zone spans both |
+| Household settings, whole page | /household (pic 27) | no | ok (top) | ok (top) | ok | ok | ok | ok (layout, top) | two columns start on one line; Danger zone spans both. 73ax: pic 27 at all six, the first screen opened (whole page at 1920 and 2560): one column at 1024, two from 1280. Lower screens at 1024 to 1440 not opened; Snapshots with history not seeded |
 | "Your name and colour" sheet | pic 27c | no | — | — | — | — | — | — |  |
 | Child sheet | Children › a Child | no | — | — | — | — | — | — |  |
 | Invite the other Parent, "Cancel the invite?" dialog | Parents | no | — | — | — | — | — | — |  |
@@ -203,7 +203,7 @@ Not built; each waits for a yes or no.
 | "Set up tap to capture" sheet | Capture › Set up | no | — | — | — | — | — | — |  |
 | Snapshots, "Restore this snapshot?" sheet | Snapshots | no | — | — | — | — | — | — |  |
 | Download your data | Data | no | — | — | — | — | — | — |  |
-| Start fresh sheet | Danger zone (pic 27a) | no | — | — | — | — | — | — |  |
+| Start fresh sheet | Danger zone (pic 27a) | no | ok | ok | ok | ok | ok | ok (layout) | 73ax: COMPLETE for the first step (pic 27a at all six). Second step not pictured |
 | Delete Household sheet | Danger zone (pic 27b) | no | — | — | — | — | — | — |  |
 | Glossary | /glossary | no | — | — | — | — | — | — |  |
 
@@ -219,3 +219,8 @@ Not built; each waits for a yes or no.
 6. Year table at 1024: October's row is four lines ("October", "This month", "Lumpy", "Actual so far") while the others are two. Options: drop the "This month" badge under 1280 (the row could be tinted instead), or show "Lumpy" as a dot with a tooltip. Recommend dropping "This month" under 1280.
 7. (Built in 73au, 05afcc46, on the lead’s say.) Add Buckets with every starter already in the Plan says "Tick the ones you want" above an empty list. Recommend "Add your own" as the description in that case.
 8. (Settled in 73au: the app orders by creation time, then id, which is the same on every load; only the pictures’ seed made them in one instant, and it now gives each its own time.) Seeded Goals and Accounts come out in a different order from run to run (made in one instant, ordered by id): a seeding matter, but if two real items share a creation time the same would show. Recommend a name tie-break in those lists' sort.
+
+### From 73ax (Transactions and the second half of section D)
+
+9. Transactions at 1024: a row that is "Waiting for bank" keeps its badge whole and cuts the name to three letters ("Chi…", "Tra…"). Options: the badge becomes a dot with a tooltip under 1280, or the badge moves to a second line. Recommend the dot.
+10. Perks & Benefits at 1280 and 1440: the "This year" card is as tall as "Worth using now" beside it, with empty room under its three figures. Options: let it end at its content, or put the year’s progress bar across its foot. Recommend ending at its content.

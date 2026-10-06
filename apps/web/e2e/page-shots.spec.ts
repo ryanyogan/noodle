@@ -954,6 +954,67 @@ test.beforeAll(async ({ browser }) => {
 					.fill("Weekly shop", { timeout: 15_000 });
 			},
 		},
+		// 73ax: the table's other states on a computer. A range of months: its headings and total.
+		{ name: "10e-transactions-range", path: `/transactions/${month}?range=3m`, tall: true },
+		{
+			name: "10g-transactions-assigned-picker",
+			path: `/transactions/${month}`,
+			window: true,
+			ready: async (page) => {
+				await page.locator("button[data-cell=assigned]").first().click({ timeout: 15_000 });
+				await expect(page.getByRole("listbox").first()).toBeVisible({ timeout: 15_000 });
+			},
+		},
+		{
+			name: "10h-transactions-name-edit",
+			path: `/transactions/${month}`,
+			window: true,
+			ready: async (page) => {
+				await page
+					.locator("button[data-cell=name]")
+					.first()
+					.click({ timeout: 15_000, force: true });
+				await expect(page.locator("input[data-cell-editor]")).toBeVisible({ timeout: 15_000 });
+			},
+		},
+		{
+			name: "10i-transactions-sort-largest",
+			path: `/transactions/${month}?sort=largest`,
+			window: true,
+		},
+		{
+			name: "10j-transactions-nothing-matches",
+			path: `/transactions/${month}`,
+			window: true,
+			ready: async (page) => {
+				await page.getByLabel("Search notes and merchants").fill("zzzz", { timeout: 15_000 });
+				await expect(page.getByText("Nothing matches").first()).toBeVisible({ timeout: 15_000 });
+			},
+		},
+		{
+			name: "10k-transactions-account-filter",
+			path: `/transactions/${month}`,
+			window: true,
+			ready: async (page) => {
+				await page
+					.getByRole("combobox", { name: "Account", exact: true })
+					.click({ timeout: 15_000 });
+				await expect(page.getByRole("option").first()).toBeVisible({ timeout: 15_000 });
+			},
+		},
+		{ name: "10m-transactions-empty", path: `/transactions/${month}`, fresh: true, window: true },
+		{
+			// 73ax: the Quick Add dialog over a page on a computer, (the not-found screen has no heading the pictures wait for: not pictured).
+			name: "10q-quick-add-dialog",
+			path: `/transactions/${month}`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("link", { name: "Quick Add" }).first(),
+					page.getByRole("dialog", { name: "Quick Add" }),
+				);
+			},
+		},
 		{ name: "12-review-cards", path: "/review" },
 		{
 			// One by one, with a card on top that has a suggestion, so Confirm shows: what's on screen
