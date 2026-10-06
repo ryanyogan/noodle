@@ -186,7 +186,9 @@ const isBlank = (month: YearMonth) => month.when === "past" && unplanned(month);
 /**
  * "This month" for the month under way, "Lumpy" for a lumpy one. In the table below 1440px the
  * month's row is tinted instead and "This month" is only read out (`quiet`): with the badge the
- * row was three or four lines beside its neighbours' two at 1024 and 1280 (issue 120).
+ * row was three or four lines beside its neighbours' two at 1024 and 1280 (issue 120). On that
+ * tinted row "Lumpy" takes the card's ground: the pill's own ground is the tint, and it read as
+ * plain words.
  */
 function MonthBadges({ month, quiet = false }: { month: YearMonth; quiet?: boolean }) {
 	return (
@@ -194,7 +196,11 @@ function MonthBadges({ month, quiet = false }: { month: YearMonth; quiet?: boole
 			{month.when === "current" ? (
 				<Badge className={quiet ? "max-[1439px]:sr-only" : undefined}>This month</Badge>
 			) : null}
-			{month.lumps.length > 0 ? <Badge>Lumpy</Badge> : null}
+			{month.lumps.length > 0 ? (
+				<Badge className={quiet && month.when === "current" ? "max-[1439px]:bg-card" : undefined}>
+					Lumpy
+				</Badge>
+			) : null}
 		</>
 	);
 }

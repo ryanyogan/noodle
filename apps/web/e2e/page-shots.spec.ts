@@ -186,7 +186,14 @@ async function addCard(page: Page, name: string, pageUrl: string, fee: string, p
 	await sheet.getByRole("button", { name: "I have a link to its benefits page" }).click();
 	await sheet.getByLabel("Benefits page (optional)").fill(pageUrl);
 	await sheet.getByRole("button", { name: "Add and read its perks" }).click();
-	await expect(sheet).toBeHidden({ timeout: 30_000 });
+	// A card that is a Perk Source already isn't added again (issue 119): the sheet says so and
+	// stays up, its link is read all the same, and "Open it" closes the sheet. Chase Sapphire
+	// Reserve is one: the seed's Account (Chase ··0093) brought it.
+	const openIt = sheet.getByRole("button", { name: "Open it" });
+	await expect(async () => {
+		if (await openIt.isVisible()) await openIt.click();
+		await expect(sheet).toBeHidden({ timeout: 1_000 });
+	}).toPass({ timeout: 30_000 });
 	// A card the seed's Account already brought (Chase ··0093) is that same Perk Source, confirmed
 	// (addPerkSource makes no second one): the card is known by how many Perks were read.
 	const card = page

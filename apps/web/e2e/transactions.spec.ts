@@ -503,6 +503,39 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
 		"Pro Hockey Life, $64.99, Groceries, For Everyone, waiting for the bank’s copy",
 	);
+	// Its "Waiting for bank" badge is whole from 1280px; under that it is a dot with the words in
+	// a tooltip, so the name beside it isn't cut (issue 120). The row's name says it either way.
+	const waitingRow = list(page)
+		.getByRole("row")
+		.filter({ has: page.getByRole("button", { name: /^Pro Hockey Life,/ }) });
+	// The badge is its words' parent (as the tooltip's trigger it has that slot's name, not a badge's).
+	const waitingWords = waitingRow.getByText("Waiting for bank", { exact: true });
+	const waitingBadge = waitingWords.locator("xpath=..");
+	const waitingTip = page.locator("[data-slot=tooltip-content]", { hasText: "Waiting for bank" });
+	const nameCut = () =>
+		row(page, "Pro Hockey Life")
+			.locator("span.truncate")
+			.evaluate((node) => node.scrollWidth > node.clientWidth);
+	for (const width of [1440, 1280, 1279, 1024]) {
+		await page.setViewportSize({ width, height: 720 });
+		await expect(waitingBadge).toBeVisible();
+		const box = await waitingBadge.boundingBox();
+		await page.mouse.move(0, 0);
+		await waitingBadge.hover();
+		if (width >= 1280) {
+			expect(box?.width).toBeGreaterThan(80);
+			expect((await waitingWords.boundingBox())?.width).toBeGreaterThan(60);
+			await expect(waitingTip).toBeHidden();
+		} else {
+			expect(box?.width).toBe(18);
+			expect(box?.height).toBe(18);
+			await expect(waitingTip).toBeVisible();
+			expect(await nameCut()).toBe(false);
+		}
+		await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(/waiting for the bank’s copy$/);
+	}
+	await page.mouse.move(0, 0);
+	await page.setViewportSize({ width: 1280, height: 720 });
 	// The bank's copy is named "Chipotle" too: open the Quick Add.
 	await list(page)
 		.getByRole("button", { name: /^Chipotle, \$12,/ })
