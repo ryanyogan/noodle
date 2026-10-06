@@ -673,6 +673,54 @@ test.beforeAll(async ({ browser }) => {
 				);
 			},
 		},
+		// The rest of Transactions as a phone has it (issue 74): the Filters sheet, the orders, and
+		// "File in…" opened from the selection's bar.
+		{
+			name: "10e-transactions-filters-sheet",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: opened("Filters"),
+		},
+		{
+			name: "10f-transactions-sort-open",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(page.getByRole("combobox", { name: "Sort" }), page.getByRole("listbox"));
+			},
+		},
+		{
+			name: "10g-transactions-file-in",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: async (page) => {
+				const bar = await selectThree(page);
+				await bar.getByRole("button", { name: "File in…" }).click({ timeout: 15_000 });
+				await expect(page.getByPlaceholder(/^(Search or create|Find a Bucket)$/)).toBeVisible({
+					timeout: 15_000,
+				});
+			},
+		},
+		{
+			// Three months in one list, as the sheet's Months leaves it: the chip, and a heading a month.
+			name: "10h-transactions-three-months",
+			path: `/transactions/${month}?range=3m`,
+			phone: true,
+			window: true,
+		},
+		{
+			// The editor's Split opened: two parts and what is left.
+			name: "11b-transaction-split",
+			path: `/transactions/${month}/${ids.openTransaction}`,
+			phone: true,
+			ready: async (page) => {
+				await page
+					.getByRole("button", { name: "Split", exact: true })
+					.first()
+					.click({ timeout: 15_000 });
+				await page.waitForTimeout(400);
+			},
+		},
 		// Part-way down a long page on a computer: where the round Ask Noodle button sits over it.
 		{ name: "10d-transactions-scrolled", path: `/transactions/${month}`, scrolledTo: 600 },
 		{

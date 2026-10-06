@@ -86,4 +86,7 @@ export function ForPicker({
 // the list is about 280px at 1024, where the fifth choice was cut off after two letters (#73).
 const trackClass =
 	"flex w-full overflow-x-auto rounded-xl p-0.75 [scrollbar-width:none] max-sm:grid max-sm:grid-cols-3! max-sm:overflow-x-visible @max-md:grid @max-md:grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] @max-md:overflow-x-visible";
-const itemClass = "h-7.5 min-w-0 flex-[1_0_auto] rounded-[9px] px-3 max-sm:px-2 @max-md:px-2";
+// Under 14rem (a Split's card on a 320px phone) a column is about 64px: less padding and a
+// slightly smaller word, so "Everyone" is whole (issue 74).
+const itemClass =
+	"h-7.5 min-w-0 flex-[1_0_auto] rounded-[9px] px-3 max-sm:px-2 @max-md:px-2 @max-[14rem]:px-1 @max-[14rem]:text-[13px]";

@@ -119,37 +119,37 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 
 | Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Goals list | pic 17 | ok | — | — | — | — | — | — | 74aq: 320 opened, nothing to fix (rows are 3 to 4 lines at 320).  |
-| Goal page, long history | pic 18, 18a, 18b | ok | — | — | — | — | — | — | 74aq: 18 and 18a opened at 320; 18b not. At 320 Edit drops under a long title (Hawaii trip) but sits beside a short one (New roof): choice 6.  |
-| Goal sheets (add, edit, fund, withdraw) | Goals, Goal page | — | — | — | — | — | — | — | no pic yet |
+| Goals list | pic 17 | ok | ok | ok | ok | — | ok | — | 74aq 320; 74ar 375, 393, 430, dark. Nothing to fix (rows are 3 to 4 lines at 320). |
+| Goal page, long history | pic 18, 18a, 18b | ok | ok | ok | ok | — | ok | — | 74au: FIXED, under Finish the action is always under its sentence on a phone and "Archive" starts on the sentence's edge (was 10px in at 375 and 393, beside it at 430); seen at 375 and 430 (`74au-shots/y1.png`). At 320 Edit drops under a long title: choice 6. |
+| Goal sheets (add, edit, add money, spend, take back, archive confirm) | pic 17a, 18c to 18g | ok | — | ok | part | — | part | — | 74ar: all six at 320 and 393; two at 430 and in dark. Nothing to fix. Keyboard height not pictured. |
 | Goals, empty | pic 39b | ok | — | — | — | — | — | — |  |
-| Accounts list, archived open | pic 15, 15a | ok | — | — | — | — | — | — | 74aq: open at 320: "No balance yet" breaks into two lines in the row's trailing cell; Disconnect sits 13px right of Reconnect (ghost button padding). Not fixed.  |
-| Account page (credit card, no balance) | pic 16, 16a | ok | — | — | — | — | — | — | 74aq: fixed, the Perks row no longer names the card twice ("5 Perks"). Open: "Brought in from Chase" takes two lines beside Upload statement at 320.  |
-| Account menu, Rename, Add an Account, bank sheets | Accounts | — | — | — | — | — | — | — | no pic yet |
-| Upload a statement sheet | Accounts or Transactions | — | — | — | — | — | — | — | no pic yet |
+| Accounts list, archived open | pic 15, 15a | ok | ok | ok | ok | — | ok | — | 74ar: FIXED, "No balance yet" is one line from 360px (seen at 393, `74au-shots/r1.png`; two lines at 320 by design); Disconnect's icon is hidden under 360px so it shares Reconnect's line. |
+| Account page (credit card, no balance) | pic 16, 16a | ok | ok | ok | ok | — | ok | — | 74ar: FIXED, the button reads "Upload" under 360px, so "Brought in from Chase" is one line (seen at 320, `74au-shots/r1.png`). 375 is the no-balance Account only. |
+| Account menu, Rename, Add an Account, Update what's owed, Archive confirm | pic 15b, 16b to 16f | ok | — | ok | — | — | — | — | 74ar: all at 320 and 393, nothing to fix. NOT pictured: "Stop syncing" confirm, Disconnect bank dialog. |
+| Upload a statement sheet | pic 16d | ok | — | ok | — | — | — | — | 74ar: 320 and 393. After choosing a file: no pic yet. |
 | Accounts, empty | pic 39c | ok | — | — | — | — | — | — |  |
 | Reports: Overview | pic 23 | ok | ok | ok | ok | — | ok | — | 74aq: BUILT, one Filters button with the Period beside it; Period, Compare with and Group by are in the sheet; chips for what is on. The strip shows the current tab and the faded edge at every size. Still waiting: open from before: three full-width selects and Filters take about 250px at 320 (fold into one Filters sheet). Decision waiting on the Parent: the ten-tab strip or a picker; not built |
 | Reports: Cash flow, Big expenses, Buckets, Plan vs actual, Trends, Merchants, People, Goals, Income | pic 23a to 23i | ok | — | part | part | — | part | — | 74aq: all nine opened at 320; 393 Trends only, 430 Cash flow only, dark Trends and Plan vs actual. Fixed: Every day showed a sliver of a hidden week beside the weekday names. Open: Cash flow "Went out $38,056.66" touches the card edge at 320 (goes with whole dollars, agent 73ap); Goals shows "7.0%" beside "13%"; Plan vs actual legend words wrap at 320.  |
 | Reports Filters sheet | Reports › Filters | ok | — | ok | ok | — | ok | — | 74aq: pic 23j (sheet) and 23k (chips). Keyboard height not pictured (Merchant and At least fields). no pic yet |
-| Reports, empty | pic 39a | — | — | — | — | — | — | — |  |
-| Explore | pic 19, 19a | part | — | — | — | — | — | — | 74aq: 19 opened at 320 (19a not). Charts tabs are now one line at 14px in a scrolling strip (was two-line 12px). The years toggle is still 44px beside 36px tabs: choice 7. open from before: 44px buttons beside 36px tabs; two-line 12px chart tabs |
-| Explore sheets: line, group, growth | pic 19b, 19d, 19c | part | — | — | — | — | — | — | 74aq: 19b opened at 320 only.  |
-| Can we afford it? (Car, Anything) | pic 20, 20a, 20b | — | — | — | — | — | — | — |  |
-| Scenarios, compare, a Scenario | pic 21, 21a, 22 | part | — | — | — | — | — | — | 74aq: 21 and 22 opened at 320; compare not.  |
-| Explore, Afford: empty | pic 39g, 39k | — | — | — | — | — | — | — |  |
-| Insights | pic 24 | — | — | — | — | — | — | — |  |
-| Perks & Benefits, a row open, add sheet | pic 25, 25a, 25b | — | — | — | — | — | — | — | the picture Household's Perks seeding fails ("data that couldn't be seeded"), so pic 25 has no cards |
-| Check-in and its footer | pic 26, 26a | — | — | — | — | — | — | — |  |
-| Household settings, every section | pic 27 | ok | — | — | — | — | — | — | 74aq: opened at 320, nothing changed (no baseline change expected). CI: strict `household-iphone-*` baselines (Chromium) |
+| Reports, empty | pic 39a | ok | — | — | — | — | — | — | 74au: opened at 320, nothing to fix. |
+| Explore | pic 19, 19a | ok | ok | — | part | — | part | — | 74au: 19 and 19a at 375, 19 at 430 and dark; 74ar 19a at 320. Nothing to fix. The years toggle is still 44px beside 36px tabs: choice 7. |
+| Explore sheets: line, group, growth | pic 19b, 19d, 19c | ok | — | part | — | — | — | — | 74ar: growth and group at 320 and 393 (contact-sheet size). Taken at 375, 430, dark; not opened. |
+| Can we afford it? (Home, Car, Anything) | pic 20, 20a, 20b | ok | part | ok | part | — | part | — | 74ar: all three at 320 and 393. 74au: Home at 375, 430, dark. Nothing to fix. |
+| Scenarios, compare, a Scenario | pic 21, 21a, 22 | ok | ok | part | part | — | part | — | 74au: list and compare at 375, list at 430 and dark. 74ar: compare at 320 and 393. Nothing to fix. |
+| Explore, Afford: empty | pic 39g, 39k | ok | — | — | — | — | — | — | 74au: both at 320, nothing to fix. |
+| Insights, and empty | pic 24, 39d | ok | ok | — | ok | — | ok | — | 74au: nothing to fix. |
+| Perks & Benefits, a row open, add sheet | pic 25, 25a, 25b | ok | part | — | part | — | part | — | 74au: all three at 320; page and add sheet at 375; row open at 430; page in dark. The cards are seeded now (one seed note still fails the picture run). Nothing to fix. |
+| Check-in and its footer, and empty | pic 26, 26a, 39e | ok | part | — | — | — | — | — | 74au: 26, 26a, 39e at 320; 26 at 375. Nothing to fix. Taken at 430 and dark; not opened. |
+| Household settings, every section | pic 27 | ok | ok | — | — | — | — | — | 74au: whole page opened again at 320 and at 375, nothing to fix. Taken at 393, 430, dark; not opened. CI: strict `household-iphone-*` baselines (Chromium) |
 | Household: Nudges choices open | Household › Nudges | — | — | — | — | — | — | — | never opened in any phase; no pic yet |
 | Household: Snapshots with history | Household › Snapshots | — | — | — | — | — | — | — |  |
-| Household sheets: Start fresh, Delete, your name and colour, Child, invite | pic 27a, 27b, 27c | part | — | — | — | — | — | — | 74aq: 27a, 27b, 27c opened at 320 (step 1 only, no keyboard). Start fresh's title sits about 6px higher than Delete Household's.  |
-| Ask | pic 24x, 39f | — | — | — | — | — | — | — | has a text field: keyboard column too |
-| Glossary | pic 28 | — | — | — | — | — | — | — |  |
-| Transactions list | pic 10 | — | — | — | — | — | — | — | last, layout only: 99g is changing the range control |
-| Transactions: Filters sheet, Sort | Transactions | — | — | — | — | — | — | — |  |
-| Transactions: selection bar, Delete sheet | pic 10b, 10c | — | — | — | — | — | — | — | open from before: the bar's buttons probably wrap at 320 |
-| Transaction page, editor, Split, receipt | pic 11, 11a | — | — | — | — | — | — | — |  |
+| Household sheets: Start fresh, Delete, your name and colour, Child, invite | pic 27a to 27d | part | part | part | — | — | — | — | 74ar: FIXED, Start fresh's title sits where Delete Household's does (seen at 320); Delete step 2 at 393. 74au: Delete step 2 at 375. Child and invite sheets: no pic yet. |
+| Ask, and empty | pic 24x, 39f | ok | ok | — | — | — | — | — | 74au: nothing to fix. Keyboard height not pictured (it has a text field). |
+| Glossary | pic 28 | ok | ok | — | — | — | — | — | 74au: first two screens of the page at each; nothing to fix. |
+| Transactions list, three months | pic 10, 10a, 10h | ok | — | ok | — | — | ok | — | 74au: the new page (open in place, Months). 10a at 320, 393, dark; the long list at 393; three months with its chip and month heading at 320. Nothing to fix. |
+| Transactions: Filters sheet (Months is in it), Sort | pic 10e, 10f | ok | — | ok | — | ok | ok | — | 74au: sheet at 320, 393, dark and 500 tall (320 and 393; it scrolls above its footer); Sort's list at 320. Nothing to fix. |
+| Transactions: selection bar, File in…, Delete sheet | pic 10b, 10c, 10g | ok | ok | ok | — | ok | ok | — | 74au: FIXED three. Under 360px Cancel, File in… and Delete wrapped raggedly under the count: they now share a line of their own equally. The Delete sheet's "Delete 3 Transactions" was cut off at 320 (half the footer): Cancel is as wide as its word and Delete has the rest, no icon under 360px. File in…'s picker is narrower on a phone so the bar isn't a line taller while a Bucket is picked (375 and 393). Seen: `74au-shots/t320.png` before, `u320.png`, `w1.png` after. |
+| Transaction page, editor, Split, old-month sentence | pic 11, 11a, 11b | ok | — | ok | — | part | part | — | 74au: FIXED, in a Split's card at 320 "Everyone" was cut to "Everyo…" (`v320.png` before, `w1.png` after). The "had no Buckets" sentence and "It can't be split" seen in the sheet at 320 and 393 (`y1.png`). Keyboard: name field at 393, Split at 320. Dark: the page only. A Receipt: no pic yet (none seeded). |
 
 ## Decisions for the Parent (not built)
 
@@ -166,3 +166,4 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 11. Toasts on phones: show one at a time so two Undo toasts and a Rule offer never cover the card above the tab bar (`74ap-shots/320/44-review-list-two-toasts.png`). Recommended: one visible toast below 1024px.
 12. Review on short phones (320×568, 375×667): Skip and Undo need a scroll under the taller cards. Recommended: choose the compact card layout by window height (under about 700px), not only by width (`74ap-shots/375/12c-review-card-payment-not-followed.png`).
 13. What Sort says is cut in its first part on phones and keeps "N left."; the cut words cannot be read afterwards (a screen reader hears all). Recommended: leave.
+14. Sheet headers: the close X is centred on the whole header, so beside a three-line description it sits under the title's line (Perks' add sheet, Delete Transactions; `74au-shots/b2.png`, `u320.png`). Recommended: top-align it with the title in `packages/ui` `sheet.tsx` for every sheet, phone and desktop, in a phase that can redraw the desktop pictures. Not built.

@@ -756,7 +756,7 @@ function SplitFields({
 	const id = `split-${split.id}`;
 	const name = `Split ${index + 1}`;
 	return (
-		<fieldset className="relative grid gap-3 rounded-2xl border border-border p-3">
+		<fieldset className="relative grid gap-3 rounded-2xl border border-border p-3 max-[22.5rem]:p-2.5">
 			<legend className="float-left h-7 text-xs leading-7 font-medium text-muted-foreground">
 				{name}
 			</legend>
