@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
+import { fakePushManager } from "./push";
 import { seedSql } from "./seed-sql";
 import { choose, createHousehold, openMore, savedBy, signedInPage } from "./session";
 import { q, seedBetweenUs, seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
@@ -944,6 +945,33 @@ test.beforeAll(async ({ browser }) => {
 			ready: opened("Upload statement"),
 		},
 		{
+			name: "16g-account-statement-chosen",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: async (page) => {
+				await opened("Upload statement")(page);
+				await page
+					.getByRole("dialog", { name: "Upload a statement" })
+					.getByLabel("Statement file")
+					.setInputFiles(
+						join(import.meta.dirname, "../../../packages/domain/fixtures/statements/checking.csv"),
+					);
+				await page.waitForTimeout(1500);
+			},
+		},
+		{
+			name: "16h-account-stop-syncing-confirm",
+			path: `/accounts/${ids.sapphire}`,
+			phoneSheet: true,
+			ready: opened(/^Stop syncing with/, true),
+		},
+		{
+			name: "15c-accounts-disconnect-confirm",
+			path: "/accounts",
+			phoneSheet: true,
+			ready: opened(/^Disconnect /, true),
+		},
+		{
 			name: "16e-account-archive-confirm",
 			path: `/accounts/${ids.college}`,
 			phoneSheet: true,
@@ -1089,6 +1117,16 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		{
+			name: "23l-reports-filters-typing",
+			path: "/reports?view=trends",
+			phoneSheet: true,
+			ready: async (page) => {
+				const sheet = page.getByRole("dialog", { name: "Filters" });
+				await pressFor(page.getByRole("button", { name: /^Filters/ }), sheet);
+				await sheet.getByRole("textbox").first().focus();
+			},
+		},
+		{
 			name: "23k-reports-trends-with-chips",
 			path: "/reports?view=trends&period=12m&compare=last-year&group=week&min=50&member=everyone",
 			phone: true,
@@ -1177,8 +1215,87 @@ test.beforeAll(async ({ browser }) => {
 				);
 			},
 		},
+		// What no picture showed before the final phone pass (issue 74): the second step of Start
+		// fresh, Nudges with their choices, Snapshots with a history, a Child's sheet, an invite sent.
+		{
+			name: "27e-start-fresh-step-2",
+			path: "/household",
+			phoneSheet: true,
+			ready: async (page) => {
+				await openDangerSheet(page, "Start fresh");
+				const sheet = page.getByRole("dialog", { name: "Start fresh?" });
+				await sheet.getByRole("button", { name: "Continue" }).click();
+				await sheet.getByRole("textbox").focus();
+			},
+		},
+		{
+			name: "27f-household-nudges-on",
+			path: "/household",
+			phoneSheet: true,
+			ready: async (page) => {
+				await page.context().addInitScript(fakePushManager);
+				await page.reload();
+				await settled(page);
+				const nudges = page.getByRole("region", { name: "Nudges" });
+				const on = nudges.getByText("Nudges are on for this device.");
+				await expect(async () => {
+					if (!(await on.isVisible()))
+						await nudges.getByRole("button", { name: "Turn on" }).click({ timeout: 2000 });
+					await expect(on).toBeVisible({ timeout: 5000 });
+				}).toPass({ timeout: 30_000 });
+				const choose = nudges.getByRole("button", { name: "Choose which Nudges you get" });
+				if (await choose.isVisible()) await choose.click();
+				await nudges.evaluate((node) => node.scrollIntoView({ block: "start" }));
+			},
+		},
+		{
+			name: "27g-household-snapshots-history",
+			path: "/household",
+			phoneSheet: true,
+			ready: async (page) => {
+				const snapshots = page.getByRole("region", { name: "Snapshots" });
+				const rows = snapshots.getByRole("listitem");
+				for (const note of ["Before the big shop", "Before we changed the Plan for the holidays"]) {
+					if ((await rows.filter({ hasText: note }).count()) > 0) continue;
+					await expect(async () => {
+						await snapshots.getByLabel("Note").fill(note);
+						await snapshots.getByRole("button", { name: "Take a snapshot" }).click();
+						await expect(rows.filter({ hasText: note }).first()).toBeVisible({ timeout: 40_000 });
+					}).toPass({ timeout: 90_000 });
+				}
+				const more = snapshots.getByRole("button", { name: /earlier/i });
+				if (await more.isVisible()) await more.click();
+				await snapshots.evaluate((node) => node.scrollIntoView({ block: "start" }));
+			},
+		},
+		{
+			name: "27h-child-sheet",
+			path: "/household",
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(
+					page
+						.getByRole("region", { name: "Children" })
+						.getByRole("button", { name: /^Edit / })
+						.first(),
+					page.getByRole("dialog"),
+				);
+				await page.getByRole("dialog").getByRole("textbox").first().focus();
+			},
+		},
 		{ name: "28-glossary", path: "/glossary" },
 		{ name: "24x-ask", path: "/ask" },
+		{
+			// Ask with a question typed, as when the keyboard is up (PAGE_SHOTS_HEIGHT=500).
+			name: "24y-ask-typing",
+			path: "/ask",
+			phoneSheet: true,
+			ready: async (page) => {
+				const ask = page.getByLabel("Ask").first();
+				await ask.fill("Can we afford a second car if the payment is $450 a month?");
+				await ask.focus();
+			},
+		},
 		{ name: "08x-plan-income", path: `/plan/${month}/income` },
 		{ name: "39a-empty-reports", path: "/reports", fresh: true },
 		{ name: "39b-empty-goals", path: "/goals", fresh: true },
