@@ -46,8 +46,6 @@ jobs:
       CI: "true"
       IOS_SIM_DEVICE: ${{ matrix.device }}
       IOS_SIM_OUT: ${{ github.workspace }}/ios-sim-out
-      # Appium keeps its drivers here, apart from the checkout.
-      APPIUM_HOME: ${{ runner.temp }}/appium
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
@@ -90,6 +88,9 @@ jobs:
       - name: Install Appium and its XCUITest driver
         working-directory: apps/web/ios-sim
         run: |
+          # Appium keeps its drivers here, apart from the checkout (later steps need it too).
+          export APPIUM_HOME="$RUNNER_TEMP/appium"
+          echo "APPIUM_HOME=$APPIUM_HOME" >> "$GITHUB_ENV"
           npm install --no-audit --no-fund
           npx appium --version
           npx appium driver install xcuitest
