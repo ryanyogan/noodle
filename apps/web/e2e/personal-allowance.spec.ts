@@ -197,7 +197,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		await targetRun.click();
 		const shown = sam
 			.locator("[role=dialog], [data-slot=transaction-detail]")
-			.filter({ has: sam.getByRole("heading", { name: /^Transaction(: |$)/ }) });
+			.filter({ has: sam.getByRole("heading", { name: /^Transaction( ?:|$)/ }) });
 		await expect(
 			shown.getByText("Part of this is in Alex’s Personal Allowance, so only Alex can change it."),
 		).toBeVisible();
