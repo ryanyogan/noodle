@@ -15,14 +15,14 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 | Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
 | Tab bar (Month, Transactions, Quick Add, Goals, More) | every page | ok | ok | ok | ok | — | ok | — | seen on every picture below (320 at 640 tall). CI: `phone-header`, `phone-crowding`, `phone-pwa` (safe areas) |
-| Page header (title, one action, tabs row) | every page | — | — | — | — | — | — | — | only This Month's was looked at (below). CI: `phone-header` |
-| More sheet | tab bar › More (pic 29) | — | — | — | — | — | — | — | known: "Perks & Benefits" and "Household settings" take two lines at 320 |
-| Term help popover | any "?" beside a heading | — | — | — | — | — | — | — |  |
-| Toast: plain, with Undo, error, two stacked | save, delete, a failed save | — | — | — | — | — | — | — | known: two toasts stack close to the tab bar after two Quick Adds |
+| Page header (title, one action, tabs row) | every page | ok | — | ok | — | — | ok | — | 74ap: Review's section header (320, 393, dark) and a Rule's item header with Back and pager (320) opened; other pages' headers belong to their rows. CI: `phone-header` |
+| More sheet | tab bar › More (pic 29) | fixed d7f2e1f1 | — | fixed fe9df597 | — | — | open: retake | — | 74ap: one column below 400px, every name on one line (320 and 393 opened after the fix; dark 393 was opened BEFORE it, two columns, "Household settings" on two lines). 375 and 430 not opened |
+| Term help popover | any "?" beside a heading | ok | — | — | — | — | — | — | pic 12h (Review's "?"), 320 only |
+| Toast: plain, with Undo, error, two stacked | save, delete, a failed save | open: three toasts cover the card | — | open: same | — | — | — | — | pic 44 (asked for by name; it files cards). Two Undo toasts and the Rule offer stack to about 230px above the tab bar: at 320 they cover the card's buttons. Decision 6 below; not built |
 | "Leave without saving?" dialog | leave an edited form | — | — | — | — | — | — | — |  |
-| Intro video dialog | sign-in, sign-up, setup › Watch | — | — | — | — | — | — | — |  |
+| Intro video dialog | sign-in, sign-up, setup › Watch | ok | — | — | — | — | — | — | from sign-in at 320×568 (throwaway spec, kept as `74ap-shots/zz-look.spec.ts.txt`); pictured at 375 to 430 and dark but not opened |
 | Route error screen | a loader that throws | — | — | — | — | — | — | — |  |
-| Not-found screen | an unknown address | — | — | — | — | — | — | — |  |
+| Not-found screen | an unknown address | fixed d7f2e1f1 | — | — | — | — | — | — | pic 38: an unknown address had no frame (the card touched the screen's edges); now the logo, gutter and safe areas. 320 opened after the fix |
 | Section loading skeleton | a slow loader | — | — | — | — | — | — | — |  |
 | 200% text size | iOS larger text, every page | — | — | — | — | — | — | — | CI: `phone-large-text` (WebKit); it failed once on the Plan's Buckets table |
 
@@ -30,14 +30,14 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 
 | Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Sign in | /sign-in (`auth-shots`) | — | — | — | — | — | — | — |  |
-| Sign up | /sign-up (`auth-shots`) | open: footer splits into two columns, email placeholder cut (Clerk's card) | — | — | — | — | — | — | "Watch the 1-minute intro" added as sign-in has it, NOT yet pictured; the `auth-shots` baselines will change |
+| Sign in | /sign-in (`auth-shots`) | ok | — | ok | — | — | — | — | 74ap: 320 and 393 opened; 375, 430, dark and keyboard pictured, not opened |
+| Sign up | /sign-up (`auth-shots`) | fixed 47321ac8 | ok | ok | ok | ok | ok | — | Clerk card's side padding is 20px below 360px (placeholder in full); "Sign in" sits centred under its question, never beside it. Keyboard = 320×500 with the email field in use. `auth-shots` baselines (393) change only by the intro button from 74an |
 | Sign up, verify code | /sign-up/verify-email-address | — | — | — | — | — | — | — |  |
 | Invite | /invite/$token | — | — | — | — | — | — | — |  |
 | Welcome, Joined | /welcome, /joined | — | — | — | — | — | — | — |  |
-| Setup step 1 (Hello) | /setup (pic 31) | — | — | — | — | — | — | — |  |
-| Setup step 2 (income) | /setup (pic 32, 32a) | open: the field label wraps with tight line spacing | — | — | — | — | — | — | from phase 110c; not looked at again |
-| Setup steps 3 and 4 | /setup (pic 33, 34) | — | — | — | — | — | — | — |  |
+| Setup step 1 (Hello) | /setup (pic 31) | ok | — | — | — | — | — | — |  |
+| Setup step 2 (income) | /setup (pic 32, 32a) | fixed 47321ac8 | — | — | — | ok | — | — | the label's two lines have normal spacing; keyboard = 393×500 (one line there) |
+| Setup steps 3 and 4 | /setup (pic 33, 34) | ok | — | — | — | — | — | — | step 3: the colon after the "?" of Commitments stands apart (" ? :"), wording nit, left |
 | Setup steps 5 to 7 | /setup, continue | — | — | — | — | — | — | — | no pic yet |
 | Bank return | /bank/return | — | — | — | — | — | — | — |  |
 
@@ -104,16 +104,16 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 
 | Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Sort stack, toolbar | /review (pic 12) | — | — | — | — | — | — | — | open from before: four icon buttons crowded at 320; the merchant cut beside the amount. CI: `phone-review-fit` |
-| Card: suggested Bucket | pic 12a | — | — | — | — | — | — | — |  |
-| Card: card payment | pic 12b | — | — | — | — | — | — | — |  |
-| Card: a card Noodle doesn't follow | Review, skip to it | — | — | — | — | — | — | — | open from before: the Bucket picker reads "Or pick a Buc…" at 320; stacking it pushed Skip and Undo under the tab bar |
-| Card: Transfer, Refund, Split, between us | pic 42 and others | — | — | — | — | — | — | — | not every kind has a pic |
-| Review, all done | Review with nothing left | — | — | — | — | — | — | — | no pic yet |
-| Review list | pic 13 | — | — | — | — | — | — | — |  |
-| Edit Transaction sheet | Review list › a row | — | — | — | — | — | — | — | no pic yet |
-| "Make a Rule" sheet | card › Make a Rule | — | — | — | — | — | — | — | no pic yet |
-| Rules list, Rule page, "Add a Rule" sheet | pic 14 | — | — | — | — | — | — | — |  |
+| Sort stack, toolbar | /review (pic 12) | ok | ok | ok | ok | — | ok | — | 74ap: four buttons 44px with 4px gaps at 320, 8px from 375; left as is. A payment card's name is one line at 320 by design (full name behind the pencil). What Sort says: fixed fe9df597 (a long line ran past the gutter after 4ca58018; now cut in its first part, "N left." kept; 393 opened, a line long enough to be cut was NOT pictured). At 320×568 and 375×667 Skip and Undo are below the tab bar until scrolled (the guard is 320×640): decision 7 |
+| Card: suggested Bucket | pic 12a | ok | — | ok | — | — | — | — | 320×500 pictured, not opened |
+| Card: card payment | pic 12b | ok | — | — | — | — | — | — | followed (12b) and Commitment (12d) at 320 |
+| Card: a card Noodle doesn't follow | Review, skip to it | fixed 4ca58018 | ok | ok | — | — | ok | — | pic 12c: at 320 the picker reads "Pick a Bucket…" in full beside "Card payment"; `phone-review-fit` passes. At 375×667 the card is taller than the window (decision 7) |
+| Card: Transfer, Refund, Split, between us | pic 42 and others | ok | — | ok | ok | — | — | — | between us (12e) and no suggestion (12f) opened. NOT pictured: a Split, a Refund, the New Bucket step, the match offer |
+| Review, all done | Review with nothing left | ok | — | — | — | — | — | — | pic 39l (a new Household: "Nothing to review"). The finish after the last card of a run is not pictured |
+| Review list | pic 13 | ok | — | — | — | — | — | — | opened at 320 before the fixes (none touch the list) |
+| Edit Transaction sheet | Review list › a row | ok | — | — | ok | ok | ok | — | pics 13a, 13b (Name in use, 320×500: Delete and Save stay in view). For: one choice alone on the second line at 393 and 430 (decision 3) |
+| "Make a Rule" sheet | card › Make a Rule | — | — | — | — | — | — | — | no pic yet. The Rule offer under the card ("Always file …?") was opened at 393 (pic 43): ok |
+| Rules list, Rule page, "Add a Rule" sheet | pic 14 | ok | — | — | — | ok | — | — | pics 14, 14a, 14b. List rows are two or three lines at 320 as the facts wrap whole (left). Add a Rule at 320×568 and 320×500 opened |
 
 ## D. Everything else
 
@@ -157,9 +157,12 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 2. Bills: BUILT in 74ao (from 375).
 3. Quick Add's For picker: BUILT in 74ao (three equal columns).
 4. Personal Allowance names on two lines at 320: leave as is.
-6. Plan's Buckets on a phone: rows are two or three lines depending on the figures ("$1,100 allowance · $1,184.62 spent" does not fit beside a pencil at 375 to 393). Recommend one short line under the name at every phone width, "$1,184.62 of $1,100 spent" (`74ao-shots/sheets/c1.png`). Not built.
+10. Plan's Buckets on a phone: rows are two or three lines depending on the figures ("$1,100 allowance · $1,184.62 spent" does not fit beside a pencil at 375 to 393). Recommend one short line under the name at every phone width, "$1,184.62 of $1,100 spent" (`74ao-shots/sheets/c1.png`). Not built.
 5. Reports: ten tabs or a picker on phones (from issue 115; not looked at here).
 6. Item pages at 320: the header action (Edit, Rename, More) drops under a long title but stays beside a short one. Recommend always under the title below 360px (`74aq-shots/320/18-goal.png` against `18a-goal-long-history.png`).
 7. Explore: the years toggle (44px, outlined) beside tab strips (36px on a track). Recommend drawing it as the same tab strip (`74aq-shots/320/19-explore.png`).
 8. Explore and Scenario Charts tabs now scroll; at 393 the fourth tab (Goal paths) is wholly off the edge with only the fade to say so. Alternative: a select above the chart (`74aq-shots/sheets/v1.png`).
 9. Reports on a phone: the Period shows as plain text beside Filters, not as a chip. Alternative: make it a tappable chip that opens the sheet (`74aq-shots/320/23-reports.png`).
+11. Toasts on phones: show one at a time so two Undo toasts and a Rule offer never cover the card above the tab bar (`74ap-shots/320/44-review-list-two-toasts.png`). Recommended: one visible toast below 1024px.
+12. Review on short phones (320×568, 375×667): Skip and Undo need a scroll under the taller cards. Recommended: choose the compact card layout by window height (under about 700px), not only by width (`74ap-shots/375/12c-review-card-payment-not-followed.png`).
+13. What Sort says is cut in its first part on phones and keeps "N left."; the cut words cannot be read afterwards (a screen reader hears all). Recommended: leave.
