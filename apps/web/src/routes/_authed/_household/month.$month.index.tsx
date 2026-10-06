@@ -16,6 +16,7 @@ import {
 	type MonthState,
 	monthCloseProposal,
 	monthEnd,
+	monthEnded,
 	monthOfDay,
 	nothingToDecide,
 	whatChanged,
@@ -135,6 +136,7 @@ function ThisMonth() {
 				bucket={bucket}
 				onCover={over.includes(bucket) ? () => setCovering(bucket.id) : undefined}
 				explainCover={bucket === firstOver}
+				ended={monthEnded(month, state.asOf)}
 				// Only the other Parent's Personal Allowance is private; its totals are all there is.
 				private={!mine}
 			/>
@@ -239,7 +241,12 @@ function ThisMonth() {
 											id="buckets"
 											title="Buckets"
 											count={buckets.length}
-											help={<TermHelp term="bucket" extra={<BucketsHelpExtra />} />}
+											help={
+												<TermHelp
+													term="bucket"
+													extra={monthEnded(month, state.asOf) ? undefined : <BucketsHelpExtra />}
+												/>
+											}
 											// The way to the list where Buckets are added, changed, moved and
 											// archived (#98): it was three taps away on a phone, under More.
 											action={
@@ -261,7 +268,8 @@ function ThisMonth() {
 										<List>{buckets.map(bucketRow)}</List>
 										{/* Under the list, not between the heading and the card, so the card's top is level
 										    with Free to Spend's in the rail (#73L). */}
-										<BarKey />
+										{/* The key is about today's line: an ended month has none. */}
+										{monthEnded(month, state.asOf) ? null : <BarKey />}
 									</Section>
 								) : null}
 							</div>
@@ -665,6 +673,17 @@ function FreeToSpend({
 	const carry = useFreeCarry(state.month);
 	const ownFree = state.freeToSpend - state.freeCarriedIn;
 	const lastMonth = monthName(addMonths(state.month, -1));
+	// Income below what's usual. A month still running is "behind by now". An ended month has no
+	// "by now" and nothing more to plan in it (issue 73): what it brought is set against the month
+	// before, which is what was expected of it; when that was take-home pay itself there is nothing
+	// to add, since the Income line says it ("$7,626 received of $9,400 usual take-home pay").
+	const incomeNote = !check?.below
+		? null
+		: !check.ended
+			? `Income is ${formatMoney(check.short)} behind where it usually is by now. Worth a look before planning more spending.`
+			: check.expected === state.baseline
+				? null
+				: `Income came in ${formatMoney(check.short)} lower than in ${lastMonth}.`;
 	return (
 		<Section aria-labelledby="free-to-spend">
 			<SectionHeader
@@ -754,10 +773,9 @@ function FreeToSpend({
 							pending={lowering.pending}
 							onLower={() => lowering.lower(lower, state.freeToSpend)}
 						/>
-					) : check?.below ? (
+					) : incomeNote ? (
 						<p role="note" className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5 text-sm">
-							Income is {formatMoney(check.short)} behind where it usually is by now. Worth a look
-							before planning more spending.
+							{incomeNote}
 						</p>
 					) : null}
 				</div>
@@ -822,8 +840,11 @@ function BucketRow({
 	onCover,
 	explainCover = false,
 	private: isPrivate = false,
+	ended = false,
 }: {
 	bucket: BucketState;
+	/** The month is over: the bar has no Today line. */
+	ended?: boolean;
 	/** Says what Cover does beside its button: only the first overspent row does. */
 	explainCover?: boolean;
 	/** Covers it, when it's overspent and the Parent may. */
@@ -846,7 +867,9 @@ function BucketRow({
 			// The whole row opens the Bucket (the link's ::after covers it); its buttons sit above.
 			className={cn(
 				"relative transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
-				"has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-ring",
+				// The ring is the row's link's: its Cover button has a ring of its own, and the two were
+				// drawn together, one around the other.
+				"has-[a:focus-visible]:outline-2 has-[a:focus-visible]:-outline-offset-2 has-[a:focus-visible]:outline-ring",
 			)}
 			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
 			title={
@@ -912,7 +935,8 @@ function BucketRow({
 						bucket={color}
 						value={bucket.spent}
 						max={bucket.available}
-						marker={1 - bucket.pace.leftShare}
+						// An ended month has no today: its line would sit at the bar's end and say nothing.
+						marker={ended ? undefined : 1 - bucket.pace.leftShare}
 						state={barState(bucket.status)}
 						label={bucket.name}
 						valueText={`${formatMoney(bucket.spent)} spent of ${formatMoney(bucket.available)}, ${

@@ -721,6 +721,38 @@ test.beforeAll(async ({ browser }) => {
 			name: "01i-ended-month",
 			path: `/month/${new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)) - 2, 1)).toISOString().slice(0, 7)}`,
 		},
+		// This Month under the keyboard and the pointer (issue 73), as Reports' 23sa to 23sd: a Bucket's
+		// row focused and a To do row under the pointer; the To do row (a toggle: it opens and closes)
+		// focused and a button under the pointer; that button focused and a Bucket's row under the pointer.
+		...(
+			[
+				["01m-this-month-row-focus-toggle-hover", "row", "toggle"],
+				["01n-this-month-toggle-focus-button-hover", "toggle", "button"],
+				["01o-this-month-button-focus-row-hover", "button", "row"],
+			] as const
+		).map(
+			([name, focused, hovered]): Shot => ({
+				name,
+				path: `/month/${month}`,
+				window: true,
+				ready: async (page) => {
+					const main = page.getByRole("main");
+					const part = {
+						row: main.getByRole("link", { name: "Groceries", exact: true }).first(),
+						toggle: main
+							.getByRole("region", { name: "To do" })
+							.locator("button[aria-expanded]:visible")
+							.first(),
+						// A plain button: not a "?" and not a row that opens.
+						button: main
+							.locator("button:visible:not([aria-expanded]):not([aria-haspopup])")
+							.first(),
+					};
+					await keyboardFocus(page, part[focused]);
+					await part[hovered].hover();
+				},
+			}),
+		),
 		{
 			name: "02-this-month-to-do-open",
 			path: `/month/${month}`,
@@ -1715,6 +1747,30 @@ test.beforeAll(async ({ browser }) => {
 				},
 			}),
 		),
+		// The Check-in finished: "You’re done for this week" and what still waits. A step's card is
+		// read-only (its work is done on its own page), so the steps are passed with their Skip and the
+		// last one finishes the week. Only when asked for by name (PAGE_SHOTS_ONLY=26e), one width a
+		// run: the Check-in stays done for every picture after it.
+		...(only.includes("26e")
+			? [
+					{
+						name: "26e-check-in-done",
+						path: "/check-in",
+						ready: async (page: Page) => {
+							const main = page.getByRole("main");
+							const done = main.getByText("You’re done for this week");
+							await expect(async () => {
+								if ((await done.count()) === 0)
+									await main
+										.getByRole("button", { name: /^Skip (for now|and finish)$/ })
+										.first()
+										.click({ timeout: 2000 });
+								await expect(done).toBeVisible({ timeout: 2000 });
+							}).toPass({ timeout: 30_000 });
+						},
+					},
+				]
+			: []),
 		{ name: "27-household-settings", path: "/household" },
 		{
 			// The Start fresh sheet, open and not confirmed: what it says about snapshots, files and

@@ -277,6 +277,7 @@ export {
 	daysInMonth,
 	lastDayOf,
 	type MonthKey,
+	monthEnded,
 	monthKeyAt,
 	monthOfDay,
 	monthsBetween,

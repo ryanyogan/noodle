@@ -6,6 +6,7 @@ import {
 	daysElapsed,
 	daysInMonth,
 	type MonthKey,
+	monthEnded,
 	monthOfDay,
 } from "./month";
 import type { BucketState } from "./month-state";
@@ -70,8 +71,16 @@ export type IncomeCheck = {
 	expected: Cents;
 	/** How far `received` is behind `expected`; 0 when it isn't. */
 	short: Cents;
-	/** Income is tracking below take-home pay: worth a calm word from mid-month on. */
+	/**
+	 * Income is below take-home pay: worth a calm word from mid-month on. While the month runs it is
+	 * "behind where it usually is by now"; once it has `ended` it simply came in below the usual.
+	 */
 	below: boolean;
+	/**
+	 * The month is over: `received` is all of its Income and `expected` what a month usually brings
+	 * (all of the month before, up to take-home pay). Nothing is "by now" or still to come.
+	 */
+	ended: boolean;
 };
 
 /**
@@ -109,7 +118,7 @@ export function incomeCheck({
 			: Math.round((baseline * elapsed) / days);
 	const short = Math.max(0, expected - received);
 	const below = elapsed >= INCOME_WARNING_FROM_DAY && short > baseline * INCOME_TOLERANCE;
-	return { received, expected, short, below };
+	return { received, expected, short, below, ended: monthEnded(month, asOf) };
 }
 
 /** On This Month the step is offered in the month's last days, when little more pay is due. */
