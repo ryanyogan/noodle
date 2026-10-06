@@ -363,7 +363,7 @@ function DetailPanel({
 							<span
 								aria-hidden="true"
 								data-slot="detail-close-ground"
-								className="pointer-events-none absolute -inset-x-6 -top-6 -z-10 mt-0! h-19 border-b bg-popover"
+								className="pointer-events-none absolute -inset-x-6 -top-6 -z-10 mt-0! h-19 border-b bg-card"
 							/>
 						) : null}
 						{close}
