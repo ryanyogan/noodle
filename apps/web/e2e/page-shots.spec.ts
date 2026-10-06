@@ -1743,9 +1743,12 @@ test.beforeAll(async ({ browser }) => {
 			path: "/reports?view=buckets",
 			window: true,
 			ready: async (page) => {
-				await page.getByRole("combobox", { name: "Period" }).focus();
-				await page.keyboard.press("Tab");
-				await page.keyboard.press("Shift+Tab");
+				// On a phone the Period select is in the Filters sheet, which covers the rows: the
+				// keyboard's focus is pictured there, and there is no pointer to hold over a row. (Waiting
+				// for a select the page doesn't show used up the whole phone run: issue 122.)
+				const inSheet = await phoneFilters(page);
+				await keyboardFocus(page, page.getByRole("combobox", { name: "Period" }));
+				if (inSheet) return;
 				await page
 					.getByRole("button", { name: /^Groceries: \$/ })
 					.first()
@@ -1786,6 +1789,9 @@ test.beforeAll(async ({ browser }) => {
 			window: true,
 			ready: async (page) => {
 				await keyboardFocus(page, page.getByRole("button", { name: /^Kids: \$/ }).first());
+				// A phone keeps "Compare with" in the Filters sheet, and opening that takes the focus off
+				// the row: there only the focused row is pictured.
+				if ((page.viewportSize()?.width ?? 0) < 640) return;
 				await page.getByRole("combobox", { name: "Compare with" }).hover();
 			},
 		},
@@ -2007,13 +2013,20 @@ test.beforeAll(async ({ browser }) => {
 				await settled(page);
 				const nudges = page.getByRole("region", { name: "Nudges" });
 				const on = nudges.getByText("Nudges are on for this device.");
+				// Safari on an iPhone can't get Nudges until Noodle is on the Home Screen, and says so
+				// where "Turn on" would be (WebKit as an iPhone: issue 122). That is then the picture.
+				const cannot = nudges.getByText(
+					/add Noodle to your Home Screen|This browser can’t show Nudges/,
+				);
+				await expect(nudges.getByText("Checking this device…")).toBeHidden({ timeout: 15_000 });
 				await expect(async () => {
+					if (await cannot.isVisible()) return;
 					if (!(await on.isVisible()))
 						await nudges.getByRole("button", { name: "Turn on" }).click({ timeout: 2000 });
 					await expect(on).toBeVisible({ timeout: 5000 });
 				}).toPass({ timeout: 30_000 });
 				const choose = nudges.getByRole("button", { name: "Choose which Nudges you get" });
-				if (await choose.isVisible()) await choose.click();
+				if (await choose.isVisible()) await choose.click({ timeout: 15_000 });
 				await nudges.evaluate((node) => node.scrollIntoView({ block: "start" }));
 			},
 		},
@@ -2698,8 +2711,45 @@ test.beforeAll(async ({ browser }) => {
 		).map((shot): Shot => ({ ...shot, desktop: true, window: true })),
 		{ name: "50-bank-return", path: "/bank/return", window: true },
 		{ name: "52-joined", path: "/joined", window: true },
+		// These decide cards for good, so they come last (each width is a run with its own Household).
 		{
-			// Files every card it can, for the finish after the last one. Asked for by name.
+			// What Sort says after a card is filed, and the Rule it offers after a change of Bucket.
+			name: "43-review-said-after-filing",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				const card = await reviewCardOnTop(page, ":has(button:text-is('Confirm'))");
+				await card.getByRole("combobox").click({ timeout: 15_000 });
+				await page.getByRole("option").first().click({ timeout: 15_000 });
+				await expect(page.getByTestId("review-said")).toContainText(/left\.|All sorted/);
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		{
+			// Two toasts, each with Undo, over the list and above the bottom bar. Below 1024 only one
+			// toast shows at a time (issue 120): there it is the second one's.
+			name: "44-review-list-two-toasts",
+			path: "/review?view=list",
+			window: true,
+			ready: async (page) => {
+				const confirm = page.getByRole("button", { name: "Confirm", exact: true });
+				await expect(confirm.first()).toBeVisible({ timeout: 15_000 });
+				const before = await confirm.count();
+				await confirm.first().click({ timeout: 15_000 });
+				await expect(confirm).toHaveCount(before - 1, { timeout: 15_000 });
+				await confirm.first().click({ timeout: 15_000 });
+				await expect(confirm).toHaveCount(before - 2, { timeout: 15_000 });
+				// Counted as drawn: a toast waiting behind the newest is still in the page, unseen.
+				const drawn = page.locator("[data-slot=toast]:visible");
+				if ((page.viewportSize()?.width ?? 0) < 1024)
+					await expect(drawn).toHaveCount(1, { timeout: 15_000 });
+				else await expect(drawn.nth(1)).toBeVisible({ timeout: 15_000 });
+			},
+		},
+		{
+			// Files every card it can, for the finish after the last one. The very last picture: it
+			// leaves nothing in Review for another to file (it came before the two above once, which
+			// then found no card: issue 122).
 			name: "46-review-finish",
 			path: "/review",
 			window: true,
@@ -2721,35 +2771,6 @@ test.beforeAll(async ({ browser }) => {
 				await page.evaluate(() => window.scrollTo(0, 0));
 			},
 		},
-		// These decide cards for good, so they come last and are asked for by name, one width a run.
-		{
-			// What Sort says after a card is filed, and the Rule it offers after a change of Bucket.
-			name: "43-review-said-after-filing",
-			path: "/review",
-			window: true,
-			ready: async (page) => {
-				const card = await reviewCardOnTop(page, ":has(button:text-is('Confirm'))");
-				await card.getByRole("combobox").click({ timeout: 15_000 });
-				await page.getByRole("option").first().click({ timeout: 15_000 });
-				await expect(page.getByTestId("review-said")).toContainText(/left\.|All sorted/);
-				await page.evaluate(() => window.scrollTo(0, 0));
-			},
-		},
-		{
-			// Two toasts, each with Undo, over the list and above the bottom bar.
-			name: "44-review-list-two-toasts",
-			path: "/review?view=list",
-			window: true,
-			ready: async (page) => {
-				const confirm = page.getByRole("button", { name: "Confirm", exact: true });
-				await expect(confirm.first()).toBeVisible({ timeout: 15_000 });
-				const before = await confirm.count();
-				await confirm.first().click();
-				await expect(confirm).toHaveCount(before - 1, { timeout: 15_000 });
-				await confirm.first().click();
-				await expect(page.locator("[data-sonner-toast]")).toHaveCount(2, { timeout: 15_000 });
-			},
-		},
 	];
 	mkdirSync(OUT, { recursive: true });
 	writeFileSync(
@@ -2768,8 +2789,25 @@ test.afterAll(async () => {
 for (const viewport of viewports) {
 	test(`page shots at ${viewport.width}x${viewport.height}`, async ({ browser }) => {
 		test.skip(!enabled, "Runs only with PAGE_SHOTS set (see .github/workflows/shots.yml)");
-		// WebKit is slower at full-page pictures: the whole phone set needs longer there.
-		test.setTimeout(test.info().project.name === "webkit-shots" ? 2_100_000 : 900_000);
+		// WebKit is slower at full-page pictures: the whole phone set needs longer there. A phone's set
+		// is also the longer one in Chromium (its sheets, at twice the pixels): 1440 alone took about
+		// eleven of fifteen minutes, so phones get twenty-five. How long a width took is printed below.
+		const started = Date.now();
+		test.setTimeout(
+			test.info().project.name === "webkit-shots"
+				? 2_100_000
+				: viewport.width < 1024
+					? 1_500_000
+					: 900_000,
+		);
+		// No wait without an end: a click, fill, focus or hover that names no timeout of its own gives
+		// up after this long, so one picture that can't be taken costs half a minute and not the rest
+		// of the run (one focus() on a select a phone doesn't show took 137 pictures with it: issue 122).
+		const signIn = async (email: string) => {
+			const page = await signedInPage(browser, email, device);
+			page.setDefaultTimeout(30_000);
+			return page;
+		};
 		if (!parent) throw new Error("No Parent: beforeAll didn't finish");
 		const phone = viewport.width < 1024;
 		const device: Parameters<typeof signedInPage>[2] = {
@@ -2782,7 +2820,7 @@ for (const viewport of viewports) {
 			hasTouch: phone,
 			deviceScaleFactor: phone ? 2 : 1,
 		};
-		const main = await signedInPage(browser, parent.email, device);
+		const main = await signIn(parent.email);
 		// Signed in only when there is something to picture as the second Parent.
 		let freshPage: Page | undefined;
 		let smallPage: Page | undefined;
@@ -2799,6 +2837,7 @@ for (const viewport of viewports) {
 				if (shot.signedOut) {
 					const context = await browser.newContext({ ...device, isMobile: false, hasTouch: false });
 					const out = await context.newPage();
+					out.setDefaultTimeout(30_000);
 					await setupClerkTestingToken({ page: out });
 					await out.goto(shot.path);
 					await shot.ready?.(out);
@@ -2808,17 +2847,17 @@ for (const viewport of viewports) {
 				}
 				if (shot.fresh) {
 					if (!freshParent) throw new Error("No second Household");
-					freshPage ??= await signedInPage(browser, freshParent.email, device);
+					freshPage ??= await signIn(freshParent.email);
 					page = freshPage;
 				}
 				if (shot.small) {
 					if (!smallParent) throw new Error("No small Household");
-					smallPage ??= await signedInPage(browser, smallParent.email, device);
+					smallPage ??= await signIn(smallParent.email);
 					page = smallPage;
 				}
 				if (shot.carry) {
 					if (!carryParent) throw new Error("No Household with ended months");
-					carryPage ??= await signedInPage(browser, carryParent.email, device);
+					carryPage ??= await signIn(carryParent.email);
 					page = carryPage;
 				}
 				// Off the page first: the next picture may differ only by its "#…", which loads nothing
@@ -2870,6 +2909,7 @@ for (const viewport of viewports) {
 		await smallPage?.context().close();
 		await carryPage?.context().close();
 		if (failures.length > 0) writeFileSync(join(dir, "failures.txt"), `${failures.join("\n")}\n`);
+		console.log(`TIMING page-shots-${viewport.width} ${Date.now() - started}`);
 		expect(failures, "pages that couldn't be pictured").toEqual([]);
 		expect(seedNotes, "data that couldn't be seeded").toEqual([]);
 	});
