@@ -913,7 +913,10 @@ function ReviewPage() {
 			<div
 				className={cn(
 					"grid gap-5 *:min-w-0",
-					!(top && !sorting) && "max-w-xl",
+					// The stack keeps a card's width; with nothing left, the finish card takes the page's
+					// column from lg, as Check-in's does (issue 73).
+					top && sorting && "max-w-xl",
+					!top && "max-w-xl lg:max-w-none",
 					// On a phone the stack is cut at the screen's edges: a card dragged or flying off
 					// sideways must never make the page wider than the screen, or iOS Safari lets the page
 					// slide sideways with it.

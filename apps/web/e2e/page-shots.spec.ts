@@ -12,6 +12,7 @@ import {
 	createPlannedHousehold,
 	openMore,
 	savedBy,
+	serverFn,
 	signedInPage,
 } from "./session";
 import {
@@ -186,8 +187,8 @@ async function addCard(page: Page, name: string, pageUrl: string, fee: string, p
 	await sheet.getByLabel("Benefits page (optional)").fill(pageUrl);
 	await sheet.getByRole("button", { name: "Add and read its perks" }).click();
 	await expect(sheet).toBeHidden({ timeout: 30_000 });
-	// The seed already has a Perk Source of the same name with fewer Perks (the Chase card the
-	// Account ··0093 brought): take the one just added, by how many Perks it has.
+	// A card the seed's Account already brought (Chase ··0093) is that same Perk Source, confirmed
+	// (addPerkSource makes no second one): the card is known by how many Perks were read.
 	const card = page
 		.getByRole("article", { name })
 		.filter({ hasText: new RegExp(`· ${perks} perks`) });
@@ -688,6 +689,8 @@ test.beforeAll(async ({ browser }) => {
 			`insert into baselines (household_id, month, amount_cents) values (${h}, ${q(back(2))}, 500000);`,
 			...ended(back(2), 5000, 5000),
 			...ended(back(1), 3000, 3230),
+			// Before the first Plan and its take-home pay, so nothing of the ended months changes.
+			`insert into transactions (id, household_id, source, date, amount_cents, note, created_by_member_id) values (${q(ulid())}, ${h}, 'quick-add', ${q(`${back(4)}-10`)}, 4200, 'Before the Plan', ${m});`,
 		]);
 		carried = [
 			// An ended month with $0 left: "Ended with nothing left, so nothing was carried over".
@@ -695,6 +698,20 @@ test.beforeAll(async ({ browser }) => {
 			// An ended month that ended short, and the month after it with the shortfall carried in.
 			{ name: "01g-ended-month-short", path: `/month/${back(1)}`, carry: true },
 			{ name: "01h-this-month-short-carried-over", path: `/month/${now}`, carry: true },
+			{
+				// A row from a month before the first Plan: its picker says the month had no Buckets.
+				name: "d10t-transactions-no-buckets-picker",
+				path: `/transactions/${back(4)}`,
+				carry: true,
+				desktop: true,
+				window: true,
+				ready: async (page) => {
+					await page
+						.getByRole("button", { name: /^Refile Before the Plan, now / })
+						.click({ timeout: 15_000 });
+					await expect(page.getByTestId("no-buckets")).toBeVisible({ timeout: 15_000 });
+				},
+			},
 		];
 	});
 
@@ -2493,10 +2510,10 @@ test.beforeAll(async ({ browser }) => {
 						},
 					}),
 				),
-				...([1, 2] as const).map(
+				...([1, 2, 3] as const).map(
 					(toasts): Shot => ({
-						// One toast, then two stacked: a row of last month deleted, then a Quick Add.
-						name: toasts === 1 ? "d62-toast-undo" : "d63-toasts-two",
+						// One toast, then two and three stacked: a row of last month deleted, then Quick Adds.
+						name: ["d62-toast-undo", "d63-toasts-two", "d64-toasts-three"][toasts - 1] ?? "d62",
 						path: `/transactions/${monthBefore}`,
 						ready: async (page) => {
 							const boxes = page
@@ -2521,9 +2538,75 @@ test.beforeAll(async ({ browser }) => {
 							await page.keyboard.type("7");
 							await quick.getByRole("button", { name: /^Add \$7 to / }).click({ timeout: 15_000 });
 							await expect(said).toHaveCount(2, { timeout: 15_000 });
+							if (toasts === 2) return;
+							// A third: the pointer rests on the pile meanwhile, so none of them counts down.
+							await said.first().hover();
+							await expect(quick).toBeHidden({ timeout: 15_000 });
+							await page.keyboard.press("q");
+							await expect(quick).toBeVisible({ timeout: 15_000 });
+							await page.keyboard.type("8");
+							await quick.getByRole("button", { name: /^Add \$8 to / }).click({ timeout: 15_000 });
+							await expect(said).toHaveCount(3, { timeout: 15_000 });
 						},
 					}),
 				),
+				{
+					// The menu at the Sidebar's foot (the Parent's name and the Household's).
+					name: "d66-parent-menu",
+					path: `/transactions/${month}`,
+					ready: async (page) => {
+						await page.locator("[data-parent-menu][data-ready=true]").click({ timeout: 15_000 });
+						await expect(page.getByRole("menu")).toBeVisible({ timeout: 15_000 });
+					},
+				},
+				{
+					// A toast that says something failed: the Check-in day's save is refused.
+					name: "d65-toast-error",
+					path: "/household",
+					ready: async (page) => {
+						await page.route(serverFn("setCheckInDay"), (route) => route.fulfill({ status: 500 }));
+						const day = page.getByRole("combobox", { name: "Check-in day" });
+						await day.scrollIntoViewIfNeeded();
+						await day.click({ timeout: 15_000 });
+						await page
+							.getByRole("option")
+							.and(page.locator("[data-state=unchecked]"))
+							.first()
+							.click();
+						await expect(
+							page.getByRole("status").filter({ hasText: "Couldn’t change the Check-in day." }),
+						).toBeVisible({ timeout: 15_000 });
+					},
+				},
+				{
+					// The row that stands for the next page of Transactions while it is fetched (the
+					// fetch is held back for the picture).
+					name: "d10s-transactions-loading-row",
+					path: `/transactions/${month}?range=all`,
+					ready: async (page) => {
+						await page.route(serverFn("getTransactions"), () => new Promise(() => {}));
+						const more = page.locator("[data-loading-more]");
+						await expect(more).toHaveCount(1, { timeout: 15_000 });
+						await more.scrollIntoViewIfNeeded();
+						await page.waitForTimeout(800);
+						await expect(more).toBeVisible();
+					},
+				},
+				{
+					// Ask when the answer could not be made: the sentence and Retry.
+					name: "d24z-ask-error",
+					path: "/ask",
+					ready: async (page) => {
+						await page.route(serverFn("askHousehold"), (route) => route.fulfill({ status: 500 }));
+						const question = page.getByPlaceholder("Ask about your money");
+						await expect(question).toBeEnabled({ timeout: 15_000 });
+						await question.fill("How much did we spend on groceries this month?");
+						await page.getByRole("button", { name: "Ask", exact: true }).click({ timeout: 15_000 });
+						await expect(page.getByText("Couldn't answer that just now.")).toBeVisible({
+							timeout: 30_000,
+						});
+					},
+				},
 				{
 					// Ask with an answer (the shots build answers from the stub model).
 					name: "d24y-ask-answer",
@@ -2698,7 +2781,10 @@ for (const viewport of viewports) {
 					animations: "disabled",
 				});
 				if (shot.tall) await page.setViewportSize(viewport);
+				// A picture may have held back or failed a server function: not for the next one.
+				await page.unrouteAll({ behavior: "ignoreErrors" });
 			} catch (error) {
+				await page.unrouteAll({ behavior: "ignoreErrors" }).catch(() => {});
 				failures.push(`${shot.name} (${shot.path}): ${String(error).split("\n")[0]}`);
 				// What it looked like when it gave up, if the page is still there.
 				await page
