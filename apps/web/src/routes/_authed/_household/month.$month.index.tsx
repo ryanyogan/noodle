@@ -1052,9 +1052,13 @@ function useGetStartedSteps(state: MonthState) {
 					Set <span className="max-[359px]:sr-only">your </span>take-home pay
 				</>
 			),
+			// One piece inside the button, so its words keep a word's space between them and not the
+			// button's own gap (issue 74).
 			link: (
 				<Link to="/plan/$month" params={{ month: state.month }}>
-					Set up<span className="max-[359px]:sr-only"> the Plan</span>
+					<span>
+						Set up<span className="max-[359px]:sr-only"> the Plan</span>
+					</span>
 				</Link>
 			),
 		},
@@ -1069,7 +1073,9 @@ function useGetStartedSteps(state: MonthState) {
 			),
 			link: (
 				<Link to="/plan/$month" params={{ month: state.month }} hash={PLAN_BUCKETS_HASH}>
-					Add<span className="max-[359px]:sr-only"> Buckets</span>
+					<span>
+						Add<span className="max-[359px]:sr-only"> Buckets</span>
+					</span>
 				</Link>
 			),
 		},
@@ -1086,7 +1092,9 @@ function useGetStartedSteps(state: MonthState) {
 			),
 			link: (
 				<Link to="/accounts">
-					Add<span className="max-[359px]:sr-only"> an Account</span>
+					<span>
+						Add<span className="max-[359px]:sr-only"> an Account</span>
+					</span>
 				</Link>
 			),
 		},

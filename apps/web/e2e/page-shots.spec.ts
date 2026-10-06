@@ -235,6 +235,22 @@ async function attempt(what: string, run: () => Promise<void>) {
 }
 
 /** Opens one of the Danger zone's confirming sheets and leaves it open: nothing is confirmed. */
+/**
+ * Presses a button on the page until what it opens is there: a sheet, a menu, or (for a confirm
+ * drawn in the page) its Cancel button. For the phone pass's pictures of sheets (issue 74).
+ */
+const opened =
+	(button: string | RegExp, confirm = false) =>
+	async (page: Page) => {
+		await pressFor(
+			page.getByRole("button", { name: button }).first(),
+			confirm
+				? page.getByRole("button", { name: "Cancel" }).first()
+				: page.getByRole("dialog").or(page.getByRole("menu")).first(),
+		);
+		await page.waitForTimeout(400);
+	};
+
 async function openDangerSheet(page: Page, action: "Start fresh" | "Delete Household") {
 	const zone = page.getByRole("region", { name: "Danger zone" });
 	await zone.getByRole("button", { name: action }).click();
@@ -745,12 +761,81 @@ test.beforeAll(async ({ browser }) => {
 		},
 		{ name: "16-account-credit-card", path: `/accounts/${ids.sapphire}` },
 		{ name: "16a-account-no-balance", path: `/accounts/${ids.college}` },
+		// The sheets and confirms of Accounts and an Account, as a phone shows them (issue 74).
+		{
+			name: "15b-accounts-add-sheet",
+			path: "/accounts",
+			phoneSheet: true,
+			ready: opened("Add Account"),
+		},
+		{
+			name: "16b-account-more-or-rename",
+			path: `/accounts/${ids.sapphire}`,
+			phoneSheet: true,
+			ready: opened(/^(More actions for|Rename)/),
+		},
+		{
+			name: "16c-account-balance-sheet",
+			path: `/accounts/${ids.sapphire}`,
+			phoneSheet: true,
+			ready: opened(/^(Update|Add) (balance|what’s owed)/),
+		},
+		{
+			name: "16d-account-upload-statement",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened("Upload statement"),
+		},
+		{
+			name: "16e-account-archive-confirm",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened("Archive this Account", true),
+		},
+		{
+			name: "16f-account-rename-sheet",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened(/^(More actions for|Rename)/),
+		},
 		{ name: "17-goals", path: "/goals" },
 		{ name: "18-goal", path: `/goals/${ids.vacation}` },
 		// A long History: the whole page, then the window after scrolling 700px, where the side column
 		// (progress and actions) should still be in view on a wide screen (#73).
 		{ name: "18a-goal-long-history", path: `/goals/${ids.roof}` },
 		{ name: "18b-goal-long-history-scrolled", path: `/goals/${ids.roof}`, scrolledTo: 700 },
+		// A Goal's sheets on a phone (issue 74).
+		{ name: "17a-goals-add-sheet", path: "/goals", phoneSheet: true, ready: opened("Add Goal") },
+		{
+			name: "18c-goal-add-money-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Add money"),
+		},
+		{
+			name: "18d-goal-edit-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Edit"),
+		},
+		{
+			name: "18e-goal-spend-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Spend"),
+		},
+		{
+			name: "18f-goal-take-back-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Take money back"),
+		},
+		{
+			name: "18g-goal-archive-confirm",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Archive", true),
+		},
 		{ name: "19-explore", path: "/explore" },
 		// A Scenario not saved yet, with one change: the outline, Your changes and the outcomes (#74).
 		{ name: "19a-explore-with-a-change", path: "/explore?lever=baseline:1020000" },
@@ -910,6 +995,18 @@ test.beforeAll(async ({ browser }) => {
 			path: "/household",
 			window: true,
 			ready: (page) => openDangerSheet(page, "Delete Household"),
+		},
+		{
+			// Delete Household's second step: the name to type, as a phone shows it (issue 74).
+			name: "27d-delete-household-step-2",
+			path: "/household",
+			phoneSheet: true,
+			ready: async (page) => {
+				await openDangerSheet(page, "Delete Household");
+				const sheet = page.getByRole("dialog", { name: "Delete Household?" });
+				await sheet.getByRole("button", { name: "Continue" }).click();
+				await sheet.getByRole("textbox").focus();
+			},
 		},
 		{
 			// The Parent's own name and colour, in its sheet. What's in the window.
