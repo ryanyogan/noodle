@@ -810,14 +810,17 @@ async function main() {
 					untouched !== null && untouched < 16_000,
 					`an untouched Undo toast goes on its own (${untouched} ms)`,
 				);
-				if (pressed === null)
-					finding(
-						`a toast pressed once was still showing 30 s later with nothing else touched (untouched it went in ${untouched} ms)`,
-					);
-				else must(pressed < 20_000, `a toast pressed once still goes on its own (${pressed} ms)`);
-				if (next === null)
-					finding("the toast raised after that press was still showing 30 s later");
-				else must(next < 20_000, `the next toast goes on its own (${next} ms)`);
+				// Fixed in the app (issue 52): a touch no longer leaves Sonner's hover pause on.
+				must(
+					pressed !== null && pressed < 20_000,
+					pressed === null
+						? `a toast pressed once goes on its own (still showing 30 s later with nothing else touched; untouched it went in ${untouched} ms)`
+						: `a toast pressed once still goes on its own (${pressed} ms)`,
+				);
+				must(
+					next !== null && next < 20_000,
+					`the next toast goes on its own (${next === null ? "still showing 30 s later" : `${next} ms`})`,
+				);
 				return { text, untouched, pressed, next, afterPress, point, place };
 			},
 		);
@@ -936,8 +939,16 @@ async function main() {
 					await open(household.url, "This Month");
 					const page = await colours();
 					shot("12a-this-month-dark");
-					must(page.dark, "Safari reports the dark appearance to the page");
 					const light = (c) => (c[0] + c[1] + c[2]) / 3;
+					// `simctl ui appearance dark` does not always reach Safari (it did on the iPhone SE
+					// and not on the iPhone 16): then nothing dark was drawn, and nothing is judged.
+					if (!page.dark) {
+						finding(
+							"skipped: the simulator's dark appearance did not reach Safari (the page still reports light), so dark is not checked on this simulator; needs a real iPhone or a hand",
+						);
+						return { page, boxes: null };
+					}
+					must(page.dark, "Safari reports the dark appearance to the page");
 					must(
 						light(page.background) < 70,
 						`the page's background is dark (rgba ${page.background.join(" ")})`,
