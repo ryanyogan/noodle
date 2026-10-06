@@ -3,6 +3,7 @@ import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Link, useHydrated } from "@tanstack/react-router";
 import { Check, Plus, Target } from "lucide-react";
@@ -57,14 +58,11 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 							// the figures took three lines on a phone (issue 115). They break between the
 							// month's part and the Goal's, not inside one.
 							below={
-								<p className="-mt-2 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground">
-									{goalThisMonth(goal).map((part, i, parts) => (
-										<span key={part}>
-											{part}
-											{i < parts.length - 1 ? " ·" : ""}
-										</span>
-									))}
-								</p>
+								// The shared dot between parts: the same room on both sides of it (issue 73).
+								<MetaParts
+									parts={goalThisMonth(goal)}
+									className="-mt-2 text-[13px] text-muted-foreground"
+								/>
 							}
 							trailing={
 								// A paid-off card needs no more payments; it's completed on its page.

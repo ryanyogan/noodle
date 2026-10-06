@@ -415,7 +415,8 @@ export function BucketTable({
 				</div>
 			),
 			allowance: <span className="text-muted-foreground">{formatMoney(total.allowance)}</span>,
-			spent: formatMoney(total.spent),
+			// In the tone of the Spent figures under it, as the Allowance subtotal is (issue 73).
+			spent: <span className="text-muted-foreground">{formatMoney(total.spent)}</span>,
 			left: <Left cents={total.left} />,
 			summary: <Summary allowance={total.allowance} spent={total.spent} left={total.left} />,
 			// A pencil's room, so in a stacked row the subtotal ends where the Buckets' figures end.
