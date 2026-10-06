@@ -107,6 +107,8 @@ const deps = (): ClearDeps => ({
 	},
 	merchants: {
 		deleteByIds: async (ids: string[]) => {
+			// As Vectorize answers: "too many ids in payload; max id count is 100".
+			if (ids.length > 100) throw new Error(`too many ids in payload: ${ids.length}`);
 			for (const id of ids) vectors.delete(id);
 		},
 	},
@@ -198,6 +200,16 @@ describe("a fresh start", () => {
 		await clearHousehold(deps(), a, "fresh-start");
 		await clearHousehold(deps(), a, "fresh-start");
 		expect((await counts(a)).transactions).toBe(0);
+	});
+});
+
+describe("forgetting merchants", () => {
+	it("forgets more than a hundred, a hundred at a time", async () => {
+		for (let i = 0; i < 118; i++) await recordLearnedMerchant(db, a, `merchant ${i}`);
+		for (const merchant of await learnedMerchants(db, a)) vectors.add(await vectorId(a, merchant));
+		expect(vectorsOf(a).length).toBeGreaterThan(100);
+		await runClearStep(deps(), "merchants", a, "fresh-start", new Date());
+		expect(vectorsOf(a)).toEqual([]);
 	});
 });
 
