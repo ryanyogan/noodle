@@ -46,7 +46,7 @@ async function renameBuckets(clerkUserId: string) {
 /** Text cut short (ellipsis, clamp or clipped), how many characters still show, and small controls. */
 function crowding(page: Page) {
 	return page.evaluate(() => {
-		const width = window.innerWidth;
+		const width = document.documentElement.clientWidth;
 		const cut: string[] = [];
 		// Kept for screen readers only (`sr-only`, by class or by a variant such as the section's
 		// header over an open item, #74): not on screen, so not cut short.
