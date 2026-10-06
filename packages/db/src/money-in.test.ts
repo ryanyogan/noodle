@@ -257,7 +257,7 @@ describe("a Rule states a kind", () => {
 	it("keeps one Rule per wording, and never marks again what a Parent unmarked", async () => {
 		await saveMoneyInRule(db, viewer, { ruleId: "rule-1", wording: "GUSTO", kind: "income" });
 		await saveMoneyInRule(db, viewer, { ruleId: "rule-2", wording: "GUSTO", kind: "transfer" });
-		expect(await loadMoneyInRules(db, householdId)).toEqual([
+		expect(await loadMoneyInRules(db, householdId)).toMatchObject([
 			{ id: "rule-1", pattern: "gusto", kind: "transfer" },
 		]);
 		const lines = [line("2026-09-06", 250_000, "GUSTO 9917")];

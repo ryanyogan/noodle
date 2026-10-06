@@ -61,6 +61,7 @@ import { TransactionTable, tableIsStacked } from "../../../components/transactio
 import { formatMoney, monthName } from "../../../format";
 import { type AccountView, useGoals } from "../../../goals";
 import { type MemberSummary, pickableMembers } from "../../../members";
+import { useReviewWaiting } from "../../../money-in";
 import { goalsQuery, membersQuery, monthQuery, reviewQuery } from "../../../queries";
 import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
@@ -263,7 +264,7 @@ function TransactionsPage() {
 		return () => window.removeEventListener("keydown", onKey, true);
 	}, [picked, selecting, navigate, month]);
 	const change = useTransactionChange();
-	const waiting = useSuspenseQuery(reviewQuery()).data.total;
+	const waiting = useReviewWaiting();
 	const sameYear = month.slice(0, 4) === current.slice(0, 4);
 	// The order isn't a filter: every Transaction is still there.
 	// Nor is how many months are listed.

@@ -730,7 +730,7 @@ export const transfers = sqliteTable(
 		// Why a one-sided Transfer is one, when a Parent said: 'between-us' is money one Parent
 		// moved to the other, whose own Account isn't in Noodle (ADR-0052). Null for the rest.
 		reason: text("reason", { enum: ["between-us"] }),
-		// The Account on the side Noodle can't see, once a Parent names it. Nothing writes it yet.
+		// The Account on the side Noodle can't see, once a Parent names it (a remembered pair, money-in.ts).
 		otherAccountId: text("other_account_id").references(() => accounts.id),
 	},
 	(t) => [
@@ -1016,6 +1016,10 @@ export const moneyInRules = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		// A remembered pair of Accounts (ADR-0057): money in with this wording into
+		// `into_account_id` came from `other_account_id` and is always a Transfer. Null on a plain Rule.
+		intoAccountId: text("into_account_id").references(() => accounts.id),
+		otherAccountId: text("other_account_id").references(() => accounts.id),
 	},
 	(t) => [uniqueIndex("money_in_rules_household_pattern_idx").on(t.householdId, t.pattern)],
 );
@@ -1520,3 +1524,22 @@ export const householdSnapshots = sqliteTable(
 );
 
 export type HouseholdSnapshot = typeof householdSnapshots.$inferSelect;
+
+// A one-time pass over a Household's rows that has run (money-in-pass.ts): the row is what stops
+// it running twice. Kept through a fresh start and left out of snapshots, so neither runs it again.
+export const householdPasses = sqliteTable(
+	"household_passes",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		pass: text("pass").notNull(),
+		// The run that wrote the row: only that run changes anything.
+		runId: text("run_id").notNull(),
+		// The snapshot taken first; null when the pass found nothing to change.
+		snapshotId: text("snapshot_id"),
+		changed: integer("changed").notNull().default(0),
+		ranAt: integer("ran_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [primaryKey({ columns: [t.householdId, t.pass] })],
+);

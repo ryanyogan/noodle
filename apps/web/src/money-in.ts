@@ -1,11 +1,20 @@
 import { MONEY_IN_KIND_LABELS, type MoneyInKind, type MonthKey } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
-import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ulid } from "ulid";
 import { formatMoney } from "./format";
 import { monthChangeKey } from "./plan-changes";
-import { monthQuery, monthsKey, reviewQuery } from "./queries";
-import { getMoneyIn, getMoneyInReview, type MoneyInLine, setMoneyInKind } from "./server/money-in";
+import { monthQuery, monthsKey, reviewQuery, rulesQuery } from "./queries";
+import {
+	getMoneyIn,
+	getMoneyInAccounts,
+	getMoneyInReview,
+	getMoneyInRules,
+	type MoneyInLine,
+	rememberMoneyInPair,
+	removeMoneyInRule,
+	setMoneyInKind,
+} from "./server/money-in";
 
 export type { MoneyInLine } from "./server/money-in";
 
@@ -81,5 +90,75 @@ export function useMoneyInKindChange() {
 				{ tone: "success" },
 			),
 		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
+	});
+}
+
+/**
+ * How many lines wait in Review, for its badges: Transactions to file and money in a Parent
+ * hasn't named yet.
+ */
+export function useReviewWaiting(): number {
+	const filing = useQuery(reviewQuery()).data?.total ?? 0;
+	const moneyIn = useQuery(moneyInReviewQuery()).data?.length ?? 0;
+	return filing + moneyIn;
+}
+
+/** The Household's Rules for money in; under the Rules' key, so a change to Rules refetches it. */
+export const moneyInRulesQuery = () =>
+	queryOptions({
+		queryKey: [...rulesQuery().queryKey, "money-in"],
+		queryFn: () => getMoneyInRules(),
+	});
+
+/** The Household's Accounts by name, to say which one money came from. */
+export const moneyInAccountsQuery = () =>
+	queryOptions({
+		queryKey: ["money-in-accounts"],
+		queryFn: () => getMoneyInAccounts(),
+	});
+
+/** A Transfer seen from one side only, into an Account: a Parent may say which Account it came from. */
+export const pairOffered = (
+	line: Pick<
+		MoneyInLine,
+		"kind" | "needsReview" | "paired" | "accountId" | "note" | "otherAccountId"
+	>,
+) =>
+	!line.needsReview &&
+	line.kind === "transfer" &&
+	!line.paired &&
+	!line.otherAccountId &&
+	!!line.accountId &&
+	!!line.note?.trim();
+
+/** A Parent says a Transfer came from another Account, and that money like it always does. */
+export function useRememberAccountPair() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async (input: { line: MoneyInLine; otherAccountId: string; names: string }) => {
+			const result = await rememberMoneyInPair({
+				data: { incomeId: input.line.id, otherAccountId: input.otherAccountId, ruleId: ulid() },
+			});
+			if (!result.ok) throw new Error(result.reason);
+		},
+		onError: () => toast("Couldn’t remember that, so nothing changed.", { tone: "error" }),
+		onSuccess: (_, { names }) =>
+			toast(`Money ${names} is always a Transfer now`, { tone: "success" }),
+		onSettled: () =>
+			Promise.all([
+				queryClient.invalidateQueries({ queryKey: monthsKey }),
+				queryClient.invalidateQueries({ queryKey: rulesQuery().queryKey }),
+			]),
+	});
+}
+
+/** Removes a Rule for money in. */
+export function useRemoveMoneyInRule() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (ruleId: string) => removeMoneyInRule({ data: { ruleId } }),
+		onError: () => toast("Couldn’t remove the Rule, so it’s still there.", { tone: "error" }),
+		onSuccess: () => toast("Rule removed. What it decided stays as it is.", { tone: "success" }),
+		onSettled: () => queryClient.invalidateQueries({ queryKey: rulesQuery().queryKey }),
 	});
 }

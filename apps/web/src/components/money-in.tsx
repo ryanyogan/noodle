@@ -12,8 +12,10 @@ import {
 	moneyInLabel,
 	moneyInQuery,
 	moneyInReviewQuery,
+	pairOffered,
 	useMoneyInKindChange,
 } from "../money-in";
+import { AccountPairOffer } from "./money-in-rules";
 
 // Money in and its kind (issue 131, ADR-0057): listed on Transactions with its kind in plain
 // words, and asked about in Review when it was sent person to person. Colour and the "+" in green
@@ -44,7 +46,13 @@ export function MoneyInKindChoice({ line, onDone }: { line: MoneyInLine; onDone?
 							variant={current ? "default" : "outline"}
 							aria-pressed={current}
 							disabled={change.isPending}
-							onClick={() => change.mutate({ line, kind, always }, { onSuccess: onDone })}
+							onClick={() =>
+								change.mutate(
+									{ line, kind, always },
+									// A Transfer stays open to ask which Account it came from.
+									{ onSuccess: (changed) => (pairOffered(changed) ? undefined : onDone?.()) },
+								)
+							}
 						>
 							{MONEY_IN_KIND_LABELS[kind]}
 						</Button>
@@ -63,6 +71,7 @@ export function MoneyInKindChoice({ line, onDone }: { line: MoneyInLine; onDone?
 					</label>
 				</div>
 			) : null}
+			{pairOffered(line) ? <AccountPairOffer line={line} /> : null}
 		</div>
 	);
 }
