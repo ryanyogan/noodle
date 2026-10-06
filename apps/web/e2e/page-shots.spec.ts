@@ -113,6 +113,20 @@ const quickAdd = (step?: "amount" | "more" | "for") => async (page: Page) => {
 	}
 };
 
+/** Skips in Review, one by one, until a card of this kind is on top (issue 74). */
+async function reviewCardOnTop(page: Page, which: string) {
+	const stack = page.getByTestId("review-stack");
+	const card = stack.locator(`[data-testid=review-card]${which}`);
+	for (let skipped = 0; skipped < 10; skipped++) {
+		if (await card.isVisible()) break;
+		await stack.getByRole("button", { name: "Skip" }).click({ timeout: 15_000 });
+		await page.waitForTimeout(400);
+	}
+	await expect(card).toBeVisible();
+	await page.evaluate(() => window.scrollTo(0, 0));
+	return card;
+}
+
 /** The page has its heading, nothing is still a skeleton and the fonts are in. */
 async function settled(page: Page) {
 	await expect(page.locator("h1:visible, [data-slot=page-header]:visible").first()).toBeVisible({
@@ -730,8 +744,100 @@ test.beforeAll(async ({ browser }) => {
 				},
 			}),
 		),
+		// The rest of Review for the final phone pass (issue 74): the other kinds of card on top, the
+		// "?" beside the count, what Sort says after a Skip, a phone's safe areas, and the sheets.
+		...(
+			[
+				["12e-review-card-between-us", "[data-between-us]"],
+				["12f-review-card-no-suggestion", ":has-text('pick where it goes')"],
+			] as const
+		).map(
+			([name, which]): Shot => ({
+				name,
+				path: "/review",
+				window: true,
+				ready: async (page) => {
+					await reviewCardOnTop(page, which);
+				},
+			}),
+		),
+		{
+			name: "12g-review-said-after-skip",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				const stack = page.getByTestId("review-stack");
+				await stack.getByRole("button", { name: "Skip" }).click({ timeout: 15_000 });
+				await expect(page.getByTestId("review-said")).toContainText("Skipped");
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		{
+			name: "12h-review-term-help",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByTestId("review-stack").getByRole("button", { name: /^What’s / }),
+					page.getByRole("dialog"),
+				);
+			},
+		},
+		{
+			// A phone with a notch and a home indicator: the header clears one, the tab bar the other.
+			name: "12i-review-safe-areas",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				await page.addStyleTag({
+					content: ":root{--safe-top:47px!important;--safe-bottom:34px!important}",
+				});
+			},
+		},
 		{ name: "13-review-list", path: "/review?view=list" },
+		{
+			name: "13a-review-edit-transaction",
+			path: "/review?view=list",
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Edit / }).first(),
+					page.getByRole("dialog", { name: "Edit Transaction" }),
+				);
+			},
+		},
+		{
+			// With a field in use, as when the keyboard is up (PAGE_SHOTS_HEIGHT=500).
+			name: "13b-review-edit-transaction-typing",
+			path: "/review?view=list",
+			phoneSheet: true,
+			ready: async (page) => {
+				const sheet = page.getByRole("dialog", { name: "Edit Transaction" });
+				await pressFor(page.getByRole("button", { name: /^Edit / }).first(), sheet);
+				await sheet.getByRole("textbox").first().focus();
+			},
+		},
 		{ name: "14-rules", path: "/review/rules" },
+		{
+			name: "14a-rule-page",
+			path: "/review/rules",
+			ready: async (page) => {
+				await page.locator("a[href*='/review/rules/']").first().click({ timeout: 15_000 });
+				await page.waitForURL(/\/review\/rules\/./);
+			},
+		},
+		{
+			name: "14b-rule-add",
+			path: "/review/rules",
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: "Add Rule" }).first(),
+					page.getByRole("dialog"),
+				);
+			},
+		},
+		{ name: "38-not-found", path: "/no-such-page", window: true },
 		{ name: "15-accounts", path: "/accounts" },
 		{
 			name: "15a-accounts-archived-open",
@@ -919,6 +1025,7 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "39i-empty-goal-funding", path: `/plan/${month}/goals`, fresh: true },
 		{ name: "39j-empty-income", path: `/plan/${month}/income`, fresh: true },
 		{ name: "39k-empty-afford", path: "/explore/afford", fresh: true },
+		{ name: "39l-empty-review", path: "/review", fresh: true },
 		{
 			name: "29-more-sheet",
 			path: "/reports",
@@ -973,6 +1080,35 @@ test.beforeAll(async ({ browser }) => {
 				const button = page.getByRole("button", { name: "It’s between us" }).first();
 				await expect(button).toBeVisible({ timeout: 15_000 });
 				await button.evaluate((node) => node.scrollIntoView({ block: "center" }));
+			},
+		},
+		// These decide cards for good, so they come last and are asked for by name, one width a run.
+		{
+			// What Sort says after a card is filed, and the Rule it offers after a change of Bucket.
+			name: "43-review-said-after-filing",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				const card = await reviewCardOnTop(page, ":has(button:text-is('Confirm'))");
+				await card.getByRole("combobox").click({ timeout: 15_000 });
+				await page.getByRole("option").first().click({ timeout: 15_000 });
+				await expect(page.getByTestId("review-said")).toContainText(/left\.|All sorted/);
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		{
+			// Two toasts, each with Undo, over the list and above the bottom bar.
+			name: "44-review-list-two-toasts",
+			path: "/review?view=list",
+			window: true,
+			ready: async (page) => {
+				const confirm = page.getByRole("button", { name: "Confirm", exact: true });
+				await expect(confirm.first()).toBeVisible({ timeout: 15_000 });
+				const before = await confirm.count();
+				await confirm.first().click();
+				await expect(confirm).toHaveCount(before - 1, { timeout: 15_000 });
+				await confirm.first().click();
+				await expect(page.locator("[data-sonner-toast]")).toHaveCount(2, { timeout: 15_000 });
 			},
 		},
 	];
