@@ -125,9 +125,11 @@ const HANDLE_TRACK = "max-sm:[--bucket-handle:1.75rem]";
 /**
  * In a stacked row (a phone) a table without handles starts its tile and the line under it where
  * the Buckets table over it starts its own: after the handle's track and the gap (issue 98). On
- * the narrowest phone too: a long name wraps there, as a Bucket's does.
+ * the narrowest phone too: a long name wraps there, as a Bucket's does. Not under 16rem (text twice
+ * its size), where the Buckets table has given its handles up (`leading.narrow`).
  */
-const STACKED_INDENT = "@max-2xl/dt:ps-[calc(var(--bucket-handle,2.75rem)+0.75rem)]";
+const STACKED_INDENT =
+	"@max-2xl/dt:ps-[calc(var(--bucket-handle,2.75rem)+0.75rem)] @max-[16rem]/dt:ps-0";
 
 /**
  * The line under a Bucket's name starts with the name, not with the tile beside it: past the tile
@@ -479,11 +481,16 @@ export function BucketTable({
 						stickyHeader={false}
 						indent={indent ? HANDLE : undefined}
 						groupCells={groupCells}
+						// Text twice its size: the name has the line, the pencil is beside the figures under it.
+						narrowTitleLine
 						leading={
 							handles
 								? {
 										header: "Order",
 										...HANDLE,
+										// With the text twice its size the handle's track is the room a name needs
+										// for whole words (issue 74); the order is then changed in a Bucket's sheet.
+										narrow: "hidden",
 										render: (bucket) => (
 											<Button
 												type="button"

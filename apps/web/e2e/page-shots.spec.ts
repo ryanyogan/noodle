@@ -415,8 +415,18 @@ test.beforeAll(async ({ browser }) => {
 	await attempt("Perks & Benefits", async () => {
 		await page.goto("/insights/perks");
 		const amex = await addCard(page, "Amex Platinum", "https://example.com/premium-card", "695", 4);
-		await addCard(page, "Chase Sapphire Reserve", "https://example.com/travel-card", "550", 3);
-		await amex.locator("h3").getByRole("button").click();
+		// The linked Chase card is a Perk Source already, found from the Account: added again it
+		// would be a second one of the same name, and neither could be told from the other here.
+		const sapphire = page.getByRole("article", { name: "Chase Sapphire Reserve" }).first();
+		const found = await sapphire.waitFor({ timeout: 5000 }).then(
+			() => true,
+			() => false,
+		);
+		if (!found)
+			await addCard(page, "Chase Sapphire Reserve", "https://example.com/travel-card", "550", 3);
+		// One Perk Source is open at a time: Amex's row is still open when nothing was added after it.
+		const amexRow = amex.locator("h3").getByRole("button");
+		if ((await amexRow.getAttribute("aria-expanded")) !== "true") await amexRow.click();
 		const uber = amex.getByRole("listitem", { name: "Uber Cash" });
 		await uber.getByRole("button", { name: "Mark Uber Cash used" }).click();
 		await uber.getByLabel("Note (optional)").fill("Rides to the airport");
