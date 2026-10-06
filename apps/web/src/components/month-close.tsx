@@ -108,7 +108,9 @@ export function MonthCloseSection({
 							className="max-sm:grid-cols-1"
 							trailing={
 								<OptionSelect
-									className="w-48 max-sm:w-full"
+									// Narrower in the 320px rail of 1024 to 1279, where a long Bucket name
+									// ("Subscriptions") broke in the middle of the word (issue 73).
+									className="w-48 max-sm:w-full lg:max-xl:w-40"
 									aria-label={`Where ${leftover.name}’s leftover goes`}
 									value={sweeps[leftover.bucketId] ?? ""}
 									disabled={!hydrated || pending}
@@ -162,8 +164,8 @@ export function MonthCloseSection({
 					) : null}
 				</List>
 			</div>
-			{/* From lg in line with the selects above, which sit inside the rows’ padding (#73). */}
-			<div className="flex justify-end pt-3 lg:pe-2">
+			{/* From lg in line with the selects above, which sit 4px inside the rows’ padding (#73). */}
+			<div className="flex justify-end pt-3 lg:pe-1">
 				<Button
 					disabled={!hydrated || pending}
 					onClick={() =>
