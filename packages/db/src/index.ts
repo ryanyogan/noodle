@@ -483,6 +483,7 @@ export {
 	loadCaptureToken,
 	revokeCaptureToken,
 } from "./captures";
+export { markCardPayments } from "./card-payments";
 export {
 	type CategorizableBucket,
 	type CategorizationDecision,

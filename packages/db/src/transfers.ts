@@ -102,7 +102,7 @@ const inRefund = () =>
  * An imported Transaction that could be a side of a Transfer: not already one, not a Refund, and
  * nothing a Parent has assigned or split.
  */
-const transferable = and(
+export const transferable = and(
 	eq(transactions.source, "import"),
 	sql`not ${inTransfer()}`,
 	sql`not ${inRefund()}`,
@@ -225,7 +225,7 @@ export const transferRow = (row: {
 });
 
 /** Raw SQL: the Transaction `id` is still a transferable side of the Household's. */
-const stillTransferable = (householdId: string, id: SQL | string, sign: ">" | "<") =>
+export const stillTransferable = (householdId: string, id: SQL | string, sign: ">" | "<") =>
 	sql`exists (select 1 from transactions s where s.id = ${id} and s.household_id = ${householdId}
 		and s.source = 'import' and s.amount_cents ${sql.raw(sign)} 0
 		and s.bucket_id is null and s.commitment_id is null and s.goal_id is null
@@ -233,7 +233,12 @@ const stillTransferable = (householdId: string, id: SQL | string, sign: ">" | "<
 		and not exists (select 1 from refunds r where r.refund_transaction_id = s.id and r.removed_at is null))`;
 
 /** Raw SQL: the Transfer's two sides (out, and in or income) move the same amount. */
-const sameAmount = (householdId: string, outId: SQL, inTransactionId: SQL, inIncomeId: SQL) =>
+export const sameAmount = (
+	householdId: string,
+	outId: SQL,
+	inTransactionId: SQL,
+	inIncomeId: SQL,
+) =>
 	sql`exists (select 1 from transactions o where o.id = ${outId} and o.household_id = ${householdId}
 		and o.amount_cents = coalesce(
 			(select -n.amount_cents from transactions n where n.id = ${inTransactionId} and n.household_id = ${householdId}),
@@ -251,7 +256,7 @@ export async function detectTransfers(
 	to: DayKey,
 	newId: () => string,
 ): Promise<{ marked: number; months: string[] }> {
-	const [{ outs: leaving, ins }, refusedRows, ruleRows] = await Promise.all([
+	const [{ outs: leaving, ins }, refusedRows, paysCommitment] = await Promise.all([
 		loadSides(
 			db,
 			householdId,
@@ -266,29 +271,9 @@ export async function detectTransfers(
 			})
 			.from(transfers)
 			.where(and(eq(transfers.householdId, householdId), isNotNull(transfers.removedAt))),
-		// The Household's own Rules: a Parent's private one files only in their Personal Allowance.
-		db
-			.select({
-				pattern: rules.pattern,
-				bucketId: rules.bucketId,
-				commitmentId: rules.commitmentId,
-				ended: commitments.endedFromMonth,
-			})
-			.from(rules)
-			.leftJoin(commitments, eq(commitments.id, rules.commitmentId))
-			.where(and(eq(rules.householdId, householdId), isNull(rules.ownerMemberId))),
+		commitmentPayments(db, householdId),
 	]);
-	// Money out that a Rule files in a Commitment is that Commitment's payment, not a Transfer
-	// (ADR-0050): paired with its other side (a connected loan's "payment received") it would count
-	// nowhere, the Rule would never see it, and the Commitment would never show paid. It's left
-	// for categorization, which runs next and files it.
-	const toCommitment = (out: Side) => {
-		const rule = ruleFor(ruleRows, merchantKey(out.merchant ?? out.note ?? ""));
-		return !!rule?.commitmentId && (rule.ended === null || rule.ended > out.date.slice(0, 7));
-	};
-	const outs = ruleRows.some((rule) => rule.commitmentId)
-		? leaving.filter((out) => !toCommitment(out))
-		: leaving;
+	const outs = leaving.filter((out) => !paysCommitment(out));
 	if (outs.length === 0 || ins.length === 0) return { marked: 0, months: [] };
 	const refused = new Set(refusedRows.map((row) => `${row.outId}|${row.inId}`));
 	const pairs = transferPairs(outs, ins, (o, i) => refused.has(`${o}|${i}`));
@@ -329,6 +314,32 @@ export async function detectTransfers(
 		[byId.get(outId), byId.get(inId)].map((side) => side?.date.slice(0, 7) ?? ""),
 	);
 	return { marked: pairs.length, months: [...new Set(months.filter(Boolean))] };
+}
+
+/**
+ * Tells money out that a Rule files in a Commitment: that Commitment's payment, not a Transfer
+ * (ADR-0050). Paired with its other side (a connected loan's "payment received") it would count
+ * nowhere, the Rule would never see it, and the Commitment would never show paid. It's left for
+ * categorization, which runs next and files it.
+ */
+export async function commitmentPayments(db: Db, householdId: string) {
+	// The Household's own Rules: a Parent's private one files only in their Personal Allowance.
+	const ruleRows = await db
+		.select({
+			pattern: rules.pattern,
+			bucketId: rules.bucketId,
+			commitmentId: rules.commitmentId,
+			ended: commitments.endedFromMonth,
+		})
+		.from(rules)
+		.leftJoin(commitments, eq(commitments.id, rules.commitmentId))
+		.where(and(eq(rules.householdId, householdId), isNull(rules.ownerMemberId)));
+	const any = ruleRows.some((rule) => rule.commitmentId);
+	return (out: { merchant?: string | null; note?: string | null; date: string }) => {
+		if (!any) return false;
+		const rule = ruleFor(ruleRows, merchantKey(out.merchant ?? out.note ?? ""));
+		return !!rule?.commitmentId && (rule.ended === null || rule.ended > out.date.slice(0, 7));
+	};
 }
 
 /** Transactions (or income) of the Household's, as MoneyPeers. */

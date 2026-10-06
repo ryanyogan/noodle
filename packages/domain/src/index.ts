@@ -587,6 +587,7 @@ export {
 	paymentCase,
 	REFUND_WINDOW_DAYS,
 	type RefundSide,
+	readsAsPaymentReceived,
 	TRANSFER_WINDOW_DAYS,
 	type TransferSide,
 	transferPairs,
