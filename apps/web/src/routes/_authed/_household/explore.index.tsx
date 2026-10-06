@@ -1014,7 +1014,7 @@ function Totals({
 				</TableHeader>
 				<TableBody>
 					{rows.map((row) => (
-						<TableRow key={row.label} className="border-0 border-t">
+						<TableRow key={row.label} className="border-0 border-t!">
 							<th
 								scope="row"
 								className="px-(--card-pad) py-2.5 text-start font-normal text-muted-foreground max-sm:pe-2"
@@ -1102,7 +1102,7 @@ function GoalsReached({
 						{goals.map((goal) => {
 							const funding = monthly(scenario, goal.id);
 							return (
-								<TableRow key={goal.id} className="border-0 border-t">
+								<TableRow key={goal.id} className="border-0 border-t!">
 									<th
 										scope="row"
 										className="px-(--card-pad) py-2.5 text-start font-normal max-sm:pe-2"

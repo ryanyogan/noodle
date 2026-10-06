@@ -277,8 +277,9 @@ function AddBucketsForm({
 				))}
 			</p>
 			<p className="text-[13px] text-muted-foreground">
-				A Bucket resets monthly unless it carries over <TermHelp term="carries-over" />, keeping
-				what’s left for next month. Good for Gifts: save a bit each month for December.
+				{/* No punctuation straight after the "?": a comma there stood a space away from its word. */}
+				A Bucket resets monthly. One that carries over <TermHelp term="carries-over" /> keeps what’s
+				left for next month. Good for Gifts: save a bit each month for December.
 			</p>
 			<ul aria-label="Buckets to add" className="grid">
 				{rows.map((row) => (

@@ -535,6 +535,22 @@ test.beforeAll(async ({ browser }) => {
 		},
 		// The Plan's first page, whole: the take-home split, the Buckets table under it, Personal
 		// Allowances and what changed. Then what the window shows of it on arriving.
+		// The Sidebar collapsed to its icon rail. Only when asked for by name (PAGE_SHOTS_ONLY=00): the
+		// Sidebar stays collapsed for every picture after it.
+		...(only.includes("00")
+			? [
+					{
+						name: "00-sidebar-collapsed",
+						path: `/plan/${month}`,
+						window: true,
+						ready: async (page: Page) => {
+							await page.getByRole("button", { name: "Toggle sidebar" }).click();
+							await expect(page.getByRole("button", { name: "Quick Add" }).first()).toBeVisible();
+							await page.mouse.move(700, 500);
+						},
+					},
+				]
+			: []),
 		{ name: "03-plan-overview", path: `/plan/${month}` },
 		{ name: "03w-plan-overview-window", path: `/plan/${month}`, window: true },
 		{
@@ -633,7 +649,33 @@ test.beforeAll(async ({ browser }) => {
 			path: `/plan/${month}/commitments/${firstCommitment}`,
 			window: true,
 		},
+		{
+			// The Commitment sheet from its panel's Edit: amount, how often, "Pays down".
+			name: "07c-commitment-sheet",
+			path: `/plan/${month}/commitments/${firstCommitment}`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page
+						.getByRole("link", { name: "Edit", exact: true })
+						.or(page.getByRole("button", { name: "Edit", exact: true })),
+					page.getByRole("dialog"),
+				);
+			},
+		},
 		{ name: "08-plan-goal-funding", path: `/plan/${month}/goals` },
+		{
+			// An Income row's actions menu, open.
+			name: "08y-plan-income-row-menu",
+			path: `/plan/${month}/income`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Actions for / }).first(),
+					page.getByRole("menu"),
+				);
+			},
+		},
 		{ name: "09-plan-year", path: `/plan/${month}/year` },
 		{ name: "10-transactions", path: `/transactions/${month}`, tall: true },
 		// The top of the list as a Parent arrives: search, Filters, Sort and Select above the rows.

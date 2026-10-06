@@ -422,6 +422,7 @@ export {
 	suggestBuckets,
 } from "./plan-draft";
 export {
+	byUrgency,
 	cardsNowFollowed,
 	HEALTH_HABIT_MONTHS,
 	HEALTH_MONTHS_AHEAD,

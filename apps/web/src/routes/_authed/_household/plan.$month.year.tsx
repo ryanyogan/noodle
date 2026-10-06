@@ -280,7 +280,9 @@ function YearTable({ months }: { months: YearMonth[] }) {
 						>
 							<th
 								scope="row"
-								className="ps-(--card-pad) pe-2 py-2.5 text-start xl:pe-(--card-pad) font-medium"
+								// From a tablet's width the column holds "This month" and "Lumpy" side by side: at 1024
+								// each took a line of its own and October's row was twice as tall as the rest.
+								className="ps-(--card-pad) pe-2 py-2.5 text-start md:min-w-44 xl:pe-(--card-pad) font-medium"
 							>
 								<span className="flex flex-wrap items-center gap-1.5">
 									<Link
