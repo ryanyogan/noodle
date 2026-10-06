@@ -134,7 +134,10 @@ function CommitmentPage() {
 							onClick={() => setEditing(true)}
 						>
 							<Pencil />
-							Edit Commitment
+							{/* In the panel (from 1024) it reads "Edit", so previous and next fit beside the
+							    title on one line, as a Goal's and a Bucket's do (issue 121); its name, and its
+							    words on a phone's page, are still "Edit Commitment". */}
+							Edit<span className="lg:sr-only"> Commitment</span>
 						</Button>
 					) : undefined
 				}

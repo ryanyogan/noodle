@@ -399,6 +399,9 @@ test("on a phone a Commitment is still a page with Back", { tag: "@phone" }, asy
 	await expect(back).toBeVisible();
 	expect(await page.evaluate(() => window.scrollY)).toBe(0);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
+	// Its page says "Edit Commitment" in full: only the panel shortens it (issue 121).
+	const edit = page.getByRole("button", { name: "Edit Commitment", exact: true });
+	expect((await edit.boundingBox())?.width).toBeGreaterThan(130);
 	await axe(page, "A Commitment on a phone");
 
 	await back.click();
@@ -588,5 +591,59 @@ test("Buckets is a table from 1024 with the totals under it; a Bucket is a drawe
 	await page.getByRole("link", { name: "Back to Buckets" }).click();
 	// Back lands on the Buckets, part-way down the Plan's first page.
 	await expect(page).toHaveURL(new RegExp(`/plan/${month}#buckets$`));
+	await page.context().close();
+});
+
+test("a Commitment's panel header is one line, as tall as a Bucket's, with Edit beside previous and next", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, at(1280));
+	await createPlannedHousehold(page, {
+		baseline: "9,000",
+		buckets: [
+			["Groceries", "800"],
+			["Gas", "200"],
+		],
+		commitments: [
+			{ name: "Rent", amountCents: 180_000, cadence: "monthly", dueDay: 1 },
+			{ name: "Car insurance", amountCents: 96_000, cadence: "monthly", dueDay: 12 },
+		],
+	});
+	const header = panel(page).locator("[data-slot=detail-header]");
+	const height = async () => Math.round((await header.boundingBox())?.height ?? 0);
+	for (const width of [1280, 1440]) {
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto(`/plan/${month}#buckets`);
+		await expect(page.getByRole("button", { name: "Edit Gas", exact: true })).toBeEnabled();
+		await bucketRow(page, "Gas").getByRole("link", { name: "Gas", exact: true }).click();
+		await expect(page).toHaveURL(bucketAddress);
+		await expect(
+			panel(page).getByRole("button", { name: "Edit Bucket", exact: true }),
+		).toBeEnabled();
+		await settled(page, width);
+		const bucket = await height();
+
+		await page.goto(`/plan/${month}/commitments`);
+		await hydrated(row(page, "Car insurance"));
+		await row(page, "Car insurance").click();
+		await opened(page, "Car insurance");
+		await settled(page, width);
+		// Its name is still "Edit Commitment" (`opened` found it by that); what is drawn is "Edit".
+		const edit = panel(page).getByRole("button", { name: "Edit Commitment", exact: true });
+		// "Edit Commitment" drawn in full is 154px.
+		expect((await edit.boundingBox())?.width, `Edit at ${width}`).toBeLessThan(90);
+		await expect(header.locator("[data-slot=detail-pager]")).toBeVisible();
+		expect(bucket, `a Bucket's header at ${width}`).toBeLessThan(60);
+		expect(await height(), `a Commitment's header at ${width}`).toBe(bucket);
+		// One line: the title, Edit and previous/next share it.
+		const tops = await header.evaluate((node) =>
+			["detail-title", "detail-actions", "detail-pager"].map((slot) => {
+				const box = node.querySelector(`[data-slot=${slot}]`)?.getBoundingClientRect();
+				return box ? box.top + box.height / 2 : -1;
+			}),
+		);
+		expect(Math.max(...tops) - Math.min(...tops), `one line at ${width}: ${tops}`).toBeLessThan(12);
+	}
 	await page.context().close();
 });

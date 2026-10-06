@@ -137,3 +137,66 @@ test("on a phone a Bucket's line with long figures and a long name is whole, on 
 			.toBeLessThanOrEqual(width);
 	}
 });
+
+test("on a phone under 375px a line with a figure of $100,000 or more drops its cents and is whole", async ({
+	browser,
+}) => {
+	test.setTimeout(120_000);
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 1280, height: 900 },
+	});
+	await createPlannedHousehold(page, {
+		baseline: "400,000",
+		buckets: [
+			["Renovation", "100,000"],
+			["Tuition and boarding fees", "100,000.50"],
+			["Gas", "250"],
+		],
+	});
+	// Quick Add takes five digits before the point: two of them make a six-figure spend.
+	await spend(page, "99999.99", "Renovation");
+	await spend(page, "23456.79", "Renovation");
+	await spend(page, "99999.99", "Tuition and boarding fees");
+	await spend(page, "23456.79", "Tuition and boarding fees");
+	await spend(page, "222.77", "Gas");
+	const lines = {
+		320: [
+			"$123,457 of $100,000 spent",
+			"$123,457 of $100,001 spent",
+			// Under $100,000 the cents stay, at every width.
+			"$222.77 of $250 spent",
+			"$247,136 of $200,251 spent",
+		],
+		374: [
+			"$123,457 of $100,000 spent",
+			"$123,457 of $100,001 spent",
+			"$222.77 of $250 spent",
+			"$247,136 of $200,251 spent",
+		],
+		375: [
+			"$123,456.78 of $100,000 spent",
+			"$123,456.78 of $100,000.50 spent",
+			"$222.77 of $250 spent",
+			"$247,136.33 of $200,250.50 spent",
+		],
+	};
+	for (const [at, said] of Object.entries(lines)) {
+		const width = Number(at);
+		await page.setViewportSize({ width, height: 800 });
+		await page.goto(`/plan/${month}#buckets`);
+		await expect(page.getByRole("button", { name: "Edit Gas", exact: true })).toBeEnabled();
+		const line = page
+			.getByRole("grid", { name: "Buckets", exact: true })
+			.locator("[data-summary=phone]");
+		// What is drawn: the figure's other form is in the page too, not shown.
+		await expect(line).toHaveText(said, { useInnerText: true });
+		const measured = await wrongLines(page);
+		expect.soft(measured.wrong, `every line is whole at ${width}`).toEqual([]);
+		expect
+			.soft(
+				await page.evaluate(() => document.documentElement.scrollWidth),
+				`nothing scrolls sideways at ${width}`,
+			)
+			.toBeLessThanOrEqual(width);
+	}
+});
