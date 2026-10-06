@@ -1,4 +1,4 @@
-import type { DayKey, Plan } from "@noodle/domain";
+import type { DayKey, MonthKey, Plan } from "@noodle/domain";
 import { Card } from "@noodle/ui/components/card";
 import { DataTable } from "@noodle/ui/components/data-table";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -8,6 +8,7 @@ import { type ReactNode, type Ref, useEffect, useMemo, useRef, useState } from "
 import { dayName, formatMoney } from "../format";
 import type { MemberSummary } from "../members";
 import { cellEdits, refileOf, renameOf, undoOf } from "../transaction-cells";
+import { monthHeading } from "../transaction-range";
 import { rowView } from "../transaction-row";
 import {
 	canPick,
@@ -31,6 +32,7 @@ import {
 	type TransactionRow,
 	type TransactionSort,
 	transactionLabel,
+	useAssignablePlan,
 } from "../transactions";
 import { NewBucketStep } from "./bucket-picker";
 import type { CellEditing, CellEdits } from "./transaction-cells";
@@ -142,6 +144,9 @@ export function TransactionTable({
 	onSort,
 	today,
 	plan,
+	month,
+	parentId,
+	months = false,
 	members,
 	bringsIn,
 	open,
@@ -151,6 +156,11 @@ export function TransactionTable({
 	onEdit,
 	onChange,
 }: {
+	/** The month `plan` is of: a row of another month is refiled in its own month's Plan. */
+	month: MonthKey;
+	parentId: string;
+	/** The rows are of more than a month (issue 99): by date, each month starts under its name. */
+	months?: boolean;
 	/** The open Transaction's editor (the child route), drawn under its row. */
 	detail?: ReactNode;
 	/** A rename or refile made in a cell: sent with the page's other changes to Transactions. */
@@ -196,17 +206,27 @@ export function TransactionTable({
 	const [creating, setCreating] = useState<{ transaction: TransactionRow; name: string } | null>(
 		null,
 	);
+	// The cell being edited may be in another month than the address's (a list of more than a
+	// month): its picker offers its own month's Buckets, loaded when the cell opens.
+	const cellRow =
+		creating?.transaction ?? (editing ? transactions.find((t) => t.id === editing.id) : undefined);
+	const cellMonth = cellRow ? monthOfTransaction(cellRow) : month;
+	const otherPlan = useAssignablePlan(cellMonth, parentId, cellMonth !== month);
+	const cellPlan = cellMonth === month ? plan : otherPlan;
 	const choices = useMemo(
 		() => [
 			{
 				label: "Buckets",
-				choices: plan.buckets.map((b) => ({ value: `bucket:${b.id}`, label: b.name })),
+				choices: (cellPlan?.buckets ?? []).map((b) => ({
+					value: `bucket:${b.id}`,
+					label: b.name,
+				})),
 			},
-			...(plan.commitments.length > 0
+			...(cellPlan && cellPlan.commitments.length > 0
 				? [
 						{
 							label: "Commitments",
-							choices: plan.commitments.map((c) => ({
+							choices: cellPlan.commitments.map((c) => ({
 								value: `commitment:${c.id}`,
 								label: c.name,
 							})),
@@ -214,7 +234,7 @@ export function TransactionTable({
 					]
 				: []),
 		],
-		[plan],
+		[cellPlan],
 	);
 	const titleOf = (transaction: TransactionRow) =>
 		rows.find((row) => row.transaction.id === transaction.id)?.view.title ?? "Transaction";
@@ -294,8 +314,10 @@ export function TransactionTable({
 					name={creating.name}
 					what={titleOf(creating.transaction)}
 					amountCents={creating.transaction.amountCents}
-					buckets={plan.buckets}
-					taken={[...plan.buckets, ...plan.commitments].map((item) => item.name)}
+					buckets={(cellPlan ?? plan).buckets}
+					taken={[...(cellPlan ?? plan).buckets, ...(cellPlan ?? plan).commitments].map(
+						(item) => item.name,
+					)}
 					onCancel={() => setCreating(null)}
 					onCreated={(bucket) => {
 						setCreating(null);
@@ -356,19 +378,34 @@ export function TransactionTable({
 						? ({ transaction }, previous) => {
 								if (previous?.transaction.date === transaction.date) return null;
 								const total = totals.get(transaction.date) ?? null;
+								const itsMonth = transaction.date.slice(0, 7);
+								const newMonth = months && previous?.transaction.date.slice(0, 7) !== itsMonth;
 								return (
-									<div
-										data-slot="list-group-label"
-										className="flex items-baseline justify-between gap-3 pt-2.5 pb-1.5 text-xs font-medium text-subtle-foreground"
-									>
-										<span>{dayName(transaction.date, today)}</span>
-										{total !== null ? (
-											<span className="tabular-nums">
-												<span className="sr-only">Spent </span>
-												{formatMoney(total)}
-											</span>
+									<>
+										{newMonth ? (
+											<div
+												data-slot="list-month-label"
+												className={cn(
+													"pb-0.5 text-sm font-semibold text-foreground",
+													previous ? "pt-5" : "pt-3",
+												)}
+											>
+												{monthHeading(itsMonth)}
+											</div>
 										) : null}
-									</div>
+										<div
+											data-slot="list-group-label"
+											className="flex items-baseline justify-between gap-3 pt-2.5 pb-1.5 text-xs font-medium text-subtle-foreground"
+										>
+											<span>{dayName(transaction.date, today)}</span>
+											{total !== null ? (
+												<span className="tabular-nums">
+													<span className="sr-only">Spent </span>
+													{formatMoney(total)}
+												</span>
+											) : null}
+										</div>
+									</>
 								);
 							}
 						: undefined

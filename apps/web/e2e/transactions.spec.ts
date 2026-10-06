@@ -812,3 +812,112 @@ test("a cell's change made on a Transaction another screen has changed since is 
 	await other.context().close();
 	await page.context().close();
 });
+
+/** `n` months before a month, as its key. */
+const monthsBefore = (month: string, n: number) => {
+	const [year = 1970, m = 1] = month.split("-").map(Number);
+	const date = new Date(Date.UTC(year, m - 1 - n, 1));
+	return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+};
+
+/** A planned Household with a Transaction this month, two last month, one two months back and one five. */
+async function setUpMonths(page: Page) {
+	const created = await createPlannedHousehold(page, plan);
+	if (!created) throw new Error("The Household wasn't made directly, so its IDs aren't known");
+	const { householdId, parentId, month, bucketIds } = created;
+	const sql = (value: string) => `'${value.replaceAll("'", "''")}'`;
+	const rows: [note: string, back: number, cents: number, bucket: string][] = [
+		["Now A", 0, 1_000, "Groceries"],
+		["Last B", 1, 2_000, "Groceries"],
+		["Last C", 1, 500, "Hockey"],
+		["Older D", 2, 4_000, "Groceries"],
+		["Far E", 5, 8_000, "Groceries"],
+	];
+	await seedSql([
+		// The Buckets were planned this month: here they have been in the Plan for half a year, so
+		// an earlier month's Transaction has that month's Buckets to be filed in.
+		`update buckets set from_month = ${sql(monthsBefore(month, 6))} where household_id = ${sql(householdId)}`,
+		...rows.map(
+			([note, back, cents, bucket]) =>
+				`insert into transactions (id, household_id, source, date, amount_cents, bucket_id, note, created_by_member_id) values (${sql(ulid())}, ${sql(householdId)}, 'quick-add', ${sql(`${monthsBefore(month, back)}-01`)}, ${cents}, ${sql(bucketIds[bucket] ?? "")}, ${sql(note)}, ${sql(parentId)})`,
+		),
+	]);
+	return { month };
+}
+
+test("more than a month: the range changes the rows, their month headings and the total, and its link shows it again", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const { month } = await setUpMonths(page);
+	await page.goto(`/transactions/${month}`);
+	const rows = list(page).locator("button:not([role=checkbox]):not([data-cell])");
+	const headings = list(page).locator("[data-slot=list-month-label]");
+	await expect(rows).toHaveCount(1);
+	await expect(page.getByTestId("month-total")).toHaveText("$10");
+	await expect(headings).toHaveCount(0);
+
+	// The last 3 months, ending at the month in the address: each month under its name.
+	await hydrated(page.getByLabel("Months"));
+	await choose(page, "Months", "Last 3 months");
+	await expect(page).toHaveURL(/range=3m/);
+	await expect(rows).toHaveCount(4);
+	await expect(headings).toHaveCount(3);
+	await expect(page.getByText(/^Spent \w{3}( \d{4})? – \w{3} \d{4}$/)).toBeVisible();
+	await expect(page.getByTestId("month-total")).toHaveText("$75");
+	// A row of another month names its Bucket.
+	await expect(row(page, "Last C")).toHaveAccessibleName(/^Last C, \$5, Hockey/);
+
+	await choose(page, "Months", "All time");
+	await expect(page).toHaveURL(/range=all/);
+	await expect(rows).toHaveCount(5);
+	await expect(page.getByText("Spent, all time")).toBeVisible();
+	await expect(page.getByTestId("month-total")).toHaveText("$155");
+
+	// The address alone shows the same list, and a filter and an order work over all of it.
+	await page.goto(`/transactions/${month}?range=3m`);
+	await expect(rows).toHaveCount(4);
+	await expect(page.getByTestId("month-total")).toHaveText("$75");
+	await hydrated(page.getByLabel("Bucket"));
+	await choose(page, "Bucket", "Hockey");
+	await expect(rows).toHaveCount(1);
+	await expect(row(page, "Last C")).toBeVisible();
+	await expect(page.getByText(/^These filters, /)).toBeVisible();
+	await expect(page.getByTestId("month-total")).toHaveText("$5");
+
+	await page.goto(`/transactions/${month}?range=3m&sort=largest`);
+	await expect(rows).toHaveCount(4);
+	await expect(rows.first()).toHaveAccessibleName(/^Older D,/);
+	await expect(rows.last()).toHaveAccessibleName(/^Last C,/);
+	// By amount the months are mixed: no month headings.
+	await expect(headings).toHaveCount(0);
+
+	// The month arrows keep the range: one month back, the last 3 months end there.
+	await page.goto(`/transactions/${monthsBefore(month, 1)}?range=3m`);
+	await expect(rows).toHaveCount(3);
+	await expect(page.getByTestId("month-total")).toHaveText("$65");
+	await page.context().close();
+});
+
+test("more than a month: a row of another month is refiled where it is, in its own month's Plan, and that month's Buckets move", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const { month } = await setUpMonths(page);
+	await page.goto(`/transactions/${month}?range=3m`);
+	await hydrated(page.getByLabel("Months"));
+	await refileButton(page, "Last B", "Groceries").click();
+	const saved = savedBy(page, "updateTransaction");
+	await page.getByRole("option", { name: "Hockey", exact: true }).click();
+	await saved;
+	await expect(row(page, "Last B")).toHaveAccessibleName(/^Last B, \$20, Hockey/);
+	// Still the list of three months, at its address.
+	await expect(page).toHaveURL(/range=3m/);
+	await expect(list(page).locator("[data-slot=list-month-label]")).toHaveCount(3);
+
+	await page.goto(`/month/${monthsBefore(month, 1)}`);
+	await expect(bucketRow(page, "Hockey")).toContainText("$25 spent");
+	await page.context().close();
+});

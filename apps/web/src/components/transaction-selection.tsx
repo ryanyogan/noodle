@@ -17,6 +17,7 @@ import {
 	undoFiling,
 } from "../server/transactions";
 import { refileOf } from "../transaction-cells";
+import { rangeName } from "../transaction-range";
 import {
 	bulkDeletedMessage,
 	canPick,
@@ -194,7 +195,12 @@ export function SelectionBar({
 	const inMonth = useQuery(summaryQuery({ all: matchingAll(month, filters, false) })).data?.count;
 	const upToMonth = useQuery(summaryQuery({ all: matchingAll(month, filters, true) })).data?.count;
 	const count = pickedCount(picking, picking.all?.andEarlier ? upToMonth : inMonth);
-	const name = monthName(month);
+	// More than a month (issue 99): "all that match" is all in the range the list shows.
+	const name = !filters.range
+		? monthName(month)
+		: filters.range === "all"
+			? "every month"
+			: rangeName(filters.range, month);
 	const offerMonth =
 		inMonth !== undefined && inMonth > 0 && !(picking.all && !picking.all.andEarlier);
 	const offerEarlier =
@@ -245,9 +251,15 @@ export function SelectionBar({
 						<Button
 							variant="outline"
 							// Inside one month only: a Transaction is filed in its own month's Plan.
-							disabled={!count || file.isPending || Boolean(picking.all?.andEarlier)}
+							disabled={
+								!count || file.isPending || Boolean(picking.all?.andEarlier || filters.range)
+							}
 							title={
-								picking.all?.andEarlier ? "Transactions are filed one month at a time" : undefined
+								filters.range
+									? "Transactions are filed one month at a time: show This month to file these"
+									: picking.all?.andEarlier
+										? "Transactions are filed one month at a time"
+										: undefined
 							}
 							onClick={() => setFiling(true)}
 						>

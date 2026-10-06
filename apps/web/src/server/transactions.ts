@@ -163,6 +163,9 @@ export const getTransactions = createServerFn({ method: "GET" })
 	.validator(
 		z.object({
 			month: monthKeySchema.optional(),
+			// More than a month (issue 99): from this month, or every month, up to the end of `month`.
+			fromMonth: monthKeySchema.optional(),
+			andEarlier: z.boolean().optional(),
 			bucketId: ulidSchema.optional(),
 			forMember: forFilterSchema.optional(),
 			accountId: ulidSchema.optional(),
@@ -461,6 +464,7 @@ const selectionSchema = z
 			.object({
 				month: monthKeySchema,
 				andEarlier: z.boolean().optional(),
+				fromMonth: monthKeySchema.optional(),
 				bucketId: ulidSchema.optional(),
 				forMember: forFilterSchema.optional(),
 				accountId: ulidSchema.optional(),

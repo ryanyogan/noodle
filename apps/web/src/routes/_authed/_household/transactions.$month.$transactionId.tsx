@@ -41,9 +41,6 @@ function TransactionPane() {
 	// asked for by its ID when it isn't among them (further down, or left out by the filters).
 	const filters = list.useLoaderDeps();
 	const navigate = Route.useNavigate();
-	const data = useSuspenseQuery(monthQuery(month)).data;
-	// The other Parent's Personal Allowance isn't this Parent's to assign to.
-	const plan = { ...data.plan, buckets: data.plan.buckets.filter((b) => canAssign(b, parentId)) };
 	const members = useSuspenseQuery(membersQuery()).data;
 	const loaded = useSuspenseInfiniteQuery(transactionsQuery(month, filters)).data.pages.flatMap(
 		(page) => page.transactions,
@@ -51,6 +48,13 @@ function TransactionPane() {
 	const listed = loaded.find((row) => row.id === transactionId);
 	const one = useQuery({ ...transactionQuery(month, transactionId), enabled: !listed });
 	const transaction = listed ?? one.data ?? undefined;
+	// In a list of more than a month (issue 99) a row of another month opens where it is, against
+	// its own month's Plan: the Buckets it can be filed in are that month's.
+	const ranged = Boolean(filters.range);
+	const planMonth = ranged && transaction ? monthOfTransaction(transaction) : month;
+	const data = useSuspenseQuery(monthQuery(planMonth)).data;
+	// The other Parent's Personal Allowance isn't this Parent's to assign to.
+	const plan = { ...data.plan, buckets: data.plan.buckets.filter((b) => canAssign(b, parentId)) };
 	const change = useTransactionChange();
 	// Back to the list alone, by its address rather than by going Back, so it works when this
 	// address was the first one opened: the list stays where it was scrolled to, and focus returns
@@ -117,7 +121,7 @@ function TransactionPane() {
 	}
 	// An address with another month's Transaction goes to its own month, whose Plan it's filed in.
 	const itsMonth = monthOfTransaction(transaction);
-	if (itsMonth !== month) {
+	if (itsMonth !== month && !ranged) {
 		return (
 			<Navigate
 				to="/transactions/$month/$transactionId"

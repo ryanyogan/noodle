@@ -8,7 +8,16 @@ import { formatMoney } from "./format";
 // on screen, so it holds for a long list that has only loaded its first pages.
 
 /** The list's filters, as the Transactions page keeps them in its address. */
-type Filters = { bucket?: string; for?: string; account?: string; q?: string };
+import { rangeBounds, type TransactionRange } from "./transaction-range";
+
+type Filters = {
+	bucket?: string;
+	for?: string;
+	account?: string;
+	q?: string;
+	/** More than the month (issue 99): "all that match" is then all in that range. */
+	range?: TransactionRange;
+};
 
 export type Picking = {
 	/** Picked one by one. */
@@ -106,7 +115,8 @@ export function selectAllLabel(
 /** The filters as the server takes them, for a month or for it and every month before. */
 export const matchingAll = (month: MonthKey, filters: Filters, andEarlier: boolean) => ({
 	month,
-	andEarlier,
+	andEarlier: andEarlier || Boolean(rangeBounds(filters.range, month).andEarlier),
+	...(andEarlier ? {} : { fromMonth: rangeBounds(filters.range, month).fromMonth }),
 	bucketId: filters.bucket,
 	forMember: filters.for,
 	accountId: filters.account,

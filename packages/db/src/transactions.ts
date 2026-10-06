@@ -485,6 +485,11 @@ export type TransactionRow = {
 	 * changed or confirmed it; null otherwise. The list marks it so a Parent can check it.
 	 */
 	autoFiled: CategorizationMethod | null;
+	/**
+	 * The name of the Bucket or Commitment it's assigned to as a whole, read with the row (issue
+	 * 99): a list of more than a month can't name it from one month's Plan. Null when it has none.
+	 */
+	assignedName?: string | null;
 	/** Which version of it this is: sent back with a change, so one made on an old one is refused (ADR-0041). */
 	version: number;
 };
@@ -614,6 +619,13 @@ export async function loadTransactionsPage(
 	query: {
 		/** Left out for every month (an Account's list). */
 		month?: MonthKey;
+		/**
+		 * With `month`, more than a month (issue 99): from this month's first day to the end of
+		 * `month`. Left out, the list is `month` alone.
+		 */
+		fromMonth?: MonthKey;
+		/** With `month`: every month up to the end of it. */
+		andEarlier?: boolean;
 		bucketId?: string;
 		/** A Member's ID, or "everyone" for spending For the whole Household. */
 		forMember?: string;
@@ -631,7 +643,7 @@ export async function loadTransactionsPage(
 	transactions: TransactionRow[];
 	next: TransactionCursor | null;
 	/**
-	 * What the filtered month spent, on the first page of a month's list only (null otherwise):
+	 * What the filtered month (or months) spent, on the first page of a month's list only (null otherwise):
 	 * a Transfer's sides count nowhere and money back takes off, as in the day totals.
 	 */
 	total: number | null;
@@ -644,7 +656,9 @@ export async function loadTransactionsPage(
 	const filtered = and(
 		visibleTo(viewer),
 		query.transactionId ? eq(transactions.id, query.transactionId) : undefined,
-		query.month ? gte(transactions.date, `${query.month}-01`) : undefined,
+		query.month && !query.andEarlier
+			? gte(transactions.date, `${query.fromMonth ?? query.month}-01`)
+			: undefined,
 		query.month ? lt(transactions.date, nextMonthStart(query.month)) : undefined,
 		matching(viewer, query.bucketId, query.forMember),
 		query.accountId ? inAccount(query.accountId) : undefined,
@@ -731,6 +745,9 @@ export async function loadTransactionsPage(
 				join transactions o on o.id = r.original_transaction_id
 				where r.refund_transaction_id = ${transactions.id} and r.removed_at is null)`,
 			autoFiled: categorizations.method,
+			assignedName: sql<string | null>`coalesce(
+				(select ${buckets.name} from ${buckets} where ${buckets.id} = ${transactions.bucketId}),
+				(select ${commitments.name} from ${commitments} where ${commitments.id} = ${transactions.commitmentId}))`,
 			version: transactions.version,
 			sortKey: textKey ?? sql<string | null>`null`,
 		})
@@ -1522,6 +1539,8 @@ export type TransactionSelection = {
 		month: MonthKey;
 		/** Every earlier month too: "everything up to the end of <month>". */
 		andEarlier?: boolean;
+		/** Or from this month's first day to the end of `month` (issue 99): the last 3 months, this year. */
+		fromMonth?: MonthKey;
 		bucketId?: string;
 		forMember?: string;
 		accountId?: string;
@@ -1541,7 +1560,7 @@ function selectedBy(viewer: Viewer, selection: TransactionSelection): SQL {
 	const search = all.search?.trim();
 	return and(
 		visibleTo(viewer),
-		all.andEarlier ? undefined : gte(transactions.date, `${all.month}-01`),
+		all.andEarlier ? undefined : gte(transactions.date, `${all.fromMonth ?? all.month}-01`),
 		lt(transactions.date, nextMonthStart(all.month)),
 		matching(viewer, all.bucketId, all.forMember),
 		all.accountId ? inAccount(all.accountId) : undefined,
@@ -1859,7 +1878,8 @@ export async function fileTransactions(
 ): Promise<FilingResult> {
 	const { householdId, memberId } = viewer;
 	const { selection, month, assignment } = input;
-	if (selection.all && (selection.all.andEarlier || selection.all.month !== month)) {
+	const wider = selection.all?.fromMonth !== undefined && selection.all.fromMonth !== month;
+	if (selection.all && (selection.all.andEarlier || wider || selection.all.month !== month)) {
 		return { ok: false, reason: "more-than-a-month" };
 	}
 	const bucketId = "bucketId" in assignment ? assignment.bucketId : null;
