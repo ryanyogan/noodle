@@ -420,3 +420,37 @@ describe("A long run of Transactions the order can't tell apart", () => {
 		}
 	});
 });
+
+describe("the month's summary and its Needs review filter (issue 134)", () => {
+	beforeEach(async () => {
+		await quickAdd(alex, "q-1", "groceries", 4_000, "Costco");
+		await quickAdd(alex, "q-2", "hockey", 2_500, "Skates");
+		await importInto("checking", "i-s", [
+			line("2026-09-12", -1_200, "Corner shop"),
+			line("2026-09-13", -800, "Parking"),
+		]);
+	});
+
+	it("says what the month spent and how many wait, on the first page", async () => {
+		const page = await loadTransactionsPage(db, alex, { month, limit: 50 });
+		expect(page.summary).toEqual({ outCents: 8_500, needsReview: 2 });
+		expect(page.total).toBe(8_500);
+	});
+
+	it("keeps only the spending that waits, and the summary stays the month's", async () => {
+		const page = await loadTransactionsPage(db, alex, { month, review: true, limit: 50 });
+		expect(named(page.transactions).sort()).toEqual(["Corner shop", "Parking"]);
+		expect(page.total).toBe(2_000);
+		expect(page.summary).toEqual({ outCents: 8_500, needsReview: 2 });
+	});
+
+	it("follows the other filters", async () => {
+		const page = await loadTransactionsPage(db, alex, { month, bucketId: "groceries", limit: 50 });
+		expect(page.summary).toEqual({ outCents: 4_000, needsReview: 0 });
+	});
+
+	it("a selection of all that match holds only what waits", async () => {
+		const summary = await summarizeDeletion(db, alex, { all: { month, review: true } });
+		expect(summary.count + summary.staying).toBe(2);
+	});
+});

@@ -197,7 +197,7 @@ describe("withTransactionChange: splitting reassigns each Split in the month's s
 describe("withRowChange: the list shows the change", () => {
 	const list = {
 		pageParams: [undefined],
-		pages: [{ transactions: [skates], next: null, total: null }],
+		pages: [{ transactions: [skates], next: null, total: null, summary: null }],
 	};
 
 	test("updates the row in place", () => {

@@ -1,4 +1,5 @@
 import { MONEY_IN_KIND_LABELS, MONEY_IN_KINDS, type MonthKey } from "@noodle/domain";
+import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Checkbox } from "@noodle/ui/components/checkbox";
 import { List, ListRow } from "@noodle/ui/components/list";
@@ -14,10 +15,11 @@ import {
 	moneyInReviewQuery,
 	useMoneyInKindChange,
 } from "../money-in";
+import { moneyInShown, type TransactionShow } from "../transaction-summary";
 
 // Money in and its kind (issue 131, ADR-0057): listed on Transactions with its kind in plain
-// words, and asked about in Review when it was sent person to person. Colour and the "+" in green
-// are issue 134's.
+// words, and asked about in Review when it was sent person to person. Money in is green with its
+// "+" and its kind is one word in a badge (issue 134).
 
 /**
  * The five kinds as buttons, the line's own pressed: a Parent says what a money-in line is, and
@@ -67,12 +69,32 @@ export function MoneyInKindChoice({ line, onDone }: { line: MoneyInLine; onDone?
 	);
 }
 
+/** Money in is green with its "+" (issue 134); money out stays plain ink. */
+const moneyInAmount = "font-semibold text-money-in tabular-nums";
+
 /** A month's money in under its Transactions: each line with its kind, which a Parent can change. */
-export function MoneyInSection({ month, today }: { month: MonthKey; today: string }) {
+export function MoneyInSection({
+	month,
+	today,
+	show,
+}: {
+	month: MonthKey;
+	today: string;
+	/** The page's summary filter (issue 134): none of it for money out, what waits for review. */
+	show?: TransactionShow;
+}) {
 	const id = useId();
-	const lines = useQuery(moneyInQuery(month)).data ?? [];
+	const query = useQuery(moneyInQuery(month));
+	const lines = moneyInShown(query.data ?? [], show);
 	const [open, setOpen] = useState<string | null>(null);
-	if (lines.length === 0) return null;
+	if (lines.length === 0) {
+		// Asked for alone and there is none: say so, rather than an empty page.
+		return show === "in" && query.data ? (
+			<p className="px-1 text-sm text-muted-foreground" data-testid="money-in-none">
+				No money in this month yet.
+			</p>
+		) : null;
+	}
 	return (
 		<Section aria-labelledby={id} data-testid="money-in">
 			<SectionHeader id={id} title="Money in" count={lines.length} />
@@ -86,12 +108,18 @@ export function MoneyInSection({ month, today }: { month: MonthKey; today: strin
 							<>
 								<span>{dayName(line.date, today)}</span>
 								<span aria-hidden="true">·</span>
-								<span data-testid="money-in-kind">{moneyInKindText(line)}</span>
+								<Badge
+									data-testid="money-in-kind"
+									variant={line.needsReview ? "pace" : "default"}
+									className="h-4.5 px-1.5 text-[11px]"
+								>
+									{moneyInKindText(line)}
+								</Badge>
 							</>
 						}
 						trailing={
 							<>
-								<span>+{formatMoney(line.amount)}</span>
+								<span className={moneyInAmount}>+{formatMoney(line.amount)}</span>
 								<Button
 									type="button"
 									variant="ghost"
@@ -135,7 +163,7 @@ export function MoneyInReview({ today, className }: { today: string; className?:
 						data-testid="money-in-row"
 						title={moneyInLabel(line)}
 						meta={<span>{dayName(line.date, today)}</span>}
-						trailing={<span>+{formatMoney(line.amount)}</span>}
+						trailing={<span className={moneyInAmount}>+{formatMoney(line.amount)}</span>}
 						below={<MoneyInKindChoice line={line} />}
 						belowFull
 					/>

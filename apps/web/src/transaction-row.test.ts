@@ -99,14 +99,30 @@ describe("rowView", () => {
 		expect(view({ amountCents: -500, refundOf: "t0" })).toMatchObject({
 			assigned: "Refund · Groceries",
 			detail: "Refund · Groceries",
-			label: `Costco, ${formatMoney(-500)}, Refund, Groceries`,
+			amount: "+$5",
+			moneyIn: true,
+			kindWord: "Refund",
+			label: "Costco, +$5, Refund, Groceries",
 		});
 		expect(view({ amountCents: -500, bucketId: null, importedFrom: "Visa" })).toMatchObject({
 			assigned: "Money back",
 			who: "",
 			detail: "Money back · Visa",
-			label: `Costco, ${formatMoney(-500)}, Money back, from Visa`,
+			amount: "+$5",
+			moneyIn: true,
+			kindWord: null,
+			label: "Costco, +$5, Money back, from Visa",
 		});
+	});
+
+	it("says a one-word kind where a line isn't plain spending, and who it was For as names", () => {
+		expect(view()).toMatchObject({ kindWord: null, moneyIn: false, forNames: ["Everyone"] });
+		expect(view({ transfer: { from: "Checking", to: "Visa", reason: null } }).kindWord).toBe(
+			"Transfer",
+		);
+		expect(view({ transfer: { from: "Checking", to: null, reason: "between-us" } }).kindWord).toBe(
+			"Between us",
+		);
 	});
 
 	it("Goal spending names its Goal", () => {

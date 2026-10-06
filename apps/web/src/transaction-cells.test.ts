@@ -1,7 +1,7 @@
 import type { InfiniteData } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import type { TransactionsPage } from "./server/transactions";
-import { cellEdits, cellName, refileOf, renameOf, undoOf } from "./transaction-cells";
+import { cellEdits, cellName, forOf, refileOf, renameOf, undoOf } from "./transaction-cells";
 import { escapeStep } from "./transaction-table";
 import { type TransactionRow, withRowChange, withTransactionChange } from "./transactions";
 
@@ -189,5 +189,33 @@ describe("Esc with a cell being edited", () => {
 		);
 		expect(escapeStep({ ...at, open: true, selecting: true })).toBe("close");
 		expect(escapeStep({ ...at, selecting: true })).toBe("unselect");
+	});
+});
+
+describe("changing who a row is For from its chips (issue 134)", () => {
+	it("writes the row as it is, with the new For", () => {
+		expect(forOf(row(), ["m2", "m1", "m2"])).toEqual({
+			amountCents: 8412,
+			note: "Costco",
+			assignment: { bucketId: "b1" },
+			forMemberIds: ["m1", "m2"],
+		});
+		expect(forOf(row(), [])).toMatchObject({ forMemberIds: [] });
+	});
+
+	it("is nothing when For is as it was", () => {
+		expect(forOf(row(), ["m1"])).toBeNull();
+	});
+
+	it("is not offered where the row has no single assignment to keep", () => {
+		expect(forOf(row({ bucketId: null }), [])).toBeNull();
+		expect(forOf(row({ amountCents: -2499 }), [])).toBeNull();
+		expect(forOf(row({ transfer: { from: "Checking", to: "Visa", reason: null } }), [])).toBeNull();
+		expect(forOf(row({ partlyPrivate: true }), [])).toBeNull();
+	});
+
+	it("can be undone", () => {
+		const next = forOf(row(), []);
+		expect(next && undoOf(row(), next)).toMatchObject({ forMemberIds: ["m1"] });
 	});
 });

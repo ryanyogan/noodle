@@ -80,6 +80,8 @@
 	--over-soft: rgb(203 54 60 / 0.1);
 	/* Over as text on --over-soft (badges): at least 4.5:1. */
 	--over-foreground: #b02f33;
+	/* Money in, as text (issue 134): at least 4.5:1 on card (6.46), background (6.03), surface-2 (5.78) and surface-3 (5.28). */
+	--money-in: #146c41;
 
 	/* The ground is flat: one faint accent wash at the top of the page, no second glow. */
 	--glow-1: rgb(79 90 212 / 0.05);
@@ -256,6 +258,8 @@
 		--over: #f07171;
 		--over-soft: rgb(240 113 113 / 0.14);
 		--over-foreground: #f38383;
+		/* 9.21:1 on the card, 7.75 on surface-3, 7.96 on a selected row. */
+		--money-in: #5fd08f;
 		--glow-1: rgb(108 154 242 / 0.05);
 		--glow-2: transparent;
 		--scrim: rgb(3 5 9 / 0.66);
@@ -327,6 +331,7 @@
 	--over: #f07171;
 	--over-soft: rgb(240 113 113 / 0.14);
 	--over-foreground: #f38383;
+	--money-in: #5fd08f;
 	--glow-1: rgb(108 154 242 / 0.05);
 	--glow-2: transparent;
 	--scrim: rgb(3 5 9 / 0.66);
@@ -431,6 +436,7 @@
 	--color-over: var(--over);
 	--color-over-soft: var(--over-soft);
 	--color-over-foreground: var(--over-foreground);
+	--color-money-in: var(--money-in);
 	--color-scrim: var(--scrim);
 	--color-bucket-1: var(--bucket-1);
 	--color-bucket-2: var(--bucket-2);

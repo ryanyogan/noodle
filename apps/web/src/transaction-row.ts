@@ -1,7 +1,7 @@
-import { displayMerchant, type Plan } from "@noodle/domain";
+import { displayMerchant, MONEY_IN_KIND_LABELS, type Plan } from "@noodle/domain";
 import { asBucketColor } from "./buckets";
 import { formatMoney } from "./format";
-import { forLabel, type MemberSummary } from "./members";
+import { forLabel, type MemberSummary, pickableMembers } from "./members";
 import type { TransactionRow } from "./transactions";
 import { transferDetail } from "./transfers";
 
@@ -38,7 +38,14 @@ export type RowView = {
 	kind: "goal" | "transfer" | "split" | "plain";
 	/** Its name: the Parent's or the cleaned-up bank wording, else what kind of thing it is. */
 	title: string;
+	/** Money out as it is; money back and a Refund with a "+" (issue 134). */
 	amount: string;
+	/** Money came in (money back, a Refund): its amount is drawn in the money-in colour. */
+	moneyIn: boolean;
+	/** One word where the line isn't plain spending: Transfer, Between us, Refund. */
+	kindWord: string | null;
+	/** Who it was For, a name each (the row's chips): ["Everyone"] for the whole Household. */
+	forNames: string[];
 	/** The second line of a two-line row: what it's assigned to, who it was For, where it came from. */
 	detail: string;
 	assignment: ReturnType<typeof assignmentOf>;
@@ -83,7 +90,13 @@ export function rowView(
 					? "Imported"
 					: "Quick Add");
 	const who = forLabel(members, transaction.for);
-	const amount = formatMoney(transaction.amountCents);
+	const amount =
+		transaction.amountCents < 0
+			? `+${formatMoney(-transaction.amountCents)}`
+			: formatMoney(transaction.amountCents);
+	const named = pickableMembers(members, transaction.for)
+		.filter((member) => transaction.for.includes(member.id))
+		.map((member) => member.name);
 	// A pending charge may still change, or go, until the bank posts it (and its copy takes its place).
 	const spokenTitle = transaction.pending ? `${title} (pending)` : title;
 	// Where an imported Transaction came from, or a Quick Add's bank copy, after what it's assigned to.
@@ -148,6 +161,13 @@ export function rowView(
 		kind: transaction.goal ? "goal" : transfer ? "transfer" : split ? "split" : "plain",
 		title,
 		amount,
+		moneyIn: moneyBack,
+		kindWord: transfer
+			? MONEY_IN_KIND_LABELS[transfer.reason === "between-us" ? "between-us" : "transfer"]
+			: refund
+				? MONEY_IN_KIND_LABELS.refund
+				: null,
+		forNames: transaction.for.length === 0 ? ["Everyone"] : named.length ? named : ["Someone"],
 		detail,
 		assignment,
 		assigned,

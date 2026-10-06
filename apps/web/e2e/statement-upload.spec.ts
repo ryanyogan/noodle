@@ -157,10 +157,10 @@ test("money back onto a card is listed but counts nowhere", async ({ browser }) 
 	);
 	const rei = page.getByRole("button", { name: /^REI\b/i });
 	const refund = page.getByRole("row").filter({ has: rei });
-	await says(page, rei, ["Money back", "Visa", "••1111", "−$24.99"]);
+	await says(page, rei, ["Money back", "Visa", "••1111", "+$24.99"]);
 	// It opens its Transfer and Refund link, not the editor.
 	// The row's own button, not the Rename pencil in its Name cell.
 	await expect(refund.locator("button:not([role=checkbox]):not([data-cell])")).toHaveAccessibleName(
-		/^REI[^,]*, −\$24\.99, Money back, from Visa ••1111$/i,
+		/^REI[^,]*, \+\$24\.99, Money back, from Visa ••1111$/i,
 	);
 });
