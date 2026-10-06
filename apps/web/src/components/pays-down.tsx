@@ -4,6 +4,7 @@ import { Checkbox } from "@noodle/ui/components/checkbox";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { OptionSelect } from "@noodle/ui/components/select";
+import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type KeyboardEvent, useState } from "react";
@@ -251,12 +252,31 @@ export function PaysDownField({
 }
 
 /** "Pays down American Express", on a linked Commitment's row. Nothing until Accounts have loaded. */
-export function PaysDownNote({ accountId }: { accountId: string }) {
+export function PaysDownNote({
+	accountId,
+	joined = false,
+}: {
+	accountId: string;
+	/** On a phone from 375px wide it follows the text before it on the same line, after a dot. */
+	joined?: boolean;
+}) {
 	const goals = useQuery(goalsQuery()).data;
 	const name =
 		goals?.accounts.find((account) => account.id === accountId)?.name ??
 		goals?.archivedAccounts.find((account) => account.id === accountId)?.name;
-	return name ? <span className="basis-full text-subtle-foreground">Pays down {name}</span> : null;
+	if (!name) return null;
+	return (
+		<span
+			className={cn("basis-full text-subtle-foreground", joined && "min-[375px]:max-sm:basis-auto")}
+		>
+			{joined ? (
+				<span aria-hidden="true" className="hidden min-[375px]:max-sm:inline">
+					·{" "}
+				</span>
+			) : null}
+			Pays down {name}
+		</span>
+	);
 }
 
 /**

@@ -57,11 +57,12 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 							// the figures took three lines on a phone (issue 115). They break between the
 							// month's part and the Goal's, not inside one.
 							below={
-								<p className="-mt-2 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground">
+								// On a phone each part has its own line, so no row ends in a lone dot (issue 74).
+								<p className="-mt-2 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground max-sm:flex-col">
 									{goalThisMonth(goal).map((part, i, parts) => (
 										<span key={part}>
 											{part}
-											{i < parts.length - 1 ? " ·" : ""}
+											{i < parts.length - 1 ? <span className="max-sm:hidden"> ·</span> : null}
 										</span>
 									))}
 								</p>

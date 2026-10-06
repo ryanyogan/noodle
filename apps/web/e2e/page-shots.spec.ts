@@ -22,6 +22,8 @@ import { q, seedBetweenUs, seedIncomeHousehold, seedShotsHousehold } from "./sho
 //   PAGE_SHOTS_WIDTHS=1440,393      only these widths (default: all five; 2560 only when asked for)
 //   PAGE_SHOTS_THEME=dark           the dark theme (default: light)
 //   PAGE_SHOTS_ONLY=10,26           only the pictures whose name starts with one of these
+//   PAGE_SHOTS_HEIGHT=500          every window this tall: a phone with its keyboard up, or 568 for the
+//                                 smallest phone (issue 74)
 //
 // Each PNG is the full page, at test-results/page-shots/<width>/<name>.png. A page that fails is
 // noted in <width>/failures.txt and the rest still get their picture.
@@ -45,13 +47,15 @@ const wanted = (process.env.PAGE_SHOTS_WIDTHS ?? "")
 // And a common laptop, between the steps the others stand on.
 const ON_REQUEST = [
 	{ width: 1280, height: 800 },
+	{ width: 375, height: 667 },
 	{ width: 2560, height: 1440 },
 	{ width: 430, height: 932 },
 ];
+const height = Number(process.env.PAGE_SHOTS_HEIGHT) || undefined;
 const viewports = [
 	...VIEWPORTS.filter(({ width }) => wanted.length === 0 || wanted.includes(width)),
 	...ON_REQUEST.filter(({ width }) => wanted.includes(width)),
-];
+].map((viewport) => (height ? { ...viewport, height } : viewport));
 const only = (process.env.PAGE_SHOTS_ONLY ?? "")
 	.split(",")
 	.map((name) => name.trim())
@@ -102,6 +106,23 @@ let carryParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 let shots: Shot[] = [];
 /** What the seeding couldn't do: written beside the pictures so a missing section is explained. */
 const seedNotes: string[] = [];
+
+/** Quick Add opened from the phone's tab bar, then taken as far as the picture needs (issue 74). */
+const quickAdd = (step?: "amount" | "more" | "for") => async (page: Page) => {
+	const sheet = page.getByRole("dialog", { name: "Quick Add" });
+	await pressFor(
+		page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Quick Add" }),
+		sheet,
+	);
+	if (!step) return;
+	const keypad = sheet.getByRole("group", { name: "Keypad" });
+	for (const key of ["2", "4"]) await keypad.getByRole("button", { name: key, exact: true }).tap();
+	if (step === "more") await sheet.getByRole("button", { name: /^More Buckets/ }).tap();
+	if (step === "for") {
+		await sheet.getByRole("button", { name: /^For: / }).tap();
+		await expect(sheet.getByRole("radiogroup", { name: "For" })).toBeVisible({ timeout: 15_000 });
+	}
+};
 
 /** The page has its heading, nothing is still a skeleton and the fonts are in. */
 async function settled(page: Page) {
@@ -1127,6 +1148,204 @@ test.beforeAll(async ({ browser }) => {
 			phoneSheet: true,
 			ready: async (page) => {
 				await openMore(page);
+			},
+		},
+		// Quick Add as a phone has it: at rest, with an amount, every Bucket, and who it is for.
+		{ name: "35-quick-add", path: `/month/${month}`, phoneSheet: true, ready: quickAdd() },
+		{
+			name: "35a-quick-add-amount",
+			path: `/month/${month}`,
+			phoneSheet: true,
+			ready: quickAdd("amount"),
+		},
+		{
+			name: "35b-quick-add-more-buckets",
+			path: `/month/${month}`,
+			phoneSheet: true,
+			ready: quickAdd("more"),
+		},
+		{
+			name: "35c-quick-add-for",
+			path: `/month/${month}`,
+			phoneSheet: true,
+			ready: quickAdd("for"),
+		},
+		// The Plan's sheets and states the pictures above don't reach (issue 74), after them: the
+		// first puts two Buckets in a group, which stays.
+		{
+			name: "43-plan-grouped",
+			path: `/plan/${month}#buckets`,
+			ready: async (page) => {
+				for (const name of ["Gas", "Household"]) {
+					const edit = page.getByRole("button", { name: `Edit ${name}`, exact: true });
+					const sheet = page.getByRole("dialog", { name, exact: true });
+					await pressFor(edit, sheet);
+					const field = sheet.getByLabel("Group", { exact: true });
+					if ((await field.inputValue()) === "Home") {
+						await sheet.getByRole("button", { name: "Cancel", exact: true }).click();
+					} else {
+						await field.fill("Home");
+						const saved = savedBy(page, "updateBucket");
+						await sheet.getByRole("button", { name: "Save", exact: true }).click();
+						await saved;
+					}
+					await expect(sheet).toHaveCount(0, { timeout: 15_000 });
+				}
+			},
+		},
+		{
+			name: "43a-group-rename-sheet",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: (page) =>
+				pressFor(
+					page.getByRole("button", { name: "Rename the group Home" }),
+					page.getByRole("dialog", { name: "Home", exact: true }),
+				),
+		},
+		{
+			// The Bucket sheet at its Group field, with the groups there are to pick from.
+			name: "43b-bucket-sheet-group",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				// The address is the last picture's, so its sheet is still up: a fresh page.
+				await page.reload();
+				await settled(page);
+				const sheet = page.getByRole("dialog", { name: "Gas", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Gas", exact: true }), sheet);
+				await sheet
+					.getByLabel("Group", { exact: true })
+					.evaluate((node) => node.scrollIntoView({ block: "center" }));
+			},
+		},
+		{
+			// A Bucket nothing was ever spent from can be deleted: the question asked first.
+			name: "44-bucket-delete-confirm",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				// The address is the last picture's, so its sheet is still up: a fresh page.
+				await page.reload();
+				await settled(page);
+				const sheet = page.getByRole("dialog", { name: "Gifts", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Gifts", exact: true }), sheet);
+				const remove = sheet.getByRole("button", { name: "Delete", exact: true });
+				const archive = sheet.getByRole("button", { name: "Archive", exact: true });
+				await archive.scrollIntoViewIfNeeded({ timeout: 15_000 });
+				await ((await remove.count()) > 0 ? remove : archive).click({ timeout: 15_000 });
+				await page.waitForTimeout(400);
+			},
+		},
+		{
+			name: "45-add-buckets-sheet",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await page.reload();
+				await settled(page);
+				await pressFor(
+					page.getByRole("button", { name: "Add Buckets", exact: true }).first(),
+					page.getByRole("dialog", { name: "Add Buckets" }),
+				);
+			},
+		},
+		{
+			name: "46-things-to-check-open",
+			path: `/plan/${month}`,
+			phone: true,
+			ready: async (page) => {
+				const row = page.getByRole("button", { name: /Things to check/ }).first();
+				if ((await row.count()) === 0) return;
+				await expect(async () => {
+					if ((await row.getAttribute("aria-expanded")) !== "true")
+						await row.click({ timeout: 2000 });
+					await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 2000 });
+				}).toPass({ timeout: 20_000 });
+			},
+		},
+		{
+			name: "47-commitment-sheet",
+			path: `/plan/${month}/commitments/${firstCommitment}`,
+			window: true,
+			ready: (page) =>
+				pressFor(
+					page.getByRole("button", { name: "Edit", exact: true }).first(),
+					page.getByRole("dialog").first(),
+				),
+		},
+		{
+			// Cover an over-spent Bucket, from This Month's Buckets list.
+			name: "48-cover-sheet",
+			path: `/month/${month}`,
+			window: true,
+			ready: (page) =>
+				pressFor(
+					page.getByRole("button", { name: /^Cover / }).first(),
+					page.getByRole("dialog", { name: /^Cover / }),
+				),
+		},
+		// This Month's and the Plan's states with no picture until the last phone pass (issue 74). Each
+		// is what the window shows once the thing is brought to its top; nothing is saved.
+		...(
+			[
+				["49-bills-coming-up", `/month/${month}`, { role: "tab", name: /^Coming up/ }],
+				[
+					"49a-bills-not-this-month",
+					`/month/${month}`,
+					{ role: "button", name: /^Not this month/ },
+				],
+				["49b-record-payment", `/month/${month}`, { role: "button", name: "Record payment" }],
+				[
+					"49c-income-row-menu",
+					`/month/${month}`,
+					{ role: "button", name: /^Actions for .* of income$/ },
+				],
+				["49d-add-income-sheet", `/month/${month}`, { role: "button", name: "Add income" }],
+				[
+					"51-commitment-add",
+					`/plan/${month}/commitments`,
+					{ role: "textbox", name: "New Commitment" },
+				],
+			] as const
+		).map(
+			([name, path, target]): Shot => ({
+				name,
+				path,
+				window: true,
+				ready: async (page) => {
+					await page.reload();
+					await settled(page);
+					const control = page.getByRole(target.role, { name: target.name }).first();
+					await control.evaluate((el) => {
+						window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 120);
+					});
+					await page.waitForTimeout(300);
+					// A text field is only brought into view: tapping it would not bring a keyboard up here.
+					if (target.role !== "textbox") await control.click({ timeout: 15_000 });
+					await page.waitForTimeout(500);
+				},
+			}),
+		),
+		{ name: "49e-months-plan", path: `/month/${month}/plan`, phone: true },
+		{
+			// Add Buckets with a row of the Parent's own ("Add your own") typed in, not saved.
+			name: "50-add-buckets-own-row",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await page.reload();
+				await settled(page);
+				const sheet = page.getByRole("dialog", { name: "Add Buckets" });
+				await pressFor(
+					page.getByRole("button", { name: "Add Buckets", exact: true }).first(),
+					sheet,
+				);
+				const own = sheet.getByRole("button", { name: "Add your own", exact: true });
+				await own.scrollIntoViewIfNeeded({ timeout: 15_000 });
+				await own.click({ timeout: 15_000 });
+				await page.keyboard.type("Christmas presents");
+				await page.waitForTimeout(400);
 			},
 		},
 		...small,

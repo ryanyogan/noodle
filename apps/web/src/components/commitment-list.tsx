@@ -199,12 +199,13 @@ function CommitmentRow({
 					{onPay && !paying ? (
 						// On a phone it always starts a line of its own, in line with the text above it
 						// (issue 110: at 320 px it stayed beside the text in some rows and dropped in others).
-						<span className="max-sm:basis-full">
+						// The line a pays-down note is on comes before it (see the note below).
+						<span className="max-sm:order-1 max-sm:basis-full">
 							<Button
 								type="button"
 								variant="ghost"
 								size="sm"
-								className="-my-1 px-2 text-[13px] max-sm:-ml-2"
+								className="-my-1 px-2 text-[13px] max-sm:-ml-[9px]"
 								disabled={!hydrated}
 								onClick={() => setPaying(true)}
 							>
@@ -212,8 +213,9 @@ function CommitmentRow({
 							</Button>
 						</span>
 					) : null}
-					{/* Its own line under the rest, as on Plan › Commitments. */}
-					{commitment.accountId ? <PaysDownNote accountId={commitment.accountId} /> : null}
+					{/* Its own line under the rest, as on Plan › Commitments. On a phone from 375px it ends
+					    the "Due" line instead, so the row is three lines and not four (issue 74). */}
+					{commitment.accountId ? <PaysDownNote accountId={commitment.accountId} joined /> : null}
 				</>
 			}
 			trailing={
@@ -262,7 +264,8 @@ function RecordPayment({
 			<label htmlFor={id} className="sr-only">
 				Amount paid to {commitment.name}
 			</label>
-			<div className="relative w-32">
+			{/* At 320px the three don't fit one line and Cancel fell alone: the field takes the line. */}
+			<div className="relative w-32 max-[359px]:w-full">
 				<span
 					aria-hidden="true"
 					className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center text-muted-foreground text-sm"

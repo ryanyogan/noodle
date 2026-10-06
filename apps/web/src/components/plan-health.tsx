@@ -50,7 +50,13 @@ export function PlanHealth({ folded = false }: { folded?: boolean }) {
 							<span className="text-sm font-semibold">Things to check</span>
 							<Badge variant="count">{warnings.length}</Badge>
 						</span>
-						<span className="line-clamp-2 min-w-0 text-[13px] text-muted-foreground sm:line-clamp-none sm:flex-1 sm:truncate">
+						{/* Open, the first warning is the row right under the heading: not said twice on a phone. */}
+						<span
+							className={cn(
+								"line-clamp-2 min-w-0 text-[13px] text-muted-foreground sm:line-clamp-none sm:flex-1 sm:truncate",
+								open && "max-sm:hidden",
+							)}
+						>
 							{describe(first, month).title}
 						</span>
 					</span>

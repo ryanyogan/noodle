@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 import { AuthPage, authHead, clerkAppearance } from "../components/auth-page";
+import { IntroVideo } from "../components/intro-video";
 import { getInviteForSignUp } from "../server/invites";
 
 export const Route = createFileRoute("/sign-up/$")({
@@ -24,7 +25,8 @@ function SignUpPage() {
 	const invite = loaded ?? first;
 	const back = invite ? `/invite/${invite.token}` : null;
 	return (
-		<AuthPage>
+		// The same way in to the one-minute intro as sign-in has (issue 74).
+		<AuthPage intro={<IntroVideo className="self-start lg:mt-5" />}>
 			<div className="flex w-full max-w-100 flex-col items-center gap-4">
 				{invite ? (
 					<p className="text-center text-lg font-semibold tracking-[-0.02em]" data-invite>
