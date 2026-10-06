@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useId, useMemo, useState } from "react";
 import { asBucketColor, bucketColors, monogram } from "../buckets";
-import { formatMoney, formatWholeMoney, fullDay, shortDay } from "../format";
+import { formatWholeMoney, fullDay, shortDay } from "../format";
 import {
 	type ChartKind,
 	formatPercent,
@@ -605,7 +605,7 @@ function OverviewView({ report, data, names, nav, tables }: ViewProps<"overview"
 								<DrillRow
 									onClick={() => nav.area(top.target)}
 									disabled={names.isPrivate(top.target)}
-									label={`${names.label(top.target)}: ${formatMoney(top.amount)}`}
+									label={`${names.label(top.target)}: ${formatWholeMoney(top.amount)}`}
 								>
 									<KeyTile names={names} target={top.target} />
 									<span className="grid min-w-0 flex-1 gap-0.5">
@@ -624,7 +624,7 @@ function OverviewView({ report, data, names, nav, tables }: ViewProps<"overview"
 									/>
 									<span className="grid justify-items-end gap-0.5">
 										<span className="shrink-0 text-sm font-semibold tabular-nums">
-											{formatMoney(top.amount)}
+											{formatWholeMoney(top.amount)}
 										</span>
 										<Delta now={top.amount} before={top.previous} />
 									</span>
@@ -663,7 +663,7 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 	const band = data.bands.find((b) => b.floor === threshold);
 	const next = stops[index + 1];
 	const bandCount = band?.count ?? 0;
-	const bandText = `${next === undefined ? `${stopLabel(threshold)} and up` : `${stopLabel(threshold)} to ${stopLabel(next)}`}: ${formatMoney(band?.amount ?? 0)} in ${bandCount} ${bandCount === 1 ? "Transaction" : "Transactions"}`;
+	const bandText = `${next === undefined ? `${stopLabel(threshold)} and up` : `${stopLabel(threshold)} to ${stopLabel(next)}`}: ${formatWholeMoney(band?.amount ?? 0)} in ${bandCount} ${bandCount === 1 ? "Transaction" : "Transactions"}`;
 	if (data.spent === 0 && data.items.length === 0 && data.commitments.length === 0)
 		return <NothingYet />;
 	return (
@@ -671,13 +671,13 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 			<Card className="grid gap-5 p-(--card-pad) lg:col-span-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] lg:items-center lg:gap-10 lg:py-6">
 				<div className="grid gap-1">
 					<span className="text-[13px] text-muted-foreground">
-						One-offs over {formatMoney(threshold)}
+						One-offs over {formatWholeMoney(threshold)}
 					</span>
 					<span
 						key={threshold}
 						className="text-[2rem] font-semibold tracking-[-0.03em] tabular-nums animate-enter lg:text-[2.5rem]"
 					>
-						{formatMoney(over.amount)}
+						{formatWholeMoney(over.amount)}
 					</span>
 					<span className="text-[13px] text-muted-foreground">
 						{over.count.toLocaleString("en-US")} {over.count === 1 ? "Transaction" : "Transactions"}
@@ -706,11 +706,11 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 							return (
 								<WithTooltip
 									key={s}
-									label={`Over ${label}: ${formatMoney(amount)} in ${count} ${count === 1 ? "Transaction" : "Transactions"}`}
+									label={`Over ${label}: ${formatWholeMoney(amount)} in ${count} ${count === 1 ? "Transaction" : "Transactions"}`}
 								>
 									<ToggleGroupItem
 										value={String(s)}
-										aria-label={`${label}: ${formatMoney(amount)} in ${count} ${count === 1 ? "Transaction" : "Transactions"}`}
+										aria-label={`${label}: ${formatWholeMoney(amount)} in ${count} ${count === 1 ? "Transaction" : "Transactions"}`}
 										className="group/stop h-auto min-w-0 flex-col items-stretch gap-1 rounded-md px-0 pt-1 pb-0.5 hover:bg-surface-2 data-[state=on]:bg-transparent"
 									>
 										<span className="flex h-14 items-end justify-center" aria-hidden="true">
@@ -746,8 +746,8 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 				title="Largest Transactions"
 				description={
 					shown.length
-						? `The biggest ${shown.length} one-offs over ${formatMoney(threshold)}; Commitments aren't counted`
-						: `No one-offs over ${formatMoney(threshold)} this period`
+						? `The biggest ${shown.length} one-offs over ${formatWholeMoney(threshold)}; Commitments aren't counted`
+						: `No one-offs over ${formatWholeMoney(threshold)} this period`
 				}
 				table={tables.items}
 			>
@@ -779,7 +779,7 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 											names.label(item.target)}
 									</span>
 									<span className="shrink-0 text-sm font-semibold tabular-nums">
-										{formatMoney(item.amount)}
+										{formatWholeMoney(item.amount)}
 									</span>
 								</span>
 								{bar}
@@ -808,7 +808,7 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 								return (
 									<DrillRow
 										onClick={() => nav.area(`commitment:${c.id}`)}
-										label={`${c.name}: ${formatMoney(c.annual)} a year`}
+										label={`${c.name}: ${formatWholeMoney(c.annual)} a year`}
 									>
 										<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 											<span className="flex items-baseline gap-3">
@@ -816,12 +816,12 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 													{c.name}
 												</span>
 												<span className="shrink-0 text-sm font-semibold tabular-nums">
-													{formatMoney(c.annual)}
+													{formatWholeMoney(c.annual)}
 												</span>
 											</span>
 											{bar}
 											<span className="text-xs text-muted-foreground">
-												{formatMoney(c.amount)} {c.cadence}
+												{formatWholeMoney(c.amount)} {c.cadence}
 											</span>
 										</span>
 									</DrillRow>
@@ -833,7 +833,7 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 						<p className="border-t pt-3 text-[13px] text-muted-foreground">
 							All together{" "}
 							<span className="font-semibold text-foreground tabular-nums">
-								{formatMoney(data.commitments.reduce((s, c) => s + c.annual, 0))}
+								{formatWholeMoney(data.commitments.reduce((s, c) => s + c.annual, 0))}
 							</span>{" "}
 							a year
 						</p>
@@ -966,7 +966,7 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 								<DrillRow
 									onClick={() => select(t.target)}
 									disabled={t.private || names.isPrivate(t.target)}
-									label={`${names.label(t.target)}: ${formatMoney(t.amount)}`}
+									label={`${names.label(t.target)}: ${formatWholeMoney(t.amount)}`}
 								>
 									<KeyTile names={names} target={t.target} className="size-8" />
 									<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
@@ -975,7 +975,7 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 												{names.label(t.target)}
 											</span>
 											<span className="shrink-0 text-sm font-semibold tabular-nums">
-												{formatMoney(t.amount)}
+												{formatWholeMoney(t.amount)}
 											</span>
 										</span>
 										{chart === "bar" ? bar : null}
@@ -1023,7 +1023,7 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 				<StatGrid size="lg" className="grid-cols-2 gap-4 p-(--card-pad) sm:grid-cols-3">
 					<ReportStat
 						label={month ? monthLabel(month) : "This period"}
-						value={formatMoney(data.total)}
+						value={formatWholeMoney(data.total)}
 						delta={<Delta now={data.total} before={data.previous} />}
 						hint={data.private ? <PrivateMark /> : null}
 					/>
@@ -1031,7 +1031,7 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 					<ReportStat
 						index={2}
 						label="Average"
-						value={data.count > 0 ? formatMoney(Math.round(data.total / data.count)) : "—"}
+						value={data.count > 0 ? formatWholeMoney(Math.round(data.total / data.count)) : "—"}
 					/>
 				</StatGrid>
 			</Card>
@@ -1113,7 +1113,7 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 											item.amount < 0 && "text-brand",
 										)}
 									>
-										{formatMoney(item.amount)}
+										{formatWholeMoney(item.amount)}
 									</span>
 								</Link>
 							</li>
@@ -1136,7 +1136,7 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 								return (
 									<DrillRow
 										onClick={() => nav.area(`merchant:${m.key}`)}
-										label={`${m.name || merchantName(m.key)}: ${formatMoney(m.amount)}`}
+										label={`${m.name || merchantName(m.key)}: ${formatWholeMoney(m.amount)}`}
 									>
 										<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 											<span className="flex items-baseline gap-3">
@@ -1144,7 +1144,7 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 													{m.name || merchantName(m.key)}
 												</span>
 												<span className="shrink-0 text-sm font-semibold tabular-nums">
-													{formatMoney(m.amount)}
+													{formatWholeMoney(m.amount)}
 												</span>
 											</span>
 											{bar}
@@ -1170,7 +1170,7 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 							renderRow={(row, bar) => (
 								<DrillRow
 									onClick={() => nav.area(row.key)}
-									label={`${names.label(row.key)}: ${formatMoney(row.amount)}`}
+									label={`${names.label(row.key)}: ${formatWholeMoney(row.amount)}`}
 								>
 									<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 										<span className="flex items-baseline gap-3">
@@ -1178,7 +1178,7 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 												{names.label(row.key)}
 											</span>
 											<span className="shrink-0 text-sm font-semibold tabular-nums">
-												{formatMoney(row.amount)}
+												{formatWholeMoney(row.amount)}
 											</span>
 										</span>
 										{bar}
@@ -1251,7 +1251,9 @@ function PlanView({ data, names, nav, tables }: ViewProps<"plan">) {
 												{h.habit === "over" ? h.over : h.under} of {h.months} months {h.habit}
 											</span>
 											<Badge variant={h.gap > 0 ? "over" : "brand"} dot>
-												{h.gap > 0 ? `${formatMoney(h.gap)} over` : `${formatMoney(-h.gap)} under`}
+												{h.gap > 0
+													? `${formatWholeMoney(h.gap)} over`
+													: `${formatWholeMoney(-h.gap)} under`}
 											</Badge>
 										</span>
 									</span>
@@ -1279,7 +1281,7 @@ function PlanView({ data, names, nav, tables }: ViewProps<"plan">) {
 										{names.label(`bucket:${r.bucketId}`)}
 									</span>
 									<span className="text-sm font-semibold tabular-nums">
-										{formatMoney(
+										{formatWholeMoney(
 											r.carried.find((c) => c.month === data.months.at(-1))?.amount ?? 0,
 										)}
 									</span>
@@ -1368,7 +1370,7 @@ function TrendsView({ report, data, names, nav, tables }: ViewProps<"trends">) {
 									</span>
 								</span>
 								<span className="text-base font-semibold tabular-nums">
-									{formatMoney(m.amount)}
+									{formatWholeMoney(m.amount)}
 								</span>
 								<Sparkline
 									values={m.series}
@@ -1403,7 +1405,7 @@ function MerchantList({
 				return (
 					<DrillRow
 						onClick={() => nav.area(`merchant:${m.key}`)}
-						label={`${name}: ${formatMoney(m.amount)}, ${m.count} times`}
+						label={`${name}: ${formatWholeMoney(m.amount)}, ${m.count} times`}
 					>
 						<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 							<span className="flex items-baseline gap-3">
@@ -1411,14 +1413,14 @@ function MerchantList({
 									{name}
 								</span>
 								<span className="shrink-0 text-sm font-semibold tabular-nums">
-									{by === "amount" ? formatMoney(m.amount) : `${m.count}×`}
+									{by === "amount" ? formatWholeMoney(m.amount) : `${m.count}×`}
 								</span>
 							</span>
 							{bar}
 							<span className="text-xs text-muted-foreground">
 								{by === "amount"
 									? `${m.count} ${m.count === 1 ? "time" : "times"}`
-									: formatMoney(m.amount)}
+									: formatWholeMoney(m.amount)}
 								{m.targets > 1 ? ` · ${m.targets} Buckets` : ""}
 							</span>
 						</span>
@@ -1492,7 +1494,7 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 							onClick={() =>
 								nav.area(row.key === "household" ? "member:everyone" : `member:${row.key}`)
 							}
-							label={`${names.label(row.key)}: ${formatMoney(row.amount)}`}
+							label={`${names.label(row.key)}: ${formatWholeMoney(row.amount)}`}
 						>
 							<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 								<span className="flex items-baseline gap-3">
@@ -1500,7 +1502,7 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 										{names.label(row.key)}
 									</span>
 									<span className="shrink-0 text-sm font-semibold tabular-nums">
-										{formatMoney(row.amount)}
+										{formatWholeMoney(row.amount)}
 									</span>
 								</span>
 								{bar}
@@ -1594,14 +1596,14 @@ function CashFlowView({ data, nav, tables, names }: ViewProps<"cash-flow">) {
 					<RowButton
 						onClick={() => area && nav.area(area)}
 						disabled={!area}
-						aria-label={`${name}: ${formatMoney(row.amount)}`}
+						aria-label={`${name}: ${formatWholeMoney(row.amount)}`}
 						className="group -mx-2 w-[calc(100%+1rem)] px-2"
 					>
 						<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 							<span className="flex items-baseline gap-2">
 								<span className="min-w-0 flex-1 text-sm font-medium break-words">{name}</span>
 								<span className="shrink-0 text-sm font-semibold tabular-nums">
-									{formatMoney(row.amount)}
+									{formatWholeMoney(row.amount)}
 								</span>
 								{area ? (
 									<ChevronRight
@@ -1623,9 +1625,9 @@ function CashFlowView({ data, nav, tables, names }: ViewProps<"cash-flow">) {
 		<div className="grid gap-4 lg:gap-6">
 			<Card>
 				<StatGrid size="lg" className="grid-cols-2 gap-4 p-(--card-pad) sm:grid-cols-3">
-					<ReportStat label="Came in" value={formatMoney(data.earned)} />
-					<ReportStat index={1} label="Went out" value={formatMoney(data.spent)} />
-					<ReportStat index={2} label="To Goals" value={formatMoney(data.goals)} />
+					<ReportStat label="Came in" value={formatWholeMoney(data.earned)} />
+					<ReportStat index={1} label="Went out" value={formatWholeMoney(data.spent)} />
+					<ReportStat index={2} label="To Goals" value={formatWholeMoney(data.goals)} />
 				</StatGrid>
 			</Card>
 			<ChartCard
@@ -1696,8 +1698,8 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 					const status = g.completed
 						? [
 								g.completedMonth ? `Completed ${monthLabel(g.completedMonth)}` : "Completed",
-								...(g.spent > 0 ? [`spent ${formatMoney(g.spent)}`] : []),
-								...(g.kind === "payoff" ? [] : [`${formatMoney(g.saved)} still set aside`]),
+								...(g.spent > 0 ? [`spent ${formatWholeMoney(g.spent)}`] : []),
+								...(g.kind === "payoff" ? [] : [`${formatWholeMoney(g.saved)} still set aside`]),
 							].join(" · ")
 						: g.saved >= g.target
 							? g.kind === "payoff"
@@ -1730,10 +1732,10 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 									{g.completed ? null : (
 										<>
 											<span className="text-xl font-semibold tabular-nums">
-												{formatMoney(g.saved)}
+												{formatWholeMoney(g.saved)}
 												<span className="text-sm font-normal text-muted-foreground">
 													{" "}
-													{g.kind === "payoff" ? "paid down of" : "of"} {formatMoney(g.target)}
+													{g.kind === "payoff" ? "paid down of" : "of"} {formatWholeMoney(g.target)}
 												</span>
 											</span>
 											<GoalProgressBar share={share} />
@@ -1786,11 +1788,11 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 		<div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
 			<Card className="lg:col-span-5">
 				<StatGrid size="lg" className="grid-cols-2 gap-4 p-(--card-pad)">
-					<ReportStat label="Received" value={formatMoney(total)} />
+					<ReportStat label="Received" value={formatWholeMoney(total)} />
 					<ReportStat
 						index={1}
 						label="Extra income"
-						value={formatMoney(extraIncomes)}
+						value={formatWholeMoney(extraIncomes)}
 						hint="above your usual take-home pay"
 					/>
 				</StatGrid>
@@ -1837,7 +1839,7 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 									{bySource.find((s) => s.key === row.key)?.name}
 								</span>
 								<span className="shrink-0 text-sm font-semibold tabular-nums">
-									{formatMoney(row.amount)}
+									{formatWholeMoney(row.amount)}
 								</span>
 							</span>
 							{bar}

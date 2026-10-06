@@ -47,7 +47,7 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { formatMoney, shortDay } from "../format";
+import { formatMoney, formatWholeMoney, shortDay } from "../format";
 import { useReducedMotion } from "../motion";
 import { formatCell, formatCompact, type ReportTable } from "../reports";
 
@@ -637,7 +637,7 @@ export function ShareDonut({
 				<div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
 					<span className="text-xs text-muted-foreground">{focus ? focus.label : "Spent"}</span>
 					<span className="text-2xl font-semibold tracking-tight tabular-nums">
-						{formatMoney(focus ? focus.amount : total)}
+						{formatWholeMoney(focus ? focus.amount : total)}
 					</span>
 					{focus && total > 0 ? (
 						<span className="text-xs text-subtle-foreground tabular-nums">
@@ -655,7 +655,7 @@ export function ShareDonut({
 					/>
 					Everything else
 					<span className="font-medium text-foreground tabular-nums">
-						{formatMoney(other.amount)}
+						{formatWholeMoney(other.amount)}
 					</span>
 				</p>
 			) : null}
