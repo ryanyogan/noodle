@@ -72,7 +72,9 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 						return (
 							<div key={item.label} className="grid min-w-0 lg:border-border [&+&]:lg:border-t">
 								{item.open ? (
-									<p className="px-4 pt-3 pb-2 text-sm font-medium max-lg:hidden">{item.label}</p>
+									<p className="px-(--card-pad) pt-3 pb-2 text-sm font-medium max-lg:hidden">
+										{item.label}
+									</p>
 								) : (
 									<div className="flex min-w-0 items-center max-lg:hidden">
 										<RowButton
@@ -80,7 +82,8 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 											aria-controls={panel}
 											disabled={!hydrated}
 											onClick={() => setExpanded((e) => ({ ...e, [item.label]: !shown }))}
-											className="min-w-0 flex-1 rounded-none px-4 py-3"
+											// The card's own 20px edge, as the Free to Spend and Income cards beside it (issue 73).
+											className="min-w-0 flex-1 rounded-none px-(--card-pad) py-3"
 										>
 											<span className="grid min-w-0 flex-1 gap-0.5">
 												<span className="truncate text-sm font-medium">{item.label}</span>
@@ -102,13 +105,13 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 										</RowButton>
 										{shown && item.help ? <div className="shrink-0 pe-2">{item.help}</div> : null}
 										{item.action ? (
-											<div className="shrink-0 pe-4 empty:hidden">{item.action}</div>
+											<div className="shrink-0 pe-(--card-pad) empty:hidden">{item.action}</div>
 										) : null}
 									</div>
 								)}
 								<div
 									id={panel}
-									className={cn("grid min-w-0 gap-3 lg:px-3 lg:pb-3", !shown && "lg:hidden")}
+									className={cn("grid min-w-0 gap-3 lg:px-4 lg:pb-3", !shown && "lg:hidden")}
 								>
 									{item.content}
 								</div>

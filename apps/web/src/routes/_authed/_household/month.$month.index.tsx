@@ -1076,7 +1076,10 @@ function useGetStartedSteps(state: MonthState) {
 			),
 			link: (
 				<Link to="/accounts">
-					Add<span className="max-[359px]:sr-only"> an Account</span>
+					{/* One piece of text: as two, the button's gap opened a hole after "Add" (issue 73). */}
+					<span>
+						Add<span className="max-[359px]:sr-only"> an Account</span>
+					</span>
 				</Link>
 			),
 		},

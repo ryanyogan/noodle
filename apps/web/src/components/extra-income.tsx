@@ -155,7 +155,7 @@ export function IncomeSection({
 					) : null
 				}
 			/>
-			<p className="px-1 pb-2 text-sm text-muted-foreground">
+			<p className="px-1 pb-2 text-sm text-muted-foreground lg:px-0">
 				<span className="font-medium text-foreground tabular-nums">{formatMoney(received)}</span>{" "}
 				received of {formatMoney(baseline)} usual take-home pay
 			</p>
