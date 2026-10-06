@@ -155,11 +155,15 @@ export function IncomeSection({
 					) : null
 				}
 			/>
-			<p className="pb-2 text-sm text-muted-foreground">
-				<span className="font-medium text-foreground tabular-nums">{formatMoney(received)}</span>{" "}
-				received of {formatMoney(baseline)} usual{" "}
-				<span className="whitespace-nowrap">take-home pay</span>
-			</p>
+			{/* A container on a phone: with text at 200% "take-home pay" may break, as the pair is
+			    wider than the screen then. */}
+			<div className="max-sm:@container">
+				<p className="pb-2 text-sm text-muted-foreground">
+					<span className="font-medium text-foreground tabular-nums">{formatMoney(received)}</span>{" "}
+					received of {formatMoney(baseline)} usual{" "}
+					<span className="whitespace-nowrap @max-[12rem]:whitespace-normal">take-home pay</span>
+				</p>
+			</div>
 			{income.length > 0 ? (
 				<List>
 					{income.map((entry) => (

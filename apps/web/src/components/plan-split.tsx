@@ -302,7 +302,7 @@ function SplitRowItem({
 					{formatMoney(row.amount)}
 				</span>
 			</span>
-			<span className="text-end text-[13px] font-normal text-muted-foreground tabular-nums @xl/split:text-start">
+			<span className="relative text-end text-[13px] font-normal text-muted-foreground tabular-nums @xl/split:text-start">
 				{share === "" ? null : (
 					<>
 						{share}

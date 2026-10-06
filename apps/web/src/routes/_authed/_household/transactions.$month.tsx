@@ -316,7 +316,7 @@ function TransactionsPage() {
 			    picked from it opens in place, under its row; below lg it is a page of its own, the
 			    filters and the other rows hidden. */}
 			<div className="grid gap-4">
-				<div data-slot="transaction-filters" className={cn(picked && "max-lg:hidden")}>
+				<div data-slot="transaction-filters" className={cn("min-w-0", picked && "max-lg:hidden")}>
 					<Filters
 						month={month}
 						current={current}
@@ -483,10 +483,10 @@ function Filters({
 		] as const
 	).flatMap(([key, label]) => (label === undefined ? [] : [{ key, label }]));
 	return (
-		<div className="grid gap-2 lg:flex lg:flex-wrap lg:items-end lg:gap-3">
+		<div className="grid gap-2 max-lg:grid-cols-[minmax(0,1fr)] lg:flex lg:flex-wrap lg:items-end lg:gap-3">
 			{total !== null && total !== undefined ? (
 				// From lg the month's total ends the bar, as big as a headline.
-				<p className="flex items-baseline justify-between gap-3 px-1 text-sm lg:order-last lg:ms-auto lg:grid lg:justify-items-end lg:gap-0.5">
+				<p className="flex items-baseline justify-between gap-3 px-1 text-sm max-lg:flex-wrap lg:order-last lg:ms-auto lg:grid lg:justify-items-end lg:gap-0.5">
 					<span className="text-muted-foreground">
 						{totalLabel(filters.range, month, { filtered, current })}
 					</span>

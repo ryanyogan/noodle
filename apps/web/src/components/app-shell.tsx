@@ -405,6 +405,9 @@ function TabBar({ householdName }: { householdName: string }) {
 const tabClass = cn(
 	"grid h-(--tabbar-height) min-w-0 place-content-center justify-items-center gap-1 rounded-lg text-[11px] font-medium text-subtle-foreground",
 	"max-[21.25rem]:text-[10px] max-[21.25rem]:tracking-tight",
+	// The labels are sized in px to fit their fifth of the bar: a phone's text-size setting must not
+	// grow them into each other (the pages' own text still grows).
+	"[-webkit-text-size-adjust:100%] [text-size-adjust:100%]",
 	"transition-colors duration-(--duration-fast) ease-standard",
 );
 

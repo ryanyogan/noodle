@@ -715,7 +715,8 @@ export function AddPersonalAllowance({
 				<Button
 					type="submit"
 					variant="secondary"
-					className="justify-self-start"
+					// Its words wrap inside it when they have no room on one line (a phone at 200% text).
+					className="justify-self-start max-sm:h-auto max-sm:min-h-11 max-sm:max-w-full max-sm:py-2 max-sm:whitespace-normal"
 					disabled={!hydrated}
 				>
 					<Plus />
