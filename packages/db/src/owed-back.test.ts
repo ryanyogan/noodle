@@ -2,6 +2,7 @@ import type { Cents, DayKey, MonthKey } from "@noodle/domain";
 import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+	addAccount,
 	addBucket,
 	addChild,
 	addCommitment,
@@ -26,9 +27,16 @@ import {
 	setTakeHomePay,
 } from "./index";
 import { bucketLeftSql } from "./moves";
+import {
+	applyOwedBackRules,
+	forgetOwedBack,
+	owedBackRuleFor,
+	rememberOwedBack,
+} from "./owed-back-rules";
 import { setCarriesOver } from "./plan";
 import { loadRolledOver } from "./rollover";
-import { owedBack, paidBackMatches } from "./schema";
+import { applyRule, saveRule } from "./rules";
+import { owedBack, paidBackMatches, transactions } from "./schema";
 import { testDb } from "./test-db";
 
 // Paid back and Owed back (issue 132, ADR-0058). The ticket's scenario: tuition of $1,200 in
@@ -437,5 +445,99 @@ describe("money beyond what's owed, and months that have ended", () => {
 			ok: false,
 			reason: "month-ended",
 		});
+	});
+});
+
+describe("a Rule remembers who pays part back", () => {
+	const line = (id: string, date: string, amountCents: number) => ({
+		id,
+		householdId,
+		source: "import" as const,
+		date,
+		amountCents,
+		note: "RIVERSIDE ACADEMY TUITION",
+		accountId: "checking",
+		createdByMemberId: parentId,
+	});
+
+	beforeEach(async () => {
+		await addAccount(db, {
+			householdId,
+			accountId: "checking",
+			name: "Checking",
+			kind: "checking",
+			balanceCents: 0,
+			balanceId: "balance-checking",
+			createdByMemberId: parentId,
+		});
+		await db.insert(transactions).values(line("academy-sep", "2026-09-05", 120_000));
+		await saveRule(db, {
+			id: "academy",
+			householdId,
+			memberId: parentId,
+			pattern: "riverside academy",
+			commitmentId: "tuition",
+		});
+		await applyRule(db, viewer, "academy");
+	});
+
+	it("is offered on a purchase a Rule files, and remembers who and what part", async () => {
+		expect(await owedBackRuleFor(db, viewer, "academy-sep")).toEqual({
+			ruleId: "academy",
+			pattern: "riverside academy",
+			remembered: null,
+		});
+		// The skates go by no Rule: there is nothing to offer.
+		expect(await owedBackRuleFor(db, viewer, "skates")).toBeNull();
+		await sayOwedBack(db, viewer, {
+			owedBackId: "ob-academy",
+			transactionId: "academy-sep",
+			who: "Casey",
+		});
+		const remembered = { who: "Casey", memberId: null, percent: 50 };
+		expect(await rememberOwedBack(db, viewer, { owedBackId: "ob-academy" })).toEqual({
+			ok: true,
+			rule: { ruleId: "academy", pattern: "riverside academy", remembered },
+		});
+		expect((await owedBackRuleFor(db, viewer, "academy-sep"))?.remembered).toEqual(remembered);
+	});
+
+	it("says it on what the Rule files afterwards, once, and not on what it filed before", async () => {
+		await sayOwedBack(db, viewer, {
+			owedBackId: "ob-academy",
+			transactionId: "academy-sep",
+			who: "Casey",
+		});
+		await rememberOwedBack(db, viewer, { owedBackId: "ob-academy" });
+		await db.insert(transactions).values(line("academy-oct", "2026-10-05", 130_000));
+		await applyRule(db, viewer, "academy");
+		const october = await loadOwedBack(db, viewer, { transactionId: "academy-oct" });
+		expect(october).toMatchObject([
+			{ who: "Casey", owed: 65_000, paid: 0, commitmentId: "tuition", splitId: null },
+		]);
+		// An ID that passes wherever a ULID is asked for.
+		expect(october[0]?.id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+		// Said again for the same purchases: nothing is doubled.
+		await applyOwedBackRules(db, viewer, [
+			{ transactionId: "academy-oct", ruleId: "academy" },
+			{ transactionId: "academy-sep", ruleId: "academy" },
+		]);
+		expect(await loadOwedBack(db, viewer, { open: true })).toHaveLength(2);
+	});
+
+	it("says nothing once the Rule has forgotten, or when it never remembered", async () => {
+		await db.insert(transactions).values(line("academy-oct", "2026-10-05", 130_000));
+		await applyRule(db, viewer, "academy");
+		expect(await loadOwedBack(db, viewer, { transactionId: "academy-oct" })).toEqual([]);
+		await sayOwedBack(db, viewer, {
+			owedBackId: "ob-academy",
+			transactionId: "academy-sep",
+			who: "Casey",
+		});
+		await rememberOwedBack(db, viewer, { owedBackId: "ob-academy" });
+		await forgetOwedBack(db, viewer, "academy");
+		await db.insert(transactions).values(line("academy-nov", "2026-11-05", 130_000));
+		await applyRule(db, viewer, "academy");
+		expect(await loadOwedBack(db, viewer, { transactionId: "academy-nov" })).toEqual([]);
 	});
 });

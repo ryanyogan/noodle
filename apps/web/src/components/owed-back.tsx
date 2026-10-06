@@ -4,6 +4,7 @@ import {
 	monthOfDay,
 	OWED_BACK_NAME_MAX,
 	owedBackLeft,
+	owedBackRuleText,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Field } from "@noodle/ui/components/field";
@@ -15,10 +16,12 @@ import type { MoneyInLine } from "../money-in";
 import {
 	type OwedBackItem,
 	owedBackOnQuery,
+	owedBackRuleQuery,
 	owedBackText,
 	paidBackOfferQuery,
 	useClearOwedBack,
 	useConfirmPaidBack,
+	useOwedBackRule,
 	useSayOwedBack,
 } from "../owed-back";
 import { MoneyInput } from "./money-input";
@@ -119,6 +122,54 @@ function OwedBackForm({
 }
 
 /**
+ * Under "Owed back $600 · Casey": the purchase's Rule can remember it ("Tuition: Casey pays back
+ * half"), so it's said on what the Rule files from then on. Nothing when no Rule matches.
+ */
+function OwedBackRuleOffer({ item }: { item: OwedBackItem }) {
+	const rule = useQuery(owedBackRuleQuery(item.transactionId)).data;
+	const { remember, forget } = useOwedBackRule();
+	if (!rule) return null;
+	const said = {
+		who: item.who,
+		percent: Math.min(100, Math.max(1, Math.round((item.owed * 100) / item.purchaseAmount))),
+	};
+	const kept = rule.remembered;
+	const same = kept !== null && kept.who === said.who && kept.percent === said.percent;
+	return (
+		<div
+			className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-muted-foreground"
+			data-testid="owed-back-rule"
+		>
+			{kept ? (
+				<>
+					<span>Rule: {owedBackRuleText(rule.pattern, kept.who, kept.percent)}</span>
+					<Button
+						type="button"
+						size="sm"
+						variant="ghost"
+						disabled={forget.isPending}
+						onClick={() => forget.mutate(rule.ruleId)}
+					>
+						Stop remembering
+					</Button>
+				</>
+			) : null}
+			{same ? null : (
+				<Button
+					type="button"
+					size="sm"
+					variant="outline"
+					disabled={remember.isPending}
+					onClick={() => remember.mutate(item.id)}
+				>
+					Remember “{owedBackRuleText(rule.pattern, said.who, said.percent)}”
+				</Button>
+			)}
+		</div>
+	);
+}
+
+/**
  * On a purchase: "Someone's paying part of this back", and once said, "Owed back $600 · Casey"
  * with a way to change it or take it off. Money out only; a split purchase's Splits aren't
  * offered here yet.
@@ -168,6 +219,7 @@ export function OwedBackOnPurchase({
 					</Button>
 				</div>
 			)}
+			{item && !editing ? <OwedBackRuleOffer item={item} /> : null}
 			{editing ? (
 				<OwedBackForm
 					transactionId={transaction.id}

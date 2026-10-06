@@ -992,6 +992,13 @@ export const rules = sqliteTable(
 		ownerMemberId: text("owner_member_id").references(() => members.id),
 		matchedCount: integer("matched_count").notNull().default(0),
 		commitmentId: text("commitment_id").references(() => commitments.id),
+		// What the Rule remembers about Owed back (ADR-0058, "Tuition: Casey pays back half"): who
+		// (a name; `owed_back_member_id` when a Child was chosen) and what part of each purchase, in
+		// whole percent. All null for a Rule that remembers none. The Child's ID carries no foreign
+		// key, so removing a Child never hangs on a Rule.
+		owedBackWho: text("owed_back_who"),
+		owedBackMemberId: text("owed_back_member_id"),
+		owedBackPercent: integer("owed_back_percent"),
 	},
 	(t) => [
 		uniqueIndex("rules_household_pattern_owner_idx").on(

@@ -1,13 +1,17 @@
 import {
 	confirmPaidBack,
+	forgetOwedBack,
 	loadOwedBack,
 	loadUnmatchedPaidBack,
 	type OwedBackItem,
 	type OwedBackRemoveResult,
 	type OwedBackResult,
+	type OwedBackRule,
 	offerPaidBackFor,
+	owedBackRuleFor,
 	type PaidBackConfirmResult,
 	type PaidBackOffered,
+	rememberOwedBack,
 	removeOwedBack,
 	sayOwedBack,
 	type UnmatchedPaidBack,
@@ -124,3 +128,32 @@ export const getUnmatchedPaidBack = createServerFn({ method: "GET" })
 		({ context }): Promise<UnmatchedPaidBack[]> =>
 			loadUnmatchedPaidBack(getDb(), context.household.id),
 	);
+
+export type { OwedBackRule };
+
+/** The Rule a purchase goes by, with what it remembers about Owed back; null when none matches. */
+export const getOwedBackRule = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ transactionId: ulidSchema }))
+	.handler(
+		({ data, context }): Promise<OwedBackRule | null> =>
+			owedBackRuleFor(getDb(), viewerOf(context), data.transactionId),
+	);
+
+/**
+ * The Rule a purchase goes by remembers the Owed back said on it ("Tuition: Casey pays back
+ * half"), and says it on what it files from then on. Idempotent: it sets what the Rule remembers.
+ */
+export const rememberOwedBackRule = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ owedBackId: ulidSchema }))
+	.handler(({ data, context }) => rememberOwedBack(getDb(), viewerOf(context), data));
+
+/** A Rule stops remembering Owed back. Idempotent. */
+export const forgetOwedBackRule = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ ruleId: ulidSchema }))
+	.handler(async ({ data, context }) => {
+		await forgetOwedBack(getDb(), viewerOf(context), data.ruleId);
+		return { ok: true as const };
+	});

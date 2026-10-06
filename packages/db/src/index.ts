@@ -703,6 +703,15 @@ export {
 	type UnmatchedPaidBack,
 } from "./owed-back";
 export {
+	applyOwedBackRules,
+	forgetOwedBack,
+	type OwedBackRemembered,
+	type OwedBackRule,
+	owedBackPercent,
+	owedBackRuleFor,
+	rememberOwedBack,
+} from "./owed-back-rules";
+export {
 	addPerkSource,
 	addPerkUse,
 	decidePerkSource,
