@@ -1062,6 +1062,69 @@ test.beforeAll(async ({ browser }) => {
 					page.getByRole("dialog", { name: /^Cover / }),
 				),
 		},
+		// This Month's and the Plan's states with no picture until the last phone pass (issue 74). Each
+		// is what the window shows once the thing is brought to its top; nothing is saved.
+		...(
+			[
+				["49-bills-coming-up", `/month/${month}`, { role: "tab", name: /^Coming up/ }],
+				[
+					"49a-bills-not-this-month",
+					`/month/${month}`,
+					{ role: "button", name: /^Not this month/ },
+				],
+				["49b-record-payment", `/month/${month}`, { role: "button", name: "Record payment" }],
+				[
+					"49c-income-row-menu",
+					`/month/${month}`,
+					{ role: "button", name: /^Actions for .* of income$/ },
+				],
+				["49d-add-income-sheet", `/month/${month}`, { role: "button", name: "Add income" }],
+				[
+					"51-commitment-add",
+					`/plan/${month}/commitments`,
+					{ role: "textbox", name: "New Commitment" },
+				],
+			] as const
+		).map(
+			([name, path, target]): Shot => ({
+				name,
+				path,
+				window: true,
+				ready: async (page) => {
+					await page.reload();
+					await settled(page);
+					const control = page.getByRole(target.role, { name: target.name }).first();
+					await control.evaluate((el) => {
+						window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 120);
+					});
+					await page.waitForTimeout(300);
+					// A text field is only brought into view: tapping it would not bring a keyboard up here.
+					if (target.role !== "textbox") await control.click({ timeout: 15_000 });
+					await page.waitForTimeout(500);
+				},
+			}),
+		),
+		{ name: "49e-months-plan", path: `/month/${month}/plan`, phone: true },
+		{
+			// Add Buckets with a row of the Parent's own ("Add your own") typed in, not saved.
+			name: "50-add-buckets-own-row",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await page.reload();
+				await settled(page);
+				const sheet = page.getByRole("dialog", { name: "Add Buckets" });
+				await pressFor(
+					page.getByRole("button", { name: "Add Buckets", exact: true }).first(),
+					sheet,
+				);
+				const own = sheet.getByRole("button", { name: "Add your own", exact: true });
+				await own.scrollIntoViewIfNeeded({ timeout: 15_000 });
+				await own.click({ timeout: 15_000 });
+				await page.keyboard.type("Christmas presents");
+				await page.waitForTimeout(400);
+			},
+		},
 		...small,
 		...fresh,
 		// Money between the two Parents, last: marking it changes the month's Income for good.

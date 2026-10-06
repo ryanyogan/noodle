@@ -80,7 +80,7 @@ export function MonthCloseSection({
 					}
 				/>
 			</div>
-			<p className="px-1 pb-3 text-sm text-muted-foreground">
+			<p className="pb-3 text-sm text-muted-foreground sm:px-1">
 				{name} has ended.{" "}
 				{proposal.leftovers.length > 0
 					? goals.length > 0

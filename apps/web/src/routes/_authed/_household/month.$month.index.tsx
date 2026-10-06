@@ -1061,7 +1061,10 @@ function useGetStartedSteps(state: MonthState) {
 			),
 			link: (
 				<Link to="/plan/$month" params={{ month: state.month }}>
-					Set up<span className="max-[359px]:sr-only"> the Plan</span>
+					{/* One child, so the Button's gap doesn't widen the space between the words (issue 74). */}
+					<span>
+						Set up<span className="max-[359px]:sr-only"> the Plan</span>
+					</span>
 				</Link>
 			),
 		},
@@ -1076,7 +1079,9 @@ function useGetStartedSteps(state: MonthState) {
 			),
 			link: (
 				<Link to="/plan/$month" params={{ month: state.month }} hash={PLAN_BUCKETS_HASH}>
-					Add<span className="max-[359px]:sr-only"> Buckets</span>
+					<span>
+						Add<span className="max-[359px]:sr-only"> Buckets</span>
+					</span>
 				</Link>
 			),
 		},
@@ -1093,7 +1098,9 @@ function useGetStartedSteps(state: MonthState) {
 			),
 			link: (
 				<Link to="/accounts">
-					Add<span className="max-[359px]:sr-only"> an Account</span>
+					<span>
+						Add<span className="max-[359px]:sr-only"> an Account</span>
+					</span>
 				</Link>
 			),
 		},

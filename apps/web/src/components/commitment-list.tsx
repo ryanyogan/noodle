@@ -199,8 +199,8 @@ function CommitmentRow({
 					{onPay && !paying ? (
 						// On a phone it always starts a line of its own, in line with the text above it
 						// (issue 110: at 320 px it stayed beside the text in some rows and dropped in others).
-						// From 375px the line a pays-down note is on comes before it (see the note below).
-						<span className="max-sm:basis-full min-[375px]:max-sm:order-1">
+						// The line a pays-down note is on comes before it (see the note below).
+						<span className="max-sm:order-1 max-sm:basis-full">
 							<Button
 								type="button"
 								variant="ghost"
@@ -264,7 +264,8 @@ function RecordPayment({
 			<label htmlFor={id} className="sr-only">
 				Amount paid to {commitment.name}
 			</label>
-			<div className="relative w-32">
+			{/* At 320px the three don't fit one line and Cancel fell alone: the field takes the line. */}
+			<div className="relative w-32 max-[359px]:w-full">
 				<span
 					aria-hidden="true"
 					className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center text-muted-foreground text-sm"

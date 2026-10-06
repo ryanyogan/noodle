@@ -217,7 +217,7 @@ export function IncomeSection({
 			) : null}
 			{betweenUs.length > 0 ? (
 				<section aria-label="Between us" className="grid gap-2 pt-4">
-					<p className="px-1 text-sm text-muted-foreground">
+					<p className="text-sm text-muted-foreground sm:px-1">
 						<span className="font-medium text-foreground">Between us</span>{" "}
 						<span className="tabular-nums">{formatMoney(between)}</span> one of you moved to the
 						other. It isn’t Income and it isn’t spending.
@@ -323,7 +323,7 @@ export function ExtraIncomeSection({
 				in above your usual take-home pay{monthName ? ` in ${monthName}` : ""}. Add it to Free to
 				Spend to use it, or choose a Goal or Bucket for it.
 			</p>
-			<div className="flex flex-wrap gap-2 px-1 pb-3">
+			<div className="flex flex-wrap gap-2 pb-3 sm:px-1">
 				{/* The amount is in the words, so the name read out is the one seen; it may wrap (#74). */}
 				<Button size="wrap" disabled={!hydrated} onClick={onAddToFree}>
 					Add {formatMoney(left)} to Free to Spend
