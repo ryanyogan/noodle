@@ -427,8 +427,11 @@ function Explore({ search }: { search: ExploreSearch }) {
 				{/* Beside the Changes, the outcome takes the wide column and stays in view while it fits
 				    the window (what SplitRail does, whichever column it is in); taller, it scrolls with the
 				    page. Below lg its parts sit in the page: the totals last from 640, and on a phone before
-				    the Changes, where they are in the page (so read) first (#74). */}
-				<SplitRail>
+				    the Changes, where they are in the page (so read) first (#74).
+				    Taller than the window (issue 120), it scrolls with the page until its end reaches the
+				    window's, and stays there while the longer Changes go on: the chart and the totals are
+				    in view beside whichever change is being made. */}
+				<SplitRail className="lg:data-[fits=false]:sticky lg:data-[fits=false]:bottom-6 lg:data-[fits=false]:self-end">
 					<HorizonToggle years={horizonYears} onYears={setYears} />
 					<Summary
 						plan={planProjection}

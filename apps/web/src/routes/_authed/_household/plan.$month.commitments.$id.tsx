@@ -128,13 +128,13 @@ function CommitmentPage() {
 					terms && !ended ? (
 						<Button
 							type="button"
-							variant="ghost"
+							variant="outline"
 							size="sm"
 							disabled={!hydrated}
 							onClick={() => setEditing(true)}
 						>
 							<Pencil />
-							Edit
+							Edit Commitment
 						</Button>
 					) : undefined
 				}

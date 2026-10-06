@@ -167,6 +167,17 @@ async function expectDetailHeader(page: Page, what: string) {
 		await header.locator("[data-slot=detail-actions]").locator("a:visible, button:visible").count(),
 		`${what}: at most one action`,
 	).toBeLessThanOrEqual(1);
+	// Under 360px the action is under the title whether the title is short or long (issue 120).
+	const action = await header.locator("[data-slot=detail-actions]:visible").boundingBox();
+	if (action && width < 360) {
+		expect(action.y, `${what}: the action is under the title`).toBeGreaterThanOrEqual(
+			title.y + title.height - 1,
+		);
+		expect(
+			action.x,
+			`${what}: the action starts no further right than the title`,
+		).toBeLessThanOrEqual(title.x + 1);
+	}
 	const strips = page
 		.locator("[data-slot=master-detail-detail]")
 		.locator("[data-slot=link-tabs]:visible, [role=tablist]:visible");

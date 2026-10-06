@@ -58,6 +58,12 @@ export const horizonOf = (years: HorizonYears | undefined): Horizon =>
 /** `years` for a link: unset for the default, so links stay short. */
 export const yearsParam = (years: HorizonYears) => (years === DEFAULT_YEARS ? undefined : years);
 
+// Drawn as the tab strips it sits beside (issue 120): the same track, a 36px option on a phone
+// (32px from lg) that takes a thumb over 44px through its `::after`, and no ring on the chosen one.
+const horizonTrack = "flex-wrap bg-surface-3/80 dark:bg-surface-2";
+const horizonOption =
+	"h-8 px-3 data-[state=on]:ring-0 max-lg:relative max-lg:h-9 max-lg:min-w-0 max-lg:after:absolute max-lg:after:inset-x-0 max-lg:after:-inset-y-1";
+
 /** The 1, 2, 3 or 5 years switch. */
 export function HorizonToggle({
 	years,
@@ -75,10 +81,15 @@ export function HorizonToggle({
 				const picked = HORIZONS.find((h) => String(h.years) === value);
 				if (picked) onYears(picked.years);
 			}}
-			className="flex-wrap"
+			className={horizonTrack}
 		>
 			{HORIZONS.map((h) => (
-				<ToggleGroupItem key={h.years} value={String(h.years)} variant="segmented">
+				<ToggleGroupItem
+					key={h.years}
+					value={String(h.years)}
+					variant="segmented"
+					className={horizonOption}
+				>
 					{h.label}
 				</ToggleGroupItem>
 			))}

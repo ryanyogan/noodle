@@ -201,7 +201,8 @@ export function DetailHeader({
 			) : null}
 			{/* A phone (issue 115): the title and its one action are a pair that wraps on its own, after
 			    Back and before previous/next. The action is beside the title while the title fits on
-			    one line there; otherwise it goes under the title, starting at the title's left edge.
+			    one line there; otherwise, and always under 360px, it goes under the title, starting at
+			    the title's left edge.
 			    From lg the pair is not a box (`contents`): the header lays its parts out as before. */}
 			<div
 				className={cn(
@@ -211,7 +212,15 @@ export function DetailHeader({
 			>
 				{/* From lg, at least ~12 characters of title: past that the actions drop to their own row
 			    (#65). */}
-				<div data-slot="detail-heading" className="min-w-0 flex-auto lg:flex-1 lg:basis-36">
+				<div
+					data-slot="detail-heading"
+					// Under 360px the action is always under the title, short or long, so every item's
+					// page starts the same way (issue 120).
+					className={cn(
+						"min-w-0 flex-auto lg:flex-1 lg:basis-36",
+						actions ? "max-[359px]:basis-full" : null,
+					)}
+				>
 					{eyebrow ? (
 						<p data-slot="detail-eyebrow" className="text-[13px] font-medium text-muted-foreground">
 							{eyebrow}

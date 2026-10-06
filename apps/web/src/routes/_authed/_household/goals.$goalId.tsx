@@ -162,13 +162,13 @@ function GoalDetails({
 					archived ? undefined : (
 						<Button
 							type="button"
-							variant="ghost"
+							variant="outline"
 							size="sm"
 							disabled={!hydrated}
 							onClick={() => setSheet("edit")}
 						>
 							<Pencil />
-							Edit
+							Edit Goal
 						</Button>
 					)
 				}

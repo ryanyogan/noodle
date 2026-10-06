@@ -152,7 +152,7 @@ test("Commitments show what's coming up, why a month is lumpy, and each one's pa
 	await expect(page.getByRole("region", { name: "Terms history" })).toContainText("$1,140");
 
 	// It's changed from its own page, in the same sheet as on the Plan.
-	await page.getByRole("button", { name: "Edit", exact: true }).click();
+	await page.getByRole("button", { name: "Edit Commitment", exact: true }).click();
 	const sheet = page.getByRole("dialog", { name: "Car insurance" });
 	await expect(sheet.getByLabel("Next due")).toHaveAttribute("data-value", `${month}-${day}`);
 	await sheet.getByLabel("Amount", { exact: true }).fill("");
