@@ -939,6 +939,9 @@ export const income = sqliteTable(
 		needsReview: integer("needs_review", { mode: "boolean" }).notNull().default(false),
 		// Goes up with every change of kind, as a Transaction's does (ADR-0041).
 		version: integer("version").notNull().default(0),
+		// Whose pay it is (issue 133, ADR-0057): a Parent, or null for the Household. Last, as
+		// imports.ts inserts by position.
+		payMemberId: text("pay_member_id").references(() => members.id),
 	},
 	(t) => [
 		index("income_household_date_idx").on(t.householdId, t.date),
@@ -1012,6 +1015,8 @@ export const moneyInRules = sqliteTable(
 			.references(() => households.id),
 		pattern: text("pattern").notNull(),
 		kind: text("kind", { enum: MONEY_IN_KINDS }).notNull(),
+		// For a Rule that says Income: the Parent whose pay it is; null for the Household.
+		payMemberId: text("pay_member_id").references(() => members.id),
 		createdByMemberId: text("created_by_member_id").references(() => members.id),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()

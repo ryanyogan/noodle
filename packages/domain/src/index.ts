@@ -357,6 +357,7 @@ export {
 	SAME_LINE_DAYS,
 	suggestPairings,
 } from "./pairing";
+export * from "./pay-range";
 export {
 	PAYMENT_HISTORY_MONTHS,
 	type PaymentLine,

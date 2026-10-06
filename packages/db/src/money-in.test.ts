@@ -258,7 +258,7 @@ describe("a Rule states a kind", () => {
 		await saveMoneyInRule(db, viewer, { ruleId: "rule-1", wording: "GUSTO", kind: "income" });
 		await saveMoneyInRule(db, viewer, { ruleId: "rule-2", wording: "GUSTO", kind: "transfer" });
 		expect(await loadMoneyInRules(db, householdId)).toEqual([
-			{ id: "rule-1", pattern: "gusto", kind: "transfer" },
+			{ id: "rule-1", pattern: "gusto", kind: "transfer", payMemberId: null },
 		]);
 		const lines = [line("2026-09-06", 250_000, "GUSTO 9917")];
 		await importInto("checking", "import-1", lines);

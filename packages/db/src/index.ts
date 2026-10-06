@@ -630,15 +630,18 @@ export {
 export {
 	changeMoneyInKind,
 	deleteMoneyInRule,
+	editMoneyIn,
 	loadMoneyIn,
 	loadMoneyInLine,
 	loadMoneyInReview,
 	loadMoneyInRules,
+	type MoneyInEdit,
 	type MoneyInFilter,
 	type MoneyInKindResult,
 	type MoneyInLine,
 	type StoredMoneyInRule,
 	saveMoneyInRule,
+	stateWhosePay,
 } from "./money-in";
 export {
 	type CloseMonthInput,
