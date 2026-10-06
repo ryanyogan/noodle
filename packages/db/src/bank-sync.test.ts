@@ -8,7 +8,7 @@ import {
 	type Db,
 	syncBankLines,
 } from "./index";
-import { transactions } from "./schema";
+import { transactions, transfers } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -156,5 +156,27 @@ describe("syncBankLines", () => {
 				newId: () => "x",
 			}),
 		).toBeNull();
+	});
+});
+
+describe("a sync that brings nothing new", () => {
+	it("still marks a payment on the card that came in reading Money back", async () => {
+		await sync("import-1", [
+			line("b-1", "2026-09-11", 50_000, { description: "PAYMENT THANK YOU" }),
+		]);
+		// As it was before the card's side of a payment was read by its words.
+		await db.delete(transfers);
+
+		const result = await sync("import-2", [
+			line("b-1", "2026-09-11", 50_000, { description: "PAYMENT THANK YOU" }),
+		]);
+		expect(result).toMatchObject({ importId: null, months: ["2026-09"] });
+		const marks = await db.select().from(transfers);
+		expect(marks).toHaveLength(1);
+		expect(marks[0]).toMatchObject({ outTransactionId: null, createdByMemberId: null });
+
+		// And nothing more the next time.
+		expect(await sync("import-3", [])).toMatchObject({ importId: null, months: [] });
+		expect(await db.select().from(transfers)).toHaveLength(1);
 	});
 });

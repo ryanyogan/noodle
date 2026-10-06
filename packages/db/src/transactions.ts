@@ -737,10 +737,13 @@ export async function loadTransactionsPage(
 			matchedIn: sql<string | null>`(select a.name from matches m
 				join transactions c on c.id = m.imported_id join accounts a on a.id = c.account_id
 				where m.quick_add_id = ${transactions.id} and m.removed_at is null)`,
-			transfer: sql<
-				string | null
-			>`(select json_object('from', ao.name, 'to', coalesce(ai.name, ic.name), 'reason', x.reason)
+			transfer: sql<string | null>`(select json_object(
+					'from', coalesce(ao.name, case when x.out_transaction_id is null then oa.name end),
+					'to', coalesce(ai.name, ic.name,
+						case when x.in_transaction_id is null and x.in_income_id is null then oa.name end),
+					'reason', x.reason)
 				from transfers x
+				left join accounts oa on oa.id = x.other_account_id
 				left join transactions o on o.id = x.out_transaction_id left join accounts ao on ao.id = o.account_id
 				left join transactions n on n.id = x.in_transaction_id left join accounts ai on ai.id = n.account_id
 				left join income i on i.id = x.in_income_id left join accounts ic on ic.id = i.account_id

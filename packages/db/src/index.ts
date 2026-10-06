@@ -484,6 +484,13 @@ export {
 	revokeCaptureToken,
 } from "./captures";
 export {
+	CARD_PAYMENT_PASS,
+	type CardPaymentPassResult,
+	householdsAwaitingCardPaymentPass,
+	runCardPaymentPass,
+	runCardPaymentPasses,
+} from "./card-payment-pass";
+export {
 	forgetCardPayment,
 	loadCardPaymentRules,
 	markCardPayment,
