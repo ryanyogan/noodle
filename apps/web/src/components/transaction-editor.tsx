@@ -649,7 +649,10 @@ function EditForm({
 					<TransferSection transaction={transaction} onDone={onClose} />
 				) : null}
 			</div>
-			<div className="col-span-full grid gap-4">
+			{/* In the sheet the actions are the form's own children, as they were before the editor had
+			    columns: the sheet's footer stays at its foot, above a phone's keyboard, only as a child
+			    of what scrolls (issue 99). Under a row they run across both columns. */}
+			<div className={inline ? "col-span-full grid gap-4" : "contents"}>
 				{confirmDelete ? (
 					<Confirm
 						confirmLabel="Delete Transaction"
