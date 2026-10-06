@@ -41,3 +41,9 @@ A plan is a best guess that you correct as you go. Some months a Bucket runs ove
 A budget fails when it needs attention every day. Noodle asks for a few minutes once a week, in the Check-in. The rest of the time, one glance at Free to Spend is enough.
 
 Ready to do it? Read [How to budget with Noodle](/docs/how-to-budget).
+
+## Related
+
+- [How to budget with Noodle](/docs/how-to-budget)
+- [Getting started in five minutes](/docs/getting-started)
+- [Glossary](/docs/glossary)

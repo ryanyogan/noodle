@@ -49,3 +49,6 @@ The ended month shows a section named **How** the month **ended**, for example "
 - [Extra income](/docs/extra-income)
 - [Check-in](/docs/check-in)
 - [How to budget with Noodle](/docs/how-to-budget)
+- [Goals](/docs/goals)
+- [Buckets](/docs/buckets)
+- [When you overspend](/docs/when-you-overspend)

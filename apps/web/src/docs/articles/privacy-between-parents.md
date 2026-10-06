@@ -18,6 +18,7 @@ A Personal Allowance is a Bucket that belongs to one Parent. You see every purch
 - **In Reports:** the total, shown with a lock. It cannot be opened to see the Transactions behind it.
 - **In "What changed" on the Plan:** only "Personal Allowance changed".
 - **In a data download:** only the total for each month.
+- **In Ask:** Ask can use the total, never the purchases. See [Ask](/docs/ask).
 
 ## Other places it holds
 
@@ -43,3 +44,5 @@ A Personal Allowance is a Bucket that belongs to one Parent. You see every purch
 - [Your data](/docs/your-data)
 - [Money between Parents](/docs/money-between-parents)
 - [This Month](/docs/this-month)
+- [Personal Allowance](/docs/personal-allowance)
+- [Reports](/docs/reports)

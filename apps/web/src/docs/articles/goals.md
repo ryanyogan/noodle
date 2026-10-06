@@ -80,3 +80,5 @@ Choose **Pay off a card or loan** when you add the Goal. What is owed today is t
 - [The Plan](/docs/plan)
 - [How to budget with Noodle](/docs/how-to-budget)
 - [This Month](/docs/this-month)
+- [Closing a month](/docs/closing-a-month)
+- [Extra income](/docs/extra-income)

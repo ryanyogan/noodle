@@ -79,3 +79,7 @@ The timing is the same as Start fresh: 24 hours later with two Parents, with **C
 - [Check-in](/docs/check-in)
 - [Children and "For"](/docs/children-and-for)
 - [Light and dark theme](/docs/theme)
+- [Inviting the other Parent](/docs/invite-the-other-parent)
+- [Installing Noodle on your phone](/docs/install-on-your-phone)
+- [Quick Add](/docs/quick-add)
+- [Receipts](/docs/receipts)

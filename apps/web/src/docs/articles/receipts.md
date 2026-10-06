@@ -33,9 +33,9 @@ When Noodle is sure of every item, and nobody has already decided where the Tran
 Otherwise you apply them:
 
 1. Open the Transaction on the Transactions page.
-2. Look at **Splits from the Receipt**.
+2. Look at the Receipt and the Splits it proposes.
 3. Choose a Bucket for any item that does not have one.
-4. Apply them.
+4. Press **Apply these Splits**.
 
 Each discount stays with its item, and tax is shared out across the items, so the Splits add up to the total.
 
@@ -63,3 +63,5 @@ If the Receipt address ends up somewhere it should not be, press **Make a new ad
 - [Quick Add](/docs/quick-add)
 - [Transactions](/docs/transactions)
 - [Review and Rules](/docs/review-and-rules)
+- [Splitting a purchase](/docs/split-a-purchase)
+- [Household settings](/docs/household-settings)

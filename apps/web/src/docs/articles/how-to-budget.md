@@ -90,7 +90,15 @@ Each month's Plan starts as a copy of the one before. When you change an amount,
 
 - **Once:** set up Income, Commitments, Buckets and one Goal.
 - **Any day:** glance at [This Month](/docs/this-month) before you spend.
-- **Each week:** do the Check-in.
-- **Each month:** close the month, and adjust the Plan if something changed.
+- **Each week:** do the [Check-in](/docs/check-in).
+- **Each month:** [close the month](/docs/closing-a-month), and adjust the Plan if something changed.
 
 Every word in bold here is explained in the [Glossary](/glossary) in the app.
+
+## Related
+
+- [Check-in](/docs/check-in)
+- [Closing a month](/docs/closing-a-month)
+- [Extra income](/docs/extra-income)
+- [Reports](/docs/reports)
+- [Getting started in five minutes](/docs/getting-started)

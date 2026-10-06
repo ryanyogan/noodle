@@ -45,3 +45,6 @@ Money in that you marked has a **Count as Income** button in the Between us list
 
 - [Extra income](/docs/extra-income)
 - [Privacy between Parents](/docs/privacy-between-parents)
+- [Transactions](/docs/transactions)
+- [Review and Rules](/docs/review-and-rules)
+- [Accounts and connecting a bank](/docs/accounts-and-banks)

@@ -53,3 +53,5 @@ The bar at the bottom has Month, Transactions and Goals, with [Quick Add](/docs/
 - [Getting started in five minutes](/docs/getting-started)
 - [Inviting the other Parent](/docs/invite-the-other-parent)
 - [This Month](/docs/this-month)
+- [Household settings](/docs/household-settings)
+- [Keyboard and phone tips](/docs/keyboard-and-phone)

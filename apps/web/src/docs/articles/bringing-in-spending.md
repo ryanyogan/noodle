@@ -82,3 +82,4 @@ Two more ways to add without typing are on **Household settings**, under Bringin
 - [Getting started in five minutes](/docs/getting-started)
 - [How to budget with Noodle](/docs/how-to-budget)
 - [This Month](/docs/this-month)
+- [Household settings](/docs/household-settings)

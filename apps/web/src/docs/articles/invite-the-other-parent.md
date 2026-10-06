@@ -63,3 +63,5 @@ The one private thing is each Parent's Personal Allowance. The other Parent sees
 - [Getting started in five minutes](/docs/getting-started)
 - [Installing Noodle on your phone](/docs/install-on-your-phone)
 - [Personal Allowance](/docs/personal-allowance)
+- [Household settings](/docs/household-settings)
+- [Privacy between Parents](/docs/privacy-between-parents)

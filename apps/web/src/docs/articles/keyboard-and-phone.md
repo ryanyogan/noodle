@@ -54,3 +54,6 @@ Noodle works with a mouse or a finger alone. These shortcuts are there if you wa
 - [Light and dark theme](/docs/theme)
 - [Splitting a purchase](/docs/split-a-purchase)
 - [Household settings](/docs/household-settings)
+- [Quick Add](/docs/quick-add)
+- [Review and Rules](/docs/review-and-rules)
+- [Installing Noodle on your phone](/docs/install-on-your-phone)

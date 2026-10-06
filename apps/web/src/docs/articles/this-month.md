@@ -58,3 +58,6 @@ A brand-new Household sees "Nothing planned yet". Finish Setup, or add your Take
 - [Quick Add](/docs/quick-add)
 - [Getting started in five minutes](/docs/getting-started)
 - [How to budget with Noodle](/docs/how-to-budget)
+- [Reports](/docs/reports)
+- [Check-in](/docs/check-in)
+- [Closing a month](/docs/closing-a-month)

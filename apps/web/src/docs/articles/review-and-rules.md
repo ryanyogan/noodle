@@ -72,3 +72,6 @@ Open a Rule to change it, to **File what's still unassigned now**, or to **Delet
 - [Commitments](/docs/commitments)
 - [Paying off debt](/docs/paying-off-debt)
 - [How to budget with Noodle](/docs/how-to-budget)
+- [Check-in](/docs/check-in)
+- [Splitting a purchase](/docs/split-a-purchase)
+- [Money between Parents](/docs/money-between-parents)

@@ -47,3 +47,5 @@ A step only shows while something in it is waiting. A week with nothing to do go
 - [Extra income](/docs/extra-income)
 - [Household settings](/docs/household-settings)
 - [This Month](/docs/this-month)
+- [Review and Rules](/docs/review-and-rules)
+- [Insights](/docs/insights)

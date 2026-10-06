@@ -34,7 +34,7 @@ Only you can change your own. In the other Parent's row the Plan says who sets i
 
 What you buy from your Personal Allowance is yours alone to see.
 
-- The other Parent never sees its individual Transactions: not in lists, not in search, not in Reports, not in Ask.
+- The other Parent never sees its individual Transactions: not in lists, not in search, not in [Reports](/docs/reports), not in [Ask](/docs/ask).
 - If you split one purchase between your Personal Allowance and a shared Bucket, the other Parent sees only the shared part.
 - The other Parent gets no Nudge about a Quick Add in your Personal Allowance.
 - A Suggestion that rests on your Personal Allowance is shown only to you, marked "Only you see this".
@@ -61,3 +61,5 @@ So the Plan still adds up for both of you. The amounts are shared. The purchases
 - [Buckets](/docs/buckets)
 - [The Plan](/docs/plan)
 - [Inviting the other Parent](/docs/invite-the-other-parent)
+- [Privacy between Parents](/docs/privacy-between-parents)
+- [Reports](/docs/reports)

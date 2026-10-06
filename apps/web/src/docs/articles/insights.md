@@ -30,6 +30,8 @@ What you can do depends on the Insight.
 1. Open **What it's based on** and check that it is right.
 2. If the Insight is about a Commitment or a Bucket, press **Try in Explore** to see what the change would do over the coming months, without changing anything.
 3. If you have dealt with it, or it does not apply, press **Got it**. The Insight is then marked as seen.
+4. If it is about a bill you could stop, press **End … in the Plan**, with the Commitment's name. Noodle asks you to confirm before the Plan changes.
+5. If it is not useful, press **Not useful**.
 
 For the same charge appearing twice, the button reads **I asked for a refund** instead.
 
@@ -56,3 +58,5 @@ Noodle looks every night. To look sooner, for example after bringing in a statem
 
 - [Perks & Benefits](/docs/perks-and-benefits)
 - [Explore and the Affordability Check](/docs/explore)
+- [Reports](/docs/reports)
+- [Check-in](/docs/check-in)

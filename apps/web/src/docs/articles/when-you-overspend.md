@@ -68,3 +68,4 @@ The Plan lists this under **Things to check**: "Groceries is over its allowance 
 - [This Month](/docs/this-month)
 - [Commitments or Buckets: which is which](/docs/commitments-or-buckets)
 - [How to budget with Noodle](/docs/how-to-budget)
+- [Closing a month](/docs/closing-a-month)

@@ -47,3 +47,5 @@ In a low month, Noodle offers a button that reads **Lower take-home pay to** and
 - [Closing a month](/docs/closing-a-month)
 - [Check-in](/docs/check-in)
 - [How to budget with Noodle](/docs/how-to-budget)
+- [The Plan](/docs/plan)
+- [Goals](/docs/goals)

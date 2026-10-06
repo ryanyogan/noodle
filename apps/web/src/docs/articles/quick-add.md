@@ -64,3 +64,5 @@ If the Account also gets Transactions from a bank or a statement, the same purch
 - [Transactions](/docs/transactions)
 - [Review and Rules](/docs/review-and-rules)
 - [This Month](/docs/this-month)
+- [Household settings](/docs/household-settings)
+- [Keyboard and phone tips](/docs/keyboard-and-phone)

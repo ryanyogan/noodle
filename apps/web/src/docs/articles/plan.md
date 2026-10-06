@@ -79,3 +79,5 @@ The Year page shows every month of the year in one table, from Take-home pay dow
 - [Personal Allowance](/docs/personal-allowance)
 - [Explore and the Affordability Check](/docs/explore)
 - [This Month](/docs/this-month)
+- [Closing a month](/docs/closing-a-month)
+- [Extra income](/docs/extra-income)

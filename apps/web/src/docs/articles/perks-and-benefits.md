@@ -39,7 +39,7 @@ The page adds up the value you have used this year and sets it against annual fe
 
 ## Where each Perk comes from
 
-Noodle reads Perks only from the provider's own benefits page. Each Perk shows the link it came from, the page's own words, and the date it was last checked.
+Noodle reads Perks only from the provider's own benefits page. Open **Where this comes from** on a Perk to see the link it came from, the page's own words, and the date it was last checked.
 
 - If a Perk has no value yet, use **Add its value**.
 - If something looks out of date, use **Check again**.

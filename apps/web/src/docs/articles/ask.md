@@ -40,7 +40,7 @@ Ask can look up five kinds of things.
 - It does not change anything. It only reads.
 - It answers from your Household's own figures in Noodle. It does not give financial advice.
 - It does not remember. Each visit starts fresh.
-- For anything outside the five kinds above, a page like Reports or Transactions will serve you better.
+- For anything outside the five kinds above, a page like [Reports](/docs/reports) or [Transactions](/docs/transactions) will serve you better.
 
 If Ask cannot answer, it says so and offers a retry. Rewording the question to name a Bucket, a month or a price often helps.
 
@@ -56,3 +56,5 @@ If Ask cannot answer, it says so and offers a retry. Rewording the question to n
 - [Explore and the Affordability Check](/docs/explore)
 - [Goals](/docs/goals)
 - [This Month](/docs/this-month)
+- [Reports](/docs/reports)
+- [Transactions](/docs/transactions)

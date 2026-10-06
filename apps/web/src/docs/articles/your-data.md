@@ -53,3 +53,4 @@ A snapshot taken with a newer version of Noodle than the one you are using canno
 
 - [Household settings](/docs/household-settings)
 - [Privacy between Parents](/docs/privacy-between-parents)
+- [Reports](/docs/reports)

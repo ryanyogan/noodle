@@ -46,3 +46,7 @@ In Household settings, each Child's row also has a link that reads **See what** 
 
 - [Splitting a purchase](/docs/split-a-purchase)
 - [Household settings](/docs/household-settings)
+- [Transactions](/docs/transactions)
+- [Reports](/docs/reports)
+- [Quick Add](/docs/quick-add)
+- [Review and Rules](/docs/review-and-rules)

@@ -16,9 +16,9 @@ On a computer, Transactions is in the sidebar under Day to day. On a phone it is
 1. Use the arrows at the top to step to the month you want.
 2. Type in **Search** to look through notes and merchants. The list narrows when you pause.
 3. Narrow it further with the filters: **Months**, **Bucket**, **For** and **Account**. On a phone they are behind **Filters**; pick what you want and press **Apply**.
-4. Change the order with **Sort**: newest, oldest, largest, smallest, or A–Z by name, by what it is assigned to, or by Account.
+4. Change the order with **Sort**: Newest first, Oldest first, Largest first, Smallest first, or by Name, Assigned to or Account, A–Z or Z–A.
 
-Each filter you set shows as a small chip. Take a chip off to remove that filter, or use **Clear all** on a phone.
+On a phone or tablet, each filter you set shows as a small chip above the list. Press a chip to remove that filter, or use **Clear all** in Filters.
 
 ## Change a Transaction
 
@@ -54,7 +54,7 @@ Sometimes Noodle is not sure and shows **Possible match** when you open the Tran
 - Paying a credit card from checking is a Transfer. It is not spending, because what you bought on the card was counted when you bought it. See [Paying off debt](/docs/paying-off-debt).
 - Money back for a purchase is a Refund. It goes back to the Bucket the purchase came from.
 - Spending from a Goal is changed on its Goal. It cannot be selected here.
-- You never see the other Parent's [Personal Allowance](/docs/personal-allowance) purchases in this list, only your own.
+- You never see the other Parent's [Personal Allowance](/docs/personal-allowance) purchases in this list, only your own. See [Privacy between Parents](/docs/privacy-between-parents).
 - If the other Parent changed a Transaction while you were looking at it, your change is left out and you are shown how it looks now.
 - A Transaction from a bank or a statement that you delete is not brought in again.
 
@@ -64,3 +64,7 @@ Sometimes Noodle is not sure and shows **Possible match** when you open the Tran
 - [Quick Add](/docs/quick-add)
 - [Accounts and connecting a bank](/docs/accounts-and-banks)
 - [Receipts](/docs/receipts)
+- [Reports](/docs/reports)
+- [Splitting a purchase](/docs/split-a-purchase)
+- [Children and "For](/docs/children-and-for)
+- [Money between Parents](/docs/money-between-parents)

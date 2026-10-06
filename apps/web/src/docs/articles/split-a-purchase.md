@@ -45,3 +45,6 @@ When Noodle is sure of every item and nobody has filed the Transaction yet, it a
 - [Children and "For"](/docs/children-and-for)
 - [Keyboard and phone tips](/docs/keyboard-and-phone)
 - [How to budget with Noodle](/docs/how-to-budget)
+- [Receipts](/docs/receipts)
+- [Transactions](/docs/transactions)
+- [Review and Rules](/docs/review-and-rules)

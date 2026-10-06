@@ -77,3 +77,5 @@ When Noodle spots regular spending with no Bucket of its own, it offers one unde
 - [Commitments or Buckets: which is which](/docs/commitments-or-buckets)
 - [When you overspend](/docs/when-you-overspend)
 - [This Month](/docs/this-month)
+- [Reports](/docs/reports)
+- [Closing a month](/docs/closing-a-month)

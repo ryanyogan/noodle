@@ -42,3 +42,10 @@ When Noodle is not sure where something belongs, it asks you in Review. A few ta
 - New to budgeting? Read [What budgeting is](/docs/what-budgeting-is).
 - Want the whole method? Read [How to budget with Noodle](/docs/how-to-budget).
 - Not sure about a word? Open the [Glossary](/glossary) in the app.
+
+## Related
+
+- [Bringing in your spending](/docs/bringing-in-spending)
+- [Inviting the other Parent](/docs/invite-the-other-parent)
+- [Installing Noodle on your phone](/docs/install-on-your-phone)
+- [How to budget with Noodle](/docs/how-to-budget)
