@@ -39,6 +39,9 @@ async function shot(target: Locator, name: string) {
 	if (folder) await target.screenshot({ path: `${folder}/${name}.png` });
 }
 
+/** A page's words on one line, as a person reads them across. */
+const words = async (page: Page) => (await page.locator("main").innerText()).replace(/\s+/g, " ");
+
 const toast = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });
 
 /** On a purchase's page: "Someone's paying part of this back", Casey, and how much unless half. */
@@ -62,10 +65,6 @@ async function sayOwedBack(page: Page, month: string, id: string, amount?: strin
 test("$700 Paid back settles tuition and skates, leaves $25 of the dentist owed, and counts this month", async ({
 	browser,
 }) => {
-	// Not passing yet (phase 132c): everything up to Confirm passes, but after Confirm the panel
-	// still asks its question (the call answers 200 and the offer is read again unchanged). The
-	// console.log lines below are there to turn into the last assertions once it does.
-	test.fixme(true, "Confirm leaves the Paid back line unmatched in the running app");
 	// A dozen page loads; a dev server compiling each for the first time takes most of this.
 	test.setTimeout(300_000);
 	const page = await signedInPage(browser, parent.email);
@@ -108,7 +107,8 @@ test("$700 Paid back settles tuition and skates, leaves $25 of the dentist owed,
 
 	await page.goto(`/month/${last}`);
 	await page.waitForLoadState("networkidle");
-	const lastMonthBefore = await page.locator("main").innerText();
+	const lastMonthBefore = await words(page);
+	await shot(page.locator("main"), "last-month-before-1440");
 
 	// The money arrives this month.
 	await page.goto(`/month/${now}`);
@@ -121,7 +121,13 @@ test("$700 Paid back settles tuition and skates, leaves $25 of the dentist owed,
 	await sheet.getByLabel("Note").fill("Casey");
 	await sheet.getByRole("button", { name: "Add income" }).click();
 	await expect(sheet).toBeHidden();
-	const thisMonthBefore = await page.locator("main").innerText();
+	// Nothing is restored yet, and the Commitment says what is owed on it.
+	await expect(income).toContainText("$700 received");
+	await expect(page.getByText("$600 owed back by Casey").first()).toBeVisible();
+	const thisMonthBefore = await words(page);
+	expect(thisMonthBefore).toContain("Kids $0 spent $300 of $300");
+	expect(thisMonthBefore).toContain("Health $0 spent $200 of $200");
+	expect(thisMonthBefore).toMatch(/Tuition Due \w+ 5 \$600 owed back by Casey/);
 
 	// The "Owed back" list, per person: $725 outstanding over three purchases.
 	await page.goto(`/transactions/${now}`);
@@ -167,28 +173,32 @@ test("$700 Paid back settles tuition and skates, leaves $25 of the dentist owed,
 	await expect(list.getByTestId("owed-back-item")).toContainText("$55 of $80 Paid back");
 	await shot(list, "list-after-1440");
 
-	// It is kept, and it counts this month, where each purchase was filed.
+	// It is kept, and it counts this month, where each purchase was filed: the Buckets and the
+	// Commitment get the money back, and none of it is Income.
 	await page.goto(`/month/${now}`);
-	await expect(page.getByRole("region", { name: "Income" })).toBeVisible();
-	const thisMonthAfter = await page.locator("main").innerText();
-	console.log(
-		`--- this month, before\n${thisMonthBefore}\n--- this month, after\n${thisMonthAfter}`,
-	);
+	await expect(page.getByRole("region", { name: "Income" })).toContainText("$0 received", {
+		timeout: 30_000,
+	});
+	const thisMonthAfter = await words(page);
+	expect(thisMonthAfter).toContain("Kids −$45 spent $345 of $300");
+	expect(thisMonthAfter).toContain("Health −$55 spent $255 of $200");
+	expect(thisMonthAfter).toMatch(/Tuition Due \w+ 5 .*?−\$600 of \$600/);
+	expect(thisMonthAfter).not.toContain("owed back by Casey");
 	await shot(page.locator("main"), "this-month-after-1440");
+	// Last month is as it was.
 	await page.goto(`/month/${last}`);
 	await page.waitForLoadState("networkidle");
-	console.log(
-		`--- last month, before\n${lastMonthBefore}\n--- last month, after\n${await page.locator("main").innerText()}`,
-	);
+	expect(await words(page)).toBe(lastMonthBefore);
 	const [kept = []] = await seedSql([
 		`select counts_on, amount_cents from paid_back_matches where household_id = ${household} order by amount_cents;`,
 	]);
 	expect(kept.map((match) => match.amount_cents)).toEqual([4_500, 5_500, 60_000]);
 	for (const match of kept) expect(String(match.counts_on).slice(0, 7)).toBe(now);
 	await page.goto(`/transactions/${last}/${dentist}`);
-	await expect(page.getByTestId("owed-back-text").filter({ visible: true })).toBeVisible();
-	console.log(
-		`--- the dentist's page\n${await page.getByTestId("owed-back").filter({ visible: true }).innerText()}`,
+	// The dentist's own page says what is left of it.
+	await expect(page.getByTestId("owed-back-text").filter({ visible: true })).toContainText(
+		"Owed back $25 · Casey",
+		{ timeout: 30_000 },
 	);
 	await shot(page.locator("main"), "dentist-1440");
 });

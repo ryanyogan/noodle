@@ -9,7 +9,13 @@ import type {
 	SpendCell,
 	Target,
 } from "@noodle/domain";
-import { displayMerchant, merchantGroup, THRESHOLD_STOPS } from "@noodle/domain";
+import {
+	displayMerchant,
+	merchantGroup,
+	monthOfDay,
+	periodKey,
+	THRESHOLD_STOPS,
+} from "@noodle/domain";
 import {
 	type AnyColumn,
 	and,
@@ -24,7 +30,15 @@ import {
 } from "drizzle-orm";
 import { counts, incomeCounts } from "./counting";
 import type { Db } from "./index";
-import { partlyPrivate, privateTotals, type Viewer, visibleSplit, visibleTo } from "./privacy";
+import { loadPaidBackCharges, loadPaidBackSpending } from "./owed-back";
+import {
+	partlyPrivate,
+	privateTotalId,
+	privateTotals,
+	type Viewer,
+	visibleSplit,
+	visibleTo,
+} from "./privacy";
 import { income, splitFor, splits, transactionFor, transactions } from "./schema";
 
 // Reports aggregate in D1 (GROUP BY), so no Report ever sends a Household's Transactions to the
@@ -193,8 +207,48 @@ export const privateTotalsFit = (filters: ReportFilters) =>
 	filters.merchant === undefined &&
 	!filters.min;
 
+type Restore = { target: Target; day: DayKey; amount: Cents; private: boolean };
+
 /**
- * Spending per period and Target. Other Parents' Personal Allowances add their monthly totals
+ * What Paid back restores in a Report's range (ADR-0058), as spending in reverse on the day the
+ * money counts, in the Bucket or Commitment its purchase is filed in: the third source beside
+ * whole Transactions and Splits, read as This Month reads it so the two agree. Into another
+ * Parent's Personal Allowance it is a private total for the month. It isn't a purchase, so a
+ * Report narrowed by what only a purchase has (merchant, Account, For, amount) has none.
+ */
+async function loadRestores(db: Db, scope: ReportScope): Promise<Restore[]> {
+	const { viewer, range, filters } = scope;
+	if (!privateTotalsFit(filters)) return [];
+	const [toBuckets, toCommitments] = await Promise.all([
+		loadPaidBackSpending(db, viewer, range.from, range.until),
+		// One-off spending leaves Commitments out, and so what restores them.
+		filters.oneOff ? [] : loadPaidBackCharges(db, viewer, range.from, range.until),
+	]);
+	const restores: Restore[] = [
+		...toBuckets.map((spend) => ({
+			target: `bucket:${spend.bucketId}` as Target,
+			day: spend.date,
+			amount: spend.amount,
+			private: spend.id === privateTotalId(spend.bucketId, monthOfDay(spend.date)),
+		})),
+		...toCommitments
+			// Charges are read through their last day; a Report's range stops before `until`.
+			.filter((charge) => charge.date < range.until)
+			.map((charge) => ({
+				target: `commitment:${charge.commitmentId}` as Target,
+				day: charge.date,
+				amount: charge.amount,
+				private: false,
+			})),
+	];
+	return restores.filter(
+		(restore) => !filters.targets?.length || filters.targets.includes(restore.target),
+	);
+}
+
+/**
+ * Spending per period and Target, with what was Paid back taken off where it restores (a cell
+ * with a count of 0). Other Parents' Personal Allowances add their monthly totals
  * (period = month) marked private, for regroupMonthly; the caller regroups and merges them.
  */
 export async function loadSpendCells(
@@ -233,10 +287,34 @@ export async function loadSpendCells(
 		.filter(
 			(cell) => !scope.filters.targets?.length || scope.filters.targets.includes(cell.target),
 		);
-	return { cells: [...(wholeRows as SpendCell[]), ...(splitRows as SpendCell[])], privateMonths };
+	const restored: SpendCell[] = [];
+	for (const restore of await loadRestores(db, scope)) {
+		if (restore.private)
+			privateMonths.push({
+				period: grouping === "all" ? "all" : monthOfDay(restore.day),
+				target: restore.target,
+				amount: restore.amount,
+				count: 0,
+				private: true,
+			});
+		else
+			restored.push({
+				period: grouping === "all" ? "all" : periodKey(restore.day, grouping),
+				target: restore.target,
+				amount: restore.amount,
+				count: 0,
+			});
+	}
+	return {
+		cells: [...(wholeRows as SpendCell[]), ...(splitRows as SpendCell[]), ...restored],
+		privateMonths,
+	};
 }
 
-/** Spending per day (visible spending only: private totals have no days). */
+/**
+ * Spending per day (visible spending only: private totals have no days), with what was Paid
+ * back taken off on the day it counts.
+ */
 export async function loadDailySpend(
 	db: Db,
 	scope: ReportScope,
@@ -247,8 +325,9 @@ export async function loadDailySpend(
 			.where(parts.where)
 			.groupBy(transactions.date);
 	const [a, b] = await db.batch([query(whole), query(split)]);
+	const restores = (await loadRestores(db, scope)).filter((restore) => !restore.private);
 	const byDay = new Map<string, number>();
-	for (const row of [...a, ...b] as { day: string; amount: number }[]) {
+	for (const row of [...a, ...b, ...restores] as { day: string; amount: number }[]) {
 		byDay.set(row.day, (byDay.get(row.day) ?? 0) + row.amount);
 	}
 	return [...byDay]
