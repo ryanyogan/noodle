@@ -53,6 +53,7 @@ import { z } from "zod";
 import { QuickAddLink } from "../../../components/app-shell";
 import { type FilterOption, FilterSelect } from "../../../components/filter-select";
 import { DetailPending, sectionHeaderOverItem } from "../../../components/master-detail";
+import { MoneyInSection } from "../../../components/money-in";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import { useBringsSpendingIn } from "../../../components/transaction-list";
 import { DeleteSelectedSheet, SelectionBar } from "../../../components/transaction-selection";
@@ -420,6 +421,7 @@ function TransactionsPage() {
 								) : undefined
 							}
 						/>
+						<MoneyInSection month={month} today={asOf} />
 					</div>
 				</div>
 			</div>

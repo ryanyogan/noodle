@@ -66,6 +66,7 @@ import { pastPlanSentence } from "../../../before-plan";
 import { asBucketColor, monogram } from "../../../buckets";
 import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
 import { ReviewMatchOffer } from "../../../components/match-section";
+import { MoneyInReview } from "../../../components/money-in";
 import {
 	BETWEEN_US_WHY,
 	BetweenUsButton,
@@ -923,6 +924,7 @@ function ReviewPage() {
 
 	return (
 		<>
+			<MoneyInReview today={today} className="mb-5 max-w-xl" />
 			<div
 				className={cn(
 					"grid gap-5 *:min-w-0",
