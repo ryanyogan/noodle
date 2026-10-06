@@ -6,8 +6,9 @@ import { cn } from "#lib/utils";
 // system's tokens, at the size the app's own switch had (40×24): a setting that takes effect at
 // once. It's a button with role=switch; name it with a <label htmlFor>.
 //
-// Off, its edge is `--input` (at least 3:1 on a card, ADR-0038) and its track `--switch-track`: the
-// light grey step in light; in dark the same grey as the edge, so the dark thumb shows on it (3.6:1).
+// Off, its edge is `--input` (at least 3:1 on a card, ADR-0038) and its track `--switch-track`, the
+// bar-track grey in both themes. Its thumb is `--switch-thumb`: the card colour in light, the text
+// colour in dark (issue 116), so it is a light dot on the quiet track and on the blue one.
 //
 // Below lg its tap area is a 44×44 ::after box centred on it (#74). `inset: calc(50% - 22px)`
 // centres it whatever the control's size or border (a negative inset is measured from inside the
@@ -31,7 +32,7 @@ function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimi
 			<SwitchPrimitive.Thumb
 				data-slot="switch-thumb"
 				className={cn(
-					"pointer-events-none block size-4.5 rounded-full bg-card shadow-card",
+					"pointer-events-none block size-4.5 rounded-full bg-switch-thumb shadow-card",
 					"transition-transform duration-(--duration-fast) ease-standard data-[state=checked]:translate-x-4",
 				)}
 			/>

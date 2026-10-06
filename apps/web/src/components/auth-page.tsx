@@ -98,8 +98,8 @@ export const clerkAppearance = {
 			...controlHeight,
 			...phoneSized,
 			borderRadius: "0.75rem",
-			// --input, the border our own Input has, in light and dark (#73).
-			border: "1px solid var(--input)",
+			// --field-border, the border our own Input has, in light and dark (#73, issue 116).
+			border: "1px solid var(--field-border)",
 			background: "var(--surface-2)",
 			color: "var(--foreground)",
 			boxShadow: "none",
