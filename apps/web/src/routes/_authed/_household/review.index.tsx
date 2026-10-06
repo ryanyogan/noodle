@@ -775,8 +775,8 @@ function ReviewPage() {
 	// height, so filling it never moves the card or its buttons.
 	const [, saidHead = said, saidTail] = /^(.*\S) (\d+ left\.|All sorted\.)$/s.exec(said) ?? [];
 	const sortNote = (
-		<div data-slot="review-note" className="grid h-28 content-start gap-2 sm:h-24">
-			<div className="flex min-h-5 items-start justify-center gap-2">
+		<div data-slot="review-note" className="grid h-28 content-start gap-2 *:min-w-0 sm:h-24">
+			<div className="flex min-h-5 min-w-0 items-start justify-center gap-2">
 				<p
 					role="status"
 					data-testid="review-said"

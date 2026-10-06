@@ -778,7 +778,10 @@ test.beforeAll(async ({ browser }) => {
 			window: true,
 			ready: async (page) => {
 				await pressFor(
-					page.getByTestId("review-stack").getByRole("button", { name: /^What’s / }),
+					page
+						.getByTestId("review-stack")
+						.getByRole("button", { name: /^What’s / })
+						.first(),
 					page.getByRole("dialog"),
 				);
 			},
