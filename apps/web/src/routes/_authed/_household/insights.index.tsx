@@ -238,7 +238,11 @@ function InsightCard({
 							</span>
 						)}
 						<span className="text-[13px] text-muted-foreground">
-							{isOnce(insight.kind) ? "once" : "a year"}
+							{insight.kind === "fees-interest"
+								? "so far this year"
+								: isOnce(insight.kind)
+									? "once"
+									: "a year"}
 						</span>
 					</p>
 				</div>

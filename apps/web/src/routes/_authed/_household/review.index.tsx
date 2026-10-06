@@ -3,6 +3,7 @@ import {
 	canAssign,
 	type DayKey,
 	displayMerchant,
+	feesBucketIn,
 	type MonthKey,
 	merchantKey,
 	monthKeyAt,
@@ -63,7 +64,7 @@ import {
 import { ulid } from "ulid";
 import { z } from "zod";
 import { pastPlanSentence } from "../../../before-plan";
-import { asBucketColor, monogram } from "../../../buckets";
+import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
 import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
 import { ReviewMatchOffer } from "../../../components/match-section";
 import {
@@ -77,6 +78,12 @@ import {
 	largeTextPicker,
 	parentNames,
 } from "../../../components/review-between-us";
+import {
+	feesGuess,
+	feesRuleFor,
+	isFeesGuess,
+	newFeesBucket,
+} from "../../../components/review-fees";
 import { RuleForm } from "../../../components/rule-form";
 import { SectionPending } from "../../../components/section-layout";
 import { Suggested } from "../../../components/suggested";
@@ -113,6 +120,7 @@ import {
 	stackReducer,
 	startStack,
 } from "../../../review-stack";
+import { addBucket } from "../../../server/plan";
 import { ChangedElsewhere } from "../../../transaction-versions";
 import { monthOfTransaction, type TransactionEdit } from "../../../transactions";
 import { useMoneyChange } from "../../../transfers";
@@ -274,13 +282,17 @@ function ReviewPage() {
 					},
 					names,
 				);
-				if (!offer) return item;
+				if (!offer) {
+					// A fee or interest is offered the "Fees and interest" Bucket (issue 137).
+					const guess = feesGuess(item, plan, monthOfTransaction(item) >= current);
+					return guess ? { ...item, guess } : item;
+				}
 				between.set(item.id, offer);
 			}
 			return item.guess ? { ...item, guess: null } : item;
 		});
 		return { items, payments, between };
-	}, [queue.items, accounts, followed, plansRead, queryClient, members]);
+	}, [queue.items, accounts, followed, plansRead, queryClient, members, current]);
 	const paymentOf = (item: ReviewItem) => payments.get(item.id) ?? null;
 	const betweenOf = (item: ReviewItem) => between.get(item.id) ?? null;
 	/** A Bucket picked for a payment to a card Noodle follows: asked about before it's filed. */
@@ -296,7 +308,8 @@ function ReviewPage() {
 	const months = byMonth(items);
 	const cards = months.flatMap(([, items]) => items);
 	const top = cards.find((item) => item.id === cursor) ?? cards[0] ?? null;
-	const guessed = cards.filter((item) => item.guess);
+	// Not a fee or interest: that is confirmed on its own card, which makes its Rule.
+	const guessed = cards.filter((item) => item.guess && !isFeesGuess(item.guess));
 	const order = stackOrder(cards, stack);
 	/** From a month before this one: it can be filed without a Bucket (ADR-0037). */
 	const earlier = (item: ReviewItem) => monthOfTransaction(item) < current;
@@ -547,6 +560,7 @@ function ReviewPage() {
 		// A Transfer goes in no Bucket, so it's never stuck for want of one.
 		if (payment?.kind === "followed") return markPayment(item);
 		if (betweenOf(item)) return markPayment(item, "between-us");
+		if (isFeesGuess(item.guess)) return void fileFees(item);
 		if (stuck(item)) return nope(item);
 		const decision = confirmed(item);
 		if (!decision || !item.guess) {
@@ -567,7 +581,12 @@ function ReviewPage() {
 	 * Files a card where the Parent picked: a Bucket or a Commitment. "suggested" is Confirm on a
 	 * payment's own Commitment; "anyway" is after the caution about a card Noodle follows.
 	 */
-	function file(item: ReviewItem, value: string, plan: Plan, how?: "suggested" | "anyway") {
+	function file(
+		item: ReviewItem,
+		value: string,
+		plan: Plan,
+		how?: "suggested" | "anyway" | "fees",
+	) {
 		const [kind, id] = value.split(":") as ["bucket" | "commitment", string];
 		const assignment: Assignment = kind === "bucket" ? { bucketId: id } : { commitmentId: id };
 		const bucket = kind === "bucket" ? plan.buckets.find((b) => b.id === id) : undefined;
@@ -586,8 +605,8 @@ function ReviewPage() {
 		decided(
 			[item],
 			payment && !warned ? `${filed} ${PAYMENT_FILED}` : filed,
-			how === "suggested" ? "right" : "left",
-			how === "suggested",
+			how === "suggested" || how === "fees" ? "right" : "left",
+			how === "suggested" || how === "fees",
 		);
 		decide.mutate(
 			{
@@ -613,8 +632,64 @@ function ReviewPage() {
 			}
 			return;
 		}
+		// A fee or interest confirmed: its Rule isn't asked about, it files the rest (issue 137).
+		if (bucket && how === "fees") {
+			setOffer(null);
+			return saveRule.mutate({
+				ruleId: ulid(),
+				pattern: feesRuleFor(item),
+				bucketId: bucket.id,
+				commitmentId: null,
+				bucketName: bucket.name,
+				forMemberIds: item.for,
+			});
+		}
 		if (bucket) offerRule(item, bucket, item.for);
 		else if (name) offerRule(item, { id, name, owner: undefined, commitment: true }, item.for);
+	}
+
+	/** The "Fees and interest" Bucket being added, by month: one try at a time, one ID for its retries. */
+	const addingFees = useRef(new Map<MonthKey, { id: string; pending: boolean }>());
+
+	/**
+	 * Confirm on a fee or interest: filed in the Plan's "Fees and interest" Bucket, which is added
+	 * first when the Plan has none, and the Rule for it is made.
+	 */
+	async function fileFees(item: ReviewItem) {
+		if (stuck(item)) return nope(item);
+		const plan = planOf(item);
+		if (!plan) return shake();
+		const there = feesBucketIn(plan.buckets);
+		if (there) return file(item, `bucket:${there.id}`, plan, "fees");
+		const month = monthOfTransaction(item);
+		const adding = addingFees.current.get(month) ?? { id: ulid(), pending: false };
+		if (adding.pending) return;
+		addingFees.current.set(month, { ...adding, pending: true });
+		const bucket = newFeesBucket(adding.id, nextBucketColor(plan.buckets.map((b) => b.color)));
+		try {
+			await addBucket({
+				data: {
+					month,
+					bucketId: bucket.id,
+					name: bucket.name,
+					color: bucket.color,
+					allowanceCents: bucket.allowance,
+				},
+			});
+		} catch {
+			addingFees.current.set(month, { ...adding, pending: false });
+			return toast(`Couldn’t add ${bucket.name} to the Plan.`, {
+				tone: "error",
+				action: { label: "Retry", onClick: () => void fileFees(item) },
+			});
+		}
+		// In the Plan as read here too, so the next fee's card finds it there.
+		const added = { ...plan, buckets: [...plan.buckets, bucket] };
+		queryClient.setQueryData(monthQuery(month).queryKey, (data) =>
+			data && !feesBucketIn(data.plan.buckets) ? { ...data, plan: added } : data,
+		);
+		addingFees.current.delete(month);
+		file(item, `bucket:${bucket.id}`, added, "fees");
 	}
 
 	function changed(item: ReviewItem, next: TransactionEdit | null, buckets: PlanBucket[]) {
@@ -1508,6 +1583,7 @@ function Key({ children, name }: { children: string; name?: string }) {
 
 /** Why a suggestion, in plain words (ADR-0018). */
 function suggestionWhy(guess: NonNullable<ReviewItem["guess"]>) {
+	if (isFeesGuess(guess)) return guess.reason;
 	switch (guess.method) {
 		case "rule":
 			return guess.reason
@@ -1667,9 +1743,11 @@ function ReviewCard({
 									? "Card payment"
 									: between
 										? "Not spending?"
-										: item.guess
-											? "We weren’t sure"
-											: "New merchant"}
+										: isFeesGuess(item.guess)
+											? "Fee or interest"
+											: item.guess
+												? "We weren’t sure"
+												: "New merchant"}
 					</Badge>
 				</div>
 			</div>

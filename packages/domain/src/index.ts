@@ -168,6 +168,16 @@ export {
 	type TakeHomePayJust,
 	undoLowerTakeHomePay,
 } from "./extra-income";
+export {
+	FEES_AND_INTEREST,
+	type FeesOffer,
+	feesBucketIn,
+	feesOffer,
+	feesRulePattern,
+	interestEarned,
+	looksLikeFeeOrInterest,
+	looksLikeInterestEarned,
+} from "./fees";
 export * from "./file-holds";
 export {
 	type AttributedSpend,

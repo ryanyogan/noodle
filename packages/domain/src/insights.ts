@@ -1,5 +1,6 @@
 import { merchantKey } from "./categorize";
 import { type Cadence, yearlyCost } from "./commitments";
+import { looksLikeFeeOrInterest } from "./fees";
 import type { Cents } from "./money";
 import { addDays, type DayKey, daysBetween, monthOfDay } from "./month";
 import { mentions, type PerkKind } from "./perks";
@@ -17,6 +18,7 @@ export const INSIGHT_KINDS = [
 	"unused",
 	"perk-service",
 	"perk-cost",
+	"fees-interest",
 ] as const;
 export type InsightKind = (typeof INSIGHT_KINDS)[number];
 
@@ -24,10 +26,12 @@ export type InsightKind = (typeof INSIGHT_KINDS)[number];
  * Overlaps: paying twice for the same benefit, as two services, the same charge twice, a service
  * a Perk already includes, or a cost a Perk covers.
  */
-export const isOverlap = (kind: InsightKind) => kind !== "price-increase" && kind !== "unused";
+export const isOverlap = (kind: InsightKind) =>
+	kind !== "price-increase" && kind !== "unused" && kind !== "fees-interest";
 
 /** Insights about money paid once (a charge twice, a covered cost), not every year. */
-export const isOnce = (kind: InsightKind) => kind === "duplicate-charge" || kind === "perk-cost";
+export const isOnce = (kind: InsightKind) =>
+	kind === "duplicate-charge" || kind === "perk-cost" || kind === "fees-interest";
 
 /** A Transaction an Insight may rest on, as the Viewer sees it. `amount` is money spent. */
 export type InsightSpend = {
@@ -440,6 +444,38 @@ function coveredCosts({ spends, asOf, perks = [] }: InsightInputs): InsightCandi
 	return found;
 }
 
+/** The least a year's fees and interest come to before they're worth an Insight. */
+export const FEES_WORTH_SAYING: Cents = 5000;
+/** The fewest charges: one or two are a slip, three are a habit of the bank's. */
+export const FEES_MIN_CHARGES = 3;
+
+/**
+ * This calendar year's fees and interest, by the bank's own wording (looksLikeFeeOrInterest),
+ * wherever they were filed: one Insight a year, once they come to FEES_WORTH_SAYING over at least
+ * FEES_MIN_CHARGES charges. Its total and its evidence grow as the year goes on (the same
+ * fingerprint, so one put away stays away until next year).
+ */
+function feesAndInterest({ spends, asOf }: InsightInputs): InsightCandidate[] {
+	const year = asOf.slice(0, 4);
+	const paid = spends
+		.filter((s) => s.date.startsWith(year) && s.date <= asOf && looksLikeFeeOrInterest(s.note))
+		.sort(byDate);
+	const total = paid.reduce((sum, s) => sum + s.amount, 0);
+	if (paid.length < FEES_MIN_CHARGES || total < FEES_WORTH_SAYING) return [];
+	return [
+		candidate({
+			kind: "fees-interest",
+			fingerprint: `fees-interest:${year}`,
+			yearlyImpact: total,
+			commitmentIds: [],
+			charges: paid,
+			subjects: [...new Set(paid.map((s) => s.note.trim()))].slice(0, 5),
+			title: `Fees and interest so far in ${year}`,
+			body: `${paid.length} charges from your bank and cards this year were fees or interest. Some banks drop a fee when asked, and paying a card in full stops its interest.`,
+		}),
+	];
+}
+
 /**
  * Every Insight in what the Viewer may see, largest yearly impact first. `sameService` lists
  * service keys (see `services`) a model says are one service or overlap; unknown keys are ignored.
@@ -456,5 +492,6 @@ export function findInsights(
 		...unusedCommitments(inputs),
 		...includedServices(all, inputs.perks ?? []),
 		...coveredCosts(inputs),
+		...feesAndInterest(inputs),
 	].sort((a, b) => b.yearlyImpact - a.yearlyImpact || (a.fingerprint < b.fingerprint ? -1 : 1));
 }

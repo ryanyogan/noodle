@@ -316,6 +316,59 @@ describe("categorizing an Import", () => {
 		expect(review.items[0]).toMatchObject({ amountCents: 50_000, bucketId: null, guess: null });
 	});
 
+	it("holds a fee or interest for Review, where its Bucket is offered, until a Rule files it", async () => {
+		const model = fakeModel({
+			overdraft: { bucketId: "fun", confidence: 0.99 },
+			interest: { bucketId: "gas", confidence: 0.99 },
+			coffee: { bucketId: "fun", confidence: 0.99 },
+		});
+		await saveRule(db, {
+			id: "rule-interest",
+			householdId,
+			memberId: "alex",
+			pattern: merchantKey("INTEREST CHARGE ON PURCHASES"),
+			bucketId: "groceries",
+		});
+		const importId = await importLines("alex", [
+			line("OVERDRAFT FEE FOR A $54.12 ITEM", 34),
+			line("INTEREST CHARGE ON PURCHASES", 22.1),
+			line("BLUE BOTTLE COFFEE", 6.5),
+		]);
+
+		const result = await categorizeImport(deps(model.classifier), alex, importId);
+
+		// The coffee is filed as ever, the interest by its Rule; the fee waits, with no other Bucket guessed.
+		expect(result).toMatchObject({ filed: 2, review: 1 });
+		const after = await outcomes();
+		expect(after["INTEREST CHARGE ON PURCHASES"]).toMatchObject({ method: "rule" });
+		expect(after["BLUE BOTTLE COFFEE"]).toMatchObject({ bucketId: "fun", outcome: "filed" });
+		expect(after["OVERDRAFT FEE FOR A $54.12 ITEM"]).toMatchObject({
+			bucketId: null,
+			outcome: "review",
+			suggestion: null,
+		});
+	});
+
+	it("files a fee on its own only in the Fees and interest Bucket", async () => {
+		await addBucket(db, {
+			householdId,
+			memberId: "alex",
+			bucketId: "fees",
+			name: "Fees and interest",
+			color: 3,
+			month,
+			allowanceCents: 0,
+		});
+		const model = fakeModel({ service: { bucketId: "fees", confidence: 0.99 } });
+		const importId = await importLines("alex", [line("MONTHLY SERVICE FEE", 12)]);
+
+		expect(await categorizeImport(deps(model.classifier), alex, importId)).toMatchObject({
+			filed: 1,
+			review: 0,
+		});
+		expect((await outcomes())["MONTHLY SERVICE FEE"]).toMatchObject({ bucketId: "fees" });
+	});
+
 	it("sends Review what it can't file when the model fails", async () => {
 		const failing: Classifier = {
 			classify: async () => {
