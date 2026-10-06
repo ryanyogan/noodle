@@ -678,9 +678,10 @@ function MoreAccount({ householdName, close }: { householdName: string; close: (
 						</span>
 					</span>
 				</Button>
-				{/* How Noodle works, for reading (issue 126): a page outside the app, so the sheet closes. */}
+				{/* How Noodle works, for reading (issue 126). It takes the sheet's place in history, as
+				    picking a page does; closing the sheet first went back and lost the press in Safari. */}
 				<Button variant="ghost" size="wrap" className="rounded-xl px-3 text-sm" asChild>
-					<Link to="/docs" onClick={close}>
+					<Link to="/docs" replace>
 						Docs
 					</Link>
 				</Button>

@@ -213,6 +213,7 @@ test("the sidebar marks the section you're in, collapses to a rail, and holds th
 	await expect(menu.getByRole("menuitem")).toHaveText([
 		"Household settings",
 		"Manage account…",
+		"Docs",
 		"Sign out",
 	]);
 	await menu.getByRole("menuitem", { name: "Sign out" }).click();
