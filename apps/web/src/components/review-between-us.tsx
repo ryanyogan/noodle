@@ -62,6 +62,13 @@ export function BetweenUsSuggestion({ offer }: { offer: BetweenUsOffer }) {
 export const largeTextButton =
 	"@max-[15rem]/card:h-auto! @max-[15rem]/card:min-h-11 @max-[15rem]/card:basis-full! @max-[15rem]/card:py-2 @max-[15rem]/card:whitespace-normal";
 
+/**
+ * The card's picker under the same limit: its words wrap inside it rather than end in "…"
+ * ("Pick a B…" at 320 with text at 200%).
+ */
+export const largeTextPicker =
+	"@max-[15rem]/card:h-auto! @max-[15rem]/card:min-h-11 @max-[15rem]/card:py-2 @max-[15rem]/card:whitespace-normal @max-[15rem]/card:*:first:whitespace-normal";
+
 /** The card's first action. On a phone it has the first row with Edit; the picker is under them. */
 export function BetweenUsButton({
 	disabled,
