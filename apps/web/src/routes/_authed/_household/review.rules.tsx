@@ -14,6 +14,7 @@ import { createFileRoute, Link, linkOptions, useHydrated, useParams } from "@tan
 import { ChevronRight, Lock, Plus, WandSparkles } from "lucide-react";
 import { useState } from "react";
 import { asBucketColor, monogram } from "../../../buckets";
+import { CardPaymentRules } from "../../../components/card-payment";
 import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
 import { MoneyInRules } from "../../../components/money-in-rules";
 import { RuleForm } from "../../../components/rule-form";
@@ -107,6 +108,7 @@ function RulesPage() {
 							)}
 						</Card>
 						<MoneyInRules />
+						<CardPaymentRules />
 					</div>
 				}
 			/>

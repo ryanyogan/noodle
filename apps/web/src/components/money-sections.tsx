@@ -16,6 +16,7 @@ import {
 	transferDetail,
 	useMoneyChange,
 } from "../transfers";
+import { CardPaymentChoice } from "./card-payment";
 import { parentNames } from "./review-between-us";
 
 /**
@@ -134,23 +135,34 @@ export function TransferSection({
 							: "Money moving between your own Accounts, like paying the card? A Transfer counts nowhere. Money one of you moved to the other is between you, and isn’t spending either."}
 			</p>
 			<div className="flex flex-wrap gap-2">
-				<Button
-					type="button"
-					variant="secondary"
-					size="sm"
-					disabled={!hydrated}
-					onClick={() => {
-						change.mutate({
-							kind: "mark",
-							transferId: ulid(),
-							transactionId: transaction.id,
-							label,
-						});
-						onDone();
-					}}
-				>
-					Mark as Transfer
-				</Button>
+				{/* Money out has the one named choice, which asks which card (issue 136), unless it reads
+				    as money sent to a person. A line that reads as a card payment has it instead of the
+				    plain mark; any other keeps the plain mark beside it. */}
+				{transaction.amountCents > 0 &&
+				!named &&
+				!looksPersonToPerson(transaction.note || transaction.merchantName) ? (
+					<CardPaymentChoice transaction={transaction} label={label} onDone={onDone} />
+				) : null}
+				{transaction.amountCents > 0 &&
+				looksLikeCardPayment(transaction.note || transaction.merchantName) ? null : (
+					<Button
+						type="button"
+						variant="secondary"
+						size="sm"
+						disabled={!hydrated}
+						onClick={() => {
+							change.mutate({
+								kind: "mark",
+								transferId: ulid(),
+								transactionId: transaction.id,
+								label,
+							});
+							onDone();
+						}}
+					>
+						Mark as Transfer
+					</Button>
+				)}
 				<Button
 					type="button"
 					variant="secondary"

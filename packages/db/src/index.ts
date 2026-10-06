@@ -493,6 +493,7 @@ export {
 export {
 	forgetCardPayment,
 	loadCardPaymentRules,
+	loadCreditCards,
 	markCardPayment,
 	markCardPayments,
 	markRememberedCardPayments,
