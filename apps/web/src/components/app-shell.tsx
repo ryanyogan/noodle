@@ -47,6 +47,7 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import {
+	BookOpenText,
 	ChevronsUpDown,
 	Ellipsis,
 	ListChecks,
@@ -356,6 +357,12 @@ function ParentMenu({ householdName }: { householdName: string }) {
 				<DropdownMenuItem onSelect={() => clerk.openUserProfile()}>
 					<UserRound aria-hidden="true" />
 					Manage account…
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild>
+					<Link to="/docs">
+						<BookOpenText aria-hidden="true" />
+						Docs
+					</Link>
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuLabel id={themeLabel}>Theme</DropdownMenuLabel>
@@ -670,6 +677,12 @@ function MoreAccount({ householdName, close }: { householdName: string; close: (
 							Manage account
 						</span>
 					</span>
+				</Button>
+				{/* How Noodle works, for reading (issue 126): a page outside the app, so the sheet closes. */}
+				<Button variant="ghost" size="wrap" className="rounded-xl px-3 text-sm" asChild>
+					<Link to="/docs" onClick={close}>
+						Docs
+					</Link>
 				</Button>
 				<Button
 					variant="outline"

@@ -11,10 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthedRouteImport } from './routes/_authed'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as AuthedHouseholdRouteImport } from './routes/_authed/_household'
 import { Route as AuthedJoinedRouteImport } from './routes/_authed/joined'
 import { Route as AuthedSetupRouteImport } from './routes/_authed/setup'
 import { Route as AuthedWelcomeRouteImport } from './routes/_authed/welcome'
+import { Route as DocsIndexRouteImport } from './routes/docs.index'
+import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
@@ -73,6 +76,11 @@ const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthedHouseholdRoute = AuthedHouseholdRouteImport.update({
   id: '/_household',
   getParentRoute: () => AuthedRoute,
@@ -91,6 +99,16 @@ const AuthedWelcomeRoute = AuthedWelcomeRouteImport.update({
   id: '/welcome',
   path: '/welcome',
   getParentRoute: () => AuthedRoute,
+} as any)
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DocsRoute,
+} as any)
+const DocsSlugRoute = DocsSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => DocsRoute,
 } as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
@@ -368,12 +386,15 @@ const AuthedHouseholdPlanMonthHomeBucketsIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRouteWithChildren
   '/joined': typeof AuthedJoinedRoute
   '/setup': typeof AuthedSetupRoute
   '/welcome': typeof AuthedWelcomeRoute
+  '/docs/$slug': typeof DocsSlugRoute
   '/invite/$token': typeof InviteTokenRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/docs/': typeof DocsIndexRoute
   '/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
   '/ask': typeof AuthedHouseholdAskRoute
   '/check-in': typeof AuthedHouseholdCheckInRoute
@@ -424,9 +445,11 @@ export interface FileRoutesByTo {
   '/joined': typeof AuthedJoinedRoute
   '/setup': typeof AuthedSetupRoute
   '/welcome': typeof AuthedWelcomeRoute
+  '/docs/$slug': typeof DocsSlugRoute
   '/invite/$token': typeof InviteTokenRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/docs': typeof DocsIndexRoute
   '/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
   '/ask': typeof AuthedHouseholdAskRoute
   '/check-in': typeof AuthedHouseholdCheckInRoute
@@ -471,13 +494,16 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authed': typeof AuthedRouteWithChildren
+  '/docs': typeof DocsRouteWithChildren
   '/_authed/_household': typeof AuthedHouseholdRouteWithChildren
   '/_authed/joined': typeof AuthedJoinedRoute
   '/_authed/setup': typeof AuthedSetupRoute
   '/_authed/welcome': typeof AuthedWelcomeRoute
+  '/docs/$slug': typeof DocsSlugRoute
   '/invite/$token': typeof InviteTokenRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/docs/': typeof DocsIndexRoute
   '/_authed/_household/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
   '/_authed/_household/ask': typeof AuthedHouseholdAskRoute
   '/_authed/_household/check-in': typeof AuthedHouseholdCheckInRoute
@@ -528,12 +554,15 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/docs'
     | '/joined'
     | '/setup'
     | '/welcome'
+    | '/docs/$slug'
     | '/invite/$token'
     | '/sign-in/$'
     | '/sign-up/$'
+    | '/docs/'
     | '/accounts'
     | '/ask'
     | '/check-in'
@@ -584,9 +613,11 @@ export interface FileRouteTypes {
     | '/joined'
     | '/setup'
     | '/welcome'
+    | '/docs/$slug'
     | '/invite/$token'
     | '/sign-in/$'
     | '/sign-up/$'
+    | '/docs'
     | '/accounts'
     | '/ask'
     | '/check-in'
@@ -630,13 +661,16 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authed'
+    | '/docs'
     | '/_authed/_household'
     | '/_authed/joined'
     | '/_authed/setup'
     | '/_authed/welcome'
+    | '/docs/$slug'
     | '/invite/$token'
     | '/sign-in/$'
     | '/sign-up/$'
+    | '/docs/'
     | '/_authed/_household/accounts'
     | '/_authed/_household/ask'
     | '/_authed/_household/check-in'
@@ -687,6 +721,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
+  DocsRoute: typeof DocsRouteWithChildren
   InviteTokenRoute: typeof InviteTokenRoute
   SignInSplatRoute: typeof SignInSplatRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
@@ -706,6 +741,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed/_household': {
@@ -735,6 +777,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/welcome'
       preLoaderRoute: typeof AuthedWelcomeRouteImport
       parentRoute: typeof AuthedRoute
+    }
+    '/docs/': {
+      id: '/docs/'
+      path: '/'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof DocsRoute
+    }
+    '/docs/$slug': {
+      id: '/docs/$slug'
+      path: '/$slug'
+      fullPath: '/docs/$slug'
+      preLoaderRoute: typeof DocsSlugRouteImport
+      parentRoute: typeof DocsRoute
     }
     '/invite/$token': {
       id: '/invite/$token'
@@ -1345,9 +1401,22 @@ const AuthedRouteChildren: AuthedRouteChildren = {
 const AuthedRouteWithChildren =
   AuthedRoute._addFileChildren(AuthedRouteChildren)
 
+interface DocsRouteChildren {
+  DocsSlugRoute: typeof DocsSlugRoute
+  DocsIndexRoute: typeof DocsIndexRoute
+}
+
+const DocsRouteChildren: DocsRouteChildren = {
+  DocsSlugRoute: DocsSlugRoute,
+  DocsIndexRoute: DocsIndexRoute,
+}
+
+const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
+  DocsRoute: DocsRouteWithChildren,
   InviteTokenRoute: InviteTokenRoute,
   SignInSplatRoute: SignInSplatRoute,
   SignUpSplatRoute: SignUpSplatRoute,

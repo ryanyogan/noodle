@@ -1,6 +1,6 @@
 import { Card } from "@noodle/ui/components/card";
 import { PageHeader } from "@noodle/ui/components/page-header";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { GlossaryList, GlossarySearch } from "../../../components/glossary";
 
@@ -23,7 +23,11 @@ function GlossaryPage() {
 					<p className="text-sm text-muted-foreground">
 						The words Noodle uses for your money, in plain language. A{" "}
 						<span className="whitespace-nowrap">“?”</span> beside a word anywhere in the app opens
-						the same explanation.
+						the same explanation. For how it all fits together, read the{" "}
+						<Link to="/docs" className="font-medium text-foreground underline underline-offset-2">
+							Docs
+						</Link>
+						.
 					</p>
 					<GlossarySearch query={query} onQueryChange={setQuery} />
 				</div>
