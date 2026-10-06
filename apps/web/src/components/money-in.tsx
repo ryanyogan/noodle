@@ -14,6 +14,7 @@ import {
 	moneyInReviewQuery,
 	useMoneyInKindChange,
 } from "../money-in";
+import { PaidBackMatching } from "./owed-back";
 
 // Money in and its kind (issue 131, ADR-0057): listed on Transactions with its kind in plain
 // words, and asked about in Review when it was sent person to person. Colour and the "+" in green
@@ -23,7 +24,14 @@ import {
  * The five kinds as buttons, the line's own pressed: a Parent says what a money-in line is, and
  * may say it for every line with the same wording from now on (a Rule).
  */
-export function MoneyInKindChoice({ line, onDone }: { line: MoneyInLine; onDone?: () => void }) {
+export function MoneyInKindChoice({
+	line,
+	onDone,
+}: {
+	line: MoneyInLine;
+	/** Called with the line as it is once its kind is changed. */
+	onDone?: (line: MoneyInLine) => void;
+}) {
 	const id = useId();
 	const change = useMoneyInKindChange();
 	const [always, setAlways] = useState(false);
@@ -106,7 +114,16 @@ export function MoneyInSection({ month, today }: { month: MonthKey; today: strin
 						}
 						below={
 							open === line.id ? (
-								<MoneyInKindChoice line={line} onDone={() => setOpen(null)} />
+								<div className="grid gap-4">
+									<MoneyInKindChoice
+										line={line}
+										// Paid back stays open: what it pays back is asked next (issue 132).
+										onDone={(now) => (now.kind === "paid-back" ? undefined : setOpen(null))}
+									/>
+									{line.kind === "paid-back" && !line.needsReview ? (
+										<PaidBackMatching line={line} today={today} />
+									) : null}
+								</div>
 							) : undefined
 						}
 						belowFull

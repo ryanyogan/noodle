@@ -36,6 +36,7 @@ import { counts } from "./counting";
 import { setAsideSql } from "./goals";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
+import { loadPaidBackSpending } from "./owed-back";
 import {
 	asPrivateSpending,
 	assignableBy,
@@ -58,6 +59,8 @@ import {
 	matches,
 	members,
 	monthCloses,
+	owedBack,
+	paidBackMatches,
 	receipts,
 	refunds,
 	splitFor,
@@ -150,6 +153,8 @@ export async function loadSpendingBetween(
 			({ splitId, ...row }) => ({ ...row, for: splitForOf.get(splitId) ?? [] }) as BucketSpend,
 		),
 		...asPrivateSpending(hiddenWhole, hiddenSplits),
+		// Paid back gives each purchase's Bucket its money back on the day it arrived (ADR-0058).
+		...(await loadPaidBackSpending(db, viewer, from, until)),
 	];
 }
 
@@ -1466,6 +1471,24 @@ export function transactionDeletes(
 					deletable,
 				),
 			),
+		// What was Owed back on it goes with it; money Paid back on it waits unmatched again.
+		db.delete(paidBackMatches).where(
+			and(
+				eq(paidBackMatches.householdId, input.householdId),
+				sql`${paidBackMatches.owedBackId} in (select ob.id from owed_back ob
+					where ob.transaction_id = ${input.transactionId})`,
+				deletable,
+			),
+		),
+		db
+			.delete(owedBack)
+			.where(
+				and(
+					eq(owedBack.householdId, input.householdId),
+					eq(owedBack.transactionId, input.transactionId),
+					deletable,
+				),
+			),
 		db
 			.delete(refunds)
 			.where(
@@ -1756,6 +1779,25 @@ export async function deleteTransactions(
 				})
 				.where(
 					and(eq(transactions.householdId, householdId), inArray(transactions.id, refunded())),
+				),
+			db
+				.delete(paidBackMatches)
+				.where(
+					and(
+						eq(paidBackMatches.householdId, householdId),
+						inArray(
+							paidBackMatches.owedBackId,
+							db
+								.select({ id: owedBack.id })
+								.from(owedBack)
+								.where(inArray(owedBack.transactionId, theirs())),
+						),
+					),
+				),
+			db
+				.delete(owedBack)
+				.where(
+					and(eq(owedBack.householdId, householdId), inArray(owedBack.transactionId, theirs())),
 				),
 			db
 				.delete(refunds)

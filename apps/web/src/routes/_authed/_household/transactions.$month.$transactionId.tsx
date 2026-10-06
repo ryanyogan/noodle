@@ -6,6 +6,7 @@ import { createFileRoute, getRouteApi, Link, Navigate } from "@tanstack/react-ro
 import { ChevronLeft, X } from "lucide-react";
 import { useCallback } from "react";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
+import { OwedBackOnPurchase } from "../../../components/owed-back";
 import { TransactionBody } from "../../../components/transaction-editor";
 import { dayName } from "../../../format";
 import { membersQuery, monthQuery } from "../../../queries";
@@ -201,6 +202,8 @@ function TransactionPane() {
 					close();
 				}}
 			/>
+			{/* Someone outside the Household paying part of it back (issue 132). */}
+			<OwedBackOnPurchase transaction={transaction} members={members} />
 		</Card>
 	);
 }

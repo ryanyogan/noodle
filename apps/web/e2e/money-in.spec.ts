@@ -56,6 +56,10 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 	await casey.getByRole("button", { name: "Paid back", exact: true }).click();
 	await expect(toast(page, "$300 is Paid back")).toBeVisible();
 	await expect(casey.getByTestId("money-in-kind")).toHaveText("Paid back");
+	// Nothing is Owed back, so it waits unmatched (issue 132); it is never Income.
+	await expect(casey.getByTestId("paid-back-matching")).toContainText(
+		"$300 is Paid back, not matched yet",
+	);
 
 	// The server keeps it: it is out of the month's Income.
 	await page.goto("/month");

@@ -11,7 +11,7 @@ import { and, eq, gte, isNull, lt, ne, type SQL, sql } from "drizzle-orm";
 import { incomeCounts } from "./counting";
 import { decidedSql, extraIncomeSql } from "./extra-income";
 import type { Db } from "./index";
-import { income, moneyInRules, transfers } from "./schema";
+import { income, moneyInRules, paidBackMatches, transfers } from "./schema";
 import { transferRow } from "./transfers";
 
 // Money in has a kind (ADR-0057): Income, a Refund, Paid back, a Transfer or Between us. Money in
@@ -181,6 +181,20 @@ export async function changeMoneyInKind(
 					landed,
 				),
 			),
+		// A line that stops being Paid back settles nothing any more (ADR-0058).
+		...(input.kind === "paid-back"
+			? []
+			: [
+					db
+						.delete(paidBackMatches)
+						.where(
+							and(
+								eq(paidBackMatches.householdId, householdId),
+								eq(paidBackMatches.incomeId, input.incomeId),
+								landed,
+							),
+						),
+				]),
 		...(toTransfer
 			? [
 					db
