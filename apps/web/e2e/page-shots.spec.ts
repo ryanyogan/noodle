@@ -15,6 +15,8 @@ import { q, seedBetweenUs, seedIncomeHousehold, seedShotsHousehold } from "./sho
 //   PAGE_SHOTS_WIDTHS=1440,393      only these widths (default: all five; 2560 only when asked for)
 //   PAGE_SHOTS_THEME=dark           the dark theme (default: light)
 //   PAGE_SHOTS_ONLY=10,26           only the pictures whose name starts with one of these
+//   PAGE_SHOTS_HEIGHT=500          every window this tall: a phone with its keyboard up, or 568 for the
+//                                 smallest phone (issue 74)
 //
 // Each PNG is the full page, at test-results/page-shots/<width>/<name>.png. A page that fails is
 // noted in <width>/failures.txt and the rest still get their picture.
@@ -38,13 +40,15 @@ const wanted = (process.env.PAGE_SHOTS_WIDTHS ?? "")
 // And a common laptop, between the steps the others stand on.
 const ON_REQUEST = [
 	{ width: 1280, height: 800 },
+	{ width: 375, height: 667 },
 	{ width: 2560, height: 1440 },
 	{ width: 430, height: 932 },
 ];
+const height = Number(process.env.PAGE_SHOTS_HEIGHT) || undefined;
 const viewports = [
 	...VIEWPORTS.filter(({ width }) => wanted.length === 0 || wanted.includes(width)),
 	...ON_REQUEST.filter(({ width }) => wanted.includes(width)),
-];
+].map((viewport) => (height ? { ...viewport, height } : viewport));
 const only = (process.env.PAGE_SHOTS_ONLY ?? "")
 	.split(",")
 	.map((name) => name.trim())
@@ -91,6 +95,23 @@ let smallParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 let shots: Shot[] = [];
 /** What the seeding couldn't do: written beside the pictures so a missing section is explained. */
 const seedNotes: string[] = [];
+
+/** Quick Add opened from the phone's tab bar, then taken as far as the picture needs (issue 74). */
+const quickAdd = (step?: "amount" | "more" | "for") => async (page: Page) => {
+	const sheet = page.getByRole("dialog", { name: "Quick Add" });
+	await pressFor(
+		page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Quick Add" }),
+		sheet,
+	);
+	if (!step) return;
+	const keypad = sheet.getByRole("group", { name: "Keypad" });
+	for (const key of ["2", "4"]) await keypad.getByRole("button", { name: key, exact: true }).tap();
+	if (step === "more") await sheet.getByRole("button", { name: /^More Buckets/ }).tap();
+	if (step === "for") {
+		await sheet.getByRole("button", { name: /^For: / }).tap();
+		await expect(sheet.getByRole("radiogroup", { name: "For" })).toBeVisible({ timeout: 15_000 });
+	}
+};
 
 /** The page has its heading, nothing is still a skeleton and the fonts are in. */
 async function settled(page: Page) {
@@ -905,6 +926,26 @@ test.beforeAll(async ({ browser }) => {
 			ready: async (page) => {
 				await openMore(page);
 			},
+		},
+		// Quick Add as a phone has it: at rest, with an amount, every Bucket, and who it is for.
+		{ name: "35-quick-add", path: `/month/${month}`, phoneSheet: true, ready: quickAdd() },
+		{
+			name: "35a-quick-add-amount",
+			path: `/month/${month}`,
+			phoneSheet: true,
+			ready: quickAdd("amount"),
+		},
+		{
+			name: "35b-quick-add-more-buckets",
+			path: `/month/${month}`,
+			phoneSheet: true,
+			ready: quickAdd("more"),
+		},
+		{
+			name: "35c-quick-add-for",
+			path: `/month/${month}`,
+			phoneSheet: true,
+			ready: quickAdd("for"),
 		},
 		...small,
 		...fresh,
