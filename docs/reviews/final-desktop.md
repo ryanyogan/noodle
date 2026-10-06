@@ -49,9 +49,9 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | This Month, get started (fresh Household) | /month/$month (pic 30) | yes | ok (reduced) | — | fixed 139b3032 | — | — | — | pic 30: "Add  an Account" had a hole after "Add" (two flex children): one label now; retaken, opened |
 | Extra income card, menu and "Send the Extra income" sheet | This Month | yes | ok (reduced) | ok (reduced) | ok | — | — | — | pic 01b opened; 01c (the sheet) taken, NOT opened; the menu not pictured 73at: pic 01c (the sheet) opened at 1440, clean; new pic 01k (an Income line's menu) opened in dark 1440 (reduced). |
 | Close month | This Month › To do | yes | ok (reduced) | ok (reduced) | ok | — | — | ok (reduced) | pic 01d opened at 1440 (Bucket leftovers, the Extra income row, Close September) |
-| Cover a Bucket sheet | This Month › an over Bucket | yes | fixed 915f53e4 | — | — | — | — | — | 73at: new pic 01l. A place to Cover from was cut ("Free to Sp…") beside what it has left: from lg the amount sits under the name; retaken and opened at 1024. 1440 taken, not opened. |
+| Cover a Bucket sheet | This Month › an over Bucket | yes | ok | ok | ok | ok | ok | ok | 73at: new pic 01l. A place to Cover from was cut ("Free to Sp…") beside what it has left: from lg the amount sits under the name; retaken and opened at 1024. 1440 taken, not opened. **73av: complete.** The sheet opened at full size at all five widths and in dark: every tile, "Free to Spend" included, shows its whole name with what's left under it; the sheet is the same size and centred at every width. |
 | Free to Spend card | This Month, Plan | yes | ok (reduced) | — | ok | — | — | — | carried over positive (01), negative (01h) and its month list, opened at 1440 |
-| Month's plan | /month/$month/plan | yes | — | — | — | — | — | — | 73at: new pic 01j taken at 1024, 1280, 1440, dark 1440; NOT opened. |
+| Month's plan | /month/$month/plan | yes | — | — | ok | — | — | — | 73at: new pic 01j taken at 1024, 1280, 1440, dark 1440; NOT opened. 73av: pic 01j opened at 1440 at full size (down to the Personal Allowances heading): Allowance, Spent and Left end on one line with their headings and the Total row; clean. Other widths retaken, not opened. |
 
 ## Plan
 
@@ -70,15 +70,15 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | Plan › Commitments | /plan/$month/commitments (pic 06) | no | fixed 05afcc46 | fixed 05afcc46 | ok | ok | ok | ok (layout) | amount column holds the figure alone; a yearly one says "A month’s share of $480 yearly" on its meta line (two lines beside the rail at 1440 and 1024). $11.58 keeps its cents: Plan figures are exact. 73as: 1920 opened: Paid and "Due Oct 1" share one right edge. 73au: COMPLETE. At 1024 and 1280 the list beside the rail had no room for the paid column, so "Paid" showed nowhere; it is now on the row’s second line there (from 640px; phones unchanged). Pic 06 retaken at all six |
 | Commitment in the panel | /plan/$month/commitments/$id (pic 07) | no | ok (drawer) | ok (drawer) | ok | ok | ok | ok (layout) | 73ar: retaken at every width with the foot strip (pic 07b); 1440 and 1024 opened. 73au: COMPLETE (pic 07b at all six) |
 | Commitment sheet (edit) | Commitment panel › Edit | no | ok | ok | ok | ok | ok | ok (layout) | 73as: pic 07c added (Amount, Name, How often, Next due, Pays down, From October on / Just October, History, End); 1440 opened, 1920 and 2560 taken. 73au: COMPLETE. The 1024 and 1280 pictures had been of the drawer, not the sheet (the shot took the drawer for the dialog): shot fixed, pic 07c retaken at all six |
-| Plan › Commitments, empty | fresh Household (pic 39h) | no | — | — | — | — | — | — |  |
+| Plan › Commitments, empty | fresh Household (pic 39h) | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 39h at all six, one sheet): the description on the left, the New Commitment form in the rail |
 | Plan › Goal funding | /plan/$month/goals (pic 08) | no | ok | ok | ok | ok | ok | ok (layout) | 73ar: the dot between "funded this month" and "set aside" had no room before it and two spaces after; now the shared MetaParts dot (f3092b8b). Retaken, NOT opened. The seeded Household has no "Funded" / "Paid off" row: seed one. 73as: retake opened at 1440: the dot has even room. Still no "Funded" / "Paid off" row seeded. 73au: COMPLETE (pic 08 at all six). Still no "Funded" / "Paid off" row seeded |
-| Plan › Goal funding, empty | fresh Household (pic 39i) | no | — | — | — | — | — | — |  |
+| Plan › Goal funding, empty | fresh Household (pic 39i) | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 39i) |
 | Plan › Income | /plan/$month/income (pic 08x) | no | ok | ok | ok | ok | ok | ok (layout) | rail no longer repeats the received line or its bar; its help says "here, with Edit take-home pay". 1024 not retaken after this. 73as: 1024 opened (73ar picture). 73au: COMPLETE (pic 08x at all six) |
-| Income came in lower | small Household (pic 06a) | no | — | — | — | — | — | — |  |
+| Income came in lower | small Household (pic 06a) | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 06a): the "Came in lower this month?" card and its one button sit between Take-home pay and Income at every width |
 | "Take-home pay" sheet | Income › Edit take-home pay (pic 06b) | no | ok | ok | ok | ok | ok | ok (layout) | 73au: COMPLETE (pic 06b at all six) |
 | Income: money from the other Parent, Between us | pics 40, 41 | no | — | — | — | — | — | — |  |
 | Income row actions menu | Income › "Actions for …" | no | ok | ok | ok | ok | ok | ok (layout) | 73as: pic 08y added; menu opens under its button, inside the card. 73au: COMPLETE (pic 08y at all six) |
-| Plan › Income, empty | fresh Household (pic 39j) | no | — | — | — | — | — | — |  |
+| Plan › Income, empty | fresh Household (pic 39j) | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 39j) |
 
 ## Transactions (another agent)
 
@@ -106,10 +106,10 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Accounts list | /accounts (pic 15) | no | — | — | fixed 836a1ade | — | ok (reduced) | — | cards start at the top, balance on the bottom line (pic 16, under the panel). 73as: a bank connection’s icon was centred on its four lines while every Account card’s icon sits by the name; now by the name from 640px too (ba015993). Card order differs between runs (seeded in one instant) |
-| Accounts, archived open | pic 15a | no | — | — | — | — | — | — |  |
-| Account in the panel (credit card) | /accounts/$id (pic 16) | no | — | — | fixed f3092b8b | — | — | — | 73ar: "Perks for this card" said "5 Perks · Chase Sapphire Reserve" under the card's own heading; now "5 Perks" (another source's name is still shown). Pic 16 opened at 1440, with the foot strip in place |
-| Account in the panel (no balance) | pic 16a | no | — | — | — | — | — | — |  |
+| Accounts list | /accounts (pic 15) | no | ok | ok | ok | ok | ok | ok (layout) | cards start at the top, balance on the bottom line (pic 16, under the panel). 73as: a bank connection’s icon was centred on its four lines while every Account card’s icon sits by the name; now by the name from 640px too (ba015993). Card order differs between runs (seeded in one instant) 73aw: COMPLETE (pic 15 at all six, pre-merge pictures): rows at 1024 and 1280, cards two across at 1440 and three at 1920 and 2560; Totals starts on the list’s line |
+| Accounts, archived open | pic 15a | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 15a, top and second screen): the archived row and its Restore end on the list’s edge |
+| Account in the panel (credit card) | /accounts/$id (pic 16) | no | ok | ok | ok | ok | ok | ok (layout) | 73ar: "Perks for this card" said "5 Perks · Chase Sapphire Reserve" under the card's own heading; now "5 Perks" (another source's name is still shown). Pic 16 opened at 1440, with the foot strip in place 73aw: COMPLETE (pic 16). Judgement, not changed: at 1280 "Chase Sapphire Reserve" takes three lines beside More and the arrows (two at 1440, 1024) |
+| Account in the panel (no balance) | pic 16a | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 16a). "College savings" is two lines at 1280 and 1440 beside Rename (same judgement) |
 | Account actions menu | Account panel › More | no | — | — | — | — | — | — |  |
 | Rename Account sheet | Account menu › Rename | no | — | — | — | — | — | — |  |
 | "Add an Account" sheet | Accounts › Add an Account | no | — | — | — | — | — | — |  |
@@ -120,9 +120,9 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Goals list | /goals (pic 17) | no | — | — | ok | — | — | — | pic 18, under the panel. "$398.15 a month" beside "$450 a month": the money decision. 73as: 1440 opened again with the panel closed (pic 17): ok |
-| Goal in the panel | /goals/$id (pic 18) | no | — | — | fixed 7f7440e | — | — | — | History: the row with Undo pushed its amount off the right edge the others share; retaken and clean. 73as: pic 18 opened at 1440: month heads and rows share the right edge |
-| Goal with a long history | pic 18a, 18b | no | — | — | — | — | — | — |  |
+| Goals list | /goals (pic 17) | no | ok | ok | ok | ok | ok | ok (layout) | pic 18, under the panel. "$398.15 a month" beside "$450 a month": the money decision. 73as: 1440 opened again with the panel closed (pic 17): ok 73aw: COMPLETE (pic 17): rows at 1024 and 1280, two across at 1440, three at 1920 and 2560 |
+| Goal in the panel | /goals/$id (pic 18) | no | ok | ok | ok | ok | ok | ok (layout) | History: the row with Undo pushed its amount off the right edge the others share; retaken and clean. 73as: pic 18 opened at 1440: month heads and rows share the right edge 73aw: COMPLETE (pic 18 at all six) |
+| Goal with a long history | pic 18a, 18b | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pics 18a, 18b): 42 rows, month heads and amounts on one right edge, Undo only on this month’s |
 | Payoff Goal in the panel | /goals/$id of a payoff Goal | no | — | — | — | — | — | — |  |
 | Edit Goal sheet / Edit payoff Goal sheet | Goal panel › Edit | no | — | — | — | — | — | — |  |
 | New Goal sheet | Goals › New Goal | no | — | — | — | — | — | — |  |
@@ -133,37 +133,37 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Explore | /explore (pic 19) | no | open: tabs clip | — | fixed ba015993 | — | ok (reduced) | — | 73as: in "How it plays out" and "Goals reached" the last row had no rule above it (the shared table body drops the last row’s border); ruled now (ba015993). At 1024 the Outcome tabs clip "Each month" and hide "Goal paths" (the row scrolls): Decision 3. At 1440 the left column ends about 1,600px above the levers: Decision 5 |
-| Explore with a change | pic 19a | no | — | — | — | — | — | — |  |
+| Explore | /explore (pic 19) | no | open: tabs clip | ok | ok | ok | ok | ok (layout) | 73as: in "How it plays out" and "Goals reached" the last row had no rule above it (the shared table body drops the last row’s border); ruled now (ba015993). At 1024 the Outcome tabs clip "Each month" and hide "Goal paths" (the row scrolls): Decision 3. At 1440 the left column ends about 1,600px above the levers: Decision 5 73aw: all six opened, three screens down (pic 19): levers, How it plays out, Goals reached line up. Decisions 3 and 5 stand |
+| Explore with a change | pic 19a | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: top screen opened at all six (pic 19a); the screens below not opened |
 | Explore, a line's sheet | pic 19b | no | — | — | — | — | — | — |  |
 | Explore, a group open | pic 19d | no | — | — | — | — | — | — |  |
 | Explore, raises and inflation sheet | pic 19c | no | — | — | — | — | — | — |  |
 | "Apply to the Plan" dialog | Explore › Apply | no | — | — | — | — | — | — |  |
 | Explore, empty | fresh Household (pic 39g) | no | — | — | — | — | — | — |  |
-| Can we afford it? (house) | /explore/afford (pic 20) | no | — | — | ok | — | — | — | 73as: pic 20 opened at 1440 |
-| Can we afford it? (car) | pic 20a | no | — | — | — | — | — | — |  |
-| Can we afford it? (anything) | pic 20b | no | — | — | — | — | — | — |  |
+| Can we afford it? (house) | /explore/afford (pic 20) | no | ok | ok | ok | ok | ok | ok (layout) | 73as: pic 20 opened at 1440 73aw: COMPLETE (pic 20, two screens) |
+| Can we afford it? (car) | pic 20a | no | fixed 5935be04 | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE. At 1024 the "Over 5 years" table was wider than its card and the Lease column was cut off; in a card under 24rem each row is now its label with the three amounts under Cash, Loan, Lease (the phone form, by the card’s width). Pic 20a retaken at all six |
+| Can we afford it? (anything) | pic 20b | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 20b) |
 | Can we afford it?, empty | fresh Household (pic 39k) | no | — | — | — | — | — | — |  |
-| Scenarios list, compare | /explore/scenarios | yes | ok (drawer) | — | ok | ok | fixed f66b016c | — | 73ar: with a Scenario open the panel covered Compare's value columns. Compare now keeps to the room left of the panel and, when that is under 448px, lists each number's values (the phone form); its charts stack under 768px (pics 21a, 22a). At 2560 the first fix still left "Pay cut" under the panel (opened); the wide-page correction is committed but NOT pictured. The Outcome tab row in the panel clips "Goal paths" at 1024 and 1440 (it scrolls). 73as: 22a retaken after f66b016c at 1440, 1920, 2560 and opened: "Pay cut" is whole beside the panel at 1920 and 2560; the stacked list at 1440. The compare table’s last row is ruled too (ba015993) |
+| Scenarios list, compare | /explore/scenarios | yes | ok (drawer) | fixed 5935be04 | fixed 5935be04 | ok | ok | ok (layout) | 73ar: with a Scenario open the panel covered Compare's value columns. Compare now keeps to the room left of the panel and, when that is under 448px, lists each number's values (the phone form); its charts stack under 768px (pics 21a, 22a). At 2560 the first fix still left "Pay cut" under the panel (opened); the wide-page correction is committed but NOT pictured. The Outcome tab row in the panel clips "Goal paths" at 1024 and 1440 (it scrolls). 73as: 22a retaken after f66b016c at 1440, 1920, 2560 and opened: "Pay cut" is whole beside the panel at 1920 and 2560; the stacked list at 1440. The compare table’s last row is ruled too (ba015993) 73aw: COMPLETE (pics 21, 21a, 22, 22a at all six). At 1280 Compare beside an open Scenario is about 130px wide and each name broke into one letter a line: the value now goes under its name there. With a Scenario open and nothing ticked, the panel cut "Tick Scenarios in the list to compare them here." in half at 1280 and 1440: not shown while an item is open under 1920. Retaken and opened |
 | Scenario, Rename and Delete dialogs | /explore/scenarios/$id | yes | — | — | — | — | — | — |  |
 
 ## Reports
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Reports › Overview | /reports (pic 23) | no | ok (reduced) | ok (reduced) | ok | — | ok (centred: measured) | ok (reduced) | 73aq: at 2560 the cards span 545–2262 beside a 248px Sidebar, centre 1403.5 of 1404: centred, the "115px" of part 2 was not real (same on This Month). 1280, 1920, dark taken, NOT opened 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. |
-| Reports › Big expenses | ?view=big (pic 23b) | no | fixed 08dbe20a | ok (reduced) | ok | — | — | ok (reduced) | 1280, 1920, 2560 taken, not opened; dark not taken 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. 73at: from 1024 to 1279 the two cards stack, so "Commitments, by the year" as a table shows all five columns (its fifth, "A year", was under the card's edge at 1024 after 44ac9517); retaken and opened at 1024. |
+| Reports › Overview | /reports (pic 23) | no | ok | ok (reduced) | ok | — | ok (centred: measured) | ok (reduced) | 73aq: at 2560 the cards span 545–2262 beside a 248px Sidebar, centre 1403.5 of 1404: centred, the "115px" of part 2 was not real (same on This Month). 1280, 1920, dark taken, NOT opened 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. 73av: 1024 opened at full size, clean. |
+| Reports › Big expenses | ?view=big (pic 23b) | no | ok | fixed 73av | fixed 73av | ok | ok | ok | 1280, 1920, 2560 taken, not opened; dark not taken 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. 73at: from 1024 to 1279 the two cards stack, so "Commitments, by the year" as a table shows all five columns (its fifth, "A year", was under the card's edge at 1024 after 44ac9517); retaken and opened at 1024. **73av: complete.** All six opened at full size on the 73av build (1024 the list view; every width and dark with both tables open). Found at 1280: the Commitments table's fifth column ("This period") went under the card's edge in the two-fifths card; the two cards now stack up to 1439 and sit side by side from 1440; retaken and opened at 1280. Found at every width: "the biggest 13 one-offs over $250" over a table of 27 rows down to $184.62; the table now lists the same one-offs as the list; opened at all six. "This period" is $0 for most Commitments because the pictured Household has no Transactions filed to them (the figure is what was filed to the Commitment in the period): the seed, not the code. |
 | Reports › Merchants | ?view=merchants (pic 23f) | no | ok (reduced) | ok (reduced) | fixed 99cccec2 | — | — | ok (reduced) | 1280, 1920, 2560 taken, not opened; dark not taken 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. |
 | Reports › Cash flow | ?view=cash-flow (pic 23a) | no | — | — | ok | — | — | ok (reduced) | 73at: pic 23a opened at 1440 (light, and dark reduced), clean. |
-| Reports › Buckets | ?view=buckets (pic 23c) | no | ok (reduced) | ok (reduced) | fixed 99cccec2 | ok (top 700px, reduced) | — | ok (reduced) | 1280, 2560 taken, not opened; dark not taken 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. |
-| Reports › Plan vs actual | ?view=plan (pic 23d) | no | ok (reduced) | ok (reduced) | fixed 99cccec2 | — | — | ok (reduced) | heatmap clean at 1024 (reduced); the "money format" note at 1024 was the chips, whole dollars since 99cccec2 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. |
+| Reports › Buckets | ?view=buckets (pic 23c) | no | ok | ok (reduced) | fixed 99cccec2 | ok (top 700px, reduced) | — | ok (reduced) | 1280, 2560 taken, not opened; dark not taken 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. 73av: 1024 opened at full size (top 1560px), clean. |
+| Reports › Plan vs actual | ?view=plan (pic 23d) | no | ok | ok (reduced) | fixed 99cccec2 | — | — | ok (reduced) | heatmap clean at 1024 (reduced); the "money format" note at 1024 was the chips, whole dollars since 99cccec2 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. 73av: 1024 opened at full size (top 1560px), clean. |
 | Reports › Trends | ?view=trends (pic 23e) | no | ok (reduced) | ok (reduced) | fixed 401e6ef7 | — | — | ok (reduced) | 73aq: "Every day" now fills its card from lg (weeks up to 48px wide), read-out and key on one line; retaken and opened at 1440, reduced at 1024. The read-out keeps cents by design 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. |
 | Reports › People | ?view=people (pic 23g) | no | ok (reduced) | ok (reduced) | fixed 401e6ef7 | — | — | ok (reduced) | 73aq: footnote in whole dollars ("$4,834 this month, $20,484 this year"); e2e/children.spec.ts follows 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. |
 | Reports › Goals | ?view=goals (pic 23h) | no | ok (reduced) | ok (reduced) | fixed 401e6ef7 | — | — | ok (reduced) | 73aq: whole percents from 1% ("7%"); the status lines of a row of cards sit on one line with or without a badge; retaken and opened 73at: 1280 and dark 1440 opened on contact sheets (reduced), clean. |
 | Reports › Income | ?view=income (pic 23i) | no | — | — | ok | — | — | — | 73at: pic 23i opened at 1440, clean; "By source" is a short list in a card as tall as the chart beside it. |
 | Reports, drilled into an area (breadcrumb) | a row of Buckets / People | no | ok (reduced) | — | fixed 401e6ef7 | — | — | — | pic 23u (new). The Transactions card had a line over its first row under 20px of nothing: removed, retaken, opened |
-| Reports filters (period, pickers) and Filters sheet | header of every view | no | — | — | ok | — | — | ok (reduced) | pics 23v (Period menu), 23w (Filters sheet), new; opened at 1440 only. Compare with / Group by menus and the custom range pickers not pictured 73at: new pics 23x (Compare with menu), 23y (Group by menu), 23z (custom range, From calendar open), 23s (focus ring on Period, pointer over a row): taken at 1024, 1280, 1440, dark 1440; opened in dark 1440 (reduced) only, clean. |
-| Reports "as a table" (each chart's figures) | under each chart | no | fixed 08dbe20a | — | fixed 401e6ef7 | — | — | — | pics 23t-* (new, all ten views). Fixed: one money format and one percent format down a column, day keys written as dates, 24px between columns (the shared Table's own). Opened at 1440 for every view (Trends' and Plan vs actual's only the top). Commitments, by the year has five columns and its last went under the card's edge at 1440 and 1024: from lg names now wrap instead (44ac9517); that last change is NOT pictured 73at: a day in a table stays on one line ("Oct 5, 2026" broke in two at 1024); retaken and opened at 1024 (Big expenses). What each Child cost, by Bucket (child-costs.tsx) now has the shared table's padding, header height and row lines: opened once at 1280 from the children spec (top rows only). Seen, not fixed: "Largest Transactions" says "the biggest 13 one-offs over $250" and its table lists 27 rows down to $184.62. |
+| Reports filters (period, pickers) and Filters sheet | header of every view | no | — | — | ok | — | — | ok (reduced) | pics 23v (Period menu), 23w (Filters sheet), new; opened at 1440 only. Compare with / Group by menus and the custom range pickers not pictured 73at: new pics 23x (Compare with menu), 23y (Group by menu), 23z (custom range, From calendar open), 23s (focus ring on Period, pointer over a row): taken at 1024, 1280, 1440, dark 1440; opened in dark 1440 (reduced) only, clean. 73av: pic 23y (Group by menu) opened at 1440 at full size, clean. |
+| Reports "as a table" (each chart's figures) | under each chart | no | fixed 08dbe20a | — | fixed 401e6ef7 | — | — | — | pics 23t-* (new, all ten views). Fixed: one money format and one percent format down a column, day keys written as dates, 24px between columns (the shared Table's own). Opened at 1440 for every view (Trends' and Plan vs actual's only the top). Commitments, by the year has five columns and its last went under the card's edge at 1440 and 1024: from lg names now wrap instead (44ac9517); that last change is NOT pictured 73at: a day in a table stays on one line ("Oct 5, 2026" broke in two at 1024); retaken and opened at 1024 (Big expenses). What each Child cost, by Bucket (child-costs.tsx) now has the shared table's padding, header height and row lines: opened once at 1280 from the children spec (top rows only). Seen, not fixed: "Largest Transactions" says "the biggest 13 one-offs over $250" and its table lists 27 rows down to $184.62. 73av: Largest Transactions now lists what its sentence counts (see Big expenses). |
 | Reports, empty | fresh Household (pic 39a) | no | — | — | ok | — | — | — | 73at: pic 39a opened at 1440, clean. |
 
 ## Insights, Check-in, Ask
@@ -176,10 +176,20 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | Check-in | /check-in (pic 26) | no | ok (reduced) | ok (reduced) | ok | — | — | ok (reduced) | pic 26 opened again at 1440, clean |
 | Check-in footer | pic 26a | no | — | — | ok | — | — | — | 73at: pic 26a opened at 1440, clean. |
 | Check-in, each step done inline | work through the steps | no | fixed 915f53e4 | — | — | — | — | — | 73at: new pics 26b, 26c, 26d (Insights, Sweeps, Extra income, each reached with Skip for now). The "?" of the Sweeps and Extra income cards dropped to a line of its own under a two-line sentence: it follows the last word now; retaken and opened at 1024 (Sweeps). Seen, not fixed (packages/ui StepList): a done step's name starts 8px right of a waiting one's. Steps actually completed inline (a Sweep chosen, Extra income sent) not pictured. |
-| Check-in, empty | fresh Household (pic 39e) | no | — | — | ok | — | — | — | 73at: pic 39e opened at 1440; the done card is 480px wide at the left of a wide page. |
+| Check-in, empty | fresh Household (pic 39e) | no | fixed 73av | fixed 73av | fixed 73av | fixed 73av | fixed 73av | fixed 73av | 73at: pic 39e opened at 1440; the done card is 480px wide at the left of a wide page. **73av: complete.** The done card now takes the page's column from 1024 (it stopped at 768px, at the left); retaken and opened at full size at all five widths and in dark. |
 | Ask | /ask (pic 24x) | no | — | — | — | — | — | — |  |
 | Ask with an answer, and its error | ask a question | no | — | — | — | — | — | — |  |
 | Ask, empty | fresh Household (pic 39f) | no | — | — | — | — | — | — |  |
+
+## Decisions for the owner (Reports, This Month, Check-in)
+
+Not built; each waits for a yes or no.
+
+1. **Ended month's headline** (pics 01f, 01g). The big figure is the planned Free to Spend ("$5,000") over "Ended with nothing left". Recommended: the headline is what the month ended with; the planned figure stays in the split below.
+2. **One format down a table column.** Report tables read "$14,400.00" when a neighbour has cents and "37.8%" when a neighbour is under 10%. Recommended: keep. Still mixed elsewhere: This Month's legends and Bucket rows, and "What each Child cost" ("$64.99" beside "$20").
+3. **Big expenses below 1440.** The list and "Commitments, by the year" stack from 1024 to 1439 (73at stacked to 1279; 73av to 1439 because the table's last column was cut at 1280). Alternative: side by side from 1024 with "Cadence" left out of the table.
+4. **An ended month with no Buckets** leaves the left column empty beside Free to Spend (01f). Only reachable with rows dated before the first Plan. Recommended: leave.
+5. **Check-in step list** (shared `StepList`): a done step's name starts 8px right of a waiting step's. A change there reaches every user of the component.
 
 ## Household settings
 
@@ -197,7 +207,7 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | Delete Household sheet | Danger zone (pic 27b) | no | — | — | — | — | — | — |  |
 | Glossary | /glossary | no | — | — | — | — | — | — |  |
 
-127 rows; 13 looked at in every width and in dark (73au: Sidebar collapsed and twelve Plan rows, from contact sheets in `73au-shots/sheets/`).
+127 rows; 30 looked at in every width and in dark and without an open cell (73au: Sidebar collapsed and thirteen Plan rows, sheets in `73au-shots/sheets/`; 73aw: four more Plan rows, Accounts, Goals, Can we afford it? and Scenarios, sheets in `73aw-shots/sheets/`).
 
 ## Decisions for the owner (not built)
 

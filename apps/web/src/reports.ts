@@ -139,6 +139,10 @@ export function namesOf(meta: ReportMeta) {
 }
 export type Names = ReturnType<typeof namesOf>;
 
+/** The one-offs of at least the picked amount: what Big expenses' list and its table both show (issue 73). */
+export const oneOffsOver = <T extends { amount: number }>(items: T[], threshold: number): T[] =>
+	items.filter((item) => item.amount >= threshold);
+
 /** A merchant key shown as a name: notes are free text, so the key is the note itself. */
 export const merchantName = (key: string) =>
 	key ? key.replace(/(^|\s)\S/g, (c) => c.toUpperCase()) : "No note";
