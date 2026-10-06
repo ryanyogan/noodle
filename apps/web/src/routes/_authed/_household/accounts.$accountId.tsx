@@ -915,7 +915,8 @@ function CardPerks({ account }: { account: AccountView }) {
 	const sources = perkSourcesForAccount(account, useSuspenseQuery(perkSourcesQuery()).data);
 	const count = sources.reduce((sum, source) => sum + source.perks.length, 0);
 	if (count === 0) return null;
-	// The panel's heading already names the card: its own name isn't said again here (issue 73).
+	// The page is the card's own: its name isn't said again under "Perks for this card", only a
+	// source that is called something else (issue 74).
 	const names = sources
 		.map((source) => source.name)
 		.filter((name) => name.trim().toLowerCase() !== account.name.trim().toLowerCase())

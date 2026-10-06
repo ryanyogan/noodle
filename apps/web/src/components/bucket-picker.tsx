@@ -77,7 +77,8 @@ export function BucketPicker({
 	id?: string;
 	className?: string;
 	disabled?: boolean;
-	placeholder: string;
+	/** Words, or words that differ by width (Review's narrowest card, issue 74). */
+	placeholder: ReactNode;
 	searchPlaceholder: string;
 	choices: ChoiceGroup[];
 	onValueChange: (value: string) => void;

@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/goals")({
 });
 
 const quietLink =
-	"inline-flex min-h-11 items-center justify-self-start px-1 text-[13px] font-medium text-muted-foreground underline decoration-border-strong underline-offset-3 hover:text-foreground hover:decoration-foreground lg:min-h-6";
+	"inline-flex min-h-11 items-center justify-self-start px-1 max-sm:px-0 text-[13px] font-medium text-muted-foreground underline decoration-border-strong underline-offset-3 hover:text-foreground hover:decoration-foreground lg:min-h-6";
 
 function PlanGoalsPage() {
 	const { month } = Route.useRouteContext();
@@ -43,7 +43,7 @@ function PlanGoalsPage() {
 				<SplitRail>
 					{state.fundedGoals > 0 ? (
 						<div className="grid gap-3 max-lg:order-first lg:hidden">
-							<p className="px-1 text-sm text-muted-foreground tabular-nums">
+							<p className="text-sm text-muted-foreground tabular-nums sm:px-1">
 								<Money cents={state.fundedGoals} /> funded from Free to Spend this month
 							</p>
 						</div>

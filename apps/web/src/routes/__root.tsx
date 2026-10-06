@@ -5,6 +5,8 @@ import geistFont from "@noodle/ui/fonts/geist-latin-wght-normal.woff2?url";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { CenteredPage } from "../components/centered-page";
+import { PageNotFound } from "../components/route-states";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -30,7 +32,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 		],
 	}),
 	shellComponent: RootShell,
+	notFoundComponent: RootNotFound,
 });
+
+/**
+ * An address nothing answers to. It is outside the app's frame, so it brings its own: the logo,
+ * the page's gutter and a phone's safe areas (issue 74: the card sat against the screen's edges).
+ */
+function RootNotFound() {
+	return (
+		<CenteredPage>
+			<h1 className="sr-only">Page not found</h1>
+			<PageNotFound />
+		</CenteredPage>
+	);
+}
 
 /** Sets data-standalone on <html> when the app runs installed (home screen). */
 const standaloneScript =

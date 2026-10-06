@@ -29,6 +29,7 @@ import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/compon
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { LinkTab, LinkTabs, LinkTabsSeparator } from "@noodle/ui/components/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
+import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ChartPie, Download, Landmark, ListFilter, Plus, X } from "lucide-react";
@@ -295,89 +296,122 @@ function Options({
 			: []),
 		...(search.min ? [{ key: "min", label: `$${search.min}+`, clear: { min: undefined } }] : []),
 	];
+	// On a phone the Period, Compare with and Group by selects live in the Filters sheet (issue 74):
+	// what is switched away from the usual shows as a chip, as a filter does.
+	const viewChips = [
+		...(offered.compare && search.compare
+			? [
+					{
+						key: "compare",
+						label: COMPARE_LABELS[search.compare],
+						clear: { compare: undefined } as Partial<ReportSearch>,
+					},
+				]
+			: []),
+		...(offered.group && search.group
+			? [
+					{
+						key: "group",
+						label: `By ${search.group}`,
+						clear: { group: undefined } as Partial<ReportSearch>,
+					},
+				]
+			: []),
+	];
 	return (
 		<div className="grid gap-3">
-			<div className="flex flex-wrap items-end gap-2">
-				<FilterSelect
-					id={`${id}-period`}
-					label="Period"
-					value={period}
-					onChange={(value) =>
-						nav.set({
-							period: value as ReportSearch["period"],
-							...(value === "custom"
-								? {
-										from: search.from ?? report.range.from,
-										to: search.to ?? (report.asOf as DayKey),
-									}
-								: { from: undefined, to: undefined }),
-							month: undefined,
-						})
-					}
-					options={REPORT_PERIODS.map((p) => ({ value: p, label: PERIOD_LABELS[p] }))}
-					className="max-sm:min-w-38 max-sm:flex-[1_1_calc(50%-0.25rem)]"
-					triggerClassName="sm:w-44"
-				/>
-				{period === "custom" ? (
-					<>
-						<DatePicker
-							required
-							aria-label="From"
-							value={search.from ?? report.range.from}
-							max={search.to}
-							onChange={(day) => day && nav.set({ from: day as DayKey })}
-							className="max-sm:w-[calc(50%-0.25rem)] sm:w-40"
-						/>
-						<DatePicker
-							required
-							aria-label="To"
-							value={search.to ?? report.asOf}
-							min={search.from}
-							onChange={(day) => day && nav.set({ to: day as DayKey })}
-							className="max-sm:w-[calc(50%-0.25rem)] sm:w-40"
-						/>
-					</>
-				) : null}
-				{offered.compare ? (
+			<div className="flex flex-wrap items-end gap-2 max-sm:items-center">
+				<div className="max-sm:hidden sm:contents">
 					<FilterSelect
-						id={`${id}-compare`}
-						label="Compare with"
-						value={search.compare ?? "previous"}
+						id={`${id}-period`}
+						label="Period"
+						value={period}
 						onChange={(value) =>
-							nav.set({ compare: value === "previous" ? undefined : (value as Comparison) })
+							nav.set({
+								period: value as ReportSearch["period"],
+								...(value === "custom"
+									? {
+											from: search.from ?? report.range.from,
+											to: search.to ?? (report.asOf as DayKey),
+										}
+									: { from: undefined, to: undefined }),
+								month: undefined,
+							})
 						}
-						options={COMPARISONS.map((c) => ({ value: c, label: COMPARE_LABELS[c] }))}
-						className="max-sm:min-w-38 max-sm:flex-[1_1_calc(50%-0.25rem)]"
-						triggerClassName="sm:w-52"
-					/>
-				) : null}
-				{offered.group ? (
-					<FilterSelect
-						id={`${id}-group`}
-						label="Group by"
-						all={`By ${report.grouping} (auto)`}
-						value={search.group ?? ""}
-						onChange={(value) => nav.set({ group: (value || undefined) as ReportSearch["group"] })}
-						options={GROUPINGS.map((g) => ({ value: g, label: `By ${g}` }))}
+						options={REPORT_PERIODS.map((p) => ({ value: p, label: PERIOD_LABELS[p] }))}
 						className="max-sm:min-w-38 max-sm:flex-[1_1_calc(50%-0.25rem)]"
 						triggerClassName="sm:w-44"
 					/>
-				) : null}
-				{offered.filters ? (
-					<Button
-						variant="outline"
-						onClick={() => setFiltersOpen(true)}
-						className="max-sm:w-[calc(50%-0.25rem)]"
-					>
-						<ListFilter />
-						Filters
-						{chips.length ? (
-							<span className="rounded-full bg-foreground px-1.5 text-[11px] text-background tabular-nums">
-								{chips.length}
-							</span>
-						) : null}
-					</Button>
-				) : null}
+					{period === "custom" ? (
+						<>
+							<DatePicker
+								required
+								aria-label="From"
+								value={search.from ?? report.range.from}
+								max={search.to}
+								onChange={(day) => day && nav.set({ from: day as DayKey })}
+								className="max-sm:w-[calc(50%-0.25rem)] sm:w-40"
+							/>
+							<DatePicker
+								required
+								aria-label="To"
+								value={search.to ?? report.asOf}
+								min={search.from}
+								onChange={(day) => day && nav.set({ to: day as DayKey })}
+								className="max-sm:w-[calc(50%-0.25rem)] sm:w-40"
+							/>
+						</>
+					) : null}
+					{offered.compare ? (
+						<FilterSelect
+							id={`${id}-compare`}
+							label="Compare with"
+							value={search.compare ?? "previous"}
+							onChange={(value) =>
+								nav.set({ compare: value === "previous" ? undefined : (value as Comparison) })
+							}
+							options={COMPARISONS.map((c) => ({ value: c, label: COMPARE_LABELS[c] }))}
+							className="max-sm:min-w-38 max-sm:flex-[1_1_calc(50%-0.25rem)]"
+							triggerClassName="sm:w-52"
+						/>
+					) : null}
+					{offered.group ? (
+						<FilterSelect
+							id={`${id}-group`}
+							label="Group by"
+							all={`By ${report.grouping} (auto)`}
+							value={search.group ?? ""}
+							onChange={(value) =>
+								nav.set({ group: (value || undefined) as ReportSearch["group"] })
+							}
+							options={GROUPINGS.map((g) => ({ value: g, label: `By ${g}` }))}
+							className="max-sm:min-w-38 max-sm:flex-[1_1_calc(50%-0.25rem)]"
+							triggerClassName="sm:w-44"
+						/>
+					) : null}
+				</div>
+				{/* A view with nothing to filter still has its Period in the sheet on a phone. */}
+				<Button
+					variant="outline"
+					onClick={() => setFiltersOpen(true)}
+					className={offered.filters ? undefined : "sm:hidden"}
+				>
+					<ListFilter />
+					Filters
+					{chips.length ? (
+						<span className="rounded-full bg-foreground px-1.5 text-xs text-background tabular-nums max-sm:hidden">
+							{chips.length}
+						</span>
+					) : null}
+					{chips.length + viewChips.length ? (
+						<span className="rounded-full bg-foreground px-1.5 text-xs text-background tabular-nums sm:hidden">
+							{chips.length + viewChips.length}
+						</span>
+					) : null}
+				</Button>
+				<p className="min-w-0 flex-1 truncate text-sm text-muted-foreground sm:hidden">
+					{PERIOD_LABELS[period]}
+				</p>
 			</div>
 			{offered.compare && (search.compare ?? "previous") !== "none" && report.compared === null ? (
 				<p className="text-[13px] text-muted-foreground">
@@ -386,10 +420,16 @@ function Options({
 						: "Nothing to compare with yet."}
 				</p>
 			) : null}
-			{chips.length ? (
-				<ul className="flex flex-wrap gap-1.5" aria-label="Filters">
-					{chips.map((chip) => (
-						<li key={chip.key}>
+			{chips.length + viewChips.length ? (
+				<ul
+					className={cn("flex flex-wrap gap-1.5", chips.length === 0 && "sm:hidden")}
+					aria-label="Filters"
+				>
+					{[
+						...viewChips.map((chip) => ({ ...chip, phone: true })),
+						...chips.map((chip) => ({ ...chip, phone: false })),
+					].map((chip) => (
+						<li key={chip.key} className={chip.phone ? "sm:hidden" : undefined}>
 							<Button
 								variant="secondary"
 								size="chip"
@@ -409,6 +449,7 @@ function Options({
 					<Filters
 						search={search}
 						report={report}
+						offered={offered}
 						onApply={(patch) => {
 							nav.set({ ...patch, month: undefined });
 							setFiltersOpen(false);
@@ -423,13 +464,21 @@ function Options({
 function Filters({
 	search,
 	report,
+	offered,
 	onApply,
 }: {
 	search: ReportSearch;
 	report: ReportData;
+	offered: (typeof VIEW_OPTIONS)[ReportView];
 	onApply: (patch: Partial<ReportSearch>) => void;
 }) {
 	const id = useId();
+	// The view's own options, offered here on a phone only (the bar has them from 640px up).
+	const [period, setPeriod] = useState<NonNullable<ReportSearch["period"]>>(search.period ?? "6m");
+	const [from, setFrom] = useState<string>(search.from ?? report.range.from);
+	const [to, setTo] = useState<string>(search.to ?? report.asOf);
+	const [compare, setCompare] = useState<Comparison>(search.compare ?? "previous");
+	const [group, setGroup] = useState<string>(search.group ?? "");
 	const [buckets, setBuckets] = useState<string[]>(search.buckets ?? []);
 	const [member, setMember] = useState(search.member ?? "");
 	const [account, setAccount] = useState(search.account ?? "");
@@ -442,83 +491,157 @@ function Filters({
 			onSubmit={(event) => {
 				event.preventDefault();
 				const minimum = Number.parseInt(min, 10);
+				const custom = period === "custom";
 				onApply({
-					buckets: buckets.length ? buckets : undefined,
-					member: (member || undefined) as ReportSearch["member"],
-					account: account || undefined,
-					merchant: merchant.trim().toLowerCase() || undefined,
-					min: Number.isFinite(minimum) && minimum > 0 ? minimum : undefined,
+					...(offered.filters
+						? {
+								buckets: buckets.length ? buckets : undefined,
+								member: (member || undefined) as ReportSearch["member"],
+								account: account || undefined,
+								merchant: merchant.trim().toLowerCase() || undefined,
+								min: Number.isFinite(minimum) && minimum > 0 ? minimum : undefined,
+							}
+						: {}),
+					// Only what was changed here, so the bar's choices are left alone on a desktop.
+					...(period !== (search.period ?? "6m") ||
+					(custom && (from !== search.from || to !== search.to))
+						? {
+								period,
+								from: custom ? (from as DayKey) : undefined,
+								to: custom ? (to as DayKey) : undefined,
+							}
+						: {}),
+					...(offered.compare && compare !== (search.compare ?? "previous")
+						? { compare: compare === "previous" ? undefined : compare }
+						: {}),
+					...(offered.group && group !== (search.group ?? "")
+						? { group: (group || undefined) as ReportSearch["group"] }
+						: {}),
 				});
 			}}
 		>
-			<div className="grid gap-2">
-				<p id={`${id}-buckets`} className="mb-2 text-sm font-medium">
-					Buckets
-				</p>
-				<ToggleGroup
-					type="multiple"
-					aria-labelledby={`${id}-buckets`}
-					value={buckets}
-					onValueChange={setBuckets}
-					className="w-full flex-wrap gap-1.5"
-				>
-					{meta.buckets.map((b) => (
-						<ToggleGroupItem key={b.id} value={b.id} variant="chip">
-							<span
-								className="size-2 rounded-full"
-								style={{ background: `var(--bucket-${b.color})` }}
-							/>
-							{b.name}
-						</ToggleGroupItem>
-					))}
-				</ToggleGroup>
+			<div className="grid gap-4 sm:hidden">
+				<Field label="Period" htmlFor={`${id}-period`}>
+					<OptionSelect
+						id={`${id}-period`}
+						value={period}
+						onValueChange={(value) => setPeriod(value as NonNullable<ReportSearch["period"]>)}
+						choices={REPORT_PERIODS.map((p) => ({ value: p, label: PERIOD_LABELS[p] }))}
+					/>
+				</Field>
+				{period === "custom" ? (
+					<div className="grid grid-cols-2 gap-2">
+						<DatePicker
+							required
+							aria-label="From"
+							value={from}
+							max={to}
+							onChange={(day) => day && setFrom(day)}
+						/>
+						<DatePicker
+							required
+							aria-label="To"
+							value={to}
+							min={from}
+							onChange={(day) => day && setTo(day)}
+						/>
+					</div>
+				) : null}
+				{offered.compare ? (
+					<Field label="Compare with" htmlFor={`${id}-compare`}>
+						<OptionSelect
+							id={`${id}-compare`}
+							value={compare}
+							onValueChange={(value) => setCompare(value as Comparison)}
+							choices={COMPARISONS.map((c) => ({ value: c, label: COMPARE_LABELS[c] }))}
+						/>
+					</Field>
+				) : null}
+				{offered.group ? (
+					<Field label="Group by" htmlFor={`${id}-group`}>
+						<OptionSelect
+							id={`${id}-group`}
+							value={group}
+							onValueChange={setGroup}
+							choices={[
+								{ value: "", label: `By ${report.grouping} (auto)` },
+								...GROUPINGS.map((g) => ({ value: g, label: `By ${g}` })),
+							]}
+						/>
+					</Field>
+				) : null}
 			</div>
-			<div className="grid gap-4 sm:grid-cols-2">
-				<Field label="For" htmlFor={`${id}-member`}>
-					<OptionSelect
-						id={`${id}-member`}
-						value={member}
-						onValueChange={setMember}
-						choices={[
-							{ value: "", label: "Anyone" },
-							{ value: "everyone", label: "The whole Household" },
-							...meta.members.map((m) => ({ value: m.id, label: m.name })),
-						]}
-					/>
-				</Field>
-				<Field label="Account" htmlFor={`${id}-account`}>
-					<OptionSelect
-						id={`${id}-account`}
-						value={account}
-						onValueChange={setAccount}
-						choices={[
-							{ value: "", label: "Any Account" },
-							...meta.accounts.map((a) => ({ value: a.id, label: accountLabel(a) })),
-						]}
-					/>
-				</Field>
-				<Field label="Merchant" htmlFor={`${id}-merchant`} hint="A Transaction's note, exactly">
-					<Input
-						id={`${id}-merchant`}
-						value={merchant}
-						onChange={(e) => setMerchant(e.target.value)}
-						placeholder="Costco"
-					/>
-				</Field>
-				<Field label="At least" htmlFor={`${id}-min`} hint="Whole dollars">
-					<Input
-						id={`${id}-min`}
-						inputMode="numeric"
-						value={min}
-						onChange={(e) => setMin(e.target.value.replace(/\D/g, ""))}
-						placeholder="0"
-					/>
-				</Field>
+			<div className={cn("grid gap-5", !offered.filters && "hidden")}>
+				<div className="grid gap-2">
+					<p id={`${id}-buckets`} className="mb-2 text-sm font-medium">
+						Buckets
+					</p>
+					<ToggleGroup
+						type="multiple"
+						aria-labelledby={`${id}-buckets`}
+						value={buckets}
+						onValueChange={setBuckets}
+						className="w-full flex-wrap gap-1.5"
+					>
+						{meta.buckets.map((b) => (
+							<ToggleGroupItem key={b.id} value={b.id} variant="chip">
+								<span
+									className="size-2 rounded-full"
+									style={{ background: `var(--bucket-${b.color})` }}
+								/>
+								{b.name}
+							</ToggleGroupItem>
+						))}
+					</ToggleGroup>
+				</div>
+				<div className="grid gap-4 sm:grid-cols-2">
+					<Field label="For" htmlFor={`${id}-member`}>
+						<OptionSelect
+							id={`${id}-member`}
+							value={member}
+							onValueChange={setMember}
+							choices={[
+								{ value: "", label: "Anyone" },
+								{ value: "everyone", label: "The whole Household" },
+								...meta.members.map((m) => ({ value: m.id, label: m.name })),
+							]}
+						/>
+					</Field>
+					<Field label="Account" htmlFor={`${id}-account`}>
+						<OptionSelect
+							id={`${id}-account`}
+							value={account}
+							onValueChange={setAccount}
+							choices={[
+								{ value: "", label: "Any Account" },
+								...meta.accounts.map((a) => ({ value: a.id, label: accountLabel(a) })),
+							]}
+						/>
+					</Field>
+					<Field label="Merchant" htmlFor={`${id}-merchant`} hint="A Transaction's note, exactly">
+						<Input
+							id={`${id}-merchant`}
+							value={merchant}
+							onChange={(e) => setMerchant(e.target.value)}
+							placeholder="Costco"
+						/>
+					</Field>
+					<Field label="At least" htmlFor={`${id}-min`} hint="Whole dollars">
+						<Input
+							id={`${id}-min`}
+							inputMode="numeric"
+							value={min}
+							onChange={(e) => setMin(e.target.value.replace(/\D/g, ""))}
+							placeholder="0"
+						/>
+					</Field>
+				</div>
 			</div>
 			<SheetFooter className="max-lg:grid-cols-2">
 				<Button
 					type="button"
 					variant="ghost"
+					className={offered.filters ? undefined : "invisible"}
 					onClick={() =>
 						onApply({
 							buckets: undefined,

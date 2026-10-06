@@ -205,13 +205,19 @@ function SourcePick({
 			variant="tile"
 			aria-disabled={!ready}
 			onClick={onPick}
-			className="grid-cols-[32px_minmax(0,1fr)_auto] aria-disabled:cursor-not-allowed"
+			// From lg two tiles share a row: what's left goes under the name, which was cut
+			// ("Free to Sp…") beside it (issue 73).
+			className="grid-cols-[32px_minmax(0,1fr)_auto] aria-disabled:cursor-not-allowed lg:gap-y-0"
 		>
-			<Tile bucket={color} aria-hidden="true" className="size-8 rounded-[10px]">
+			<Tile
+				bucket={color}
+				aria-hidden="true"
+				className="size-8 rounded-[10px] lg:row-span-2 lg:self-center"
+			>
 				{bucket ? monogram(bucket.name) : <Wallet />}
 			</Tile>
-			<span className="truncate text-sm font-medium">{sourceName(bucket)}</span>
-			<span className="text-[13px] text-muted-foreground tabular-nums">
+			<span className="truncate text-sm font-medium lg:col-span-2">{sourceName(bucket)}</span>
+			<span className="text-[13px] text-muted-foreground tabular-nums lg:col-span-2 lg:col-start-2">
 				{formatMoney(source.left)} left
 			</span>
 		</RowButton>

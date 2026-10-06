@@ -58,10 +58,11 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 							// the figures took three lines on a phone (issue 115). They break between the
 							// month's part and the Goal's, not inside one.
 							below={
-								// The shared dot between parts: the same room on both sides of it (issue 73).
+								// The shared dot between parts (issue 73). On a phone each part has its own line, so
+								// rows are the same height (issue 74); the dots sit in the strip MetaParts hides.
 								<MetaParts
 									parts={goalThisMonth(goal)}
-									className="-mt-2 text-[13px] text-muted-foreground"
+									className="-mt-2 text-[13px] text-muted-foreground max-sm:[&>span]:flex-col max-sm:[&>span]:items-start"
 								/>
 							}
 							trailing={

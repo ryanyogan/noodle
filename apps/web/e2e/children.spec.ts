@@ -156,7 +156,7 @@ test("Quick Add is For Everyone unless a Child is picked, and each Child's cost 
 	await expect(costOf(page, "Maya")).toHaveCount(0);
 	// Groceries for Everyone is the Household's, not counted under either Child.
 	await expect(page.getByText(/^Spending For Everyone counts once/)).toContainText(
-		"$186.42 this month",
+		"$186 this month",
 	);
 
 	// A full load of Reports is slow on a cold dev server (see clientRendered).

@@ -977,9 +977,11 @@ export default function ScenarioOutcomes({
 	);
 }
 
+// On a phone the chart names stay one line at the size every other tab strip has, and the strip
+// scrolls with its faded edge, as Reports' views do (issue 74); they used to be two-line 12px labels.
 const phoneTabs = {
-	list: "max-sm:grid max-sm:w-full max-sm:auto-cols-fr max-sm:grid-flow-col",
-	tab: "max-sm:min-w-0 max-sm:px-1 max-sm:text-center max-sm:text-xs max-sm:leading-tight max-sm:text-balance max-sm:whitespace-normal",
+	list: "",
+	tab: "",
 };
 
 /**
