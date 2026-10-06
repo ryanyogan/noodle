@@ -256,6 +256,8 @@ function PlanHome() {
 								editable={state.editable}
 								// Room where the Buckets' handles are, so the figures of the two tables line up.
 								indent={bucketsHaveHandles(buckets, state.editable)}
+								// And where their pencils are, when none of these is the viewer's to change.
+								editRoom={state.editable && buckets.length > 0}
 								// Each Parent sets their own; the other's shows its figures.
 								canEdit={(bucket) => bucket.owner === parentId}
 								setBy={(bucket) =>

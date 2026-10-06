@@ -10,8 +10,10 @@ import {
 	choose,
 	clientRendered,
 	createPlannedHousehold,
+	hydrated,
 	pickQuickAddBucket,
 	reloadUntil,
+	savedBy,
 	serverFn,
 	signedInPage,
 } from "./session";
@@ -96,10 +98,10 @@ test("editing a Transaction reassigns its spending on This Month at once", async
 
 	// Newest first, under the day they happened.
 	await expect(list(page).locator("[data-slot=data-table-group]").first()).toHaveText(/^Today/);
-	await expect(list(page).getByRole("button")).toHaveCount(2);
-	await expect(list(page).getByRole("button").first()).toHaveAccessibleName(
-		"Pro Hockey Life, $64.99, Groceries, For Everyone",
-	);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(2);
+	await expect(
+		list(page).locator("button:not([role=checkbox]):not([data-cell])").first(),
+	).toHaveAccessibleName("Pro Hockey Life, $64.99, Groceries, For Everyone");
 
 	await row(page, "Pro Hockey Life").click();
 	await expect(editSheet(page)).toBeVisible();
@@ -167,7 +169,7 @@ test("a failed edit or delete is undone and can be retried", async ({ browser })
 	await page.unroute(remove);
 	await notDeleted.getByRole("button", { name: "Retry" }).click();
 	await expect(row(page, "Costco")).toHaveCount(0);
-	await expect(list(page).getByRole("button")).toHaveCount(1);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(1);
 
 	await nav(page).getByRole("link", { name: "This Month" }).click();
 	await expect(bucketRow(page, "Groceries")).toContainText("$64.99 spent");
@@ -181,25 +183,25 @@ test("the list filters by Bucket and by who it was For", async ({ browser }) => 
 	await setUp(page);
 	await quickAdd(page, "40", "Hockey", "Ice time", "Leo");
 	await openTransactions(page);
-	await expect(list(page).getByRole("button")).toHaveCount(3);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(3);
 	// The month's total comes from the server, so it counts every page, not just those loaded.
 	await expect(page.getByText(/^Spent in /)).toBeVisible();
 	await expect(page.getByTestId("month-total")).toHaveText("$190.49");
 
 	await choose(page, "Bucket", "Hockey");
 	await expect(page).toHaveURL(/bucket=/);
-	await expect(list(page).getByRole("button")).toHaveCount(1);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(1);
 	await expect(row(page, "Ice time")).toBeVisible();
 	await expect(page.getByText("Total for these filters")).toBeVisible();
 	await expect(page.getByTestId("month-total")).toHaveText("$40");
 
 	await choose(page, "Bucket", "All Buckets");
 	await choose(page, "For", "Leo");
-	await expect(list(page).getByRole("button")).toHaveCount(1);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(1);
 	await expect(row(page, "Ice time")).toBeVisible();
 
 	await choose(page, "For", "Everyone (shared)");
-	await expect(list(page).getByRole("button")).toHaveCount(2);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(2);
 	await expect(row(page, "Ice time")).toHaveCount(0);
 
 	// The filters are in the URL, so a reload keeps them.
@@ -207,7 +209,7 @@ test("the list filters by Bucket and by who it was For", async ({ browser }) => 
 	await expect(page.getByRole("combobox", { name: "For", exact: true })).toHaveText(
 		"Everyone (shared)",
 	);
-	await expect(list(page).getByRole("button")).toHaveCount(2);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(2);
 
 	await choose(page, "Bucket", "Hockey");
 	await expect(page.getByText("Nothing matches")).toBeVisible();
@@ -238,7 +240,7 @@ test("at 1440 a long list draws every row as the page scrolls, and its card ends
 	);
 	await page.goto(`/transactions/${month}`);
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Transactions");
-	const rows = list(page).getByRole("button");
+	const rows = list(page).locator("button:not([role=checkbox]):not([data-cell])");
 	await expect(rows.first()).toBeVisible();
 
 	// To the end of the page, again each time a page of rows loads, until all 60 are there.
@@ -280,7 +282,7 @@ test("at xl, Date and Amount sort the list", async ({ browser }) => {
 	await setUp(page);
 	await quickAdd(page, "40", "Hockey", "Ice time", "Leo");
 	await openTransactions(page);
-	const rows = list(page).getByRole("button");
+	const rows = list(page).locator("button:not([role=checkbox]):not([data-cell])");
 	await expect(rows).toHaveText([/Ice time/, /Pro Hockey Life/, /Costco/]);
 	await expect(page.getByRole("button", { name: "Date, newest first" })).toHaveAttribute(
 		"aria-pressed",
@@ -312,7 +314,7 @@ test("at xl, Name, Assigned to and Account sort the list, and the column says wh
 	await setUp(page);
 	await quickAdd(page, "40", "Hockey", "Ice time", "Leo");
 	await openTransactions(page);
-	const rows = list(page).getByRole("button");
+	const rows = list(page).locator("button:not([role=checkbox]):not([data-cell])");
 	const header = (name: RegExp) => page.getByRole("columnheader", { name });
 	// The checkbox column and the six columns of words.
 	await expect(page.getByRole("columnheader")).toHaveCount(7);
@@ -364,7 +366,7 @@ test("on a phone, a Sort menu beside Filters orders the list and the address kee
 	await setUp(page);
 	await page.setViewportSize({ width: 393, height: 852 });
 	await page.goto("/transactions");
-	const rows = list(page).getByRole("button");
+	const rows = list(page).locator("button:not([role=checkbox]):not([data-cell])");
 	await expect(rows).toHaveText([/Pro Hockey Life/, /Costco/]);
 	// No column names to sort by at this width.
 	await expect(page.getByRole("columnheader")).toHaveCount(0);
@@ -429,13 +431,13 @@ test("the list searches notes, and the editor says what's missing before it save
 
 	await page.getByLabel("Search notes and merchants").fill("hockey");
 	await expect(page).toHaveURL(/q=hockey/);
-	await expect(list(page).getByRole("button")).toHaveCount(1);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(1);
 	await expect(row(page, "Pro Hockey Life")).toBeVisible();
 	await page.reload();
 	await expect(page.getByLabel("Search notes and merchants")).toHaveValue("hockey");
-	await expect(list(page).getByRole("button")).toHaveCount(1);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(1);
 	await page.getByLabel("Search notes and merchants").fill("");
-	await expect(list(page).getByRole("button")).toHaveCount(2);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(2);
 
 	// An empty amount is said beside the form, not by the browser, and nothing is saved.
 	await row(page, "Costco").click();
@@ -496,7 +498,7 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 	await expect(page.getByRole("combobox", { name: "Account", exact: true })).not.toHaveText(
 		"All Accounts",
 	);
-	await expect(list(page).getByRole("button")).toHaveCount(3);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(3);
 	await choose(page, "Account", "All Accounts");
 	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
 		"Pro Hockey Life, $64.99, Groceries, For Everyone, waiting for the bank’s copy",
@@ -644,5 +646,169 @@ test("a Transaction from the bank is renamed, its others follow when asked, and 
 	await page.reload();
 	await expect(called("Stumptown Coffee")).toHaveCount(1);
 	await expect(called("Morning coffee")).toHaveCount(1);
+	await page.context().close();
+});
+
+// Editing in a cell of the table (issue 99): where it shows columns, not on stacked rows.
+const renameButton = (page: Page, title: string) =>
+	list(page).getByRole("button", { name: `Rename ${title}`, exact: true });
+const nameField = (page: Page, title: string) =>
+	list(page).getByRole("textbox", { name: `Name of ${title}` });
+const refileButton = (page: Page, title: string, now: string) =>
+	list(page).getByRole("button", { name: `Refile ${title}, now ${now}`, exact: true });
+const said = (page: Page, text: string | RegExp) =>
+	page.getByRole("status").filter({ hasText: text });
+
+test("a Transaction is renamed in its Name cell: Esc gives up, Enter saves, and the name is there after a reload", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await setUp(page);
+	await openTransactions(page);
+
+	// Esc gives the edit up: the name is as it was, and focus is back on the cell's button.
+	await renameButton(page, "Costco").click();
+	await expect(nameField(page, "Costco")).toBeFocused();
+	await expect(nameField(page, "Costco")).toHaveValue("Costco");
+	await nameField(page, "Costco").fill("Never mind");
+	await page.keyboard.press("Escape");
+	await expect(nameField(page, "Costco")).toHaveCount(0);
+	await expect(row(page, "Costco")).toBeVisible();
+	await expect(renameButton(page, "Costco")).toBeFocused();
+
+	// F2 on the row starts it too; Enter saves, and nothing else about the row changes.
+	await row(page, "Costco").locator("xpath=ancestor::*[@data-slot='list-row']").focus();
+	await page.keyboard.press("F2");
+	await nameField(page, "Costco").fill("Costco run");
+	const saved = savedBy(page, "updateTransaction");
+	await page.keyboard.press("Enter");
+	await saved;
+	await expect(row(page, "Costco run")).toHaveAccessibleName(
+		"Costco run, $85.50, Groceries, For Everyone",
+	);
+	await expect(said(page, "Renamed")).toContainText("Renamed to “Costco run”");
+	// The row did not open: renaming is not opening.
+	await expect(editSheet(page)).toBeHidden();
+
+	// Leaving the field saves as well.
+	await renameButton(page, "Pro Hockey Life").click();
+	await nameField(page, "Pro Hockey Life").fill("Skates");
+	const blurred = savedBy(page, "updateTransaction");
+	await page.locator("[data-slot=page-header]:visible").click();
+	await blurred;
+	await expect(row(page, "Skates")).toBeVisible();
+
+	await page.reload();
+	await expect(row(page, "Costco run")).toHaveAccessibleName(
+		"Costco run, $85.50, Groceries, For Everyone",
+	);
+	await expect(row(page, "Skates")).toBeVisible();
+	await page.context().close();
+});
+
+test("a Transaction is refiled in its Assigned to cell, Undo puts it back, and This Month's Buckets move", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await setUp(page);
+	await openTransactions(page);
+
+	const refile = async (from: string, to: string) => {
+		await refileButton(page, "Pro Hockey Life", from).click();
+		const saved = savedBy(page, "updateTransaction");
+		await page.getByRole("option", { name: to, exact: true }).click();
+		await saved;
+	};
+	await refile("Groceries", "Hockey");
+	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
+		"Pro Hockey Life, $64.99, Hockey, For Everyone",
+	);
+	await expect(said(page, "filed in")).toContainText("Pro Hockey Life filed in Hockey");
+	await expect(editSheet(page)).toBeHidden();
+
+	// Undo writes it back where it was.
+	const undone = savedBy(page, "updateTransaction");
+	await said(page, "filed in").getByRole("button", { name: "Undo" }).click();
+	await undone;
+	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
+		"Pro Hockey Life, $64.99, Groceries, For Everyone",
+	);
+
+	await refile("Groceries", "Hockey");
+	await nav(page).getByRole("link", { name: "This Month" }).click();
+	await expect(bucketRow(page, "Groceries")).toContainText("$85.50 spent");
+	await expect(bucketRow(page, "Hockey")).toContainText("$64.99 spent");
+	await page.reload();
+	await expect(bucketRow(page, "Hockey")).toContainText("$64.99 spent");
+	await page.context().close();
+});
+
+test("a Bucket is created from the Assigned to cell's picker, and the Transaction is filed in it", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await setUp(page);
+	await openTransactions(page);
+
+	await refileButton(page, "Pro Hockey Life", "Groceries").click();
+	await page.getByPlaceholder("Search or create").fill("Skates");
+	await page.getByRole("option", { name: "Create Bucket “Skates”" }).click();
+
+	const step = page.getByRole("dialog", { name: "New Bucket" });
+	await expect(step.getByLabel("Name")).toHaveValue("Skates");
+	// Naming the Bucket opened neither the row nor its editor.
+	await expect(editSheet(page)).toBeHidden();
+	const saved = savedBy(page, "updateTransaction");
+	await step.getByRole("button", { name: "Create and file here" }).click();
+	await saved;
+	await expect(step).toBeHidden();
+	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
+		"Pro Hockey Life, $64.99, Skates, For Everyone",
+	);
+	await expect(said(page, "filed in")).toContainText("Pro Hockey Life filed in Skates");
+	await expect(editSheet(page)).toBeHidden();
+
+	// The new Bucket is in the Plan with the Transaction in it, and stays after a reload.
+	await page.reload();
+	await expect(refileButton(page, "Pro Hockey Life", "Skates")).toBeVisible();
+	await nav(page).getByRole("link", { name: "This Month" }).click();
+	await expect(bucketRow(page, "Skates")).toContainText("$64.99 spent");
+	await page.context().close();
+});
+
+test("a cell's change made on a Transaction another screen has changed since is left out: the cell shows how it is now", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await setUp(page);
+	await openTransactions(page);
+	await page.waitForURL(/\/transactions\//);
+	await expect(row(page, "Costco")).toBeVisible();
+	// From here this screen hears nothing new about its rows, as a laptop asleep wouldn't.
+	await page.route(serverFn("getTransactions"), (route) => route.abort());
+
+	// Another screen in the same Household renames it.
+	const other = await signedInPage(browser, parent.email);
+	await other.goto(page.url());
+	await hydrated(renameButton(other, "Costco"));
+	await renameButton(other, "Costco").click();
+	await nameField(other, "Costco").fill("Big shop");
+	const renamed = savedBy(other, "updateTransaction");
+	await other.keyboard.press("Enter");
+	await renamed;
+
+	// This screen refiles the row it still shows as it was: refused, said once, and the cell is
+	// back to Groceries on the row as the other screen left it.
+	await refileButton(page, "Costco", "Groceries").click();
+	await page.getByRole("option", { name: "Hockey", exact: true }).click();
+	await expect(said(page, "changed on another screen")).toHaveCount(1);
+	await expect(row(page, "Big shop")).toHaveAccessibleName(
+		"Big shop, $85.50, Groceries, For Everyone",
+	);
+	await expect(refileButton(page, "Big shop", "Groceries")).toBeVisible();
+
+	await page.unroute(serverFn("getTransactions"));
+	await other.context().close();
 	await page.context().close();
 });

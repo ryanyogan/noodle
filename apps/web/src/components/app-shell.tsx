@@ -373,13 +373,15 @@ function TabBar({ householdName }: { householdName: string }) {
 			className={cn(
 				"fixed inset-x-0 bottom-0 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] border-t lg:hidden",
 				"bg-card/95 backdrop-blur-xl backdrop-saturate-150",
-				"px-2 pt-1.5 pb-[calc(var(--safe-bottom)+6px)]",
+				// At 320 "Month" and "Transactions" nearly met (issue 115): a little less room at the
+				// edges and round Quick Add there, and slightly smaller labels (`tabClass`).
+				"px-2 pt-1.5 pb-[calc(var(--safe-bottom)+6px)] max-[21.25rem]:px-1",
 			)}
 		>
 			<TabGroup items={tabItems.slice(0, half)} />
 			<QuickAddLink
 				className={cn(
-					"mx-2 grid h-11 w-12 place-items-center self-center rounded-[14px] bg-primary text-primary-foreground",
+					"mx-2 grid h-11 w-12 place-items-center self-center rounded-[14px] bg-primary text-primary-foreground max-[21.25rem]:mx-1",
 					"transition-transform duration-(--duration-fast) ease-standard active:scale-[0.94]",
 				)}
 			>
@@ -395,6 +397,7 @@ function TabBar({ householdName }: { householdName: string }) {
 
 const tabClass = cn(
 	"grid h-(--tabbar-height) min-w-0 place-content-center justify-items-center gap-1 rounded-lg text-[11px] font-medium text-subtle-foreground",
+	"max-[21.25rem]:text-[10px] max-[21.25rem]:tracking-tight",
 	"transition-colors duration-(--duration-fast) ease-standard",
 );
 

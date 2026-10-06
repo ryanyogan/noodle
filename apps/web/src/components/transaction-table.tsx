@@ -3,9 +3,10 @@ import { Card } from "@noodle/ui/components/card";
 import { DataTable } from "@noodle/ui/components/data-table";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { useNavigate } from "@tanstack/react-router";
-import { type Ref, useMemo } from "react";
+import { type Ref, useMemo, useRef, useState } from "react";
 import { dayName, formatMoney } from "../format";
 import type { MemberSummary } from "../members";
+import { cellEdits, refileOf, renameOf, undoOf } from "../transaction-cells";
 import { rowView } from "../transaction-row";
 import {
 	canPick,
@@ -17,7 +18,15 @@ import {
 	setPicked,
 } from "../transaction-selection";
 import { dayTotals, sortsByDate, tableSortOf, transactionSortOf } from "../transaction-table";
-import type { TransactionRow, TransactionSort } from "../transactions";
+import {
+	monthOfTransaction,
+	type TransactionChange,
+	type TransactionRow,
+	type TransactionSort,
+	transactionLabel,
+} from "../transactions";
+import { NewBucketStep } from "./bucket-picker";
+import type { CellEditing, CellEdits } from "./transaction-cells";
 import { type TransactionTableRow, transactionColumns } from "./transaction-columns";
 import { waitingForBank } from "./transaction-list";
 
@@ -51,7 +60,10 @@ export function TransactionTable({
 	picking,
 	onPick,
 	onEdit,
+	onChange,
 }: {
+	/** A rename or refile made in a cell: sent with the page's other changes to Transactions. */
+	onChange: (change: TransactionChange) => void;
 	label: string;
 	transactions: TransactionRow[];
 	/** More rows to load: the last row is the mark that loads them. */
@@ -87,10 +99,111 @@ export function TransactionTable({
 	const checked = picking
 		? (transaction: TransactionRow) => canPick(transaction) && isPicked(picking, transaction.id)
 		: undefined;
-	const columns = transactionColumns({ dated: !byDate, open, checked, onEdit });
+	// Editing in a cell (issue 99): one cell at a time, and only where the table shows columns.
+	const card = useRef<HTMLDivElement>(null);
+	const [editing, setEditing] = useState<CellEditing>(null);
+	const [creating, setCreating] = useState<{ transaction: TransactionRow; name: string } | null>(
+		null,
+	);
+	const choices = useMemo(
+		() => [
+			{
+				label: "Buckets",
+				choices: plan.buckets.map((b) => ({ value: `bucket:${b.id}`, label: b.name })),
+			},
+			...(plan.commitments.length > 0
+				? [
+						{
+							label: "Commitments",
+							choices: plan.commitments.map((c) => ({
+								value: `commitment:${c.id}`,
+								label: c.name,
+							})),
+						},
+					]
+				: []),
+		],
+		[plan],
+	);
+	const titleOf = (transaction: TransactionRow) =>
+		rows.find((row) => row.transaction.id === transaction.id)?.view.title ?? "Transaction";
+	const nameOfChoice = (value: string) =>
+		choices.flatMap((group) => group.choices).find((c) => c.value === value)?.label;
+	const refile = (transaction: TransactionRow, value: string, into = nameOfChoice(value)) => {
+		const next = refileOf(transaction, value);
+		if (!next) return;
+		onChange({
+			transaction,
+			label: transactionLabel(transaction),
+			next,
+			said: `${titleOf(transaction)} filed in ${into ?? "its new Bucket"}`,
+			back: undoOf(transaction, next),
+		});
+	};
+	const cells: CellEdits = {
+		editing,
+		choices,
+		start: (transaction, column) => setEditing({ id: transaction.id, column }),
+		stop: (refocus) => {
+			const was = editing;
+			setEditing(null);
+			// Ended from the keyboard: focus goes back to the cell's own button, once it is back.
+			if (refocus && was) {
+				requestAnimationFrame(() =>
+					card.current
+						?.querySelector<HTMLElement>(
+							`[data-transaction="${was.id}"] [data-cell="${was.column}"]`,
+						)
+						?.focus(),
+				);
+			}
+		},
+		rename: (transaction, typed) => {
+			const next = renameOf(transaction, typed);
+			if (!next) return;
+			onChange({
+				transaction,
+				label: transactionLabel(transaction),
+				next,
+				said: `Renamed to “${typed.trim()}”`,
+				back: undoOf(transaction, next),
+			});
+		},
+		refile,
+		create: (transaction, name) => setCreating({ transaction, name }),
+	};
+	const columns = transactionColumns({ dated: !byDate, open, checked, onEdit, cells });
 	return (
 		// Clipped to the card's corners, so a row's hover and the open row's ground follow them.
-		<Card className="overflow-clip">
+		<Card
+			ref={card}
+			className="overflow-clip"
+			// F2 on a row in focus renames it (Enter opens it, Space selects it).
+			onKeyDown={(event) => {
+				if (event.key !== "F2" || tableIsStacked()) return;
+				const id = (event.target as HTMLElement).closest<HTMLElement>("[data-transaction]")?.dataset
+					.transaction;
+				const transaction = transactions.find((t) => t.id === id);
+				if (!transaction || cellEdits(transaction).name === null) return;
+				event.preventDefault();
+				setEditing({ id: transaction.id, column: "name" });
+			}}
+		>
+			{creating ? (
+				<NewBucketStep
+					month={monthOfTransaction(creating.transaction)}
+					name={creating.name}
+					what={titleOf(creating.transaction)}
+					amountCents={creating.transaction.amountCents}
+					buckets={plan.buckets}
+					taken={[...plan.buckets, ...plan.commitments].map((item) => item.name)}
+					onCancel={() => setCreating(null)}
+					onCreated={(bucket) => {
+						setCreating(null);
+						refile(creating.transaction, `bucket:${bucket.id}`, bucket.name);
+					}}
+				/>
+			) : null}
 			<DataTable
 				label={label}
 				columns={columns}
@@ -127,6 +240,7 @@ export function TransactionTable({
 				rowProps={(_row, index) => ({
 					"data-slot": "list-row",
 					"data-index": index,
+					"data-transaction": _row.transaction.id,
 				})}
 				groupBefore={
 					byDate

@@ -104,7 +104,7 @@ import {
 	startStack,
 } from "../../../review-stack";
 import { ChangedElsewhere } from "../../../transaction-versions";
-import { monthOfTransaction, type TransactionChange } from "../../../transactions";
+import { monthOfTransaction, type TransactionEdit } from "../../../transactions";
 import { useMoneyChange } from "../../../transfers";
 
 export const Route = createFileRoute("/_authed/_household/review/")({
@@ -601,7 +601,7 @@ function ReviewPage() {
 		else if (name) offerRule(item, { id, name, owner: undefined, commitment: true }, item.for);
 	}
 
-	function changed(item: ReviewItem, next: TransactionChange["next"], buckets: PlanBucket[]) {
+	function changed(item: ReviewItem, next: TransactionEdit | null, buckets: PlanBucket[]) {
 		setChanging(null);
 		setSplitting(false);
 		const decision: ReviewDecision = { item, next, placeName: null, quiet: sorting };
@@ -1906,7 +1906,7 @@ function ChangeSheet({
 	today: DayKey;
 	members: MemberSummary[];
 	parentId: string;
-	onChange: (next: TransactionChange["next"], buckets: PlanBucket[]) => void;
+	onChange: (next: TransactionEdit | null, buckets: PlanBucket[]) => void;
 	onClose: () => void;
 	splitting: boolean;
 }) {

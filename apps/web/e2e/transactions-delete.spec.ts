@@ -74,7 +74,7 @@ test("select all that match a search, read the facts, delete, and find a snapsho
 		["zebra grape", 5025, true],
 	]);
 	await openTransactions(page);
-	await expect(list(page).getByRole("button")).toHaveCount(5);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(5);
 
 	// A tick in the checkbox column starts selecting; nothing opens. The Select button is a phone's.
 	const boxes = list(page).getByRole("checkbox");
@@ -124,7 +124,7 @@ test("select all that match a search, read the facts, delete, and find a snapsho
 
 	// Everything a search matches, in this month, or in it and every month before.
 	await page.getByLabel("Search notes and merchants").fill("zebra");
-	await expect(list(page).getByRole("button")).toHaveCount(3);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(3);
 	await boxes.nth(0).click();
 	await expect(
 		bar(page).getByRole("button", { name: /^Select all 3 that match in / }),
@@ -155,7 +155,7 @@ test("select all that match a search, read the facts, delete, and find a snapsho
 		page
 			.getByRole("grid", { name: /^Transactions in /, includeHidden: true })
 			.locator("[data-slot=data-table-body]")
-			.getByRole("button", { includeHidden: true }),
+			.locator("button:not([role=checkbox]):not([data-cell])"),
 	).toHaveCount(3);
 
 	await sheet.getByRole("button", { name: "Delete 5 Transactions" }).click();
@@ -168,7 +168,7 @@ test("select all that match a search, read the facts, delete, and find a snapsho
 
 	// Gone for good: after a reload only the others are left, last month included.
 	await openTransactions(page);
-	await expect(list(page).getByRole("button")).toHaveCount(2);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(2);
 	await expect(row(page, "yak date")).toBeVisible();
 	// Last month's two went with them: only the two that didn't match are left anywhere.
 	const [counted = []] = await seedSql([
@@ -217,7 +217,7 @@ test("on a phone, Select is above the list and two tapped Transactions are delet
 	await expect(toast(page, "Deleted 2 Transactions.")).toHaveText(
 		`Deleted 2 Transactions. ${SNAPSHOT_FIRST}`,
 	);
-	await expect(list(page).getByRole("button")).toHaveCount(1);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(1);
 	await expect(row(page, "yak date")).toBeVisible();
 
 	// Cancel leaves Select mode with nothing changed.

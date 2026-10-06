@@ -27,6 +27,7 @@ import {
 	getTransaction,
 	getTransactions,
 	nameSameMerchant,
+	renameTransaction,
 	splitTransaction,
 	type TransactionsPage,
 	updateTransaction,
@@ -130,14 +131,24 @@ export type TransactionEdit = {
 	name?: string;
 } & ({ assignment: Assignment; forMemberIds: string[] } | { splits: SplitEdit[] });
 
+/**
+ * Only a new name (issue 99, the table's Name cell): for a Transaction the whole-assignment edit
+ * can't take (unassigned, split, a side of a Transfer, money back). Nothing else about it changes.
+ */
+export type TransactionRename = { rename: string };
+
 /** A change to one Transaction: new values for what a Parent can edit, or `null` to delete it. */
 export type TransactionChange = {
 	transaction: TransactionRow;
 	/** What it's called in messages: its transactionLabel from before the change. */
 	label: string;
-	next: TransactionEdit | null;
+	next: TransactionEdit | TransactionRename | null;
 	/** A delete the Parent was already told about, with its Undo: nothing more is said when it lands. */
 	quiet?: boolean;
+	/** What to say once it has saved, instead of "… saved" (a cell's rename or refile). */
+	said?: string;
+	/** With `said`: the change that puts it back, offered as the message's Undo. */
+	back?: TransactionEdit | TransactionRename | null;
 };
 
 /** The month a Transaction is in. */
@@ -152,9 +163,11 @@ export const monthOfTransaction = (transaction: TransactionRow) =>
  */
 export function withTransactionChange(data: MonthData, change: TransactionChange): MonthData {
 	const { id, date } = change.transaction;
+	const next = change.next;
+	// A new name moves no money.
+	if (next && "rename" in next) return data;
 	const spending = data.spending.filter((spend) => spend.id !== id);
 	const charges = data.charges.filter((charge) => charge.id !== id);
-	const next = change.next;
 	if (next) {
 		const parts = assignedParts(
 			"splits" in next
@@ -184,7 +197,13 @@ export function withTransactionChange(data: MonthData, change: TransactionChange
 }
 
 /** A Transaction's row once `next` has landed on it. */
-function editedRow(row: TransactionRow, next: TransactionEdit): TransactionRow {
+function editedRow(row: TransactionRow, next: TransactionEdit | TransactionRename): TransactionRow {
+	// A bank row takes the name beside its note (the bank's wording); a by-hand row's name is its note.
+	if ("rename" in next) {
+		return row.importedFrom !== null
+			? { ...row, merchantName: next.rename }
+			: { ...row, note: next.rename, merchantName: null };
+	}
 	if ("splits" in next) {
 		return {
 			...row,
@@ -251,37 +270,42 @@ export async function saveTransactionChange({ transaction, next }: TransactionCh
 	const month = monthOfTransaction(transaction);
 	const expectedVersion = expectedVersionOf(transaction);
 	const answer =
-		next && "splits" in next
-			? await splitTransaction({
-					data: {
-						transactionId: transaction.id,
-						month,
-						amountCents: next.amountCents,
-						note: next.note ?? undefined,
-						name: next.name,
-						splits: next.splits,
-						expectedVersion,
-					},
+		next && "rename" in next
+			? await renameTransaction({
+					data: { transactionId: transaction.id, month, name: next.rename, expectedVersion },
 				})
-			: next
-				? await updateTransaction({
+			: next && "splits" in next
+				? await splitTransaction({
 						data: {
 							transactionId: transaction.id,
 							month,
 							amountCents: next.amountCents,
-							assignment: next.assignment,
 							note: next.note ?? undefined,
 							name: next.name,
-							forMemberIds: next.forMemberIds,
+							splits: next.splits,
 							expectedVersion,
 						},
 					})
-				: await deleteTransaction({
-						data: { transactionId: transaction.id, month, expectedVersion },
-					});
+				: next
+					? await updateTransaction({
+							data: {
+								transactionId: transaction.id,
+								month,
+								amountCents: next.amountCents,
+								assignment: next.assignment,
+								note: next.note ?? undefined,
+								name: next.name,
+								forMemberIds: next.forMemberIds,
+								expectedVersion,
+							},
+						})
+					: await deleteTransaction({
+							data: { transactionId: transaction.id, month, expectedVersion },
+						});
 	settleWrite(transaction.id, answer);
 	// Renamed, and saved: the same name is offered for the merchant's other Transactions (#95).
-	if (next?.name && transaction.importedFrom) void offerSameName(transaction, next.name);
+	const named = next ? ("rename" in next ? next.rename : next.name) : undefined;
+	if (named && transaction.importedFrom) void offerSameName(transaction, named);
 }
 
 /** What an imported Transaction is called: its name once it has one, else the bank's wording cleaned. */
@@ -495,6 +519,25 @@ export function useTransactionChange() {
 		},
 		onSuccess: (_data, variables) => {
 			if (variables.quiet) return;
+			// A cell's change says what it did, with an Undo that writes it back in its turn.
+			if (variables.said) {
+				const { back } = variables;
+				return void toast(
+					variables.said,
+					back
+						? {
+								tone: "success",
+								undo: () =>
+									change.mutate({
+										transaction: variables.transaction,
+										label: variables.label,
+										next: back,
+										quiet: true,
+									}),
+							}
+						: undefined,
+				);
+			}
 			toast(variables.next ? `${variables.label} saved` : `${variables.label} deleted`);
 		},
 		onSettled: () => refetchAfterChange(queryClient),

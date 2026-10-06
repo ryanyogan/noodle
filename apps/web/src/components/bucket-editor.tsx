@@ -1,3 +1,4 @@
+import type { BucketDeleteBlocker } from "@noodle/db";
 import { type MonthKey, type PlanBucket, type PlanScope, parseDollars } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -5,9 +6,9 @@ import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { RadioGroup, RadioGroupCard } from "@noodle/ui/components/radio-group";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { useHydrated } from "@tanstack/react-router";
-import { Archive, ArrowDown, ArrowUp, Plus } from "lucide-react";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useHydrated, useNavigate, useParams } from "@tanstack/react-router";
+import { Archive, ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
 import { nudged, placeOf } from "../bucket-order";
@@ -23,10 +24,11 @@ import {
 	withoutBucket,
 } from "../plan-changes";
 import { freeToSpendAfter } from "../plan-split";
-import { membersQuery } from "../queries";
+import { bucketDeleteBlockersQuery, membersQuery } from "../queries";
 import {
 	addPersonalAllowance,
 	archiveBucket,
+	deleteBucket,
 	reorderBuckets,
 	setAllowance,
 	setCarriesOver,
@@ -62,7 +64,12 @@ export function useBucketChanges(month: MonthKey) {
 		save: (data: { bucketId: string; month: MonthKey }) => archiveBucket({ data }),
 		apply: withoutBucket,
 	});
-	const all = [allowance, details, carriesOver, reorder, archive];
+	// Only a Bucket nothing points at goes (issue 98); the server leaves any other as it is.
+	const remove = usePlanChange(month, {
+		save: (data: { bucketId: string }) => deleteBucket({ data }),
+		apply: withoutBucket,
+	});
+	const all = [allowance, details, carriesOver, reorder, archive, remove];
 	const failed = all.some((change) => change.isError) ? (
 		<>
 			<SaveFailed change={allowance} />
@@ -70,9 +77,10 @@ export function useBucketChanges(month: MonthKey) {
 			<SaveFailed change={carriesOver} />
 			<SaveFailed change={reorder} />
 			<SaveFailed change={archive} />
+			<SaveFailed change={remove} />
 		</>
 	) : null;
-	return { allowance, details, carriesOver, reorder, archive, failed };
+	return { allowance, details, carriesOver, reorder, archive, remove, failed };
 }
 
 export type BucketChanges = ReturnType<typeof useBucketChanges>;
@@ -384,10 +392,17 @@ function BucketActions({
 	history?: ReactNode;
 }) {
 	const [confirmArchive, setConfirmArchive] = useState(false);
+	const [confirmDelete, setConfirmDelete] = useState(false);
+	const navigate = useNavigate();
+	const openId = useParams({ strict: false, select: (params) => params.id });
 	const index = order.indexOf(bucket.id);
+	const shared = bucket.owner === undefined && index >= 0;
+	// Asked when the sheet opens: until it answers, Archive is the only way out of the Plan.
+	const blockers = useQuery({ ...bucketDeleteBlockersQuery(bucket.id), enabled: shared }).data;
+	const kept = blockers?.length ? keptBecause(blockers) : null;
 	// A Personal Allowance has its own section, and stays in the Plan: its Parent sets it to zero
 	// rather than archiving it.
-	if (bucket.owner !== undefined || index < 0) return history ?? null;
+	if (!shared) return history ?? null;
 	const move = (by: -1 | 1) => {
 		const next = nudged(order, bucket.id, by);
 		if (next !== order) changes.reorder.mutate({ bucketIds: next });
@@ -429,10 +444,37 @@ function BucketActions({
 					<Archive />
 					Archive
 				</Button>
+				{blockers?.length === 0 ? (
+					<Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}>
+						<Trash2 />
+						Delete
+					</Button>
+				) : null}
 				<p className="text-[13px] text-muted-foreground">
 					{order.length > 1 ? "Moving and archiving happen at once." : "Archiving happens at once."}
 				</p>
 			</div>
+			{kept ? (
+				// Why there is no Delete here: what happened in it stays where it was filed.
+				<p data-slot="bucket-kept" className="text-[13px] text-muted-foreground">
+					{bucket.name} can’t be deleted: {kept}. Archive it instead, and earlier months keep it.
+				</p>
+			) : null}
+			{confirmDelete ? (
+				<Confirm
+					onConfirm={() => {
+						onArchived();
+						changes.remove.mutate({ bucketId: bucket.id });
+						// Its own page, open beside the list, has nothing left to show.
+						if (openId === bucket.id) navigate({ to: "/plan/$month", params: { month } });
+					}}
+					onCancel={() => setConfirmDelete(false)}
+					confirmLabel={`Delete ${bucket.name}`}
+				>
+					{bucket.name} goes for good, with its allowance and its Plan history. Nothing was ever
+					filed in it, so no Transaction changes.
+				</Confirm>
+			) : null}
 			{confirmArchive ? (
 				<Confirm
 					onConfirm={() => {
@@ -448,6 +490,18 @@ function BucketActions({
 		</>
 	);
 }
+
+const KEPT: Record<BucketDeleteBlocker, string> = {
+	"personal-allowance": "it is a Personal Allowance",
+	"earlier-months": "it was in an earlier month’s Plan",
+	spending: "Transactions are filed in it",
+	moves: "money was Moved in or out of it",
+	rules: "a Rule files into it",
+};
+
+/** Why a Bucket is kept, in words: "Transactions are filed in it, and a Rule files into it". */
+export const keptBecause = (blockers: readonly BucketDeleteBlocker[]) =>
+	new Intl.ListFormat("en", { type: "conjunction" }).format(blockers.map((b) => KEPT[b]));
 
 const carriesOverOptions = [
 	{

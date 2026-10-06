@@ -40,6 +40,10 @@ const selectTriggerClass = [
 	"data-[size=default]:h-9 max-lg:data-[size=default]:h-11 data-[size=default]:rounded-xl data-[size=default]:ps-3 data-[size=default]:pe-2.5 data-[size=default]:text-base lg:data-[size=default]:text-sm",
 	"data-[size=sm]:h-8 max-lg:data-[size=sm]:h-11 data-[size=sm]:rounded-lg data-[size=sm]:ps-2.5 data-[size=sm]:pe-2 data-[size=sm]:text-[13px]",
 	"data-[size=pill]:h-8 max-lg:data-[size=pill]:h-11 data-[size=pill]:w-auto data-[size=pill]:rounded-full data-[size=pill]:ps-3 data-[size=pill]:pe-2 data-[size=pill]:text-[13px] data-[size=pill]:font-medium lg:data-[size=pill]:h-7",
+	// A button that opens a list, in a row of outline Buttons (issue 115): Button's ground, edge,
+	// weight and letter size at the field's heights, and only as wide as its words.
+	"data-[variant=button]:w-auto data-[variant=button]:border-border-strong data-[variant=button]:bg-card data-[variant=button]:font-medium data-[variant=button]:hover:border-border-strong data-[variant=button]:hover:bg-surface-2",
+	"data-[variant=button]:ps-3.5! data-[variant=button]:pe-2.5! data-[variant=button]:text-sm!",
 	"*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5",
 	"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 ].join(" ");
@@ -47,16 +51,23 @@ const selectTriggerClass = [
 function SelectTrigger({
 	className,
 	size = "default",
+	variant = "field",
 	children,
 	...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
 	/** `default` is a form field's height; `sm` a compact chip; `pill` a rounded chip. */
 	size?: "sm" | "default" | "pill";
+	/**
+	 * `field` (the default) matches Input. `button` matches an outline Button, for a menu that sits
+	 * in a row of Buttons (Transactions' Sort between Filters and Select on a phone).
+	 */
+	variant?: "field" | "button";
 }) {
 	return (
 		<SelectPrimitive.Trigger
 			data-slot="select-trigger"
 			data-size={size}
+			data-variant={variant}
 			className={cn(selectTriggerClass, className)}
 			{...props}
 		>

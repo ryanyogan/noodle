@@ -2,8 +2,10 @@ import type { MonthKey } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { toast } from "@noodle/ui/components/toast";
+import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { monthName } from "../format";
 import { deleteTransactions, getDeletionSummary } from "../server/transactions";
 import {
@@ -20,6 +22,7 @@ import {
 	transactionsCount,
 } from "../transaction-selection";
 import type { TransactionFilters } from "../transactions";
+import { tableIsStacked } from "./transaction-table";
 
 // Select mode on the Transactions page (#97, ADR-0045): a bar that says how many are selected and
 // offers "select all that match", and the sheet that states the facts before anything is deleted.
@@ -39,6 +42,27 @@ const summaryQuery = (selection: Selection, enabled = true) => ({
  * Stays at the top of the list while selecting: how many are selected, everything the filters
  * match in this month or up to the end of it, Delete, and Cancel.
  */
+/**
+ * Whether the table's rows are stacked right now: null until it has been looked at. Follows the
+ * table's own width, which changes when a Transaction opens beside it, not only with the window.
+ */
+function useStackedRows() {
+	const [stacked, setStacked] = useState<boolean | null>(null);
+	useEffect(() => {
+		const measure = () => setStacked(tableIsStacked());
+		measure();
+		const table = document.querySelector('[data-slot="data-table"]');
+		const watch = table ? new ResizeObserver(measure) : null;
+		if (table) watch?.observe(table);
+		window.addEventListener("resize", measure);
+		return () => {
+			watch?.disconnect();
+			window.removeEventListener("resize", measure);
+		};
+	}, []);
+	return stacked;
+}
+
 export function SelectionBar({
 	month,
 	filters,
@@ -57,6 +81,7 @@ export function SelectionBar({
 	onDelete: () => void;
 	onCancel: () => void;
 }) {
+	const stacked = useStackedRows();
 	const inMonth = useQuery(summaryQuery({ all: matchingAll(month, filters, false) })).data?.count;
 	const upToMonth = useQuery(summaryQuery({ all: matchingAll(month, filters, true) })).data?.count;
 	const count = pickedCount(picking, picking.all?.andEarlier ? upToMonth : inMonth);
@@ -123,10 +148,22 @@ export function SelectionBar({
 					) : null}
 				</div>
 			) : null}
-			<p className="text-xs text-muted-foreground lg:hidden">
+			{/* Which help: by how the rows are drawn once that is known (stacked beside an open
+			    Transaction even on a wide window), by the window's width until then. */}
+			<p
+				className={cn(
+					"text-xs text-muted-foreground",
+					stacked === null ? "lg:hidden" : !stacked && "hidden",
+				)}
+			>
 				Tap a row to select it. Goal spending can’t be selected.
 			</p>
-			<p className="text-xs text-muted-foreground max-lg:hidden">
+			<p
+				className={cn(
+					"text-xs text-muted-foreground",
+					stacked === null ? "max-lg:hidden" : stacked && "hidden",
+				)}
+			>
 				Tick Transactions to select them; hold Shift to take a run of rows. Goal spending can’t be
 				selected: it changes from its Goal.
 			</p>

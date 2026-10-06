@@ -68,6 +68,7 @@ import {
 } from "../../../transaction-selection";
 import { escapeStep } from "../../../transaction-table";
 import {
+	type TransactionChange,
 	type TransactionFilters,
 	type TransactionRow,
 	type TransactionSort,
@@ -163,6 +164,7 @@ function TransactionsPage() {
 				overlay: Boolean(
 					document.querySelector("[role=dialog],[role=alertdialog],[role=listbox],[role=menu]"),
 				),
+				cell: Boolean(target?.closest("[data-cell-editor]")),
 				typing: Boolean(target?.closest("input, textarea, select, [contenteditable]")),
 				open: Boolean(picked),
 				selecting,
@@ -316,6 +318,7 @@ function TransactionsPage() {
 								picked={picked}
 								onSort={(sort) => onChange({ sort })}
 								onEdit={onEdit}
+								onCellChange={change.mutate}
 							/>
 						</div>
 					</SplitMain>
@@ -484,10 +487,24 @@ function Filters({
 					disabled={!hydrated}
 					onValueChange={(sort) => onChange({ sort: sort as TransactionSort })}
 				>
-					<SelectTrigger aria-label="Sort" className="min-w-0 max-w-full max-sm:flex-1 xl:hidden">
+					{/* A Button like the two beside it (issue 115). The order's own words are in the HTML the
+					    server sends (Radix fills a bare SelectValue only once it runs in the browser); on the
+					    narrowest phones, where they don't fit between Filters and Select, it reads "Sort". */}
+					<SelectTrigger
+						aria-label="Sort"
+						variant="button"
+						className="min-w-0 max-w-full max-sm:flex-1 xl:hidden"
+					>
 						<span className="flex min-w-0 items-center gap-2">
-							<ArrowUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-							<SelectValue />
+							<ArrowUpDown
+								aria-hidden="true"
+								className="size-4 shrink-0 text-muted-foreground max-[22.5rem]:hidden"
+							/>
+							<span className="truncate max-[22.5rem]:hidden">
+								<SelectValue>{sortLabel(filters.sort ?? "newest")}</SelectValue>
+							</span>
+							{/* The word is drawn by CSS, so the trigger's text is the order alone. */}
+							<span aria-hidden="true" className="after:content-['Sort'] min-[22.5625rem]:hidden" />
 						</span>
 					</SelectTrigger>
 					<SelectContent>
@@ -665,7 +682,10 @@ function TransactionList({
 	onPick,
 	onSort,
 	onEdit,
+	onCellChange,
 }: {
+	/** A rename or refile made in a cell of the table. */
+	onCellChange: (change: TransactionChange) => void;
 	/** Select mode's selection; null when the list isn't selecting. */
 	picking: Picking | null;
 	/** A tick in the table: the selection as it should be now. */
@@ -756,6 +776,7 @@ function TransactionList({
 			picking={picking}
 			onPick={onPick}
 			onEdit={onEdit}
+			onChange={onCellChange}
 		/>
 	);
 }
@@ -773,3 +794,4 @@ const SORTS: [TransactionSort, string][] = [
 	["account-az", "Account A–Z"],
 	["account-za", "Account Z–A"],
 ];
+const sortLabel = (sort: TransactionSort) => SORTS.find(([value]) => value === sort)?.[1] ?? "";

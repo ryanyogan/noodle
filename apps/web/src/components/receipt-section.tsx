@@ -13,7 +13,7 @@ import { ulid } from "ulid";
 import { formatMoney, shortDay } from "../format";
 import { forLabel, type MemberSummary } from "../members";
 import { receiptQuery } from "../receipts";
-import type { TransactionChange, TransactionRow } from "../transactions";
+import type { TransactionEdit, TransactionRow } from "../transactions";
 
 /**
  * A Transaction's Receipt in its detail: what it's from, its lines, and the Splits they make,
@@ -28,7 +28,7 @@ export function ReceiptSection({
 	transaction: TransactionRow;
 	plan: Pick<Plan, "buckets">;
 	members: MemberSummary[];
-	onChange: (next: TransactionChange["next"]) => void;
+	onChange: (next: TransactionEdit | null) => void;
 }) {
 	const hydrated = useHydrated();
 	const receipt = useQuery(receiptQuery(transaction)).data?.receipt;

@@ -40,23 +40,34 @@ function Summary({
 	spent,
 	left,
 	rolling = false,
+	indent = false,
+	underName = false,
 }: {
 	allowance: number;
 	spent: number;
 	left: number;
 	rolling?: boolean;
+	/** Starts where the row over it does in a table without handles: see `STACKED_INDENT`. */
+	indent?: boolean;
+	/** Under a Bucket's name, not its tile: see `UNDER_NAME`. Not for the total, which has no tile. */
+	underName?: boolean;
 }) {
 	return (
-		<span className="truncate font-normal tabular-nums">
-			<span className="@[20rem]/dt:hidden">
-				<span className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}>
-					{formatMoney(Math.abs(left))}
+		// Two boxes: the outer one starts with the tile over it, the inner one with the name. It wraps.
+		<span className={cn("flex min-w-0", indent && STACKED_INDENT)}>
+			<span className={cn("min-w-0 font-normal tabular-nums", underName && UNDER_NAME)}>
+				<span className="@[20rem]/dt:hidden">
+					<span
+						className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}
+					>
+						{formatMoney(Math.abs(left))}
+					</span>
+					{left < 0 ? " over" : " left"} of {formatMoney(allowance)}
 				</span>
-				{left < 0 ? " over" : " left"} of {formatMoney(allowance)}
-			</span>
-			<span className="hidden @[20rem]/dt:inline">
-				{formatMoney(allowance)} allowance · {formatMoney(spent)} spent
-				{rolling ? " · Carries over" : ""}
+				<span className="hidden @[20rem]/dt:inline">
+					{formatMoney(allowance)} allowance · {formatMoney(spent)} spent
+					{rolling ? " · Carries over" : ""}
+				</span>
 			</span>
 		</span>
 	);
@@ -77,6 +88,20 @@ const HANDLE_TRACK = "max-sm:[--bucket-handle:1.75rem]";
  * put in order. The Personal Allowances table under it holds the same room open when it does
  * (`indent`), so the two tables' figures are in one line.
  */
+/**
+ * In a stacked row (a phone) a table without handles starts its tile and the line under it where
+ * the Buckets table over it starts its own: after the handle's track and the gap (issue 98). On
+ * the narrowest phone too: a long name wraps there, as a Bucket's does.
+ */
+const STACKED_INDENT = "@max-2xl/dt:ps-[calc(var(--bucket-handle,2.75rem)+0.75rem)]";
+
+/**
+ * The line under a Bucket's name starts with the name, not with the tile beside it: past the tile
+ * (36px) and its gap (issue 115). In a table without handles this comes after `STACKED_INDENT`, so
+ * Buckets and Personal Allowances start their tile, their name and this line at the same three places.
+ */
+const UNDER_NAME = "ps-12";
+
 export const bucketsHaveHandles = (buckets: readonly BucketState[], editable: boolean) =>
 	editable && buckets.length > 1;
 
@@ -106,6 +131,7 @@ export function BucketTable({
 	setBy,
 	reorder = false,
 	indent = false,
+	editRoom = false,
 	was,
 	onDraft,
 	freeToSpend,
@@ -125,6 +151,11 @@ export function BucketTable({
 	reorder?: boolean;
 	/** No handles here, but room for them from the width where rows are columns: see `bucketsHaveHandles`. */
 	indent?: boolean;
+	/**
+	 * Keeps the Edit column's room when no row here has a pencil (the other Parent's Personal
+	 * Allowance alone), because the Buckets table over it has one: the figures stay in line.
+	 */
+	editRoom?: boolean;
 	/** Each Bucket's allowance the month before, when this month changed it. */
 	was: Record<string, number | undefined>;
 	/** A Bucket's amount while it's typed in its sheet, or null once it's put away. */
@@ -177,7 +208,7 @@ export function BucketTable({
 								? `${setter} sets this`
 								: null;
 					return (
-						<div className="flex min-w-0 items-center gap-3">
+						<div className={cn("flex min-w-0 items-center gap-3", indent && STACKED_INDENT)}>
 							<Tile bucket={asBucketColor(bucket.color)}>{monogram(bucket.name)}</Tile>
 							<div className="grid min-w-0">
 								<Link
@@ -196,7 +227,7 @@ export function BucketTable({
 						</div>
 					);
 				},
-				footer: totals ? "Total" : undefined,
+				footer: totals ? <span className={cn(indent && STACKED_INDENT)}>Total</span> : undefined,
 			},
 			{
 				id: "allowance",
@@ -263,6 +294,8 @@ export function BucketTable({
 						spent={bucket.spent}
 						left={bucket.left}
 						rolling={bucket.rolling}
+						indent={indent}
+						underName
 					/>
 				),
 				footer: totals ? (
@@ -270,6 +303,7 @@ export function BucketTable({
 						allowance={sum(buckets, (b) => b.allowance)}
 						spent={sum(buckets, (b) => b.spent)}
 						left={sum(buckets, (b) => b.left)}
+						indent={indent}
 					/>
 				) : undefined,
 			},
@@ -323,7 +357,7 @@ export function BucketTable({
 				align: "end",
 				stacked: "trailing",
 				// A month that has ended, or a table with nothing of the viewer's, has no pencils at all.
-				hidden: !buckets.some(mine),
+				hidden: !editRoom && !buckets.some(mine),
 				cell: (bucket) =>
 					mine(bucket) ? (
 						<Button
@@ -341,7 +375,7 @@ export function BucketTable({
 					) : null,
 			},
 		];
-	}, [buckets, editable, canEdit, setBy, was, hydrated, month]);
+	}, [buckets, editable, canEdit, setBy, was, hydrated, month, indent, editRoom]);
 
 	return (
 		// One column no wider than its place: what is under the table (a button's words, which don't

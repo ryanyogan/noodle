@@ -1131,6 +1131,64 @@ export async function updateTransaction(
 	return { ok: false, reason: await refusal(db, input) };
 }
 
+/** How a rename ended. "not-editable": not theirs to change here (or not the Household's). */
+export type TransactionRenameResult =
+	| { ok: true; version: number }
+	| { ok: false; reason: "changed-elsewhere" | "not-editable" };
+
+/**
+ * Changes only what a Transaction is called, for the Parent `memberId` (issue 99): its amount,
+ * assignment, For and Splits stay as they are, so it also takes the rows a whole-assignment edit
+ * can't (unassigned, split, a side of a Transfer, money back). An imported line takes the name
+ * and keeps its note, the bank's own wording (#95); a by-hand one's name is its note. Guarded as
+ * every change is: the Household's, theirs to change (not Goal spending, nothing in the other
+ * Parent's Personal Allowance), and still at the version it was made on (ADR-0041). Idempotent:
+ * it sets values, so a retry lands the same.
+ */
+export async function renameTransaction(
+	db: Db,
+	input: {
+		householdId: string;
+		memberId: string;
+		transactionId: string;
+		name: string;
+		/** The version the Parent made this change on: refused if it has moved on (ADR-0041). */
+		expectedVersion?: number;
+	},
+): Promise<TransactionRenameResult> {
+	const theTransaction = and(
+		eq(transactions.id, input.transactionId),
+		editableBy(input.householdId, input.memberId),
+	);
+	const byBank = sql`${transactions.source} = 'import'`;
+	await db
+		.update(transactions)
+		.set({
+			// Before the note changes: keptMerchant reads the note the row has now.
+			merchant: sql<
+				string | null
+			>`case when ${byBank} then ${input.name} else ${keptMerchant(input.name)} end`,
+			note: sql<
+				string | null
+			>`case when ${byBank} then ${transactions.note} else ${input.name} end`,
+			version: sql`${transactions.version} + 1`,
+		})
+		.where(and(theTransaction, atVersion(input.expectedVersion)));
+	const [landed] = await db
+		.select({ version: transactions.version })
+		.from(transactions)
+		.where(
+			and(
+				theTransaction,
+				sql`case when ${byBank} then ${transactions.merchant} is ${input.name} else ${transactions.note} is ${input.name} end`,
+				pastVersion(input.expectedVersion),
+			),
+		);
+	if (landed) return { ok: true, version: landed.version };
+	const reason = await refusal(db, input);
+	return { ok: false, reason: reason === "not-in-plan" ? "not-editable" : reason };
+}
+
 /** A Split to write: its client ID, amount, assignment, and For (none for the whole Household). */
 export type SplitInput = {
 	id: string;
