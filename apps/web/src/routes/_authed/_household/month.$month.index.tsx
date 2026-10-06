@@ -1063,6 +1063,8 @@ function useGetStartedSteps(state: MonthState) {
 					Set <span className="max-[359px]:sr-only">your </span>take-home pay
 				</>
 			),
+			// One piece inside the button, so its words keep a word's space between them and not the
+			// button's own gap (issue 74).
 			link: (
 				<Link to="/plan/$month" params={{ month: state.month }}>
 					{/* One child, so the Button's gap doesn't widen the space between the words (issue 74). */}

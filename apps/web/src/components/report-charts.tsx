@@ -1029,7 +1029,17 @@ export function CalendarHeatmap({
 	const scroller = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		const el = scroller.current;
-		if (el && cells.length) el.scrollLeft = el.scrollWidth;
+		if (!el || !cells.length) return;
+		// Scrolled to the latest week, whole columns only: where the weeks don't fit (a phone), a
+		// little room after the last one makes the hidden part a whole number of 27px columns
+		// (1.5rem and the 3px gap), so no sliver of a week shows beside the weekday names (issue 74).
+		const grid = el.firstElementChild as HTMLElement | null;
+		if (grid) {
+			grid.style.paddingInlineEnd = "0px";
+			const hidden = el.scrollWidth - el.clientWidth;
+			if (hidden > 0) grid.style.paddingInlineEnd = `${(27 - (hidden % 27)) % 27}px`;
+		}
+		el.scrollLeft = el.scrollWidth;
 	}, [cells.length]);
 	const weeks = Math.ceil(cells.length / 7);
 	// A month's name over the first week that holds its 1st (or the first week shown).

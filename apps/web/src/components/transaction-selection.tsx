@@ -227,7 +227,9 @@ export function SelectionBar({
 				</p>
 				{/* A phone: the three on the count's line, so the bar is no taller for "File in…": words
 				    only, a little closer together. */}
-				<div className="flex flex-wrap items-center gap-2 max-sm:gap-1 max-sm:[&>button]:px-2.5 max-sm:[&>button>svg]:hidden">
+				{/* The narrowest phones (under 360px) have no room for the three beside the count: they
+				    take a line of their own, shared equally, not a ragged wrap. */}
+				<div className="flex flex-wrap items-center gap-2 max-sm:gap-1 max-sm:[&>button]:px-2.5 max-sm:[&>button>svg]:hidden max-[22.5rem]:w-full max-[22.5rem]:flex-nowrap max-[22.5rem]:[&>*]:min-w-0 max-[22.5rem]:[&>*]:flex-1">
 					<Button variant="ghost" onClick={onCancel}>
 						Cancel
 					</Button>
@@ -235,7 +237,9 @@ export function SelectionBar({
 						<BucketPicker
 							defaultOpen
 							value=""
-							className="w-44 max-sm:w-36"
+							// A phone: narrow enough to stay on the count's line at 375, so the bar is no taller
+							// while a Bucket is picked.
+							className="w-44 max-sm:w-24"
 							placeholder="File in…"
 							searchPlaceholder={closed ? "Find a Bucket" : "Search or create"}
 							empty={closed ?? undefined}
@@ -443,7 +447,9 @@ export function DeleteSelectedSheet({
 						</ul>
 					</div>
 				)}
-				<SheetFooter className="max-lg:grid-cols-2">
+				{/* A phone: Cancel as wide as its word and the rest for "Delete 254 Transactions", which
+				    half of a 320px sheet cut short; under 360px without its icon. */}
+				<SheetFooter className="max-lg:grid-cols-2 max-sm:grid-cols-[auto_minmax(0,1fr)] max-[22.5rem]:[&_svg]:hidden">
 					<Button type="button" variant="ghost" disabled={remove.isPending} onClick={onClose}>
 						Cancel
 					</Button>

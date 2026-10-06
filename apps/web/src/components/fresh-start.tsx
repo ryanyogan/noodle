@@ -232,6 +232,9 @@ function FreshStartSheet({
 				{step === 1 ? (
 					<>
 						<SheetHeader
+							// Its own height always: in this column a three-line header was squeezed to its
+							// least height on a small phone and its title rode up over the handle (issue 74).
+							className="shrink-0"
 							title={title}
 							description={
 								level === "delete"

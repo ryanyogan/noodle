@@ -424,9 +424,10 @@ function AccountItem({ account }: { account: AccountView }) {
 							</span>
 						</>
 					) : account.balance === null ? (
-						// On a phone "yet" goes under, as "owed" does: the name has the room.
+						// On the narrowest phones "yet" goes under, as "owed" does: the name has the room.
+						// From 360px the three words fit on one line beside the name (issue 74).
 						<>
-							No balance <span className="max-sm:block">yet</span>
+							No balance <span className="max-[359px]:block">yet</span>
 						</>
 					) : (
 						balanceLabel(account)

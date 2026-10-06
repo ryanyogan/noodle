@@ -260,6 +260,22 @@ async function attempt(what: string, run: () => Promise<void>) {
 }
 
 /** Opens one of the Danger zone's confirming sheets and leaves it open: nothing is confirmed. */
+/**
+ * Presses a button on the page until what it opens is there: a sheet, a menu, or (for a confirm
+ * drawn in the page) its Cancel button. For the phone pass's pictures of sheets (issue 74).
+ */
+const opened =
+	(button: string | RegExp, confirm = false) =>
+	async (page: Page) => {
+		await pressFor(
+			page.getByRole("button", { name: button }).first(),
+			confirm
+				? page.getByRole("button", { name: "Cancel" }).first()
+				: page.getByRole("dialog").or(page.getByRole("menu")).first(),
+		);
+		await page.waitForTimeout(400);
+	};
+
 async function openDangerSheet(page: Page, action: "Start fresh" | "Delete Household") {
 	const zone = page.getByRole("region", { name: "Danger zone" });
 	await zone.getByRole("button", { name: action }).click();
@@ -734,6 +750,54 @@ test.beforeAll(async ({ browser }) => {
 				);
 			},
 		},
+		// The rest of Transactions as a phone has it (issue 74): the Filters sheet, the orders, and
+		// "File in…" opened from the selection's bar.
+		{
+			name: "10e-transactions-filters-sheet",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: opened("Filters"),
+		},
+		{
+			name: "10f-transactions-sort-open",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(page.getByRole("combobox", { name: "Sort" }), page.getByRole("listbox"));
+			},
+		},
+		{
+			name: "10g-transactions-file-in",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: async (page) => {
+				const bar = await selectThree(page);
+				await bar.getByRole("button", { name: "File in…" }).click({ timeout: 15_000 });
+				await expect(page.getByPlaceholder(/^(Search or create|Find a Bucket)$/)).toBeVisible({
+					timeout: 15_000,
+				});
+			},
+		},
+		{
+			// Three months in one list, as the sheet's Months leaves it: the chip, and a heading a month.
+			name: "10h-transactions-three-months",
+			path: `/transactions/${month}?range=3m`,
+			phone: true,
+			window: true,
+		},
+		{
+			// The editor's Split opened: two parts and what is left.
+			name: "11b-transaction-split",
+			path: `/transactions/${month}/${ids.openTransaction}`,
+			phone: true,
+			ready: async (page) => {
+				await page
+					.getByRole("button", { name: "Split", exact: true })
+					.first()
+					.click({ timeout: 15_000 });
+				await page.waitForTimeout(400);
+			},
+		},
 		// Part-way down a long page on a computer: where the round Ask Noodle button sits over it.
 		{ name: "10d-transactions-scrolled", path: `/transactions/${month}`, scrolledTo: 600 },
 		{
@@ -931,12 +995,81 @@ test.beforeAll(async ({ browser }) => {
 		},
 		{ name: "16-account-credit-card", path: `/accounts/${ids.sapphire}` },
 		{ name: "16a-account-no-balance", path: `/accounts/${ids.college}` },
+		// The sheets and confirms of Accounts and an Account, as a phone shows them (issue 74).
+		{
+			name: "15b-accounts-add-sheet",
+			path: "/accounts",
+			phoneSheet: true,
+			ready: opened("Add Account"),
+		},
+		{
+			name: "16b-account-more-or-rename",
+			path: `/accounts/${ids.sapphire}`,
+			phoneSheet: true,
+			ready: opened(/^(More actions for|Rename)/),
+		},
+		{
+			name: "16c-account-balance-sheet",
+			path: `/accounts/${ids.sapphire}`,
+			phoneSheet: true,
+			ready: opened(/^(Update|Add) (balance|what’s owed)/),
+		},
+		{
+			name: "16d-account-upload-statement",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened("Upload statement"),
+		},
+		{
+			name: "16e-account-archive-confirm",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened("Archive this Account", true),
+		},
+		{
+			name: "16f-account-rename-sheet",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened(/^(More actions for|Rename)/),
+		},
 		{ name: "17-goals", path: "/goals" },
 		{ name: "18-goal", path: `/goals/${ids.vacation}` },
 		// A long History: the whole page, then the window after scrolling 700px, where the side column
 		// (progress and actions) should still be in view on a wide screen (#73).
 		{ name: "18a-goal-long-history", path: `/goals/${ids.roof}` },
 		{ name: "18b-goal-long-history-scrolled", path: `/goals/${ids.roof}`, scrolledTo: 700 },
+		// A Goal's sheets on a phone (issue 74).
+		{ name: "17a-goals-add-sheet", path: "/goals", phoneSheet: true, ready: opened("Add Goal") },
+		{
+			name: "18c-goal-add-money-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Add money"),
+		},
+		{
+			name: "18d-goal-edit-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Edit"),
+		},
+		{
+			name: "18e-goal-spend-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Spend"),
+		},
+		{
+			name: "18f-goal-take-back-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Take money back"),
+		},
+		{
+			name: "18g-goal-archive-confirm",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Archive", true),
+		},
 		{ name: "19-explore", path: "/explore" },
 		// A Scenario not saved yet, with one change: the outline, Your changes and the outcomes (#74).
 		{ name: "19a-explore-with-a-change", path: "/explore?lever=baseline:1020000" },
@@ -1088,6 +1221,19 @@ test.beforeAll(async ({ browser }) => {
 				);
 			},
 		},
+		// On a phone the Period, Compare with and Group by selects are in the Filters sheet, and what
+		// is on shows as chips under the button (issue 74).
+		{
+			name: "23j-reports-filters-sheet",
+			path: "/reports?view=trends",
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Filters/ }),
+					page.getByRole("dialog", { name: "Filters" }),
+				);
+			},
+		},
 		// The Compare with and Group by menus open, and a custom range with its From calendar.
 		...(
 			[
@@ -1146,6 +1292,11 @@ test.beforeAll(async ({ browser }) => {
 		},
 		// A month's own Plan page.
 		{ name: "01j-month-plan", path: `/month/${month}/plan` },
+		{
+			name: "23k-reports-trends-with-chips",
+			path: "/reports?view=trends&period=12m&compare=last-year&group=week&min=50&member=everyone",
+			phone: true,
+		},
 		{ name: "24-insights", path: "/insights" },
 		{ name: "25-credit-card-perks", path: "/insights/perks" },
 		{
@@ -1227,6 +1378,18 @@ test.beforeAll(async ({ browser }) => {
 			path: "/household",
 			window: true,
 			ready: (page) => openDangerSheet(page, "Delete Household"),
+		},
+		{
+			// Delete Household's second step: the name to type, as a phone shows it (issue 74).
+			name: "27d-delete-household-step-2",
+			path: "/household",
+			phoneSheet: true,
+			ready: async (page) => {
+				await openDangerSheet(page, "Delete Household");
+				const sheet = page.getByRole("dialog", { name: "Delete Household?" });
+				await sheet.getByRole("button", { name: "Continue" }).click();
+				await sheet.getByRole("textbox").focus();
+			},
 		},
 		{
 			// The Parent's own name and colour, in its sheet. What's in the window.
