@@ -58,7 +58,9 @@ export function MoneyInKindChoice({
 								change.mutate(
 									{ line, kind, always },
 									// A Transfer stays open to ask which Account it came from.
-									{ onSuccess: (changed) => (pairOffered(changed) ? undefined : onDone?.(changed)) },
+									{
+										onSuccess: (changed) => (pairOffered(changed) ? undefined : onDone?.(changed)),
+									},
 								)
 							}
 						>

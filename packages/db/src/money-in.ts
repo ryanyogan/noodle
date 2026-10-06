@@ -5,13 +5,22 @@ import {
 	type MoneyInRule,
 	merchantKey,
 	moneyInKindOf,
+	moneyInRuleFor,
 	monthOfDay,
 } from "@noodle/domain";
 import { type AnyColumn, and, eq, gte, isNull, lt, ne, type SQL, sql } from "drizzle-orm";
 import { incomeCounts } from "./counting";
 import { decidedSql, extraIncomeSql } from "./extra-income";
 import type { Db } from "./index";
-import { accounts, income, moneyInRules, paidBackMatches, transactions, transfers } from "./schema";
+import {
+	accounts,
+	income,
+	members,
+	moneyInRules,
+	paidBackMatches,
+	transactions,
+	transfers,
+} from "./schema";
 import { transferable, transferRow } from "./transfers";
 
 // Money in has a kind (ADR-0057): Income, a Refund, Paid back, a Transfer or Between us. Money in
@@ -42,6 +51,8 @@ export type MoneyInLine = {
 	paired: boolean;
 	/** The Account a one-sided Transfer says it came from, once a Parent named it. */
 	otherAccountId: string | null;
+	/** Whose pay it is: a Parent's ID, or null for the Household. */
+	whosePay: string | null;
 };
 
 export type MoneyInFilter = {
@@ -71,6 +82,7 @@ export async function loadMoneyIn(
 			version: income.version,
 			accountId: income.accountId,
 			createdBy: income.createdByMemberId,
+			whosePay: income.payMemberId,
 			transferId: transfers.id,
 			reason: transfers.reason,
 			outId: transfers.outTransactionId,
@@ -107,6 +119,7 @@ export async function loadMoneyIn(
 		transferId: row.transferId,
 		paired: row.outId !== null,
 		otherAccountId: row.otherAccountId,
+		whosePay: row.whosePay,
 	}));
 }
 
@@ -236,9 +249,158 @@ export async function changeMoneyInKind(
 	return { ok: false, reason: "extra-income" };
 }
 
+/** What a Parent may change on a money-in line besides its kind. Only what is given changes. */
+export type MoneyInEdit = {
+	/** A Parent's ID, or null for the Household. */
+	whosePay?: string | null;
+	note?: string | null;
+	/** Only on money in a Parent typed in. */
+	amountCents?: Cents;
+	/** Only on money in a Parent typed in. */
+	date?: DayKey;
+};
+
+const isParent = async (db: Db, householdId: string, memberId: string) =>
+	(
+		await db
+			.select({ id: members.id })
+			.from(members)
+			.where(
+				and(
+					eq(members.id, memberId),
+					eq(members.householdId, householdId),
+					eq(members.kind, "parent"),
+				),
+			)
+	).length > 0;
+
+/**
+ * A Parent changes whose pay a money-in line is, its note, or, on a line they typed in, its
+ * amount or date (issue 133). Made on the version the Parent was looking at (`expectedVersion`,
+ * ADR-0041): a repeat of a change that landed is answered as saved, one made on a line that has
+ * moved on is left alone. Refused (`extra-income`) while Extra income already decided in its
+ * month would no longer be covered by the lower amount or without the line (ADR-0052's guard).
+ */
+export async function editMoneyIn(
+	db: Db,
+	viewer: { householdId: string; memberId: string },
+	input: { incomeId: string; expectedVersion?: number; edit: MoneyInEdit },
+): Promise<MoneyInKindResult> {
+	const { householdId } = viewer;
+	const before = await loadMoneyInLine(db, householdId, input.incomeId);
+	if (!before) return { ok: false, reason: "refused" };
+	const edit = { ...input.edit };
+	if (edit.note !== undefined) edit.note = edit.note?.trim() || null;
+	const month = monthOfDay(before.date);
+	const toMonth = edit.date === undefined ? month : monthOfDay(edit.date);
+	const months = month === toMonth ? [month] : [month, toMonth];
+	const same =
+		(edit.whosePay === undefined || edit.whosePay === before.whosePay) &&
+		(edit.note === undefined || edit.note === before.note) &&
+		(edit.amountCents === undefined || edit.amountCents === before.amount) &&
+		(edit.date === undefined || edit.date === before.date);
+	if (input.expectedVersion !== undefined && before.version !== input.expectedVersion) {
+		// A retry of this change after it landed is still this change.
+		if (same && before.version === input.expectedVersion + 1)
+			return { ok: true, line: before, months };
+		return { ok: false, reason: "changed-elsewhere", current: before };
+	}
+	if (same) return { ok: true, line: before, months };
+	const typedOnly =
+		(edit.amountCents !== undefined && edit.amountCents !== before.amount) ||
+		(edit.date !== undefined && edit.date !== before.date);
+	if (typedOnly && !before.typed) return { ok: false, reason: "refused" };
+	if (
+		edit.amountCents !== undefined &&
+		!(Number.isInteger(edit.amountCents) && edit.amountCents > 0)
+	)
+		return { ok: false, reason: "refused" };
+	if (edit.whosePay && !(await isParent(db, householdId, edit.whosePay)))
+		return { ok: false, reason: "refused" };
+
+	// What its month's Income loses by this: all of it when it leaves the month.
+	const less =
+		toMonth !== month ? before.amount : before.amount - (edit.amountCents ?? before.amount);
+	const covered =
+		less > 0
+			? sql`(not ${incomeCounts()} or ${extraIncomeSql(householdId, month, less as Cents)} >= ${decidedSql(householdId, month)})`
+			: undefined;
+	const next = before.version + 1;
+	await db
+		.update(income)
+		.set({
+			...(edit.whosePay !== undefined ? { payMemberId: edit.whosePay } : {}),
+			...(edit.note !== undefined ? { note: edit.note } : {}),
+			...(edit.amountCents !== undefined ? { amountCents: edit.amountCents } : {}),
+			...(edit.date !== undefined ? { date: edit.date } : {}),
+			version: sql`${income.version} + 1`,
+		})
+		.where(
+			and(
+				eq(income.id, input.incomeId),
+				eq(income.householdId, householdId),
+				eq(income.version, before.version),
+				covered,
+			),
+		);
+	const after = await loadMoneyInLine(db, householdId, input.incomeId);
+	if (!after) return { ok: false, reason: "refused" };
+	if (after.version === next) return { ok: true, line: after, months };
+	if (after.version !== before.version)
+		return { ok: false, reason: "changed-elsewhere", current: after };
+	return { ok: false, reason: "extra-income" };
+}
+
+/**
+ * "Always treat deposits from <name> as <Parent>'s pay": a Rule that money in with this wording
+ * is Income and that Parent's (null: the Household's), which Imports follow from now on. The
+ * deposits already here with that wording that are still the Household's become theirs too, so
+ * the Parent's range has its months; one a Parent already gave to somebody is left alone.
+ * Returns the pattern kept and how many lines changed, or null when the wording says nothing.
+ */
+export async function stateWhosePay(
+	db: Db,
+	viewer: { householdId: string; memberId: string },
+	input: { ruleId: string; wording: string; payMemberId: string | null },
+): Promise<{ pattern: string; changed: number } | null> {
+	const { householdId } = viewer;
+	if (input.payMemberId && !(await isParent(db, householdId, input.payMemberId))) return null;
+	const pattern = await saveMoneyInRule(db, viewer, {
+		ruleId: input.ruleId,
+		wording: input.wording,
+		kind: "income",
+		payMemberId: input.payMemberId,
+	});
+	if (!pattern) return null;
+	if (!input.payMemberId) return { pattern, changed: 0 };
+	const open = await db
+		.select({ id: income.id, note: income.note })
+		.from(income)
+		.where(
+			and(eq(income.householdId, householdId), isNull(income.payMemberId), isNull(income.kind)),
+		);
+	const rule = [{ pattern, kind: "income" as const }];
+	const ids = open.filter((row) => moneyInRuleFor(rule, row.note)).map((row) => row.id);
+	if (ids.length === 0) return { pattern, changed: 0 };
+	// One parameter for all of them: D1 caps a statement's bound parameters.
+	await db
+		.update(income)
+		.set({ payMemberId: input.payMemberId, version: sql`${income.version} + 1` })
+		.where(
+			and(
+				eq(income.householdId, householdId),
+				isNull(income.payMemberId),
+				sql`${income.id} in (select value from json_each(${JSON.stringify(ids)}))`,
+			),
+		);
+	return { pattern, changed: ids.length };
+}
+
 /** A Rule for money in, as kept. */
 export type StoredMoneyInRule = MoneyInRule & {
 	id: string;
+	/** For Income: the Parent whose pay it is; null for the Household. */
+	payMemberId: string | null;
 	/** A remembered pair of Accounts: only money into this Account, which came from the other. */
 	intoAccountId: string | null;
 	otherAccountId: string | null;
@@ -260,6 +422,7 @@ export async function loadMoneyInRules(db: Db, householdId: string): Promise<Sto
 			otherAccountId: moneyInRules.otherAccountId,
 			intoAccountName: accountName(moneyInRules.intoAccountId),
 			otherAccountName: accountName(moneyInRules.otherAccountId),
+			payMemberId: moneyInRules.payMemberId,
 		})
 		.from(moneyInRules)
 		.where(eq(moneyInRules.householdId, householdId))
@@ -274,8 +437,16 @@ export async function loadMoneyInRules(db: Db, householdId: string): Promise<Sto
 export async function saveMoneyInRule(
 	db: Db,
 	viewer: { householdId: string; memberId: string },
-	input: { ruleId: string; wording: string; kind: MoneyInKind },
+	input: {
+		ruleId: string;
+		wording: string;
+		kind: MoneyInKind;
+		/** Whose pay Income with this wording is; left out, a Rule already there keeps its own. */
+		payMemberId?: string | null;
+	},
 ): Promise<string | null> {
+	// Only Income has whose pay.
+	const pay = input.kind === "income" ? input.payMemberId : null;
 	const pattern = input.wording.trim() ? merchantKey(input.wording) : "";
 	if (!pattern) return null;
 	await db
@@ -285,12 +456,18 @@ export async function saveMoneyInRule(
 			householdId: viewer.householdId,
 			pattern,
 			kind: input.kind,
+			payMemberId: pay ?? null,
 			createdByMemberId: viewer.memberId,
 		})
 		.onConflictDoUpdate({
 			target: [moneyInRules.householdId, moneyInRules.pattern],
 			// Stating it plainly again forgets a remembered pair of Accounts.
-			set: { kind: input.kind, intoAccountId: null, otherAccountId: null },
+			set: {
+				kind: input.kind,
+				intoAccountId: null,
+				otherAccountId: null,
+				...(pay === undefined ? {} : { payMemberId: pay }),
+			},
 		});
 	return pattern;
 }

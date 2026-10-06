@@ -33,7 +33,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { ArrowLeftRight, Ellipsis, Trash2 } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
 import { useBetweenUs, useIncome } from "../extra-income";
 import { formatMoney, formatMoneyInput, shortDay } from "../format";
@@ -52,6 +52,7 @@ export function MonthIncome({
 	asOf,
 	baseline,
 	income,
+	renderList,
 }: {
 	month: MonthKey;
 	/** Today: income is recorded on it, so only this month takes it. */
@@ -59,6 +60,8 @@ export function MonthIncome({
 	baseline: Cents;
 	/** This month's income. */
 	income: IncomeRecord[];
+	/** Plan › Income draws the entries as a table of its own, with the same actions. */
+	renderList?: (actions: IncomeListActions) => ReactNode;
 }) {
 	const [adding, setAdding] = useState(false);
 	const writes = useIncome();
@@ -71,6 +74,7 @@ export function MonthIncome({
 	return (
 		<>
 			<IncomeSection
+				renderList={renderList}
 				baseline={baseline}
 				income={income}
 				betweenUs={betweenUs}
@@ -114,7 +118,15 @@ export function MonthIncome({
  * The month's income against the Take-home pay: what came in, and each entry (removable this
  * month). Income a Parent marked as "Between us" is listed under it, outside the total.
  */
+/** What a list of income entries can do to one of them. */
+export type IncomeListActions = {
+	canRecord: boolean;
+	onRemove: (income: IncomeRecord) => void;
+	onBetweenUs?: (income: IncomeRecord) => void;
+};
+
 export function IncomeSection({
+	renderList,
 	baseline,
 	income,
 	betweenUs = [],
@@ -136,6 +148,7 @@ export function IncomeSection({
 	canRecord: boolean;
 	onAdd: () => void;
 	onRemove: (income: IncomeRecord) => void;
+	renderList?: (actions: IncomeListActions) => ReactNode;
 }) {
 	const hydrated = useHydrated();
 	// The Parents' names: a deposit naming one of them reads as money between the two.
@@ -164,7 +177,9 @@ export function IncomeSection({
 					<span className="whitespace-nowrap @max-[12rem]:whitespace-normal">take-home pay</span>
 				</p>
 			</div>
-			{income.length > 0 ? (
+			{renderList ? (
+				renderList({ canRecord, onRemove, onBetweenUs })
+			) : income.length > 0 ? (
 				<List>
 					{income.map((entry) => (
 						<ListRow

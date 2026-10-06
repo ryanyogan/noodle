@@ -1,8 +1,10 @@
 import {
+	type Cents,
 	type ClosingBalance,
 	type CsvMapping,
 	type DayKey,
 	holdsMoney,
+	interestEarned,
 	type MoneyInKind,
 	moneyInOnImport,
 	moneyInRuleFor,
@@ -125,7 +127,7 @@ export async function importStatement(
 			)
 		: [];
 	const spending: ImportRow[] = [];
-	const received: (ImportRow & { kind: string | null; review: boolean })[] = [];
+	const received: (ImportRow & { kind: string | null; review: boolean; pay: string | null })[] = [];
 	const ruled: { id: string; kind: MoneyInKind; otherAccountId: string | null }[] = [];
 	input.lines.forEach((line, i) => {
 		if (banked.has(i) || deleted.has(ids[i] as string)) return;
@@ -139,12 +141,20 @@ export async function importStatement(
 		if (line.amount > 0 && toIncome) {
 			// Income without asking only for payroll wording or a Rule; person-to-person money in
 			// waits in Review; the rest is Income as before (ADR-0057).
-			const said = moneyInOnImport(row.note, moneyInRules);
+			// A Rule may also say whose pay it is; interest a bank paid is the Household's Income
+			// without asking (issue 133).
+			const rule = moneyInRuleFor(moneyInRules, row.note);
+			const interest =
+				!rule && interestEarned({ text: row.note, amountCents: -line.amount as Cents }) !== null;
+			const said = interest
+				? { kind: "income" as const, review: false }
+				: moneyInOnImport(row.note, moneyInRules);
 			received.push({
 				...row,
 				amount: line.amount,
 				kind: said.kind === "refund" || said.kind === "paid-back" ? said.kind : null,
 				review: said.review,
+				pay: rule?.kind === "income" ? rule.payMemberId : null,
 			});
 			if (said.kind === "transfer" || said.kind === "between-us")
 				ruled.push({
@@ -162,7 +172,7 @@ export async function importStatement(
 	// statement's bound parameters at 100, and a statement can have hundreds of lines.
 	const theImport = sql`exists (select 1 from ${imports} where ${imports.id} = ${importId}
 		and ${imports.householdId} = ${householdId} and ${imports.accountId} = ${accountId})`;
-	const lineField = (field: keyof ImportRow | "kind" | "review") =>
+	const lineField = (field: keyof ImportRow | "kind" | "review" | "pay") =>
 		sql`json_extract(value, ${`$.${field}`})`;
 	await db.batch([
 		// The statement's last four digits, for an Account whose digits aren't known yet.
@@ -236,6 +246,10 @@ export async function importStatement(
 						kind: sql<StoredMoneyInKind | null>`${lineField("kind")}`.as("kind"),
 						needsReview: sql<boolean>`${lineField("review")}`.as("needs_review"),
 						version: sql<number>`0`.as("version"),
+						// Only ever a Parent of this Household, whatever the Rule still names.
+						payMemberId: sql<string | null>`(select m.id from members m
+							where m.id = ${lineField("pay")} and m.household_id = ${householdId}
+							and m.kind = 'parent')`.as("pay_member_id"),
 					})
 					.from(sql`json_each(${JSON.stringify(received)})`)
 					.where(theImport),

@@ -5,16 +5,21 @@ import { ulid } from "ulid";
 import { formatMoney } from "./format";
 import { monthChangeKey } from "./plan-changes";
 import { monthQuery, monthsKey, reviewQuery, rulesQuery } from "./queries";
+import { reviewWrites } from "./review-stack";
 import {
+	alwaysWhosePay,
+	editMoneyInLine,
 	getMoneyIn,
 	getMoneyInAccounts,
 	getMoneyInReview,
 	getMoneyInRules,
+	getPayRanges,
 	type MoneyInLine,
 	rememberMoneyInPair,
 	removeMoneyInRule,
 	setMoneyInKind,
 } from "./server/money-in";
+import { ChangedElsewhere, expectedVersionOf, noteVersion } from "./transaction-versions";
 
 export type { MoneyInLine } from "./server/money-in";
 
@@ -66,11 +71,13 @@ export function useMoneyInKindChange() {
 					incomeId: line.id,
 					kind,
 					transferId: ulid(),
-					expectedVersion: line.version,
+					// The version this screen's own earlier change to the line gave, if any.
+					expectedVersion: expectedVersionOf(line),
 					ruleId: always ? ulid() : undefined,
 				},
 			});
 			if (!result.ok) throw new KindRefused(result.reason);
+			noteVersion(line.id, result.line.version);
 			return result.line;
 		},
 		onError: (error) => {
@@ -160,5 +167,99 @@ export function useRemoveMoneyInRule() {
 		onError: () => toast("Couldn’t remove the Rule, so it’s still there.", { tone: "error" }),
 		onSuccess: () => toast("Rule removed. What it decided stays as it is.", { tone: "success" }),
 		onSettled: () => queryClient.invalidateQueries({ queryKey: rulesQuery().queryKey }),
+	});
+}
+
+/** Each Parent's pay in a month and its range over the three full months before (issue 133). */
+export const payRangesQuery = (month: MonthKey) =>
+	queryOptions({
+		queryKey: [...monthQuery(month).queryKey, "pay-ranges"],
+		queryFn: () => getPayRanges({ data: { month } }),
+	});
+
+/** What a Parent may change on a money-in line besides its kind; only what is given changes. */
+export type MoneyInEdit = {
+	/** A Parent's ID, or null for the Household. */
+	whosePay?: string | null;
+	note?: string | null;
+	amountCents?: number;
+	date?: string;
+};
+
+export type MoneyInEditChange = { line: MoneyInLine; edit: MoneyInEdit; month: MonthKey };
+
+/**
+ * Sends one edit of a money-in line, on the version this screen has for it (ADR-0041). Also how
+ * one left waiting by an earlier page is sent again (waiting-writes.ts, ADR-0056).
+ */
+export async function sendMoneyInEdit({ line, edit }: MoneyInEditChange): Promise<MoneyInLine> {
+	const result = await editMoneyInLine({
+		data: { incomeId: line.id, expectedVersion: expectedVersionOf(line), edit },
+	});
+	if (!result.ok) {
+		if (result.reason === "changed-elsewhere") throw new ChangedElsewhere(line.id, result.current);
+		throw new KindRefused(result.reason);
+	}
+	noteVersion(line.id, result.line.version);
+	return result.line;
+}
+
+/**
+ * A Parent changes whose pay a money-in line is, its note, or (typed in by hand) its amount or
+ * date. It shows in the month's money in at once; it waits its turn with the other edits and is
+ * written down until answered, like a Transaction's (ADR-0041, ADR-0056).
+ */
+export function useMoneyInEdit() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationKey: monthChangeKey,
+		scope: reviewWrites,
+		meta: { outbox: "money-in-edit" },
+		mutationFn: sendMoneyInEdit,
+		onMutate: async ({ line, edit, month }) => {
+			const { queryKey } = moneyInQuery(month);
+			await queryClient.cancelQueries({ queryKey });
+			const before = queryClient.getQueryData(queryKey);
+			queryClient.setQueryData(queryKey, (lines) =>
+				lines?.map((row) =>
+					row.id === line.id
+						? {
+								...row,
+								...(edit.whosePay !== undefined ? { whosePay: edit.whosePay } : {}),
+								...(edit.note !== undefined ? { note: edit.note } : {}),
+								...(edit.amountCents !== undefined
+									? { amount: edit.amountCents as MoneyInLine["amount"] }
+									: {}),
+								...(edit.date !== undefined ? { date: edit.date as MoneyInLine["date"] } : {}),
+							}
+						: row,
+				),
+			);
+			return { rollback: () => queryClient.setQueryData(queryKey, before) };
+		},
+		onError: (error, _variables, context) => {
+			context?.rollback();
+			const reason = error instanceof KindRefused ? error.reason : null;
+			toast(
+				error instanceof ChangedElsewhere
+					? "This was changed on another screen. Here’s how it looks now."
+					: reason === "extra-income"
+						? "Some of this month’s Extra income has gone somewhere already, so this Income stays as it is."
+						: "Couldn’t save your change, so it’s as it was.",
+				{ tone: "error" },
+			);
+		},
+		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
+	});
+}
+
+/** States "Always treat deposits from <name> as <Parent>'s pay" from a line. Sent once. */
+export function useAlwaysWhosePay() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ line, payMemberId }: { line: MoneyInLine; payMemberId: string | null }) =>
+			alwaysWhosePay({ data: { ruleId: ulid(), incomeId: line.id, payMemberId } }),
+		onError: () => toast("Couldn’t save that Rule, so nothing changed.", { tone: "error" }),
+		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
 	});
 }
