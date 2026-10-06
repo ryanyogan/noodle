@@ -59,7 +59,9 @@ async function setUp(page: Page) {
 	await quickAdd(page, "85.50", "Groceries", "Costco");
 	await quickAdd(page, "64.99", "Groceries", "Pro Hockey Life");
 	await nav(page).getByRole("link", { name: "This Month" }).click();
-	await expect(bucketRow(page, "Groceries")).toContainText("$150.49 spent");
+	// Both Quick Adds have been answered by now (`quickAdd` waits), so this waits only for This
+	// Month to load, which on a busy CI runner has taken longer than the usual five seconds (#128).
+	await expect(bucketRow(page, "Groceries")).toContainText("$150.49 spent", { timeout: 20_000 });
 }
 
 async function quickAdd(
@@ -82,8 +84,11 @@ async function quickAdd(
 			.getByRole("radio", { name: forName })
 			.click();
 	}
+	// The sheet closes before the server has the Quick Add: wait for its answer too (#128).
+	const saved = savedBy(page, "addQuickAdd");
 	await pickQuickAddBucket(quickAddSheet(page), bucket);
 	await expect(quickAddSheet(page)).toBeHidden();
+	await saved;
 }
 
 async function openTransactions(page: Page) {

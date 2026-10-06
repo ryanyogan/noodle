@@ -5,6 +5,7 @@ import {
 	clientRendered,
 	createPlannedHousehold,
 	pickQuickAddBucket,
+	savedBy,
 	serverFn,
 	signedInPage,
 } from "./session";
@@ -45,6 +46,7 @@ async function setUp(page: Page) {
 		],
 	});
 	await page.goto("/household");
+	console.log("DIAGSS", await page.evaluate(() => sessionStorage.getItem("diag")));
 	await page.getByLabel("Add a Child").fill("Leo");
 	await page.getByRole("button", { name: "Add Child" }).click();
 	await expect(page.getByRole("button", { name: "Edit Leo" })).toBeVisible();
@@ -52,10 +54,14 @@ async function setUp(page: Page) {
 	await expect(quickAddSheet(page)).toBeVisible();
 	await page.keyboard.type("250");
 	await quickAddSheet(page).getByLabel("Note").fill("Costco");
+	const saved = savedBy(page, "addQuickAdd");
 	await pickQuickAddBucket(quickAddSheet(page), "Groceries");
 	await expect(quickAddSheet(page)).toBeHidden();
+	// The sheet closes before the server has the Quick Add: wait for its answer, then for This
+	// Month to load, which on a busy CI runner has taken longer than the usual five seconds (#128).
+	await saved;
 	await nav(page).getByRole("link", { name: "This Month" }).click();
-	await expect(bucketRow(page, "Groceries")).toContainText("$250 spent");
+	await expect(bucketRow(page, "Groceries")).toContainText("$250 spent", { timeout: 20_000 });
 }
 
 async function openCostco(page: Page) {
@@ -138,6 +144,13 @@ test("removing Splits returns the Transaction to one assignment", async ({ brows
 	const page = await signedInPage(browser, parent.email);
 	await setUp(page);
 	await openCostco(page);
+	// As on a slow runner: the split's answer takes a while, so the change made after it is still
+	// waiting its turn (changes to Transactions are sent one at a time) when the row shows it (#128).
+	await page.route(serverFn("splitTransaction"), async (route) => {
+		const response = await route.fetch();
+		await new Promise((resolve) => setTimeout(resolve, 1_500));
+		await route.fulfill({ response });
+	});
 	await splitCostco(page);
 
 	await costco(page).click();
@@ -145,8 +158,13 @@ test("removing Splits returns the Transaction to one assignment", async ({ brows
 	await editSheet(page).getByRole("button", { name: "Remove Splits" }).click();
 	await expect(splitFields(page, 1)).toBeHidden();
 	await choose(editSheet(page), "Assigned to", "Hockey");
+	// The row and This Month show the change before the server has it, and it is sent only once
+	// the split before it has been answered: the reload below reads what the server has, so wait
+	// for the server's answer first (#128).
+	const saved = savedBy(page, "updateTransaction");
 	await save(page).click();
 	await expect(costco(page)).toHaveAccessibleName("Costco, $250, Hockey, For Everyone");
+	await saved;
 
 	await nav(page).getByRole("link", { name: "This Month" }).click();
 	await expect(bucketRow(page, "Hockey")).toContainText("$250 spent");
