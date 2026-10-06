@@ -15,6 +15,16 @@
 		@slot;
 	}
 }
+/*
+ * The shortest phones (320×568, or any phone with its keyboard's bar showing): under 600px tall
+ * below lg even the compact card leaves no room for Skip and Undo, so Split, Personal Allowance and
+ * Make a Rule leave the card for a More menu beside them. Always compact as well.
+ */
+@custom-variant squat {
+	@media (max-height: 599px) and (max-width: 1023px) {
+		@slot;
+	}
+}
 
 /* Clerk's sign-in and account UI, themed from the same tokens (follows light/dark). */
 :root {

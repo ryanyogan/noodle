@@ -18,12 +18,14 @@ import {
 // the picker and Edit on one row. Every kind of payment card is here (ADR-0050): one a Commitment
 // pays down (Confirm), one to a card Noodle follows (a Transfer), one to a card it doesn't ("Make
 // it a Commitment", with two more choices on a row under the picker; on the narrowest phones one
-// ends the card's why and the other sits beside the picker). On the shortest phone (320×640) each
-// of them leaves Skip and Undo above the bottom bar with nothing scrolled. Also a suggestion, a
+// ends the card's why and the other sits beside the picker). On a short phone (under 700px tall,
+// down to 320×568) every card leaves Skip and Undo above the bottom bar with nothing scrolled; on
+// the shortest (under 600px) Split and Make a Rule are in a More menu beside them. Also a suggestion, a
 // merchant with a long name, and one whose name is a single long word. Categorization runs with its fake (AI_MODEL=stub): it guesses Gas
 // for a merchant with "gas" in its name.
 
 const WIDTHS = [
+	[320, 568],
 	[320, 640],
 	[375, 667],
 	[393, 852],
@@ -275,18 +277,6 @@ test("on a phone no Review card is wider than the screen: every kind of payment 
 						inside.width - 40,
 					);
 				}
-				if (height < 700) {
-					// A short phone (the compact card, issue 120): Skip and Undo are on the screen, above
-					// its bottom bar, unscrolled.
-					const fit = await skipAndUndo(page);
-					expect(fit.bottoms, `${width}×${height}: Skip and Undo are there`).toHaveLength(2);
-					for (const bottom of fit.bottoms) {
-						expect(
-							bottom,
-							`${width}×${height}: a ${kind} payment leaves Skip and Undo above ${fit.floor} without scrolling`,
-						).toBeLessThanOrEqual(fit.floor);
-					}
-				}
 				if (kind === "not-followed" && !folded) {
 					// Its other two choices are under the picker, inside the card.
 					const others = await Promise.all([
@@ -300,6 +290,41 @@ test("on a phone no Review card is wider than the screen: every kind of payment 
 					}
 				}
 				if (width === 393) await axe(page, `one by one, a ${kind} payment on top`);
+			}
+			if (height < 700) {
+				// A short phone (the compact card, issue 120): Skip and Undo are on the screen, above
+				// its bottom bar, unscrolled, whatever the card.
+				const what = kind ? `a ${kind} payment` : `card ${card + 1}`;
+				const fit = await skipAndUndo(page);
+				expect(fit.bottoms, `${width}×${height}: Skip and Undo are there`).toHaveLength(2);
+				for (const bottom of fit.bottoms) {
+					expect(
+						bottom,
+						`${width}×${height}: ${what} leaves Skip and Undo above ${fit.floor} without scrolling`,
+					).toBeLessThanOrEqual(fit.floor);
+				}
+				// Under 600px tall the card's last row is a menu beside Skip and Undo.
+				const more = stack.getByRole("button", { name: "More for this card" });
+				const split = top.getByRole("button", { name: "Split" });
+				if (height < 600) {
+					await expect(split).toBeHidden();
+					const box = await more.boundingBox();
+					expect(
+						box?.height,
+						`${width}×${height}: More is a full tap target`,
+					).toBeGreaterThanOrEqual(43.5);
+					expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(fit.floor);
+					if (card === 0) {
+						await more.click();
+						await expect(page.getByRole("menuitem", { name: "Split" })).toBeVisible();
+						await expect(page.getByRole("menuitem", { name: "Make a Rule" })).toBeVisible();
+						await page.keyboard.press("Escape");
+						await expect(page.getByRole("menu")).toHaveCount(0);
+					}
+				} else {
+					await expect(more).toBeHidden();
+					await expect(split).toBeVisible();
+				}
 			}
 			expect(await misfits(page), `${width}: one by one, card ${card + 1}`).toEqual([]);
 			await skip.click();

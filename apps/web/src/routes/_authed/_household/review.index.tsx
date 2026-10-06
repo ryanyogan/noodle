@@ -16,6 +16,12 @@ import {
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@noodle/ui/components/dropdown-menu";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Kbd } from "@noodle/ui/components/kbd";
 import { SectionGrid } from "@noodle/ui/components/layout";
@@ -32,6 +38,7 @@ import {
 	ArrowLeftRight,
 	Check,
 	CheckCheck,
+	Ellipsis,
 	Layers,
 	List,
 	ListPlus,
@@ -928,7 +935,7 @@ function ReviewPage() {
 					<div
 						data-testid="review-stack"
 						data-saving={saving}
-						className="grid gap-3 *:min-w-0 compact:gap-1.5"
+						className="grid gap-3 *:min-w-0 compact:gap-1.5 squat:gap-1"
 					>
 						{/* One row above the card: how far along, what Review is, and the rest of its tools. */}
 						<div className="flex flex-wrap items-center gap-x-2 gap-y-1 compact:gap-x-1">
@@ -1061,7 +1068,12 @@ function ReviewPage() {
 								</div>
 							) : null}
 						</div>
-						<div className="grid grid-cols-2 gap-2">
+						<div
+							className={cn(
+								"grid grid-cols-2 gap-2",
+								!stuck(order[0]) && "squat:grid-cols-[1fr_1fr_auto]",
+							)}
+						>
 							<Button
 								variant="outline"
 								disabled={!hydrated || order.length < 2}
@@ -1080,6 +1092,39 @@ function ReviewPage() {
 								<Undo2 />
 								Undo
 							</Button>
+							{stuck(order[0]) ? null : (
+								// The shortest phones: what the card's last row holds elsewhere (issue 120).
+								<div className="hidden squat:block">
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												variant="outline"
+												size="icon"
+												disabled={!hydrated}
+												aria-label="More for this card"
+											>
+												<Ellipsis />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem onSelect={() => splitCard(order[0] as ReviewItem)}>
+												<SplitIcon />
+												Split
+											</DropdownMenuItem>
+											{allowanceOf(order[0]) !== undefined ? (
+												<DropdownMenuItem onSelect={() => markAllowance(order[0] as ReviewItem)}>
+													<Wallet />
+													Personal Allowance
+												</DropdownMenuItem>
+											) : null}
+											<DropdownMenuItem onSelect={() => makeRule(order[0] as ReviewItem)}>
+												<ListPlus />
+												Make a Rule
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</div>
+							)}
 						</div>
 						{fileEarlierButton && earlier(order[0]) ? (
 							<div className="grid">{fileEarlierButton}</div>
@@ -1375,7 +1420,9 @@ function CardActions({
 }) {
 	return (
 		// One row on a phone (#74): the shorter words are shown, the whole name is still read out.
-		<div className="-mx-2 flex flex-wrap gap-1 border-t border-border pt-2 compact:-mb-2 compact:pt-1 compact:[&>button]:px-2">
+		// On the shortest phones (under 600px tall) the row is gone: the three are in the More menu
+		// beside Skip and Undo, so those stay above the bottom bar (issue 120).
+		<div className="-mx-2 flex flex-wrap gap-1 border-t border-border pt-2 compact:-mb-2 compact:pt-1 compact:[&>button]:px-2 squat:hidden">
 			<Button
 				variant="ghost"
 				size="sm"
@@ -1571,7 +1618,7 @@ function ReviewCard({
 			onFocusCapture={onFocus}
 			className={cn(
 				// Its rows shrink with it: a row that can't (a long button beside the picker) wraps instead.
-				"grid min-w-0 gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border *:min-w-0 compact:gap-1.5 compact:p-3 sm:gap-4 sm:p-5",
+				"grid min-w-0 gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border *:min-w-0 compact:gap-1.5 compact:p-3 squat:py-2 sm:gap-4 sm:p-5",
 				// On a phone the card knows its width in text sizes: under 15rem (text at about 200%) its
 				// rows stack, so no word is broken to fit beside a tile or a button (issue 74).
 				"max-sm:@container/card",
