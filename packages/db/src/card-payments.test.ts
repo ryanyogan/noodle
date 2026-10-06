@@ -6,7 +6,9 @@ import {
 	createHouseholdForParent,
 	type Db,
 	importStatement,
+	loadCardPaymentRules,
 	loadTransactionsPage,
+	markCardPayment,
 	markCardPayments,
 	unmarkTransfer,
 } from "./index";
@@ -202,5 +204,97 @@ describe("The pass over card lines already in Noodle", () => {
 		const rows = await listed();
 		expect(rows.get("CHASE CREDIT CRD AUTOPAY")).toBeNull();
 		expect(rows.get("PAYMENT THANK YOU")).toEqual(oneSided);
+	});
+});
+
+describe("It's a card payment, remembered for the card's wording", () => {
+	const idOf = async (note: string) => {
+		const page = await loadTransactionsPage(db, viewer, { month, limit: 50 });
+		return page.transactions.find((row) => row.note === note)?.id as string;
+	};
+	const marksOf = async (note: string) => {
+		const id = await idOf(note);
+		return (await db.select().from(transfers)).filter((row) => row.outTransactionId === id);
+	};
+
+	it("marks the line as a Transfer naming the card, and later payments mark themselves", async () => {
+		await importInto("checking", "i-1", [line("2026-09-03", -9_900, "CARDMEMBER SERV WEB PYMT")]);
+		const answered = await markCardPayment(db, viewer, {
+			transferId: "t-1",
+			transactionId: await idOf("CARDMEMBER SERV WEB PYMT"),
+			cardAccountId: "card",
+			ruleId: "r-1",
+		});
+		expect(answered).toMatchObject({ ok: true, months: ["2026-09"] });
+		expect(await marksOf("CARDMEMBER SERV WEB PYMT")).toMatchObject([
+			{ id: "t-1", otherAccountId: "card", createdByMemberId: parentId, removedAt: null },
+		]);
+		expect(await loadCardPaymentRules(db, householdId)).toMatchObject([
+			{ id: "r-1", accountId: "card", card: "Visa" },
+		]);
+
+		const later = await importInto("checking", "i-2", [
+			line("2026-09-28", -12_345, "CARDMEMBER SERV WEB PYMT"),
+			line("2026-09-28", -4_000, "COSTCO WHSE #1042"),
+		]);
+		expect(later.ok && later.transfers).toBe(1);
+		const marks = (await db.select().from(transfers)).filter((row) => row.id !== "t-1");
+		expect(marks).toMatchObject([
+			{ otherAccountId: "card", createdByMemberId: null, inTransactionId: null },
+		]);
+
+		// Undo is unmarking, and a line a Parent unmarked isn't marked again.
+		expect(await unmarkTransfer(db, viewer, marks[0]?.id ?? "")).toMatchObject({ ok: true });
+		const again = await importInto("checking", "i-3", [line("2026-09-29", -500, "REI")]);
+		expect(again.ok && again.transfers).toBe(0);
+		expect(
+			(await db.select().from(transfers)).filter((row) => row.removedAt === null),
+		).toHaveLength(1);
+	});
+
+	it("remembers a card that isn't in Noodle too, and changes its mind when told again", async () => {
+		await importInto("checking", "i-1", [
+			line("2026-09-03", -9_900, "CARDMEMBER SERV WEB PYMT"),
+			line("2026-09-10", -8_800, "CARDMEMBER SERV WEB PYMT"),
+		]);
+		const [first, second] = (await loadTransactionsPage(db, viewer, { month, limit: 50 }))
+			.transactions;
+		await markCardPayment(db, viewer, {
+			transferId: "t-1",
+			transactionId: first?.id ?? "",
+			cardAccountId: null,
+			ruleId: "r-1",
+		});
+		expect(await loadCardPaymentRules(db, householdId)).toMatchObject([{ accountId: null }]);
+		await markCardPayment(db, viewer, {
+			transferId: "t-2",
+			transactionId: second?.id ?? "",
+			cardAccountId: "card",
+			ruleId: "r-2",
+		});
+		expect(await loadCardPaymentRules(db, householdId)).toMatchObject([
+			{ id: "r-1", accountId: "card" },
+		]);
+	});
+
+	it("refuses an Account that isn't a credit card, and money back", async () => {
+		await importInto("checking", "i-1", [line("2026-09-03", -9_900, "CARDMEMBER SERV WEB PYMT")]);
+		await importInto("card", "i-2", [line("2026-09-20", 2_000, "TARGET REFUND")]);
+		for (const [note, cardAccountId] of [
+			["CARDMEMBER SERV WEB PYMT", "loan"],
+			["CARDMEMBER SERV WEB PYMT", "nobody's"],
+			["TARGET REFUND", "card"],
+		] as const) {
+			expect(
+				await markCardPayment(db, viewer, {
+					transferId: "t-1",
+					transactionId: await idOf(note),
+					cardAccountId,
+					ruleId: "r-1",
+				}),
+			).toEqual({ ok: false, reason: "refused" });
+		}
+		expect(await count(transfers)).toBe(0);
+		expect(await loadCardPaymentRules(db, householdId)).toEqual([]);
 	});
 });

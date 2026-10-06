@@ -10,7 +10,7 @@ import {
 	statementLineIds,
 } from "@noodle/domain";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
-import { markCardPayments } from "./card-payments";
+import { markCardPayments, markRememberedCardPayments } from "./card-payments";
 import { deletedLineKeys } from "./deleted-lines";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
@@ -262,6 +262,8 @@ export async function importStatement(
 	const moved = await detectTransfers(db, householdId, first, last, input.newId);
 	// A payment arriving on a card is a Transfer by its words, with or without its paying side.
 	const paid = await markCardPayments(db, householdId, input.newId);
+	// Money out whose wording a Parent once called a card payment is one again.
+	const remembered = await markRememberedCardPayments(db, householdId, input.newId);
 	// A Rule's Transfer or Between us, for money in that paired with nothing. A line this Import
 	// didn't write (it was here already) has a different ID, so nothing is marked for it.
 	await markMoneyInByRule(db, householdId, ruled, input.newId);
@@ -276,10 +278,11 @@ export async function importStatement(
 				...matched.months,
 				...moved.months,
 				...paid.months,
+				...remembered.months,
 			]),
 		],
 		matched: matched.matched,
-		transfers: moved.marked + paid.marked,
+		transfers: moved.marked + paid.marked + remembered.marked,
 	};
 }
 

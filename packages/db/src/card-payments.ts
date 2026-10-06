@@ -2,15 +2,19 @@ import {
 	type DayKey,
 	daysBetween,
 	likelyCardPayment,
+	merchantKey,
 	readsAsPaymentReceived,
 	TRANSFER_WINDOW_DAYS,
 } from "@noodle/domain";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
-import { accounts, transactions, transfers } from "./schema";
+import { type Viewer, visibleTo } from "./privacy";
+import { accounts, cardPaymentRules, transactions, transfers } from "./schema";
 import {
 	commitmentPayments,
+	type MoneyResult,
+	markTransfer,
 	sameAmount,
 	stillTransferable,
 	transferable,
@@ -214,4 +218,189 @@ export async function markCardPayments(
 		paidBy.get(id)?.date.slice(0, 7) ?? "",
 	]);
 	return { marked: marked.length, months: [...new Set(months.filter(Boolean))].sort() };
+}
+
+// "It's a card payment", remembered per wording (issue 136).
+// A Parent says money out is a payment to a card and which card: the line is marked as a Transfer
+// naming it (`transfers.other_account_id`, when its other side isn't in Noodle), and its wording
+// is remembered in `card_payment_rules`. Later lines with that wording are marked on Import, as
+// automatic Transfers a Parent can unmark; a line unmarked is never marked again. A card whose
+// payment is its spending (kept by hand, or not in Noodle) is filed in its Commitment instead, and
+// remembered by an ordinary Rule.
+
+/** The Household's remembered card-payment wordings, with the card each names. */
+export function loadCardPaymentRules(db: Db, householdId: string) {
+	return db
+		.select({
+			id: cardPaymentRules.id,
+			pattern: cardPaymentRules.pattern,
+			accountId: cardPaymentRules.accountId,
+			card: accounts.name,
+		})
+		.from(cardPaymentRules)
+		.leftJoin(accounts, eq(accounts.id, cardPaymentRules.accountId))
+		.where(eq(cardPaymentRules.householdId, householdId))
+		.orderBy(cardPaymentRules.pattern);
+}
+
+/**
+ * A Parent says money out is a payment to a card: `cardAccountId` is the Household's credit card
+ * it pays, or null for a card that isn't in Noodle. Marks it as a Transfer (paired with the card's
+ * side when that is here, as markTransfer does), names the card on a side marked alone, and
+ * remembers the wording for later Imports. Idempotent per `transferId`.
+ */
+export async function markCardPayment(
+	db: Db,
+	viewer: Viewer,
+	input: {
+		transferId: string;
+		transactionId: string;
+		cardAccountId: string | null;
+		ruleId: string;
+	},
+): Promise<MoneyResult & { remembered?: string }> {
+	const { householdId } = viewer;
+	const [[line], cards] = await Promise.all([
+		db
+			.select({ note: transactions.note, amount: transactions.amountCents })
+			.from(transactions)
+			.where(and(eq(transactions.id, input.transactionId), visibleTo(viewer))),
+		input.cardAccountId
+			? db
+					.select({ id: accounts.id })
+					.from(accounts)
+					.where(
+						and(
+							eq(accounts.id, input.cardAccountId),
+							eq(accounts.householdId, householdId),
+							eq(accounts.kind, "credit-card"),
+							isNull(accounts.archivedAt),
+						),
+					)
+			: [],
+	]);
+	if (!line || line.amount <= 0 || (input.cardAccountId && cards.length === 0)) {
+		return { ok: false, reason: "refused" };
+	}
+	const result = await markTransfer(db, viewer, {
+		transferId: input.transferId,
+		transactionId: input.transactionId,
+	});
+	if (!result.ok) return result;
+	const pattern = merchantKey(line.note ?? "");
+	const writes: BatchItem<"sqlite">[] = [
+		db
+			.update(transfers)
+			.set({ otherAccountId: input.cardAccountId })
+			.where(
+				and(
+					eq(transfers.id, input.transferId),
+					eq(transfers.householdId, householdId),
+					isNull(transfers.removedAt),
+					isNull(transfers.inTransactionId),
+					isNull(transfers.inIncomeId),
+				),
+			),
+	];
+	if (pattern) {
+		writes.push(
+			db
+				.insert(cardPaymentRules)
+				.values({
+					id: input.ruleId,
+					householdId,
+					pattern,
+					accountId: input.cardAccountId,
+					createdByMemberId: viewer.memberId,
+				})
+				.onConflictDoUpdate({
+					target: [cardPaymentRules.householdId, cardPaymentRules.pattern],
+					set: { accountId: input.cardAccountId },
+				}),
+		);
+	}
+	await db.batch(writes as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+	return pattern ? { ...result, remembered: pattern } : result;
+}
+
+/** A wording stops being remembered as a card payment. Transfers already marked stay as they are. */
+export async function forgetCardPayment(db: Db, householdId: string, pattern: string) {
+	await db
+		.delete(cardPaymentRules)
+		.where(
+			and(eq(cardPaymentRules.householdId, householdId), eq(cardPaymentRules.pattern, pattern)),
+		);
+}
+
+/**
+ * Marks money out whose wording a Parent called a card payment (card_payment_rules) as a Transfer
+ * on its own, naming the card. Runs on Import after the pairs are found, so a payment with both
+ * sides here is the pair. Never a line a Parent unmarked, or one a Rule files in a Commitment.
+ * Idempotent. Returns how many it marked and their months.
+ */
+export async function markRememberedCardPayments(
+	db: Db,
+	householdId: string,
+	newId: () => string,
+): Promise<{ marked: number; months: string[] }> {
+	const remembered = await loadCardPaymentRules(db, householdId);
+	if (remembered.length === 0) return { marked: 0, months: [] };
+	const [leaving, paysCommitment] = await Promise.all([
+		db
+			.select({
+				id: transactions.id,
+				date: transactions.date,
+				note: transactions.note,
+				merchant: transactions.merchant,
+			})
+			.from(transactions)
+			.innerJoin(accounts, eq(accounts.id, transactions.accountId))
+			.where(
+				and(
+					eq(transactions.householdId, householdId),
+					inArray(accounts.kind, ["checking", "savings"]),
+					transferable,
+					sql`${transactions.amountCents} > 0`,
+					sql`not exists (select 1 from transfers u where u.household_id = ${householdId}
+						and u.removed_at is not null and u.out_transaction_id = ${transactions.id})`,
+				),
+			)
+			.orderBy(sql`${transactions.date} desc`)
+			.limit(PASS_LIMIT),
+		commitmentPayments(db, householdId),
+	]);
+	// The longest wording a line has wins, as with a Rule.
+	const byLength = [...remembered].sort((a, b) => b.pattern.length - a.pattern.length);
+	const rows = leaving
+		.filter((out) => !paysCommitment(out))
+		.flatMap((out) => {
+			const said = ` ${merchantKey(out.note ?? "")} `;
+			const rule = byLength.find((candidate) => said.includes(` ${candidate.pattern} `));
+			return rule ? [{ id: newId(), outId: out.id, card: rule.accountId, date: out.date }] : [];
+		});
+	if (rows.length === 0) return { marked: 0, months: [] };
+	const field = (name: string) => sql.raw(`json_extract(value, '$.${name}')`);
+	await db
+		.insert(transfers)
+		.select(
+			db
+				.select(
+					transferRow({
+						id: field("id"),
+						householdId,
+						outId: field("outId"),
+						inTransactionId: null,
+						inIncomeId: null,
+						createdBy: null,
+						otherAccountId: field("card"),
+					}),
+				)
+				.from(sql`json_each(${JSON.stringify(rows)})`)
+				.where(stillTransferable(householdId, field("outId"), ">")),
+		)
+		.onConflictDoNothing();
+	return {
+		marked: rows.length,
+		months: [...new Set(rows.map((row) => row.date.slice(0, 7)))].sort(),
+	};
 }
