@@ -94,6 +94,19 @@ export type CommitmentState = PlanCommitment & {
 	status: CommitmentStatus;
 };
 
+/**
+ * For an "about" Commitment whose charges for the month are all in: how much more (negative: less)
+ * they came to than the Plan set aside, which comes out of, or adds to, what carries to the next
+ * month (ADR-0054). Null for any other Commitment, while one is still due, or when they match.
+ */
+export function aboutCameIn(
+	commitment: Pick<CommitmentState, "about" | "charges" | "dueDates" | "difference">,
+): Cents | null {
+	if (!commitment.about || commitment.charges === 0) return null;
+	if (commitment.charges < commitment.dueDates.length || commitment.difference === 0) return null;
+	return commitment.difference;
+}
+
 export type MonthState = Omit<Plan, "buckets" | "commitments"> & {
 	asOf: DayKey;
 	daysInMonth: number;

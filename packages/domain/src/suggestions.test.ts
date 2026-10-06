@@ -218,9 +218,93 @@ describe("spotCommitments: real bills only (#76)", () => {
 				41_250,
 				"Toyota Financial Services, $412.50 on the 15th, 4 months running",
 			],
-			"PG&E": [18_175, "PG&E, up to $181.75 on the 20th, 4 months running"],
+			// A utility is an "about" amount: the average of its last three charges, to the dollar.
+			"PG&E": [15_800, "PG&E, about $158 on the 20th, 4 months running"],
 			"Verizon Wireless": [8_500, "Verizon Wireless, $85 on the 12th, 3 months running"],
 			Netflix: [1_549, "Netflix, $15.49 on the 5th, 3 months running"],
+		});
+	});
+
+	it("proposes a utility as an about amount, and no other kind", () => {
+		const ideas = spotCommitments(
+			[
+				...on(
+					["2026-06-20", "2026-07-21", "2026-08-19", "2026-09-20"],
+					[9_210, 16_430, 18_175, 12_840],
+					"PG&E",
+				),
+				...on(
+					["2026-07-12", "2026-08-12", "2026-09-12"],
+					[8_500, 9_100, 8_700],
+					"Verizon Wireless",
+				),
+			],
+			[],
+			today,
+		);
+		expect(ideas.map((i) => [i.name, i.kind === "new-commitment" && i.about])).toEqual([
+			["PG&E", true],
+			["Verizon Wireless", undefined],
+		]);
+	});
+
+	describe("an about Commitment", () => {
+		const power: CommitmentNow = {
+			id: "power",
+			name: "Power",
+			amountCents: 14_000,
+			cadence: "monthly",
+			dueDate: "2026-09-12" as DayKey,
+			about: true,
+		};
+		const paid = (amounts: number[]) =>
+			amounts.map((amount, i) =>
+				line((amounts.length - i) * 30 - 9, amount, "City Power", {
+					commitmentId: "power",
+					homeless: false,
+				}),
+			);
+
+		it("raises no new amount when its last three charges are steady and off", () => {
+			// The same-each-time detector would offer $180 here; its average is what is watched.
+			const steadyHigh = paid([9_000, 10_000, 18_000, 18_000, 18_000]);
+			expect(spotCommitments(steadyHigh, [{ ...power, amountCents: 16_500 }], today)).toEqual([]);
+			expect(spotCommitments(steadyHigh, [{ ...power, about: false }], today)).toEqual([
+				expect.objectContaining({ kind: "commitment-amount", amountCents: 18_000 }),
+			]);
+		});
+
+		it("raises its average when that drifts more than 10% from what the Plan sets aside", () => {
+			const charges = paid([12_050, 21_000, 15_100]);
+			expect(spotCommitments(charges, [power], today)).toEqual([
+				{
+					kind: "commitment-amount",
+					owner: null,
+					commitmentId: "power",
+					name: "Power",
+					fromCents: 14_000,
+					// $160.50 on average, to the dollar.
+					amountCents: 16_100,
+					cadence: "monthly",
+					dueDate: "2026-09-12",
+					about: true,
+					lowCents: 12_050,
+					highCents: 21_000,
+					evidence: {
+						count: 3,
+						amountCents: 16_100,
+						months: 3,
+						transactionIds: charges.map((l) => l.id),
+					},
+				},
+			]);
+		});
+
+		it("says nothing within 10%, or with fewer than three charges", () => {
+			expect(
+				spotCommitments(paid([12_000, 21_000, 15_000]), [{ ...power, amountCents: 15_000 }], today),
+			).toEqual([]);
+			expect(spotCommitments(paid([21_000, 21_000]), [power], today)).toEqual([]);
 		});
 	});
 

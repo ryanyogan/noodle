@@ -26,6 +26,8 @@ export type Terms = {
 	commitmentId?: string;
 	merchant?: string;
 	bucketId?: string;
+	/** A new Commitment proposed as "about" (a utility). */
+	about?: boolean | undefined;
 };
 
 export const decisionSchema = z.object({
@@ -37,6 +39,7 @@ export const decisionSchema = z.object({
 			amountCents: centsSchema,
 			cadence: z.enum(CADENCES as [Cadence, ...Cadence[]]).optional(),
 			dueDate: dayKeySchema.optional(),
+			about: z.boolean().optional(),
 		})
 		.optional(),
 });

@@ -49,6 +49,8 @@ export type CommitmentRecord = {
 	accountId?: string | null;
 	/** A Parent said it's a set payment on a balance they're carrying. */
 	carriedBalance?: boolean;
+	/** Its amount is "about" (it varies), not the same each time (issue 135). */
+	about?: boolean;
 };
 
 export type PlanBucket = {
@@ -74,6 +76,12 @@ export type PlanCommitment = {
 	accountId?: string;
 	/** Set with `accountId`: a set payment on a balance the Household is carrying. */
 	carriedBalance?: boolean;
+	/**
+	 * Its amount is "about": it varies, as power and water do (issue 135). The Plan still sets
+	 * `amount` aside; what the month's charge is over or under comes out of, or adds to, what
+	 * carries over (ADR-0054). Absent when the amount is the same each time.
+	 */
+	about?: boolean;
 } & CommitmentTerms;
 
 /** One month's Plan. `baseline` is null until a Parent has set one. */
@@ -109,7 +117,7 @@ export function commitmentsIn(
 ): PlanCommitment[] {
 	const commitments = records.commitments
 		.filter((c) => inPlan(month, c.fromMonth, c.endedFromMonth))
-		.flatMap(({ id, name, accountId, carriedBalance }): PlanCommitment[] => {
+		.flatMap(({ id, name, accountId, carriedBalance, about }): PlanCommitment[] => {
 			const terms = effective(
 				records.commitmentTerms.filter((t) => t.commitmentId === id),
 				month,
@@ -117,7 +125,9 @@ export function commitmentsIn(
 			if (!terms) return [];
 			const { amount, cadence, dueDate } = terms;
 			const paysDown = accountId ? { accountId, carriedBalance: carriedBalance ?? false } : {};
-			return [{ id, name, amount, cadence, dueDate, ...paysDown }];
+			return [
+				{ id, name, amount, cadence, dueDate, ...paysDown, ...(about ? { about: true } : {}) },
+			];
 		});
 	return byNextDue(commitments, `${month}-01`);
 }

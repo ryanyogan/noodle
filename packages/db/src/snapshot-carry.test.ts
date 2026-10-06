@@ -184,6 +184,7 @@ function asTakenUnder(tag: string, tables: SnapshotTables): SnapshotTables {
 const DEFAULTS: Record<string, number> = {
 	"transactions.version": 0,
 	"commitments.carried_balance": 0,
+	"commitments.about": 0,
 };
 
 describe("restoring a snapshot taken under an older migration", () => {

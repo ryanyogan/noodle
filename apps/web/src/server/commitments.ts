@@ -49,6 +49,8 @@ const commitmentSchema = z.object({
 	amountCents: centsSchema,
 	cadence: z.enum(CADENCES),
 	dueDate: dayKeySchema,
+	/** Its amount is "about" (true) or the same each time (false); left out, it stays as it is. */
+	about: z.boolean().optional(),
 	/** The credit card or loan its payments pay down (null for none); left out, it stays as it is. */
 	paysDown: z.object({ accountId: ulidSchema.nullable(), carriedBalance: z.boolean() }).optional(),
 });

@@ -147,7 +147,7 @@ function PlanCommitments() {
 				) : undefined
 			}
 			overviewHeader={{
-				eyebrow: `Commitments in ${monthName(month)}`,
+				eyebrow: `Bills in ${monthName(month)}`,
 				title: (
 					<>
 						<Money cents={paid} /> paid
@@ -157,7 +157,7 @@ function PlanCommitments() {
 			overview={
 				state.commitments.length > 0 ? (
 					<TotalsCard
-						label={`Commitments in ${monthName(month)}: totals`}
+						label={`Bills in ${monthName(month)}: totals`}
 						lines={[
 							{ label: "Expected this month", value: formatMoney(state.committed) },
 							{ label: "Paid so far", value: formatMoney(paid) },

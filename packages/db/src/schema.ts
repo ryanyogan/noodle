@@ -224,6 +224,12 @@ export const commitments = sqliteTable(
 		 * card Noodle follows, whose purchases are already counted in Buckets.
 		 */
 		carriedBalance: integer("carried_balance", { mode: "boolean" }).notNull().default(false),
+		/**
+		 * Its amount is "about" (it varies, as power and water do), not the same each time (issue
+		 * 135). The Plan still sets its terms' amount aside; the average and range shown are worked
+		 * out from its charges (aboutAmount in @noodle/domain), never stored.
+		 */
+		about: integer("about", { mode: "boolean" }).notNull().default(false),
 	},
 	(t) => [index("commitments_household_idx").on(t.householdId)],
 );

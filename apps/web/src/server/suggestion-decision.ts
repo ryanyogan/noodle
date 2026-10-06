@@ -106,6 +106,8 @@ export async function applyDecision(
 				amountCents: terms.amountCents,
 				cadence: terms.cadence,
 				dueDate: terms.dueDate,
+				// A utility is proposed as "about"; the Parent may have said otherwise before adding.
+				about: (edited?.about ?? suggested.about) === true,
 			},
 		});
 		after(async () => {

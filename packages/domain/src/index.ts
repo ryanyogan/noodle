@@ -131,6 +131,9 @@ export {
 	matchCharges,
 } from "./coming-up";
 export {
+	ABOUT_DAYS,
+	type AboutAmount,
+	aboutAmount,
 	byNextDue,
 	CADENCES,
 	type Cadence,
@@ -297,6 +300,7 @@ export {
 	quietEnd,
 } from "./month-close";
 export {
+	aboutCameIn,
 	type BucketState,
 	type BucketStatus,
 	type Charge,

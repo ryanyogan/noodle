@@ -8,10 +8,15 @@ import { Input } from "@noodle/ui/components/input";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useState } from "react";
-import { formatMoney, formatMoneyInput, shortDay } from "../format";
+import { formatMoney, formatMoneyInput, formatWholeMoney, shortDay } from "../format";
 import { suggestionsQuery } from "../queries";
 import { decideSuggestion } from "../server/suggestions";
-import { CommitmentFormErrors, readCommitment, ScheduleFields } from "./commitment-editor";
+import {
+	AmountKindField,
+	CommitmentFormErrors,
+	readCommitment,
+	ScheduleFields,
+} from "./commitment-editor";
 
 // The "Suggested" card (ADR-0027): what background AI spotted, with its evidence in plain words, to
 // add with one tap or put away. Never on This Month (#76): each shows in context, only the kinds
@@ -23,12 +28,22 @@ import { CommitmentFormErrors, readCommitment, ScheduleFields } from "./commitme
 type Decision = {
 	suggestionId: string;
 	decision: "add" | "not-now";
-	terms?: { name: string; amountCents: number; cadence?: Terms["cadence"]; dueDate?: string };
+	terms?: {
+		name: string;
+		amountCents: number;
+		cadence?: Terms["cadence"];
+		dueDate?: string;
+		about?: boolean | undefined;
+	};
 };
 
 const every = { monthly: "a month", biweekly: "every two weeks", annual: "a year" } as const;
 
 type Terms = {
+	/** A new Commitment proposed as “about”, or an “about” Commitment whose average drifted. */
+	about?: boolean;
+	lowCents?: number;
+	highCents?: number;
 	name: string;
 	amountCents: number;
 	fromCents?: number;
@@ -56,6 +71,19 @@ function words(item: SuggestionItem): { title: string; body: string; add: string
 			add: "Add Bucket",
 		};
 	const often = every[terms.cadence ?? "monthly"];
+	if (item.kind === "commitment-amount" && terms.about) {
+		const range =
+			terms.lowCents !== undefined &&
+			terms.highCents !== undefined &&
+			terms.lowCents !== terms.highCents
+				? `, from ${formatWholeMoney(terms.lowCents)} to ${formatWholeMoney(terms.highCents)}`
+				: "";
+		return {
+			title: `${terms.name} now averages about ${money}`,
+			body: `The Plan sets aside ${formatMoney(terms.fromCents ?? 0)}. Its last ${count} charges average ${money}${range}.`,
+			add: "Update",
+		};
+	}
 	if (item.kind === "commitment-amount")
 		return {
 			title: `${terms.name} now costs ${money}`,
@@ -66,7 +94,9 @@ function words(item: SuggestionItem): { title: string; body: string; add: string
 		title: `${terms.name} looks like a Commitment`,
 		// Older suggestions, saved before the reason, fall back to the plain evidence.
 		body: terms.reason
-			? `${terms.reason}.${terms.dueDate ? ` Next due ${shortDay(terms.dueDate as never)}.` : ""}`
+			? `${terms.reason}.${terms.dueDate ? ` Next due ${shortDay(terms.dueDate as never)}.` : ""}${
+					terms.about ? " It varies, so it’s added as an “about” amount." : ""
+				}`
 			: `${money} ${often}, seen ${count} times.${terms.dueDate ? ` Next due ${shortDay(terms.dueDate as never)}.` : ""}`,
 		add: "Add Commitment",
 	};
@@ -240,6 +270,7 @@ function EditBeforeAdd({
 			</div>
 			{commitment ? (
 				<>
+					<AmountKindField id={id} about={terms.about === true} className="bg-card" />
 					<ScheduleFields
 						id={id}
 						cadence={terms.cadence ?? "monthly"}

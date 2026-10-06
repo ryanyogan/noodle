@@ -27,6 +27,50 @@ export type CommitmentTerms = { amount: Cents; cadence: Cadence; dueDate: DayKey
 const dayIn = (month: MonthKey, day: number): DayKey =>
 	`${month}-${String(Math.min(day, daysInMonth(month))).padStart(2, "0")}` as DayKey;
 
+/**
+ * What an "about" Commitment's amount is shown as (issue 135): the average of the charges it rests
+ * on, and how far they range ("About $160 · $120–$210").
+ */
+export type AboutAmount = {
+	/** The average of those charges, to the cent. */
+	average: Cents;
+	/** The lowest and the highest of them. */
+	low: Cents;
+	high: Cents;
+	/** How many charges it rests on. */
+	count: number;
+};
+
+/** How far back (days) an "about" amount looks: a year. */
+export const ABOUT_DAYS = 365;
+/** The oldest charge is at least this many days back: there is a year of them (12 monthly charges). */
+const ABOUT_YEAR_FROM_DAYS = 334;
+
+/**
+ * An "about" amount as of `asOf`: the average of the Commitment's charges over the last year
+ * once there is a year of them, else of its last three (fewer when it has fewer). The charges it
+ * rests on are always the latest `count`. Null with no charge yet.
+ */
+export function aboutAmount(
+	charges: readonly { amount: Cents; date: DayKey }[],
+	asOf: DayKey,
+): AboutAmount | null {
+	const past = charges
+		.filter((charge) => charge.date <= asOf)
+		.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+	const oldest = past[0];
+	if (!oldest) return null;
+	const inYear = past.filter((charge) => charge.date > addDays(asOf, -ABOUT_DAYS));
+	const hasYear = oldest.date <= addDays(asOf, -ABOUT_YEAR_FROM_DAYS);
+	const amounts = (hasYear && inYear.length > 0 ? inYear : past.slice(-3)).map((c) => c.amount);
+	return {
+		average: Math.round(amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length),
+		low: Math.min(...amounts),
+		high: Math.max(...amounts),
+		count: amounts.length,
+	};
+}
+
 /** The days in `month` a Commitment on these terms is due, in order. */
 export function dueDatesIn(
 	terms: Pick<CommitmentTerms, "cadence" | "dueDate">,

@@ -1,6 +1,10 @@
 import type { CommitmentCharge, CommitmentLinkResult } from "@noodle/db";
 import {
+	type AboutAmount,
 	type AccountKind,
+	aboutAmount,
+	aboutCameIn,
+	addMonths,
 	byNextDue,
 	type Cadence,
 	type Cents,
@@ -15,8 +19,8 @@ import {
 	yearlyCost,
 } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { formatMoney, monthName, shortDay } from "./format";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { formatMoney, formatWholeMoney, monthName, shortDay } from "./format";
 import { monthChangeKey } from "./plan-changes";
 import { commitmentsQuery, monthQuery, monthsKey } from "./queries";
 import { addCommitmentPayment } from "./server/commitments";
@@ -74,6 +78,51 @@ export function termsSchedule(terms: Pick<CommitmentTerms, "cadence" | "dueDate"
 	}
 }
 
+/**
+ * "About $160 · $120–$210": an "about" Commitment's amount (issue 135), the average of its charges
+ * and how far they range, in whole dollars. Before its first charge, and with a single amount so
+ * far, just "About $160" (what the Plan sets aside, until there is a charge).
+ */
+export function aboutText(about: AboutAmount | null, planned: Cents): string {
+	if (!about) return `About ${formatWholeMoney(planned)}`;
+	const average = `About ${formatWholeMoney(about.average)}`;
+	return about.low === about.high
+		? average
+		: `${average} · ${formatWholeMoney(about.low)}–${formatWholeMoney(about.high)}`;
+}
+
+/**
+ * "Power came in $35 over · comes out of what carries to November" (or "under · adds to"): an
+ * "about" Commitment whose charges for `month` are all in and aren't what the Plan set aside.
+ * This month's Free to Spend doesn't move; the difference is in what carries over (ADR-0054).
+ * Null for any other Commitment (aboutCameIn).
+ */
+export function carryNote(
+	commitment: Pick<CommitmentState, "name" | "about" | "charges" | "dueDates" | "difference">,
+	month: MonthKey,
+): string | null {
+	const cameIn = aboutCameIn(commitment);
+	if (cameIn === null) return null;
+	const next = monthName(addMonths(month, 1));
+	return cameIn > 0
+		? `${commitment.name} came in ${formatMoney(cameIn)} over · comes out of what carries to ${next}`
+		: `${commitment.name} came in ${formatMoney(-cameIn)} under · adds to what carries to ${next}`;
+}
+
+/**
+ * An "about" Commitment's amount as of today, from its charges over the last year (the same read
+ * Coming up makes). Null for one that's the same each time, before the charges have loaded, and
+ * before its first charge.
+ */
+export function useAboutAmount(commitment: { id: string; about?: boolean | undefined }) {
+	const { data } = useQuery({ ...commitmentsQuery(), enabled: commitment.about === true });
+	if (!commitment.about || !data) return null;
+	return aboutAmount(
+		data.charges.filter((charge) => charge.commitmentId === commitment.id),
+		data.asOf,
+	);
+}
+
 /** What a Parent enters for a Commitment; a Commitment's terms are set from `month` onward. */
 export type CommitmentVariables = {
 	/** A client ULID: retrying the same add creates the Commitment once. */
@@ -83,6 +132,8 @@ export type CommitmentVariables = {
 	amountCents: number;
 	cadence: Cadence;
 	dueDate: DayKey;
+	/** Its amount is "about" (it varies) or the same each time; left out, it stays as it is. */
+	about?: boolean | undefined;
 	/** How far a change to its terms reaches; from `month` on when left out. */
 	scope?: PlanScope;
 	/** What it pays down, when that is being set or changed; left out, it stays as it is. */
@@ -107,6 +158,7 @@ const toPlanCommitment = (v: CommitmentVariables, was?: PlanCommitment): PlanCom
 	cadence: v.cadence,
 	dueDate: v.dueDate,
 	...linkOf(v, was),
+	...((v.about ?? was?.about) ? { about: true } : {}),
 });
 
 /** A card or loan a Commitment could pay down, as the "Pays down" choice shows it. */
