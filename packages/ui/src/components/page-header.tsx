@@ -30,6 +30,8 @@ function PageHeader({
 				// Wraps: when a title word and the actions don't fit on one line (320 px phones), the actions
 				// drop to their own row instead of squeezing the title mid-word.
 				"mb-4 flex min-h-13 flex-wrap items-center justify-between gap-x-4 gap-y-3 lg:mb-8 lg:min-h-0",
+				// Below 640px the header is a container, so the title can take its size from the width.
+				"max-sm:@container/page-header",
 				className,
 			)}
 		>
@@ -42,7 +44,10 @@ function PageHeader({
 							{eyebrow}
 						</p>
 					) : null}
-					<h1 className="text-2xl font-semibold tracking-[-0.025em] text-balance break-words lg:text-[2rem]">
+					{/* Below 640px the title is never larger than an eighth of the header's width, so with text
+					    at 200% a one-word title ("October", "Transactions") shrinks to fit rather than break
+					    inside the word. At the usual size that limit is above the title's own size. */}
+					<h1 className="text-2xl font-semibold tracking-[-0.025em] text-balance break-words max-sm:text-[length:min(1.5rem,12cqi)] max-sm:leading-[calc(2/1.5)] max-sm:[-webkit-text-size-adjust:100%] max-sm:[text-size-adjust:100%] lg:text-[2rem]">
 						{title}
 					</h1>
 				</div>

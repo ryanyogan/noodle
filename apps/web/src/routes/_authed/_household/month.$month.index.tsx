@@ -672,11 +672,13 @@ function FreeToSpend({
 				title="Free to Spend"
 				help={<TermHelp term="free-to-spend" />}
 			/>
-			<Card>
+			{/* Below 640px the figure is never larger than a sixth of the card, so at 200% text it fits. */}
+			<Card className="max-sm:@container/free">
 				<div className="grid gap-1 p-(--card-pad)">
 					<p
 						className={cn(
 							"text-[2.75rem] font-[650] leading-[1.05] tracking-[-0.04em] tabular-nums",
+							"max-sm:text-[length:min(2.75rem,17cqi)] max-sm:[-webkit-text-size-adjust:100%] max-sm:[text-size-adjust:100%]",
 							overPlanned && "text-over",
 						)}
 					>

@@ -1603,7 +1603,7 @@ function ReviewCard({
 					<p className="text-xl font-semibold tracking-tight tabular-nums">
 						{formatMoney(item.amountCents)}
 					</p>
-					<Badge>
+					<Badge className="@max-[15rem]/card:h-auto @max-[15rem]/card:max-w-full @max-[15rem]/card:rounded-xl @max-[15rem]/card:whitespace-normal">
 						{payment?.kind === "commitment"
 							? "Payment"
 							: payment?.kind === "followed"

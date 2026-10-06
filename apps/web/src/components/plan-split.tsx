@@ -278,7 +278,11 @@ function SplitRowItem({
 			className={cn(
 				"grid-cols-[auto_minmax(0,1fr)_auto_2.75rem] items-center gap-x-3 border-t px-(--card-pad) py-3 text-sm",
 				"@xl/split:flex @xl/split:flex-wrap @xl/split:items-baseline @xl/split:gap-x-2 @xl/split:gap-y-0.5 @xl/split:border-t-0 @xl/split:p-0",
-				folded ? "hidden" : "grid",
+				// Under 15 text sizes wide (text at 200% on a phone) the name has a line and the figures
+				// wrap under it, so the share is not cut at the card's edge.
+				folded
+					? "hidden"
+					: "grid @max-[15rem]/split:flex @max-[15rem]/split:flex-wrap @max-[15rem]/split:justify-end @max-[15rem]/split:gap-y-1",
 				total && "font-semibold",
 			)}
 		>
@@ -287,7 +291,7 @@ function SplitRowItem({
 			<span data-slot="plan-split-figure" className="contents">
 				<span
 					className={cn(
-						"min-w-0 @xl/split:w-[calc(100%-1.25rem)] @xl/split:text-[13px]",
+						"min-w-0 @max-[15rem]/split:flex-1 @max-[15rem]/split:basis-[calc(100%-2.25rem)] @xl/split:w-[calc(100%-1.25rem)] @xl/split:text-[13px]",
 						!total && "font-medium",
 					)}
 				>
