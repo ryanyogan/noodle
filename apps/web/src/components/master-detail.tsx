@@ -137,6 +137,16 @@ export function DetailPager({
 const inPanelLine = "lg:mt-2.5";
 
 /**
+ * A phone, where the action may drop under the title: a ghost button's words start 10px inside
+ * its box (its padding, with no border to show it), so under the title they stood 10px in from
+ * the title's edge while an outlined button lined up (issue 74). The pair is 10px wider to the
+ * left and the heading is pushed back by as much: beside the title nothing moves, and under it
+ * the ghost button's box starts 10px before the title, its words on the title's edge.
+ */
+const GHOST_ACTION_PAIR =
+	"max-lg:has-[>[data-slot=detail-actions]>[data-variant=ghost]:first-child]:-ms-2.5 max-lg:has-[>[data-slot=detail-actions]>[data-variant=ghost]:first-child]:*:data-[slot=detail-heading]:ms-2.5";
+
+/**
  * The detail's header: Back to the list, what the item is, its actions, and previous and next.
  * Its title is an h2, under the section's h1 (which a phone keeps for screen readers only:
  * `sectionHeaderOverItem`). On a phone it follows the phone header's rule
@@ -173,7 +183,9 @@ export function DetailHeader({
 				// start on Close's line (`inPanelLine`) rather than the middle of a title that wraps.
 				// Over the ground DetailPanel puts behind Close once it is scrolled, so the header goes
 				// out over it rather than vanishing at the first pixel.
-				inPanel && "lg:relative lg:z-20 lg:items-start lg:pe-10",
+				// The controls 4px apart, as on a phone, not 8: in the narrowest panel (1280 wide) that
+				// is the room a three-word name needs to take two lines and not three (issue 73).
+				inPanel && "lg:relative lg:z-20 lg:items-start lg:gap-x-1 lg:pe-10",
 			)}
 		>
 			{/* Phones: the arrow's glyph, not its 44px box, sits on the 16px gutter. */}
@@ -191,10 +203,15 @@ export function DetailHeader({
 			    Back and before previous/next. The action is beside the title while the title fits on
 			    one line there; otherwise it goes under the title, starting at the title's left edge.
 			    From lg the pair is not a box (`contents`): the header lays its parts out as before. */}
-			<div className="flex min-w-0 flex-1 basis-32 flex-wrap items-center gap-x-1 gap-y-1 lg:contents">
+			<div
+				className={cn(
+					"flex min-w-0 flex-1 basis-32 flex-wrap items-center gap-x-1 gap-y-1 lg:contents",
+					GHOST_ACTION_PAIR,
+				)}
+			>
 				{/* From lg, at least ~12 characters of title: past that the actions drop to their own row
 			    (#65). */}
-				<div className="min-w-0 flex-auto lg:flex-1 lg:basis-36">
+				<div data-slot="detail-heading" className="min-w-0 flex-auto lg:flex-1 lg:basis-36">
 					{eyebrow ? (
 						<p data-slot="detail-eyebrow" className="text-[13px] font-medium text-muted-foreground">
 							{eyebrow}

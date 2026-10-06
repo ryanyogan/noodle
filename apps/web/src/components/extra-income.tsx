@@ -326,7 +326,8 @@ export function ExtraIncomeSection({
 					}
 				/>
 			</div>
-			<p className="pb-3 text-sm text-muted-foreground">
+			{/* From sm on the buttons' edge below, which is the To do row's name above (issue 73). */}
+			<p className="pb-3 text-sm text-muted-foreground sm:px-1">
 				<span className="font-medium text-foreground tabular-nums">{formatMoney(left)}</span> came
 				in above your usual take-home pay{monthName ? ` in ${monthName}` : ""}. Add it to Free to
 				Spend to use it, or choose a Goal or Bucket for it.

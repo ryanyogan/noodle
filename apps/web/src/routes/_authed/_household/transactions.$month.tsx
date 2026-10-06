@@ -282,32 +282,36 @@ function TransactionsPage() {
 								) : null}
 							</Link>
 						</Button>
-						<Button variant="ghost" size="icon" asChild>
-							<Link
-								to="/transactions/$month"
-								params={{ month: addMonths(month, -1) }}
-								search={true}
-								aria-label="Previous month"
-							>
-								<ChevronLeft className="size-5" />
-							</Link>
-						</Button>
-						{month < current ? (
+						{/* The two arrows are one piece: with larger text they go to the next line together,
+						    never one on each line (issue 74). */}
+						<div className="flex items-center gap-1">
 							<Button variant="ghost" size="icon" asChild>
 								<Link
 									to="/transactions/$month"
-									params={{ month: addMonths(month, 1) }}
+									params={{ month: addMonths(month, -1) }}
 									search={true}
-									aria-label="Next month"
+									aria-label="Previous month"
 								>
-									<ChevronRight className="size-5" />
+									<ChevronLeft className="size-5" />
 								</Link>
 							</Button>
-						) : (
-							<Button variant="ghost" size="icon" disabled aria-label="Next month">
-								<ChevronRight className="size-5" />
-							</Button>
-						)}
+							{month < current ? (
+								<Button variant="ghost" size="icon" asChild>
+									<Link
+										to="/transactions/$month"
+										params={{ month: addMonths(month, 1) }}
+										search={true}
+										aria-label="Next month"
+									>
+										<ChevronRight className="size-5" />
+									</Link>
+								</Button>
+							) : (
+								<Button variant="ghost" size="icon" disabled aria-label="Next month">
+									<ChevronRight className="size-5" />
+								</Button>
+							)}
+						</div>
 					</div>
 				}
 			/>
@@ -577,7 +581,7 @@ function Filters({
 					</Button>
 				) : null}
 			</div>
-			<div className="gap-3 max-lg:hidden lg:order-3 lg:grid lg:flex-[3_1_36rem] lg:auto-cols-fr lg:grid-flow-col">
+			<div className="gap-3 max-lg:hidden lg:order-3 lg:grid lg:flex-[3_1_100%] min-[90rem]:flex-[3_1_36rem] lg:auto-cols-fr lg:grid-flow-col">
 				{/* How many months the list shows (issue 99), each ending at the month in the header. */}
 				<FilterSelect
 					id="filter-range"

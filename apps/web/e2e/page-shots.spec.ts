@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
@@ -12,7 +13,13 @@ import {
 	savedBy,
 	signedInPage,
 } from "./session";
-import { q, seedBetweenUs, seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
+import {
+	q,
+	seedBetweenUs,
+	seedIncomeHousehold,
+	seedPayoffGoal,
+	seedShotsHousehold,
+} from "./shots-household";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
 // on the machine: .github/workflows/shots.yml runs this on GitHub and uploads the PNGs. Not a test
@@ -103,6 +110,10 @@ type Shot = {
 	small?: boolean;
 	/** Pictured as the fourth Parent, whose months ended with nothing left and then short. */
 	carry?: boolean;
+	/** Only from 1024 up: a computer's twin of a picture a phone has under another name (issue 73). */
+	desktop?: boolean;
+	/** Pictured signed out (sign-in, sign-up): `ready` is its only wait, the page has no heading. */
+	signedOut?: boolean;
 };
 
 let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
@@ -174,7 +185,11 @@ async function addCard(page: Page, name: string, pageUrl: string, fee: string, p
 	await sheet.getByLabel("Benefits page (optional)").fill(pageUrl);
 	await sheet.getByRole("button", { name: "Add and read its perks" }).click();
 	await expect(sheet).toBeHidden({ timeout: 30_000 });
-	const card = page.getByRole("article", { name });
+	// The seed already has a Perk Source of the same name with fewer Perks (the Chase card the
+	// Account ··0093 brought): take the one just added, by how many Perks it has.
+	const card = page
+		.getByRole("article", { name })
+		.filter({ hasText: new RegExp(`· ${perks} perks`) });
 	// One Perk Source is open at a time: open this one's row.
 	// The row may open by itself as the Perks arrive, and an open card has more headings with
 	// buttons: take the card's own row, and try again if a click landed on a row that had opened.
@@ -285,7 +300,12 @@ async function attempt(what: string, run: () => Promise<void>) {
 	try {
 		await run();
 	} catch (error) {
-		seedNotes.push(`${what}: ${String(error).split("\n")[0]}`);
+		// The first lines say which locator and what it found instead: one line alone didn't.
+		const lines = String(error)
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean);
+		seedNotes.push(`${what}: ${lines.slice(0, 6).join(" | ")}`);
 	}
 }
 
@@ -378,6 +398,11 @@ test.beforeAll(async ({ browser }) => {
 			`insert into bucket_allowances (household_id, bucket_id, month, amount_cents) values (${h}, ${q(archivedBucket)}, ${q(before)}, 15000);`,
 		]);
 	});
+	// A card being paid off, for the final desktop pass (issue 73): a payoff Goal on the Amex.
+	let payoffGoal = "";
+	await attempt("A payoff Goal on the Amex", async () => {
+		payoffGoal = await seedPayoffGoal(householdId, ids.amex, "Pay off Amex Platinum", 96_240);
+	});
 	/** Plan › Income with the Zelle from Sam counted as Income (`marked` false) or between us. */
 	const zelleFromSam = async (page: Page, marked: boolean) => {
 		const region = page.locator('section[aria-label="Between us"]:visible').first();
@@ -451,17 +476,22 @@ test.beforeAll(async ({ browser }) => {
 		await page.waitForLoadState("networkidle");
 		const amexRow = perkRow(amex);
 		const uber = amex.getByRole("listitem", { name: "Uber Cash" });
-		await expect(async () => {
-			if ((await amexRow.getAttribute("aria-expanded")) !== "true") await amexRow.click();
-			const mark = uber.getByRole("button", { name: "Mark Uber Cash used" });
-			if (await mark.isVisible()) await mark.click();
-			const note = uber.getByLabel("Note (optional)");
-			if (await note.isVisible()) {
-				await note.fill("Rides to the airport");
-				await uber.getByRole("button", { name: "Save" }).click();
-			}
-			await expect(uber).toContainText("Rides to the airport", { timeout: 5_000 });
-		}).toPass({ timeout: 45_000 });
+		// Both fees are in before a Perk is marked, and the card opens through its "Worth using
+		// now" line, as perks-page.spec.ts does: a row clicked while the cards redraw closed again.
+		await expect(page.getByRole("region", { name: /^This year/ })).toContainText("$1,245", {
+			timeout: 20_000,
+		});
+		await page
+			.getByRole("list", { name: "Worth using now" })
+			.getByRole("listitem", { name: "Uber Cash" })
+			.getByRole("button")
+			.click();
+		await expect(amexRow).toHaveAttribute("aria-expanded", "true");
+		await expect(uber).toContainText("$15");
+		await uber.getByRole("button", { name: "Mark Uber Cash used" }).click();
+		await uber.getByLabel("Note (optional)").fill("Rides to the airport");
+		await uber.getByRole("button", { name: "Save" }).click();
+		await expect(uber).toContainText("Rides to the airport", { timeout: 15_000 });
 	});
 
 	// A saved Scenario: a raise to $10,200 a month.
@@ -698,6 +728,10 @@ test.beforeAll(async ({ browser }) => {
 
 	const firstBucket = bucketIds.Groceries;
 	const firstCommitment = commitmentIds.Electricity;
+	// Last month, where the toast pictures delete a row each: this month's pictures stay as seeded.
+	const [year = 0, monthNumber = 1] = month.split("-").map(Number);
+	const monthBefore =
+		monthNumber === 1 ? `${year - 1}-12` : `${year}-${String(monthNumber - 1).padStart(2, "0")}`;
 	shots = [
 		{ name: "01-this-month", path: `/month/${month}` },
 		// Part-way down on a computer: where the round Ask Noodle button sits over the page.
@@ -1310,6 +1344,38 @@ test.beforeAll(async ({ browser }) => {
 			phoneSheet: true,
 			desk: true,
 			ready: opened("Archive", true),
+		},
+		// A card being paid off: its panel, then its Edit sheet (issue 73).
+		{ name: "18i-payoff-goal", path: `/goals/${payoffGoal}`, window: true },
+		{
+			name: "18j-payoff-goal-edit-sheet",
+			path: `/goals/${payoffGoal}`,
+			phoneSheet: true,
+			desk: true,
+			ready: opened("Edit"),
+		},
+		{
+			// Back pressed with something typed in a Goal's Edit sheet: leaving the page asks first
+			// ("Leave without saving?", issue 73). The Goal is opened from the list, so Back is the
+			// app's own step to another page.
+			name: "18k-leave-without-saving",
+			path: "/goals",
+			phoneSheet: true,
+			desk: true,
+			ready: async (page) => {
+				const link = page.getByRole("link", { name: "Hawaii trip" }).first();
+				await pressFor(link, page.getByRole("button", { name: "Edit" }).first());
+				await page.waitForURL(`**/goals/${ids.vacation}`, { timeout: 15_000 });
+				await settled(page);
+				await opened("Edit")(page);
+				const sheet = page.getByRole("dialog").last();
+				await sheet.getByLabel("Name", { exact: true }).fill("Hawaii, all four of us");
+				await page.goBack();
+				await expect(page.getByRole("alertdialog", { name: "Leave without saving?" })).toBeVisible({
+					timeout: 15_000,
+				});
+				await page.waitForTimeout(400);
+			},
 		},
 		{ name: "19-explore", path: "/explore" },
 		// A Scenario not saved yet, with one change: the outline, Your changes and the outcomes (#74).
@@ -1993,7 +2059,12 @@ test.beforeAll(async ({ browser }) => {
 				await page.waitForTimeout(400);
 			},
 		},
-		{ name: "53-archived-bucket", path: `/plan/${month}/buckets/${archivedBucket}`, phone: true },
+		{
+			name: "53-archived-bucket",
+			path: `/plan/${month}/buckets/${archivedBucket}`,
+			phone: true,
+			desk: true,
+		},
 		{
 			name: "53a-restore-bucket-sheet",
 			path: `/plan/${month}/buckets/${archivedBucket}`,
@@ -2130,6 +2201,152 @@ test.beforeAll(async ({ browser }) => {
 				},
 			}),
 		),
+		// A computer's twins of what only a phone had pictured (issue 73, agent 73bc): the sheets and
+		// pickers of Transactions, Review and Household settings, the signed-out pages and the toasts.
+		// Each is what's in the window. The toasts come last: each deletes a row of last month.
+		...(
+			[
+				{
+					name: "d10r-transactions-file-in",
+					path: `/transactions/${month}`,
+					ready: async (page) => {
+						const bar = await selectThree(page);
+						await bar.getByRole("button", { name: "File in…" }).click({ timeout: 15_000 });
+						await expect(page.getByPlaceholder(/^(Search or create|Find a Bucket)$/)).toBeVisible({
+							timeout: 15_000,
+						});
+					},
+				},
+				{
+					name: "d11c-transaction-split",
+					path: `/transactions/${month}/${ids.openTransaction}`,
+					ready: async (page) => {
+						await page
+							.getByRole("button", { name: "Split", exact: true })
+							.first()
+							.click({ timeout: 15_000 });
+						await page.waitForTimeout(400);
+					},
+				},
+				{
+					name: "d12q-review-picker",
+					path: "/review",
+					ready: async (page) => {
+						const card = await reviewCardOnTop(page, ":has([role=combobox])");
+						await card.getByRole("combobox").first().click({ timeout: 15_000 });
+						await expect(page.getByPlaceholder("Find a Bucket")).toBeVisible({ timeout: 15_000 });
+					},
+				},
+				{
+					name: "d12j-review-split",
+					path: "/review",
+					ready: async (page) => {
+						const card = await reviewCardOnTop(page, ":has(button:text-is('Split'))");
+						await pressFor(card.getByRole("button", { name: "Split" }), page.getByRole("dialog"));
+					},
+				},
+				{
+					name: "d12k-review-make-a-rule",
+					path: "/review",
+					ready: async (page) => {
+						const card = await reviewCardOnTop(page, ":has(button:text-is('Split'))");
+						await pressFor(
+							card.getByRole("button", { name: "Make a Rule" }),
+							page.getByRole("dialog", { name: "Make a Rule" }),
+						);
+					},
+				},
+				{
+					name: "d14b-rule-add",
+					path: "/review/rules",
+					ready: async (page) => {
+						await pressFor(
+							page.getByRole("button", { name: "Add Rule" }).first(),
+							page.getByRole("dialog"),
+						);
+					},
+				},
+				{
+					// Layout only: what the second step does is issue 118.
+					name: "d27d-delete-household-step-2",
+					path: "/household",
+					ready: async (page) => {
+						await openDangerSheet(page, "Delete Household");
+						const sheet = page.getByRole("dialog", { name: "Delete Household?" });
+						await sheet.getByRole("button", { name: "Continue" }).click();
+						await sheet.getByRole("textbox").focus();
+					},
+				},
+				{
+					name: "d27e-start-fresh-step-2",
+					path: "/household",
+					ready: async (page) => {
+						await openDangerSheet(page, "Start fresh");
+						const sheet = page.getByRole("dialog", { name: "Start fresh?" });
+						const on = sheet.getByRole("button", { name: "Continue" });
+						if (await on.isVisible()) await on.click();
+						await page.waitForTimeout(400);
+					},
+				},
+				{
+					// A snapshot taken, so Snapshots has its history: one more row at each width.
+					name: "d27f-snapshots-history",
+					path: "/household",
+					ready: async (page) => {
+						const history = page.getByRole("list", { name: "Snapshot history" });
+						await pressFor(page.getByRole("button", { name: "Take a snapshot" }), history);
+						await history.evaluate((node) => node.scrollIntoView({ block: "center" }));
+					},
+				},
+				{
+					name: "d27g-child-sheet",
+					path: "/household",
+					ready: async (page) => {
+						await pressFor(
+							page.getByRole("button", { name: /^(Edit|Rename) Maya/ }).first(),
+							page.getByRole("dialog"),
+						);
+					},
+				},
+				...(["sign-in", "sign-up"] as const).map(
+					(name, index): Shot => ({
+						name: `d6${index}-${name}`,
+						path: `/${name}`,
+						signedOut: true,
+						ready: async (page) => {
+							await expect(page.locator(".cl-formButtonPrimary")).toBeVisible({ timeout: 30_000 });
+							await page.evaluate(() => document.fonts.ready);
+							await page.waitForTimeout(600);
+						},
+					}),
+				),
+				...([1, 2] as const).map(
+					(toasts): Shot => ({
+						// One toast with Undo, then two stacked: a row of last month deleted for each.
+						name: toasts === 1 ? "d62-toast-undo" : "d63-toasts-two",
+						path: `/transactions/${monthBefore}`,
+						ready: async (page) => {
+							const boxes = page
+								.getByRole("grid", { name: /^Transactions in / })
+								.locator("[data-slot=data-table-body]")
+								.getByRole("checkbox");
+							for (let made = 0; made < toasts; made++) {
+								await boxes.first().click({ timeout: 15_000 });
+								await page
+									.getByRole("region", { name: "Selecting Transactions" })
+									.getByRole("button", { name: "Delete" })
+									.click({ timeout: 15_000 });
+								const sheet = page.getByRole("dialog", { name: /^Delete \d+ Transactions?\?$/ });
+								await sheet.getByRole("button", { name: /^Delete/ }).click({ timeout: 15_000 });
+								await expect(page.locator("[data-sonner-toast]")).toHaveCount(made + 1, {
+									timeout: 15_000,
+								});
+							}
+						},
+					}),
+				),
+			] satisfies Shot[]
+		).map((shot): Shot => ({ ...shot, desktop: true, window: true })),
 		{ name: "50-bank-return", path: "/bank/return", window: true },
 		{ name: "52-joined", path: "/joined", window: true },
 		{
@@ -2225,9 +2442,20 @@ for (const viewport of viewports) {
 		const failures: string[] = [];
 		for (const shot of shots) {
 			if ((shot.phoneSheet || shot.phone) && !phone && !shot.desk) continue;
+			if (shot.desktop && phone) continue;
 			if (only.length > 0 && !only.some((name) => shot.name.startsWith(name))) continue;
 			let page = main;
 			try {
+				if (shot.signedOut) {
+					const context = await browser.newContext({ ...device, isMobile: false, hasTouch: false });
+					const out = await context.newPage();
+					await setupClerkTestingToken({ page: out });
+					await out.goto(shot.path);
+					await shot.ready?.(out);
+					await out.screenshot({ path: join(dir, `${shot.name}.png`), animations: "disabled" });
+					await context.close();
+					continue;
+				}
 				if (shot.fresh) {
 					if (!freshParent) throw new Error("No second Household");
 					freshPage ??= await signedInPage(browser, freshParent.email, device);

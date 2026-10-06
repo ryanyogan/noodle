@@ -84,8 +84,10 @@ export function ForPicker({
 // edge (#74); a long name is cut with an ellipsis inside its own choice. The same goes wherever
 // the picker itself is under 28rem wide, whatever the window: the open Transaction's pane beside
 // the list is about 280px at 1024, where the fifth choice was cut off after two letters (#73).
+// From a tablet up a narrow pane (a sheet, a popover) wraps the choices only when they don't fit:
+// in equal columns five choices left the fifth alone on a second line in "Make a Rule" (issue 73).
 const trackClass =
-	"flex w-full overflow-x-auto rounded-xl p-0.75 [scrollbar-width:none] max-sm:grid max-sm:grid-cols-3! max-sm:overflow-x-visible @max-md:grid @max-md:grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] @max-md:overflow-x-visible";
+	"flex w-full overflow-x-auto rounded-xl p-0.75 [scrollbar-width:none] max-sm:grid max-sm:grid-cols-3! max-sm:overflow-x-visible @max-md:grid @max-md:grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] @max-md:overflow-x-visible sm:@max-md:flex! sm:@max-md:flex-wrap";
 // Under 14rem (a Split's card on a 320px phone) a column is about 64px: less padding and a
 // slightly smaller word, so "Everyone" is whole (issue 74).
 const itemClass =
