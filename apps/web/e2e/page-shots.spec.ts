@@ -833,6 +833,24 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "23g-reports-people", path: "/reports?view=people" },
 		{ name: "23h-reports-goals", path: "/reports?view=goals" },
 		{ name: "23i-reports-income", path: "/reports?view=income" },
+		// On a phone the Period, Compare with and Group by selects are in the Filters sheet, and what
+		// is on shows as chips under the button (issue 74).
+		{
+			name: "23j-reports-filters-sheet",
+			path: "/reports?view=trends",
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Filters/ }),
+					page.getByRole("dialog", { name: "Filters" }),
+				);
+			},
+		},
+		{
+			name: "23k-reports-trends-with-chips",
+			path: "/reports?view=trends&period=12m&compare=last-year&group=week&min=50&member=everyone",
+			phone: true,
+		},
 		{ name: "24-insights", path: "/insights" },
 		{ name: "25-credit-card-perks", path: "/insights/perks" },
 		{
