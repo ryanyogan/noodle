@@ -46,13 +46,13 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 | Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
 | This Month: header and month arrows | /month/$month (pic 01) | ok | ok | ok | ok | — | ok | — | CI: `phone-header`, `phone-swipe` |
-| Free to Spend card with a carried-over amount | pic 01 | ok | ok | ok | ok | — | ok | — | decision: "Each month carried over: May $2,054 Jun $3,002 …" wraps where it falls (three ragged lines at 320). Recommend a two-column list of month and amount |
+| Free to Spend card with a carried-over amount | pic 01 | fixed 0456f81d | — | fixed 0456f81d | — | — | ok | — | was a sentence that wrapped where it fell; now a two-column list (month, amount right-aligned) under "Each month carried over:" below 640px. Retaken and opened at 320 and 393 (`74ao-shots/sheets/c2.png`); 375 and 430 pictured, not opened; dark not retaken |
 | "Why it's lower" note card | pic 01 | ok | ok | ok | ok | — | ok | — |  |
 | To do, folded | pic 01 | ok | ok | ok | ok | — | ok | — | the preview is cut with "…"; the full text is one tap away |
 | To do, open (Close <Month>, Extra income, rows) | pic 02 | — | — | — | — | — | — | — | pictured at all four sizes, NOT opened |
 | Buckets list (Over, Ahead, Cover link) | pic 01 | ok | ok | ok | ok | — | ok | — | rows are the same height; figures share a right edge |
 | Personal Allowances | pic 01 | ok | ok | ok | ok | — | ok | — | decision: "Alex's Personal Allowance" takes two lines at 320 (one from 375). It wraps whole, nothing is cut. Recommend leaving it |
-| Bills, This month tab | pic 01 | ok | ok | ok | ok | — | ok | — | open (1px): "Record payment" starts 1px right of the "Due" line above it. Decision: a row with a pays-down note is four lines; recommend "Due Oct 1 · pays down Discover it" on one line from 375 |
+| Bills, This month tab | pic 01 | fixed 3c46ce88 | — | fixed 3c46ce88 | — | — | ok | — | "Record payment" started 1px right of the "Due" line: fixed. From 375 the pays-down note ends the Due line ("Due Oct 1 · Pays down Discover it"), so the row is three lines; at 320 it keeps its own line (four). Retaken and opened at 320 and 393; 375 and 430 pictured, not opened |
 | Bills, Coming up tab | Bills › Coming up | — | — | — | — | — | — | — | no pic yet |
 | Bills, "Not this month" opened | pic 01, the fold | — | — | — | — | — | — | — | folded only |
 | Record payment form in a Bills row | Bills › Record payment | — | — | — | — | — | — | — | no pic yet; has a money field: keyboard column too |
@@ -64,13 +64,13 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 | Extra income card | pic 01b | — | — | — | — | — | — | — | pictured, not opened |
 | "Send the Extra income" sheet | pic 01c | ok | — | ok | — | — | — | — | header, To, Amount, hint and Send all in view; CI: `sheet-phone`, `phone-keyboard` |
 | Close <Month> | pic 01d | — | — | — | — | — | — | — | pictured, not opened |
-| Cover a Bucket sheet | pic 04c | open: the picture shows the Bucket's page, not the sheet | — | — | — | — | — | — | the picture step did not open the sheet on a phone; fix the step first |
+| Cover a Bucket sheet | pic 04c | ok | — | ok | — | — | — | — | pic 48 (new step; 04c is the source Bucket's page, not the sheet). Opened at 320×568 and 393×568: header, Amount, hint, "Cover from" rows; the list scrolls. Amount field: keyboard height not pictured |
 | Bucket page after a Cover | pic 04b | ok | — | ok | — | — | — | — | "Edit Bucket" sits under the title at 320 and beside it at 393 (decided in ui1) |
 | Month's plan | /month/$month/plan | — | — | — | — | — | — | — | no pic yet |
 | Quick Add, at rest | tab bar › + (pic 35) | ok (at 640 tall) | — | ok | — | ok (500) | — | — | CI: `quick-add-many` (strict 393 baseline), `phone-keyboard` (WebKit and iPhone SE) |
 | Quick Add, with an amount | pic 35a | ok (at 640 tall) | — | — | — | ok (320×500) | — | — | at 500 tall one row of Buckets shows above the keypad; the rest scroll (decided in 110d) |
 | Quick Add, More Buckets | pic 35b | ok (at 640 tall) | — | ok | — | — | — | — | search field, sections, amounts right-aligned |
-| Quick Add, For picker | pic 35c | ok (at 640 tall) | — | ok | — | ok (320×500, 393×500) | — | — | decision: five choices fall 3 + 2 at 320 and 4 + 1 at 393 ("Sam" alone on the second line). Recommend equal columns (3 per line on phones) |
+| Quick Add, For picker | pic 35c | fixed 70d9192a | — | fixed 70d9192a | — | ok (320×500, 393×500, before the fix) | — | — | five choices fell 4 + 1 at 393: now three equal columns on phones (3 + 2). Shared `ForPicker`: the Transaction sheet and the Rule form get the same on phones (not pictured). Retaken and opened at 320 and 393 |
 | Quick Add, the real keyboard up (note field) | focus "Where or what?" | — | — | — | — | — | — | — | CI: `phone-keyboard` |
 | Quick Add, camera and voice capture | the two icon buttons | — | — | — | — | — | — | — |  |
 | Quick Add toast | after adding | — | — | — | — | — | — | — |  |
@@ -79,20 +79,20 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 
 | Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Plan overview with grouped Buckets | /plan/$month (pic 03) | — | — | — | — | — | — | — | open from before: a group's subtotal ends about 8px right of the rows' figures; 200% text (`phone-large-text`) |
-| Things to check, folded and open | pic 03 | — | — | — | — | — | — | — |  |
-| Buckets table: drag handle | pic 03 | — | — | — | — | — | — | — | the handle is 36px wide by decision: recorded exception to 44px |
+| Plan overview with grouped Buckets | /plan/$month (pic 03) | ok | fixed 1e534492 | fixed 1e534492 | fixed 1e534492 | — | — | — | pic 43 (new step: puts Gas and Household in "Home"). A group's subtotal ended 8px right of the rows' figures, Total and a row with no pencil 44px right: all on one edge now. "spent" alone on a line: the line now wraps between its parts. At 375 "Subscriptio/ns" broke inside the word: the figure goes under the name below 22rem of table (375 and down). Retaken and opened at all four widths (`74ao-shots/sheets/c1.png`, `d1.png` for 375 after the last fix): at 375 every row is two lines. open: 200% text not checked; decision 6 below |
+| Things to check, folded and open | pic 03 | ok | ok | ok | ok | — | — | — | pic 46 (new step). Rows wrap whole, chevrons share an edge. open (minor): the heading keeps the first warning as its preview while the list under it is open; the order of the first two warnings differed between widths in one run (data, not layout) |
+| Buckets table: drag handle | pic 03 | ok | ok | ok | ok | — | — | — | the handle is 36px wide by decision: recorded exception to 44px |
 | Plan over-planned | pic 03a | — | — | — | — | — | — | — |  |
 | Bucket sheet | pic 04a | — | — | — | — | — | — | — | CI: `sheet-phone`, `phone-keyboard` |
-| Bucket sheet: changed, over, More (Group field) | pic 04a3, 04a4, 04a2 | — | — | — | — | — | — | — |  |
-| Bucket sheet: delete confirm | Bucket sheet › Delete | — | — | — | — | — | — | — | no pic yet |
-| Rename a group sheet | group row › Rename | — | — | — | — | — | — | — | no pic yet |
-| Add Buckets sheet, New Bucket sheet | Plan › Add Buckets | — | — | — | — | — | — | — | no pic yet |
+| Bucket sheet: changed, over, More (Group field) | pic 04a3, 04a4, 04a2 | ok (Group, Move, count) | — | ok (Group, Move, Archive row) | — | — | — | — | pic 43b (new step, at the Group field). 04a3, 04a4, 04a2 pictured, not opened |
+| Bucket sheet: delete confirm | Bucket sheet › Delete | ok (Archive confirm) | — | ok (Archive confirm) | — | — | — | — | pic 44: every seeded Bucket has spending, so Delete is not offered and the step pictures the Archive confirm (same sheet shape). Delete confirm itself: no picture |
+| Rename a group sheet | group row › Rename | ok | — | ok | — | — | — | — | pic 43a (new step), at 568 tall: field, hint, Cancel and Save in view. Keyboard height not pictured |
+| Add Buckets sheet, New Bucket sheet | Plan › Add Buckets | ok | — | ok | — | — | — | — | pic 45 (new step): header, Left to plan, Add your own, footer. open (minor): the "?" in "carries over (?) , keeping" leaves a space before the comma and starts a line at 393. New Bucket sheet: no picture |
 | Bucket page | /plan/$month/buckets/$id (pic 05) | — | — | — | — | — | — | — | CI: `phone-header` (item page) |
 | Restore Bucket sheet | Bucket page › history | — | — | — | — | — | — | — | no pic yet |
 | Plan › Commitments | pic 06 | — | — | — | — | — | — | — |  |
 | Commitment page | pic 07 | — | — | — | — | — | — | — |  |
-| Commitment sheet (add, edit) | Commitment page › Edit | — | — | — | — | — | — | — | no pic yet |
+| Commitment sheet (add, edit) | Commitment page › Edit | ok | — | ok | — | — | — | — | pic 47 (new step), edit only, at 568 tall: Save stays in view over the scrolling fields. Add: no picture |
 | Plan › Goal funding | pic 08 | — | — | — | — | — | — | — |  |
 | Plan › Income | pic 08x | — | — | — | — | — | — | — | pictured at 320 and 393 after the Income-line fix, not opened |
 | "Take-home pay" sheet, Income came in lower | pic 06b, 06a | — | — | — | — | — | — | — |  |
@@ -153,10 +153,11 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 
 ## Decisions for the Parent (not built)
 
-1. Free to Spend card: the "Each month carried over" line as a small two-column list instead of a wrapped sentence (`74an-shots/320/01-this-month.png`).
-2. Bills: put the pays-down note on the "Due" line so the row is three lines, not four (`74an-shots/393/01-this-month.png`).
-3. Quick Add's For picker: equal columns so no choice is left alone on a line (`74an-shots/393/35c-quick-add-for.png`).
+1. Free to Spend card: BUILT in 74ao (two-column list).
+2. Bills: BUILT in 74ao (from 375).
+3. Quick Add's For picker: BUILT in 74ao (three equal columns).
 4. Personal Allowance names on two lines at 320: leave as is.
+6. Plan's Buckets on a phone: rows are two or three lines depending on the figures ("$1,100 allowance · $1,184.62 spent" does not fit beside a pencil at 375 to 393). Recommend one short line under the name at every phone width, "$1,184.62 of $1,100 spent" (`74ao-shots/sheets/c1.png`). Not built.
 5. Reports: ten tabs or a picker on phones (from issue 115; not looked at here).
 6. Item pages at 320: the header action (Edit, Rename, More) drops under a long title but stays beside a short one. Recommend always under the title below 360px (`74aq-shots/320/18-goal.png` against `18a-goal-long-history.png`).
 7. Explore: the years toggle (44px, outlined) beside tab strips (36px on a track). Recommend drawing it as the same tab strip (`74aq-shots/320/19-explore.png`).

@@ -1062,6 +1062,121 @@ test.beforeAll(async ({ browser }) => {
 			phoneSheet: true,
 			ready: quickAdd("for"),
 		},
+		// The Plan's sheets and states the pictures above don't reach (issue 74), after them: the
+		// first puts two Buckets in a group, which stays.
+		{
+			name: "43-plan-grouped",
+			path: `/plan/${month}#buckets`,
+			ready: async (page) => {
+				for (const name of ["Gas", "Household"]) {
+					const edit = page.getByRole("button", { name: `Edit ${name}`, exact: true });
+					const sheet = page.getByRole("dialog", { name, exact: true });
+					await pressFor(edit, sheet);
+					const field = sheet.getByLabel("Group", { exact: true });
+					if ((await field.inputValue()) === "Home") {
+						await sheet.getByRole("button", { name: "Cancel", exact: true }).click();
+					} else {
+						await field.fill("Home");
+						const saved = savedBy(page, "updateBucket");
+						await sheet.getByRole("button", { name: "Save", exact: true }).click();
+						await saved;
+					}
+					await expect(sheet).toHaveCount(0, { timeout: 15_000 });
+				}
+			},
+		},
+		{
+			name: "43a-group-rename-sheet",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: (page) =>
+				pressFor(
+					page.getByRole("button", { name: "Rename the group Home" }),
+					page.getByRole("dialog", { name: "Home", exact: true }),
+				),
+		},
+		{
+			// The Bucket sheet at its Group field, with the groups there are to pick from.
+			name: "43b-bucket-sheet-group",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				// The address is the last picture's, so its sheet is still up: a fresh page.
+				await page.reload();
+				await settled(page);
+				const sheet = page.getByRole("dialog", { name: "Gas", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Gas", exact: true }), sheet);
+				await sheet
+					.getByLabel("Group", { exact: true })
+					.evaluate((node) => node.scrollIntoView({ block: "center" }));
+			},
+		},
+		{
+			// A Bucket nothing was ever spent from can be deleted: the question asked first.
+			name: "44-bucket-delete-confirm",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				// The address is the last picture's, so its sheet is still up: a fresh page.
+				await page.reload();
+				await settled(page);
+				const sheet = page.getByRole("dialog", { name: "Gifts", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Gifts", exact: true }), sheet);
+				const remove = sheet.getByRole("button", { name: "Delete", exact: true });
+				const archive = sheet.getByRole("button", { name: "Archive", exact: true });
+				await archive.scrollIntoViewIfNeeded({ timeout: 15_000 });
+				await ((await remove.count()) > 0 ? remove : archive).click({ timeout: 15_000 });
+				await page.waitForTimeout(400);
+			},
+		},
+		{
+			name: "45-add-buckets-sheet",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await page.reload();
+				await settled(page);
+				await pressFor(
+					page.getByRole("button", { name: "Add Buckets", exact: true }).first(),
+					page.getByRole("dialog", { name: "Add Buckets" }),
+				);
+			},
+		},
+		{
+			name: "46-things-to-check-open",
+			path: `/plan/${month}`,
+			phone: true,
+			ready: async (page) => {
+				const row = page.getByRole("button", { name: /Things to check/ }).first();
+				if ((await row.count()) === 0) return;
+				await expect(async () => {
+					if ((await row.getAttribute("aria-expanded")) !== "true")
+						await row.click({ timeout: 2000 });
+					await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 2000 });
+				}).toPass({ timeout: 20_000 });
+			},
+		},
+		{
+			name: "47-commitment-sheet",
+			path: `/plan/${month}/commitments/${firstCommitment}`,
+			window: true,
+			ready: (page) =>
+				pressFor(
+					page.getByRole("button", { name: "Edit", exact: true }).first(),
+					page.getByRole("dialog").first(),
+				),
+		},
+		{
+			// Cover an over-spent Bucket, from This Month's Buckets list.
+			name: "48-cover-sheet",
+			path: `/month/${month}`,
+			window: true,
+			ready: (page) =>
+				pressFor(
+					page.getByRole("button", { name: /^Cover / }).first(),
+					page.getByRole("dialog", { name: /^Cover / }),
+				),
+		},
 		...small,
 		...fresh,
 		// Money between the two Parents, last: marking it changes the month's Income for good.
