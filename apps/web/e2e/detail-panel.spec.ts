@@ -565,12 +565,16 @@ test("Buckets is a table from 1024 with the totals under it; a Bucket is a drawe
 	// On a phone the line under the name is one short one: what is spent of the allowance (#120).
 	const under = bucketRow(page, "Gas").locator("[data-column=summary]");
 	await expect(under.locator("[data-summary=phone]")).toHaveText("$0 of $200 spent");
-	const line = await under.locator("[data-summary=phone]").evaluate((el) => ({
-		lines: el.getClientRects().length,
-		fits:
-			el.getBoundingClientRect().right <=
-			(el.parentElement as HTMLElement).getBoundingClientRect().right + 0.5,
-	}));
+	// One line: every part of it starts at the same height (a browser gives a box for each part).
+	const line = await under.locator("[data-summary=phone]").evaluate((el) => {
+		const boxes = [...el.getClientRects()];
+		const tops = boxes.map((box) => box.top);
+		const edge = (el.parentElement as HTMLElement).getBoundingClientRect().right;
+		return {
+			lines: Math.max(...tops) - Math.min(...tops) < boxes[0].height / 2 ? 1 : 2,
+			fits: el.getBoundingClientRect().right <= edge + 0.5,
+		};
+	});
 	expect(line, "one line, inside its row").toEqual({ lines: 1, fits: true });
 	await expect(
 		bucketRow(page, "Gas").getByRole("link", { name: "Gas", exact: true }),

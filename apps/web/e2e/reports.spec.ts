@@ -110,6 +110,8 @@ test("Phones reach Reports from This Month", { tag: "@phone" }, async ({ browser
 		hasTouch: true,
 	});
 	await createPlannedHousehold(page, plan);
+	// With some history: a Household with none has no Period to choose yet.
+	await seedReportHistory(parent.userId, 3);
 	await openFromMore(page, "Reports");
 	await expect(header(page)).toContainText("Overview");
 	// The Period beside Filters is a chip that opens the same sheet, where it is changed (#120).
