@@ -564,9 +564,20 @@ test("Buckets is a table from 1024 with the totals under it; a Bucket is a drawe
 	await expect(page.getByRole("button", { name: "Edit Gas", exact: true })).toBeEnabled();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 	await axe(page, "The Buckets table at 320");
-	// With no room beside the name, what's left leads the line under it.
+	// On a phone the line under the name is one short one: what is spent of the allowance (#120).
 	const under = bucketRow(page, "Gas").locator("[data-column=summary]");
-	await expect(under).toContainText("$200 left of $200");
+	await expect(under.locator("[data-summary=phone]")).toHaveText("$0 of $200 spent");
+	// One line: every part of it starts at the same height (a browser gives a box for each part).
+	const line = await under.locator("[data-summary=phone]").evaluate((el) => {
+		const boxes = [...el.getClientRects()];
+		const tops = boxes.map((box) => box.top);
+		const edge = (el.parentElement as HTMLElement).getBoundingClientRect().right;
+		return {
+			lines: Math.max(...tops) - Math.min(...tops) < (boxes[0]?.height ?? 0) / 2 ? 1 : 2,
+			fits: el.getBoundingClientRect().right <= edge + 0.5,
+		};
+	});
+	expect(line, "one line, inside its row").toEqual({ lines: 1, fits: true });
 	await expect(
 		bucketRow(page, "Gas").getByRole("link", { name: "Gas", exact: true }),
 	).toBeVisible();

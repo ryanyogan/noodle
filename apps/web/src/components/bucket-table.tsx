@@ -42,9 +42,9 @@ function Left({ cents }: { cents: number }) {
 const DOT = <span className="inline-block w-[1em] text-center whitespace-pre"> · </span>;
 
 /**
- * The line under the name in a stacked row: the figures that have no column there. On the
- * narrowest phone (a table under 320px) the name has the first line to itself, so this line says
- * what is left first: "$120 left of $400".
+ * The line under the name in a stacked row: the figures that have no column there. On a phone it
+ * is one short line at every width: "$1,184.62 of $1,100 spent" (issue 120). A stacked list on a
+ * wider window keeps its fuller line; under 22rem of table that one says what is left first.
  */
 function Summary({
 	allowance,
@@ -67,8 +67,20 @@ function Summary({
 		// Two boxes: the outer one starts with the tile over it, the inner one with the name. It wraps.
 		<span className={cn("flex min-w-0", indent && STACKED_INDENT)}>
 			<span className={cn("min-w-0 font-normal tabular-nums", underName && UNDER_NAME)}>
-				{/* Each line wraps between its parts, never inside one, and none ends in a "·" (issue 74). */}
-				<span className="@[22rem]/dt:hidden">
+				{/* A phone, at every width: one short line, what is spent of the allowance (issue 120). The
+				    figure is in the over tone once it passes the allowance; from 376px what is left or
+				    over is also beside the name. Whether it carries over is on the Bucket's own page. */}
+				<span className="whitespace-nowrap sm:hidden" data-summary="phone">
+					<span
+						className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}
+					>
+						{formatMoney(spent)}
+					</span>{" "}
+					of {formatMoney(allowance)} spent
+				</span>
+				{/* A narrow list that is not a phone. Each line wraps between its parts, never inside one,
+				    and none ends in a "·" (issue 74). */}
+				<span className="max-sm:hidden @[22rem]/dt:hidden">
 					<span className="whitespace-nowrap">
 						<span
 							className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}
@@ -80,7 +92,7 @@ function Summary({
 					<span className="whitespace-nowrap">of {formatMoney(allowance)}</span>
 				</span>
 				{/* The row is pulled left by a dot's room and cut there: a part that starts a line hides its dot. */}
-				<span className="hidden overflow-hidden @[22rem]/dt:block">
+				<span className="hidden overflow-hidden sm:@[22rem]/dt:block">
 					<span className="-ms-[1em] flex flex-wrap">
 						<span className="ps-[1em] whitespace-nowrap">{formatMoney(allowance)} allowance</span>
 						<span className="whitespace-nowrap">

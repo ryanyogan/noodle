@@ -285,6 +285,20 @@ async function pressFor(button: Locator, shown: Locator) {
 }
 
 /**
+ * Reports on a phone keeps its Period, Compare with and Group by selects and a custom range's dates
+ * in the Filters sheet (issue 74), which the Period chip opens too (issue 120): opened here first,
+ * so a picture of one of them open can be taken there. Says whether it is a phone.
+ */
+async function phoneFilters(page: Page, byChip = false) {
+	if ((page.viewportSize()?.width ?? 0) >= 640) return false;
+	await pressFor(
+		byChip ? page.locator("[data-period-chip]") : page.getByRole("button", { name: /^Filters/ }),
+		page.getByRole("dialog", { name: "Filters" }),
+	);
+	return true;
+}
+
+/**
  * Transactions with its first three rows selected and the selection's bar up: by the checkbox
  * column where the table has one, else (a phone) by the Select button and a tap on each row.
  */
@@ -1058,6 +1072,8 @@ test.beforeAll(async ({ browser }) => {
 			name: "10g-transactions-assigned-picker",
 			path: `/transactions/${month}`,
 			window: true,
+			// A phone's stacked rows have no Assigned to cell to press: it changes on the Transaction's page there.
+			desktop: true,
 			ready: async (page) => {
 				await page.locator("button[data-cell=assigned]").first().click({ timeout: 15_000 });
 				await expect(page.getByRole("listbox").first()).toBeVisible({ timeout: 15_000 });
@@ -1096,6 +1112,12 @@ test.beforeAll(async ({ browser }) => {
 			path: `/transactions/${month}`,
 			window: true,
 			ready: async (page) => {
+				// Under 1024 the selects are in the Filters sheet.
+				if ((page.viewportSize()?.width ?? 0) < 1024)
+					await pressFor(
+						page.getByRole("button", { name: /^Filters/ }),
+						page.getByRole("dialog", { name: "Filters" }),
+					);
 				await page
 					.getByRole("combobox", { name: "Account", exact: true })
 					.click({ timeout: 15_000 });
@@ -1647,6 +1669,7 @@ test.beforeAll(async ({ browser }) => {
 			path: "/reports",
 			window: true,
 			ready: async (page) => {
+				await phoneFilters(page, true);
 				const period = page.getByRole("combobox", { name: "Period" });
 				await expect(async () => {
 					if ((await page.getByRole("listbox").count()) === 0)
@@ -1691,6 +1714,7 @@ test.beforeAll(async ({ browser }) => {
 				path,
 				window: true,
 				ready: async (page) => {
+					await phoneFilters(page);
 					const select = page.getByRole("combobox", { name: label });
 					await expect(async () => {
 						if ((await page.getByRole("listbox").count()) === 0)
@@ -1705,7 +1729,12 @@ test.beforeAll(async ({ browser }) => {
 			path: "/reports?period=custom",
 			window: true,
 			ready: async (page) => {
-				await pressFor(page.getByRole("button", { name: "From" }), page.getByRole("dialog"));
+				// On a phone the sheet is a dialog too: the calendar is the one over it.
+				const inSheet = await phoneFilters(page);
+				await pressFor(
+					page.getByRole("button", { name: "From" }),
+					page.getByRole("dialog").nth(inSheet ? 1 : 0),
+				);
 			},
 		},
 		// Keyboard focus on a select, a tab and a table toggle of Reports; the pointer over a row.
