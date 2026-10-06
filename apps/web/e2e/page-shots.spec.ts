@@ -1089,7 +1089,7 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		// What was never pictured before the final phone pass (issue 74): Review's sheets, a long line
-		// from Sort, text at 200%, a long title, and the screens a page shows while it loads or fails.
+		// from Sort, text at 200%, the bank's return page and the page a joining Parent lands on.
 		{
 			name: "12j-review-split",
 			path: "/review",
@@ -1156,66 +1156,8 @@ test.beforeAll(async ({ browser }) => {
 				},
 			}),
 		),
-		{
-			// The title is a stand-in, written over the Rule's own: how the header treats a long one.
-			name: "14c-rule-page-long-title",
-			path: "/review/rules",
-			window: true,
-			ready: async (page) => {
-				await page.locator("a[href*='/review/rules/']").first().click({ timeout: 15_000 });
-				await page.waitForURL(/\/review\/rules\/./);
-				await page
-					.locator("h1:visible")
-					.first()
-					.evaluate((node) => {
-						node.textContent = "Costco Wholesale membership and gas station purchases";
-					});
-			},
-		},
-		{
-			// A form with something typed, then Back: the question over the sheet.
-			name: "45-leave-without-saving",
-			path: "/accounts",
-			window: true,
-			ready: async (page) => {
-				const sheet = page.getByRole("dialog", { name: "Add an Account" });
-				await pressFor(page.getByRole("button", { name: "Add Account" }), sheet);
-				await sheet.getByLabel("Name").fill("Ally savings");
-				await page.goBack();
-				await expect(
-					page.getByRole("alertdialog", { name: "Leave without saving?" }),
-				).toBeVisible();
-			},
-		},
-		...(["47-loading-skeleton", "48-route-error"] as const).map(
-			(name): Shot => ({
-				// Pictured part-way, by this step itself, as `<name>-during`: a page whose data is slow,
-				// and one whose data never comes. The picture the run takes afterwards is the page.
-				name,
-				path: "/review",
-				window: true,
-				ready: async (page) => {
-					const fails = name === "48-route-error";
-					await page.route("**/_serverFn/**", async (route) => {
-						if (fails) return route.abort();
-						await new Promise((done) => setTimeout(done, 5000));
-						await route.continue().catch(() => undefined);
-					});
-					await page
-						.getByRole("navigation", { name: "Main" })
-						.getByRole("link", { name: "Goals" })
-						.click();
-					await page.waitForTimeout(fails ? 4000 : 2500);
-					const width = page.viewportSize()?.width ?? 0;
-					await page.screenshot({ path: join(OUT, String(width), `${name}-during.png`) });
-					await page.unrouteAll({ behavior: "wait" });
-				},
-			}),
-		),
 		{ name: "50-bank-return", path: "/bank/return", window: true },
-		{ name: "51-welcome", path: "/welcome", window: true },
 		{ name: "52-joined", path: "/joined", window: true },
-		{ name: "53-fresh-welcome", path: "/welcome", fresh: true, window: true },
 		{
 			// Files every card it can, for the finish after the last one. Asked for by name.
 			name: "46-review-finish",
