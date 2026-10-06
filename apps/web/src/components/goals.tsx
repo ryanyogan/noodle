@@ -706,7 +706,9 @@ function PayoffGoalForm({
 					choices={owing.map((a) => ({ value: a.id, label: a.name }))}
 				/>
 			</Field>
-			<div className="grid gap-4 sm:grid-cols-2">
+			{/* One to a row: the name starts as "Pay off " and the Account's name, too long for half
+			    the sheet. */}
+			<div className="grid gap-4">
 				<Field label="Name" htmlFor={`${id}-name`}>
 					<Input
 						id={`${id}-name`}

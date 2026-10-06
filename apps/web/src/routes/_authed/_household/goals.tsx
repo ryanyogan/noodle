@@ -67,9 +67,12 @@ function GoalsPage() {
 					<EmptyState
 						icon={<Target />}
 						title="Goals start from an Account"
+						// From 640 the way on is inside the card, as on Explore's empty page; a phone keeps its
+						// full-width button under the card.
+						action={<AccountsLink className="max-sm:hidden" />}
 						description="A Goal is money in a checking or savings Account that you’re keeping for something, like braces or a trip, or a plan to pay off a credit card or loan. Add the Account first, with what’s in it or owed on it now."
 					/>
-					<AccountsLink />
+					<AccountsLink className="sm:hidden" />
 				</div>
 			</>
 		);
@@ -350,9 +353,9 @@ function GoalsSummary({ goals, emergency }: { goals: GoalView[]; emergency: Goal
 }
 
 /** Where Accounts are added: Goals are set aside in one. */
-function AccountsLink() {
+function AccountsLink({ className }: { className?: string }) {
 	return (
-		<Button variant="outline" size="sm" asChild>
+		<Button variant="outline" size="sm" asChild className={className}>
 			<Link to="/accounts">
 				<Landmark />
 				Go to Accounts

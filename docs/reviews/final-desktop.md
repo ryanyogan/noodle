@@ -62,10 +62,10 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | Bucket sheet, More open (Group, colour, Move up/down, Archive) | Buckets table › pencil › More (pic 04a2, 04a4) | yes | ok | ok | ok | ok | ok | ok (layout) | 73ar: one left edge, one primary (Save); centred in the window. 73au: COMPLETE (pic 04a2, sheet opened) |
 | Group rename sheet | Buckets table › a group's Rename (pic 04d) | yes | ok | ok | ok | ok | ok | ok (layout) | 73ar: new picture. 73au: COMPLETE (pic 04d) |
 | Add Buckets sheet | Plan › Add Buckets | yes | fixed 05afcc46 | fixed 05afcc46 | fixed 05afcc46 | fixed 05afcc46 | fixed 05afcc46 | fixed 05afcc46 (layout) | 73as: the help line read "carries over (?) , keeping": the comma stood a space from its word; reworded so nothing follows the "?" (pic 04e at 1440 before and after). With every starter already in the Plan the sheet still says "Tick the ones you want" over an empty list: copy, open. 73au: COMPLETE. With every starter in the Plan it now says "Every starter Bucket is already in your Plan. Add your own and set what it gets a month." (pic 04e at all six) |
-| New Bucket sheet | Bucket picker › New Bucket | yes | — | — | — | — | — | — |  |
+| New Bucket sheet | Bucket picker › New Bucket | yes | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pic 12l at desktop, opened from a Review card): centred sheet, fields and buttons on its edges |
 | Bucket in the panel | /plan/$month/buckets/$id | yes | ok (drawer) | ok (drawer) | ok | ok | ok | ok (layout) | 73ar: "Spent" and "Even spending by today" figures sat 16px apart when the label wrapped; now on one line (pics 05w). The foot strip clears the Ask button. 1920, 2560, dark taken, not opened. Judgement: its header button is outlined "Edit Bucket" while a Commitment's and Goal's is a plain "Edit". 73au: COMPLETE (pic 05w at all six) |
-| Restore Bucket sheet | Bucket panel › history | yes | — | — | — | — | — | — |  |
-| Plan editing dialog (discard draft) | Plan › edit, leave | yes | — | — | — | — | — | — |  |
+| Restore Bucket sheet | Bucket panel › history | yes | — | — | — | — | — | — | 73az: not pictured: the picture Household has no archived Bucket (seed needed) |
+| Plan editing dialog (discard draft) | Plan › edit, leave | yes | ok | ok | ok | ok | ok | ok (layout) | 73az: pic 04a5 (a Bucket’s sheet closed with a change: "Discard changes") opened at all six, fine. PARTLY: the "Leave without saving?" guard on leaving a page is not pictured |
 | Plan › Year | /plan/$month/year, /plan/year/$year | yes | open: October row tall | open: October row tall | ok | ok | ok | ok (layout) | 73ar: pic 09 at 1440: planned over actual, Carried over, months below zero in red, the yearly total; all columns end on one edge. Other widths taken, not opened. 73as: at 1024 October’s row was four lines tall ("This month" and "Lumpy" each on its own line); a wider Month column was tried and taken out again: it still left three lines and pushed "Take-home pay" to three. Needs a design choice (Decision 6). 1920 opened. 73au: all six opened (pic 09); 1280 has the tall October row too (three lines). Decision 6 |
 | Plan › Commitments | /plan/$month/commitments (pic 06) | no | fixed 05afcc46 | fixed 05afcc46 | ok | ok | ok | ok (layout) | amount column holds the figure alone; a yearly one says "A month’s share of $480 yearly" on its meta line (two lines beside the rail at 1440 and 1024). $11.58 keeps its cents: Plan figures are exact. 73as: 1920 opened: Paid and "Due Oct 1" share one right edge. 73au: COMPLETE. At 1024 and 1280 the list beside the rail had no room for the paid column, so "Paid" showed nowhere; it is now on the row’s second line there (from 640px; phones unchanged). Pic 06 retaken at all six |
 | Commitment in the panel | /plan/$month/commitments/$id (pic 07) | no | ok (drawer) | ok (drawer) | ok | ok | ok | ok (layout) | 73ar: retaken at every width with the foot strip (pic 07b); 1440 and 1024 opened. 73au: COMPLETE (pic 07b at all six) |
@@ -76,7 +76,7 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | Plan › Income | /plan/$month/income (pic 08x) | no | ok | ok | ok | ok | ok | ok (layout) | rail no longer repeats the received line or its bar; its help says "here, with Edit take-home pay". 1024 not retaken after this. 73as: 1024 opened (73ar picture). 73au: COMPLETE (pic 08x at all six) |
 | Income came in lower | small Household (pic 06a) | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 06a): the "Came in lower this month?" card and its one button sit between Take-home pay and Income at every width |
 | "Take-home pay" sheet | Income › Edit take-home pay (pic 06b) | no | ok | ok | ok | ok | ok | ok (layout) | 73au: COMPLETE (pic 06b at all six) |
-| Income: money from the other Parent, Between us | pics 40, 41 | no | — | — | — | — | — | — |  |
+| Income: money from the other Parent, Between us | pics 40, 41 | no | ok | ok | ok | ok | ok | ok (layout) | 73az: pic 41 (Between us) opened at all six, fine; the toast covers the row’s end at 1024 only while it shows. PARTLY: pic 40 (before it is marked) failed at every width, see the handoff |
 | Income row actions menu | Income › "Actions for …" | no | ok | ok | ok | ok | ok | ok (layout) | 73as: pic 08y added; menu opens under its button, inside the card. 73au: COMPLETE (pic 08y at all six) |
 | Plan › Income, empty | fresh Household (pic 39j) | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 39j) |
 
@@ -110,11 +110,11 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | Accounts, archived open | pic 15a | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 15a, top and second screen): the archived row and its Restore end on the list’s edge |
 | Account in the panel (credit card) | /accounts/$id (pic 16) | no | ok | ok | ok | ok | ok | ok (layout) | 73ar: "Perks for this card" said "5 Perks · Chase Sapphire Reserve" under the card's own heading; now "5 Perks" (another source's name is still shown). Pic 16 opened at 1440, with the foot strip in place 73aw: COMPLETE (pic 16). Judgement, not changed: at 1280 "Chase Sapphire Reserve" takes three lines beside More and the arrows (two at 1440, 1024) |
 | Account in the panel (no balance) | pic 16a | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 16a). "College savings" is two lines at 1280 and 1440 beside Rename (same judgement) |
-| Account actions menu | Account panel › More | no | — | — | — | — | — | — |  |
-| Rename Account sheet | Account menu › Rename | no | — | — | — | — | — | — |  |
-| "Add an Account" sheet | Accounts › Add an Account | no | — | — | — | — | — | — |  |
-| Bank connection sheets (history length, which do you have, already connected) | Accounts › Connect a bank | no | — | — | — | — | — | — |  |
-| Accounts, empty | fresh Household (pic 39c) | no | — | — | — | — | — | — |  |
+| Account actions menu | Account panel › More | no | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pic 16b). Opens under More; at 1280 it lies over the end of the three-line title (Decision: panel title) |
+| Rename Account sheet | Account menu › Rename | no | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pic 16f); also the balance sheet (16c), Upload a statement (16d, a side sheet) and the Archive confirm (16e), all six |
+| "Add an Account" sheet | Accounts › Add an Account | no | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pic 15b) |
+| Bank connection sheets (history length, which do you have, already connected) | Accounts › Connect a bank | no | ok | ok | ok | ok | ok | ok (layout) | 73az: pic 15c ("How far back…") opened at all six, fine. PARTLY: "Which of these do you have already?" and "already connected" need a bank link that answers; not pictured |
+| Accounts, empty | fresh Household (pic 39c) | no | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pic 39c): the three ways and the form keep to one column, capped |
 
 ## Goals
 
@@ -123,29 +123,29 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | Goals list | /goals (pic 17) | no | ok | ok | ok | ok | ok | ok (layout) | pic 18, under the panel. "$398.15 a month" beside "$450 a month": the money decision. 73as: 1440 opened again with the panel closed (pic 17): ok 73aw: COMPLETE (pic 17): rows at 1024 and 1280, two across at 1440, three at 1920 and 2560 |
 | Goal in the panel | /goals/$id (pic 18) | no | ok | ok | ok | ok | ok | ok (layout) | History: the row with Undo pushed its amount off the right edge the others share; retaken and clean. 73as: pic 18 opened at 1440: month heads and rows share the right edge 73aw: COMPLETE (pic 18 at all six) |
 | Goal with a long history | pic 18a, 18b | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pics 18a, 18b): 42 rows, month heads and amounts on one right edge, Undo only on this month’s |
-| Payoff Goal in the panel | /goals/$id of a payoff Goal | no | — | — | — | — | — | — |  |
-| Edit Goal sheet / Edit payoff Goal sheet | Goal panel › Edit | no | — | — | — | — | — | — |  |
-| New Goal sheet | Goals › New Goal | no | — | — | — | — | — | — |  |
-| Goal's Account | /goals/accounts/$accountId | no | — | — | — | — | — | — |  |
-| Goals, empty | fresh Household (pic 39b) | no | — | — | — | — | — | — |  |
+| Payoff Goal in the panel | /goals/$id of a payoff Goal | no | — | — | — | — | — | — | 73az: not pictured: the picture Household has no payoff Goal (seed needed) |
+| Edit Goal sheet / Edit payoff Goal sheet | Goal panel › Edit | no | ok | ok | ok | ok | ok | ok (layout) | 73az: pic 18d (Edit Goal) and Add money, Spend, Take money back, Archive (18c, 18e–18g) opened at all six, fine. PARTLY: Edit payoff Goal not pictured (no payoff Goal in the seed) |
+| New Goal sheet | Goals › New Goal | no | fixed 73az | fixed 73az | fixed 73az | fixed 73az | fixed 73az | fixed 73az | 73az: COMPLETE (pics 17a, 17b). Pay off a card or loan: the name ("Pay off Chase Sapphire Reserve") was cut in a half-width field; Name and Paid off by are one to a row now. Retaken |
+| Goal's Account | /goals/accounts/$accountId | no | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pic 18h): the address opens the Account’s panel on Accounts, its Goals listed with what’s not set aside |
+| Goals, empty | fresh Household (pic 39b) | no | fixed 73az | fixed 73az | fixed 73az | fixed 73az | fixed 73az | fixed 73az | 73az: COMPLETE (pic 39b). "Go to Accounts" was a button as wide as the card under it; from 640 it is inside the card, as on Explore’s empty page (a phone keeps its own). Retaken |
 
 ## Explore
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
 | Explore | /explore (pic 19) | no | open: tabs clip | ok | ok | ok | ok | ok (layout) | 73as: in "How it plays out" and "Goals reached" the last row had no rule above it (the shared table body drops the last row’s border); ruled now (ba015993). At 1024 the Outcome tabs clip "Each month" and hide "Goal paths" (the row scrolls): Decision 3. At 1440 the left column ends about 1,600px above the levers: Decision 5 73aw: all six opened, three screens down (pic 19): levers, How it plays out, Goals reached line up. Decisions 3 and 5 stand |
-| Explore with a change | pic 19a | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: top screen opened at all six (pic 19a); the screens below not opened |
-| Explore, a line's sheet | pic 19b | no | — | — | — | — | — | — |  |
-| Explore, a group open | pic 19d | no | — | — | — | — | — | — |  |
-| Explore, raises and inflation sheet | pic 19c | no | — | — | — | — | — | — |  |
-| "Apply to the Plan" dialog | Explore › Apply | no | — | — | — | — | — | — |  |
-| Explore, empty | fresh Household (pic 39g) | no | — | — | — | — | — | — |  |
+| Explore with a change | pic 19a | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: top screen opened at all six (pic 19a); the screens below not opened 73az: COMPLETE: the screens below opened (`73aw-shots/sheets/19a-explore-with-a-change-1.png`): tables, Goals reached and the outline keep their columns |
+| Explore, a line's sheet | pic 19b | no | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pic 19b at desktop): the editor opens under its row, slider and amount on one line |
+| Explore, a group open | pic 19d | no | n/a | n/a | n/a | n/a | n/a | n/a | 73az: not a desktop state: groups fold on a phone only; from 640 every line is listed (seen in pic 19) |
+| Explore, raises and inflation sheet | pic 19c | no | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pic 19c at desktop): the two % fields side by side under the switch |
+| "Apply to the Plan" dialog | Explore › Apply | no | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pic 19e) |
+| Explore, empty | fresh Household (pic 39g) | no | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pic 39g) |
 | Can we afford it? (house) | /explore/afford (pic 20) | no | ok | ok | ok | ok | ok | ok (layout) | 73as: pic 20 opened at 1440 73aw: COMPLETE (pic 20, two screens) |
 | Can we afford it? (car) | pic 20a | no | fixed 5935be04 | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE. At 1024 the "Over 5 years" table was wider than its card and the Lease column was cut off; in a card under 24rem each row is now its label with the three amounts under Cash, Loan, Lease (the phone form, by the card’s width). Pic 20a retaken at all six |
 | Can we afford it? (anything) | pic 20b | no | ok | ok | ok | ok | ok | ok (layout) | 73aw: COMPLETE (pic 20b) |
-| Can we afford it?, empty | fresh Household (pic 39k) | no | — | — | — | — | — | — |  |
-| Scenarios list, compare | /explore/scenarios | yes | ok (drawer) | fixed 5935be04 | fixed 5935be04 | ok | ok | ok (layout) | 73ar: with a Scenario open the panel covered Compare's value columns. Compare now keeps to the room left of the panel and, when that is under 448px, lists each number's values (the phone form); its charts stack under 768px (pics 21a, 22a). At 2560 the first fix still left "Pay cut" under the panel (opened); the wide-page correction is committed but NOT pictured. The Outcome tab row in the panel clips "Goal paths" at 1024 and 1440 (it scrolls). 73as: 22a retaken after f66b016c at 1440, 1920, 2560 and opened: "Pay cut" is whole beside the panel at 1920 and 2560; the stacked list at 1440. The compare table’s last row is ruled too (ba015993) 73aw: COMPLETE (pics 21, 21a, 22, 22a at all six). At 1280 Compare beside an open Scenario is about 130px wide and each name broke into one letter a line: the value now goes under its name there. With a Scenario open and nothing ticked, the panel cut "Tick Scenarios in the list to compare them here." in half at 1280 and 1440: not shown while an item is open under 1920. Retaken and opened |
-| Scenario, Rename and Delete dialogs | /explore/scenarios/$id | yes | — | — | — | — | — | — |  |
+| Can we afford it?, empty | fresh Household (pic 39k) | no | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pic 39k) |
+| Scenarios list, compare | /explore/scenarios | yes | ok (drawer) | fixed 5935be04 | fixed 5935be04 | ok | ok | ok (layout) | 73ar: with a Scenario open the panel covered Compare's value columns. Compare now keeps to the room left of the panel and, when that is under 448px, lists each number's values (the phone form); its charts stack under 768px (pics 21a, 22a). At 2560 the first fix still left "Pay cut" under the panel (opened); the wide-page correction is committed but NOT pictured. The Outcome tab row in the panel clips "Goal paths" at 1024 and 1440 (it scrolls). 73as: 22a retaken after f66b016c at 1440, 1920, 2560 and opened: "Pay cut" is whole beside the panel at 1920 and 2560; the stacked list at 1440. The compare table’s last row is ruled too (ba015993) 73aw: COMPLETE (pics 21, 21a, 22, 22a at all six). At 1280 Compare beside an open Scenario is about 130px wide and each name broke into one letter a line: the value now goes under its name there. With a Scenario open and nothing ticked, the panel cut "Tick Scenarios in the list to compare them here." in half at 1280 and 1440: not shown while an item is open under 1920. Retaken and opened 73az: the second screen of Compare (pic 21a) opened, fine |
+| Scenario, Rename and Delete dialogs | /explore/scenarios/$id | yes | ok | ok | ok | ok | ok | ok (layout) | 73az: COMPLETE (pics 22b, 22c) |
 
 ## Reports
 
@@ -207,7 +207,7 @@ Not built; each waits for a yes or no.
 | Delete Household sheet | Danger zone (pic 27b) | no | — | — | — | — | — | — |  |
 | Glossary | /glossary | no | — | — | — | — | — | — |  |
 
-127 rows; 30 looked at in every width and in dark and without an open cell (73au: Sidebar collapsed and thirteen Plan rows, sheets in `73au-shots/sheets/`; 73aw: four more Plan rows, Accounts, Goals, Can we afford it? and Scenarios, sheets in `73aw-shots/sheets/`).
+127 rows; 45 looked at in every width and in dark and without an open cell (73au: Sidebar collapsed and thirteen Plan rows, sheets in `73au-shots/sheets/`; 73aw: four more Plan rows, Accounts, Goals, Can we afford it? and Scenarios, sheets in `73aw-shots/sheets/`).; 73az: fifteen sheets, dialogs and empties of Plan, Accounts, Goals, Explore and Scenarios, sheets in `73az-shots/sheets/`; one more row is not a desktop state).
 
 ## Decisions for the owner (not built)
 
