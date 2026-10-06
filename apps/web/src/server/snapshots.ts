@@ -120,7 +120,7 @@ export const restoreSnapshot = createServerFn({ method: "POST" })
 		const snapshot = snapshots.find((row) => row.id === data.id);
 		if (!snapshot) return { ok: false as const, reason: "That snapshot is gone." };
 		if (await loadActiveFreshStart(db, householdId))
-			return { ok: false as const, reason: "A Fresh start is under way. Restore once it’s done." };
+			return { ok: false as const, reason: "Start fresh is under way. Restore once it’s done." };
 		const latestRestore = snapshots.find((row) => row.kind === "before-restore");
 		if (latestRestore && Date.now() - latestRestore.createdAt.getTime() < 60 * 60_000) {
 			const status = await env.RESTORE.get(latestRestore.id)

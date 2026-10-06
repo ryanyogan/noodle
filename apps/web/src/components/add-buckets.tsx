@@ -279,7 +279,7 @@ function AddBucketsForm({
 				aria-live="polite"
 				className="sticky top-0 z-10 -mx-1 rounded-lg bg-surface-2 px-3 py-2 text-sm text-muted-foreground"
 			>
-				Left to plan <TermHelp term="free-to-spend" />{" "}
+				Free to Spend after this <TermHelp term="free-to-spend" />{" "}
 				<span
 					className={`font-medium tabular-nums ${left < 0 ? "text-over-foreground" : "text-foreground"}`}
 				>

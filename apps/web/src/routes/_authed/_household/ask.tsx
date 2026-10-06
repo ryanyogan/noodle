@@ -63,7 +63,7 @@ function AskPage() {
 		last?.status === "answered"
 			? `Answer: ${last.answer}`
 			: last?.status === "failed"
-				? "Ask couldn't answer. Retry is below the question."
+				? "Ask couldn’t answer. Retry is below the question."
 				: "";
 
 	// A phone with its keyboard up leaves about 500px: the block pinned to the foot would cover the
@@ -98,7 +98,7 @@ function AskPage() {
 					{turns.length === 0 ? (
 						<p className="text-sm text-muted-foreground max-sm:[@media(max-height:560px)]:hidden">
 							Ask about your Plan, spending, Goals, or whether you can afford something. Answers use
-							your Household's real numbers.
+							your Household’s real numbers.
 						</p>
 					) : (
 						<div className="grid gap-8">
@@ -139,10 +139,10 @@ function AskPage() {
 							</Button>
 						</form>
 						<p id="ask-kept" className="text-xs text-muted-foreground">
-							Questions aren't saved. They're gone when you leave this page.
+							Questions aren’t saved. They’re gone when you leave this page.
 						</p>
 						<p className="text-xs text-muted-foreground">
-							Not sure what a word means? It's in{" "}
+							Not sure what a word means? It’s in{" "}
 							<Link
 								to="/glossary"
 								aria-haspopup="dialog"
@@ -169,7 +169,7 @@ function AskPage() {
 						<ul className="grid list-disc gap-1.5 ps-4 text-sm text-muted-foreground">
 							<li>Your Plan, Buckets and Commitments</li>
 							<li>Spending and Transactions</li>
-							<li>Goals and how they're tracking</li>
+							<li>Goals and how they’re tracking</li>
 							<li>Whether you can afford something</li>
 						</ul>
 						<p className="text-sm text-muted-foreground">
@@ -191,7 +191,7 @@ function Turn({ turn, onRetry }: { turn: AskTurnState; onRetry: () => void }) {
 			</p>
 			{turn.status === "failed" ? (
 				<div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-					<span>Couldn't answer that just now.</span>
+					<span>Couldn’t answer that just now.</span>
 					<Button variant="outline" size="sm" onClick={onRetry}>
 						<RotateCcw />
 						Retry

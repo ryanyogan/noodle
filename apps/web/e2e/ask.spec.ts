@@ -87,13 +87,13 @@ test("a failed answer can be retried, from the phone's This Month header", {
 	const askHousehold = serverFn("askHousehold");
 	await page.route(askHousehold, (route) => route.fulfill({ status: 500 }));
 	await page.getByRole("button", { name: "How are we doing this month?" }).click();
-	await expect(page.getByText("Couldn't answer that just now.")).toBeVisible();
+	await expect(page.getByText("Couldn’t answer that just now.")).toBeVisible();
 
 	await page.unroute(askHousehold);
 	await page.getByRole("button", { name: "Retry" }).click();
 	// $10,000 − $1,200 − $400.
 	await expect(page.getByText(/Free to Spend is \$8,400/).first()).toBeVisible();
-	await expect(page.getByText("Couldn't answer that just now.")).toBeHidden();
+	await expect(page.getByText("Couldn’t answer that just now.")).toBeHidden();
 	await page.getByRole("link", { name: /^Open / }).click();
 	await expect(page.getByText("Free to Spend").first()).toBeVisible();
 });

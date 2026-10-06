@@ -15,7 +15,7 @@ The page groups your Accounts as **Cash** and **Cards and loans**. **Totals** sh
 
 ## Three ways to add an Account
 
-- **Connect your bank.** Noodle brings in balances and Transactions for you.
+- **Connect a bank.** Noodle brings in balances and Transactions for you.
 - **Upload statements.** Add the Account, then upload statement files on its page. See [Uploading a statement](/docs/upload-a-statement).
 - **Type in a balance.** For cash, or a bank Noodle cannot reach. You update the balance yourself, and your Quick Adds are its spending.
 
