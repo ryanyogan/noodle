@@ -122,7 +122,7 @@ import {
 	stackReducer,
 	startStack,
 } from "../../../review-stack";
-import { addBucket } from "../../../server/plan";
+import { addFeesBucket } from "../../../server/fees-bucket";
 import { ChangedElsewhere } from "../../../transaction-versions";
 import { monthOfTransaction, type TransactionEdit } from "../../../transactions";
 import { useMoneyChange } from "../../../transfers";
@@ -669,17 +669,16 @@ function ReviewPage() {
 		const adding = addingFees.current.get(month) ?? { id: ulid(), pending: false };
 		if (adding.pending) return;
 		addingFees.current.set(month, { ...adding, pending: true });
-		const bucket = newFeesBucket(adding.id, nextBucketColor(plan.buckets.map((b) => b.color)));
+		const color = nextBucketColor(plan.buckets.map((b) => b.color));
+		let bucket = newFeesBucket(adding.id, color);
 		try {
-			await addBucket({
-				data: {
-					month,
-					bucketId: bucket.id,
-					name: bucket.name,
-					color: bucket.color,
-					allowanceCents: bucket.allowance,
-				},
-			});
+			// One the Household already has by that name (archived, or added since this was read) is
+			// used again, brought back into the Plan, instead of a second (issue 137).
+			const { bucketId } = await addFeesBucket({ data: { month, bucketId: bucket.id, color } });
+			if (bucketId !== bucket.id) {
+				bucket = newFeesBucket(bucketId, color);
+				void queryClient.invalidateQueries({ queryKey: monthQuery(month).queryKey });
+			}
 		} catch {
 			addingFees.current.set(month, { ...adding, pending: false });
 			return toast(`Couldn’t add ${bucket.name} to the Plan.`, {
