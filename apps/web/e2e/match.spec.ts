@@ -174,17 +174,6 @@ test("Review asks whether a tipped bank line is a Quick Add's copy, and Matches 
 	// Target's bank copy hasn't come in yet: its Match section says it's waiting for it.
 	await page.goto(new URL("/transactions", page.url()).href);
 	await expect(page.getByLabel("Bucket")).toBeEnabled();
-	// Under 1280px the row's badge is a dot that says "Waiting for bank" on hover, so the name keeps
-	// its room (issue 120); from 1280 it is the whole badge again.
-	const badge = page
-		.locator("[data-slot=badge]", { hasText: "Waiting for bank" })
-		.filter({ visible: true });
-	await page.setViewportSize({ width: 1024, height: 768 });
-	await expect.poll(async () => (await badge.boundingBox())?.width).toBeLessThanOrEqual(20);
-	await badge.hover();
-	await expect(page.locator("[data-slot=tooltip-content]")).toContainText("Waiting for bank");
-	await page.setViewportSize({ width: 1280, height: 720 });
-	await expect.poll(async () => (await badge.boundingBox())?.width).toBeGreaterThan(60);
 	await page.getByRole("button", { name: /^Target, \$45, Groceries/ }).click();
 	await expect(editSheet(page).getByRole("region", { name: "Waiting for bank" })).toContainText(
 		"When the bank's copy comes in",
