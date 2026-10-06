@@ -318,10 +318,14 @@ test.beforeAll(async ({ browser }) => {
 				}
 				await expect(region).toBeVisible({ timeout: 5000 });
 			}).toPass({ timeout: 30_000 });
-			// The toast has gone before the picture: it would sit over the rows on a phone.
-			await expect(page.getByRole("status").filter({ hasText: "is between you" })).toHaveCount(0, {
-				timeout: 20_000,
-			});
+			// The toast has gone before the picture: it would sit over the rows on a phone. It comes
+			// only when the server has answered, after the row has already moved, so it is waited
+			// for first (it may not come at all when the entry was marked by an earlier width).
+			const toast = page.getByRole("status").filter({ hasText: "is between you" });
+			await toast.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+			// Away from it: a toast under the pointer never counts down.
+			await page.mouse.move(1, 1);
+			await expect(toast).toHaveCount(0, { timeout: 20_000 });
 		} else {
 			await expect(async () => {
 				if (await region.isVisible())

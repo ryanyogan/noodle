@@ -63,8 +63,15 @@ test("every page has the same header: eyebrow and title first, tabs under it, no
 		await expect(header.getByRole("heading", { level: 1 }), path).toBeVisible();
 		await expect(header.locator("[data-slot=page-eyebrow]"), path).toHaveCount(1);
 
-		const box = await header.boundingBox();
-		const title = await header.getByRole("heading", { level: 1 }).boundingBox();
+		// Measured once both are there to measure: a page that draws its header again as its data
+		// arrives (seen on /household in WebKit) has no box for a moment after it was first seen.
+		let box: Awaited<ReturnType<typeof header.boundingBox>> = null;
+		let title: typeof box = null;
+		await expect(async () => {
+			box = await header.boundingBox({ timeout: 2000 });
+			title = await header.getByRole("heading", { level: 1 }).boundingBox({ timeout: 2000 });
+			expect(box && title, `${path}: no header`).toBeTruthy();
+		}).toPass({ timeout: 10_000 });
 		if (!box || !title) throw new Error(`${path}: no header`);
 		expect(Math.round(box.x), `${path}: header starts at the gutter`).toBe(GUTTER);
 		expect(Math.round(title.x), `${path}: title starts at the gutter`).toBe(GUTTER);
