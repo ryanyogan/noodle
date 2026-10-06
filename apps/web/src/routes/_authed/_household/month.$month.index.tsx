@@ -483,7 +483,8 @@ function Chips({ month, counts }: { month: MonthKey; counts: ChipCounts }) {
 	const { waiting, changes, insights, health } = counts;
 	if (!chipsShow(counts)) return null;
 	return (
-		<div className="flex flex-wrap gap-2">
+		// From lg the chips start on the To do card's 20px edge, under "To look at" (issue 73).
+		<div className="flex flex-wrap gap-2 lg:px-1">
 			{waiting > 0 ? (
 				<Chip to="/review" icon={ListChecks}>
 					{waiting} to review

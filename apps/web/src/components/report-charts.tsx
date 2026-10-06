@@ -196,7 +196,8 @@ export function DataTable({ table, className }: { table: ReportTable; className?
 	const formats = table.columns.map((_, i) => columnFormatter(table, i));
 	return (
 		<div className={cn("-mx-(--card-pad)", className)}>
-			<Table className="min-w-max">
+			{/* From lg a name may take two lines before a column goes under the card's edge (issue 73). */}
+			<Table className="min-w-max lg:min-w-0">
 				<TableCaption className="sr-only">{table.title}</TableCaption>
 				<TableHeader>
 					<TableRow>
