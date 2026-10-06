@@ -1664,7 +1664,7 @@ function ReviewCard({
 										{" "}
 										<Link
 											to="/accounts"
-											className="-my-1 inline-block py-1 font-medium whitespace-nowrap text-foreground underline underline-offset-2 roomy:hidden"
+											className="-my-1 inline-block py-1 font-medium whitespace-nowrap text-foreground underline underline-offset-2 roomy:hidden @max-[15rem]/card:whitespace-normal"
 										>
 											Connect the card
 										</Link>
