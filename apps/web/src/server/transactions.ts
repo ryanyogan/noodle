@@ -135,6 +135,8 @@ export type TransactionsPage = {
 	next: TransactionCursor | null;
 	/** What the filtered month spent; on a month's first page only. */
 	total: number | null;
+	/** The month's summary (issue 134), with `total`: whatever `review` narrows the list to. */
+	summary: { outCents: number; needsReview: number } | null;
 };
 
 /** How the list is ordered; newest first when left out. */
@@ -171,6 +173,8 @@ export const getTransactions = createServerFn({ method: "GET" })
 			forMember: forFilterSchema.optional(),
 			accountId: ulidSchema.optional(),
 			search: z.string().trim().max(SEARCH_MAX).optional(),
+			// Only spending that waits to be filed (issue 134).
+			review: z.boolean().optional(),
 			sort: transactionSortSchema.optional(),
 			after: z
 				.object({
@@ -485,6 +489,7 @@ const selectionSchema = z
 				forMember: forFilterSchema.optional(),
 				accountId: ulidSchema.optional(),
 				search: z.string().trim().max(SEARCH_MAX).optional(),
+				review: z.boolean().optional(),
 			})
 			.optional(),
 		except: z.array(z.string().min(1).max(64)).max(PICKED_MAX).optional(),

@@ -126,8 +126,13 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 	await page.keyboard.press("Escape");
 	await expect(editor).toBeHidden();
 	await page.keyboard.press("Escape");
-	// Deposits are income, not Transactions.
-	await expect(page.getByText("ACME CORP PAYROLL")).toHaveCount(0);
+	// Deposits are income, not Transactions: listed under Money in (issue 131), not in the table.
+	await expect(
+		page.getByRole("grid", { name: /^Transactions in / }).getByText("ACME CORP PAYROLL"),
+	).toHaveCount(0);
+	await expect(
+		page.getByRole("region", { name: "Money in" }).getByText("ACME CORP PAYROLL"),
+	).toBeVisible();
 });
 
 test("money back onto a card is listed but counts nowhere", async ({ browser }) => {
@@ -157,10 +162,10 @@ test("money back onto a card is listed but counts nowhere", async ({ browser }) 
 	);
 	const rei = page.getByRole("button", { name: /^REI\b/i });
 	const refund = page.getByRole("row").filter({ has: rei });
-	await says(page, rei, ["Money back", "Visa", "••1111", "−$24.99"]);
+	await says(page, rei, ["Money back", "Visa", "••1111", "+$24.99"]);
 	// It opens its Transfer and Refund link, not the editor.
 	// The row's own button, not the Rename pencil in its Name cell.
 	await expect(refund.locator("button:not([role=checkbox]):not([data-cell])")).toHaveAccessibleName(
-		/^REI[^,]*, −\$24\.99, Money back, from Visa ••1111$/i,
+		/^REI[^,]*, \+\$24\.99, Money back, from Visa ••1111$/i,
 	);
 });

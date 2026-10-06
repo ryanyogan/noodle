@@ -17,6 +17,8 @@ type Filters = {
 	q?: string;
 	/** More than the month (issue 99): "all that match" is then all in that range. */
 	range?: TransactionRange;
+	/** The summary's filter (issue 134): "review" is then all that wait to be filed. */
+	show?: "in" | "out" | "review";
 };
 
 export type Picking = {
@@ -121,6 +123,8 @@ export const matchingAll = (month: MonthKey, filters: Filters, andEarlier: boole
 	forMember: filters.for,
 	accountId: filters.account,
 	search: filters.q,
+	// Never left out when the list is narrowed to what waits: "all that match" must not mean the month.
+	review: filters.show === "review" || undefined,
 });
 
 /** What the server is asked to delete. */

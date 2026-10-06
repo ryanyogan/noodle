@@ -569,6 +569,21 @@ const splitHasForRows = (memberId?: string) =>
 const isSplit = sql`exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`;
 
 /**
+ * The enclosing query's Transaction is spending that waits to be filed (issue 134): in no Bucket,
+ * Commitment or Goal, not split, not a side of a Transfer or a matched copy, and not money back.
+ * The rows the Transactions list calls "Unassigned", and what its "Needs review" filter keeps.
+ */
+const needsReview = () =>
+	and(
+		isNull(transactions.bucketId),
+		isNull(transactions.commitmentId),
+		isNull(transactions.goalId),
+		sql`${transactions.amountCents} > 0`,
+		counts(),
+		sql`not ${isSplit}`,
+	) as SQL;
+
+/**
  * Transactions in a Bucket and For a Member (or For the whole Household): assigned so as a whole,
  * or through one Split `viewer` may see that is both. Undefined when there's nothing to filter by.
  */
@@ -637,6 +652,8 @@ export async function loadTransactionsPage(
 		accountId?: string;
 		/** Words in the note (the merchant, for imported ones), any case. */
 		search?: string;
+		/** Only spending that waits to be filed (`needsReview`). */
+		review?: boolean;
 		/** Newest first when left out. */
 		sort?: TransactionSort;
 		after?: TransactionCursor;
@@ -652,13 +669,18 @@ export async function loadTransactionsPage(
 	 * a Transfer's sides count nowhere and money back takes off, as in the day totals.
 	 */
 	total: number | null;
+	/**
+	 * The month's summary (issue 134), on the same page as `total`: what the other filters' rows
+	 * spent and how many of them wait to be filed, whether or not `review` narrows the list.
+	 */
+	summary: { outCents: number; needsReview: number } | null;
 }> {
 	const householdId = viewer.householdId;
 	const partly = partlyPrivate(viewer);
 	const search = query.search?.trim();
 	const sort = query.sort ?? "newest";
 	const amount = sql<number>`case when ${partly} then ${visibleSplitsSum(viewer)} else ${transactions.amountCents} end`;
-	const filtered = and(
+	const base = and(
 		visibleTo(viewer),
 		query.transactionId ? eq(transactions.id, query.transactionId) : undefined,
 		query.month && !query.andEarlier
@@ -671,6 +693,7 @@ export async function loadTransactionsPage(
 			? sql`(not ${partly} and (${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!' or ${transactions.merchant} like ${`%${likeEscaped(search)}%`} escape '!'))`
 			: undefined,
 	);
+	const filtered = query.review ? and(base, needsReview()) : base;
 	// Keyset paging: past the previous page's last row in the list's order. Rows the order can't
 	// tell apart go by date and then by ID, so no page repeats or skips one.
 	const byAmount = sort === "largest" || sort === "smallest";
@@ -715,6 +738,22 @@ export async function loadTransactionsPage(
 					.select({ total: sql<number>`coalesce(sum(${amount}), 0)`.mapWith(Number) })
 					.from(transactions)
 					.where(and(filtered, sql`not ${isTransfer}`))
+			: null;
+	const summaryQuery =
+		query.month && !query.after
+			? db
+					.select({
+						outCents:
+							sql<number>`coalesce(sum(case when ${isTransfer} then 0 else ${amount} end), 0)`.mapWith(
+								Number,
+							),
+						needsReview:
+							sql<number>`coalesce(sum(case when ${needsReview()} then 1 else 0 end), 0)`.mapWith(
+								Number,
+							),
+					})
+					.from(transactions)
+					.where(base)
 			: null;
 	const rowsQuery = db
 		.select({
@@ -778,7 +817,8 @@ export async function loadTransactionsPage(
 		.orderBy(...order)
 		// One more than asked for says whether there's another page.
 		.limit(query.limit + 1);
-	const [rows, totalRows] = await Promise.all([rowsQuery, totalQuery]);
+	const [rows, totalRows, summaryRows] = await Promise.all([rowsQuery, totalQuery, summaryQuery]);
+	const summary = summaryRows ? (summaryRows[0] ?? { outCents: 0, needsReview: 0 }) : null;
 	const total = totalRows ? (totalRows[0]?.total ?? 0) : null;
 	const page = rows.slice(0, query.limit);
 	const ids = page.map((row) => row.id);
@@ -860,6 +900,7 @@ export async function loadTransactionsPage(
 					}
 				: null,
 		total,
+		summary,
 	};
 }
 
@@ -1571,6 +1612,8 @@ export type TransactionSelection = {
 		forMember?: string;
 		accountId?: string;
 		search?: string;
+		/** Only spending that waits to be filed, as the list's "Needs review" filter. */
+		review?: boolean;
 	};
 	except?: string[];
 };
@@ -1590,6 +1633,7 @@ function selectedBy(viewer: Viewer, selection: TransactionSelection): SQL {
 		lt(transactions.date, nextMonthStart(all.month)),
 		matching(viewer, all.bucketId, all.forMember),
 		all.accountId ? inAccount(all.accountId) : undefined,
+		all.review ? needsReview() : undefined,
 		search
 			? sql`(not ${partlyPrivate(viewer)} and (${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!' or ${transactions.merchant} like ${`%${likeEscaped(search)}%`} escape '!'))`
 			: undefined,

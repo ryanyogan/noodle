@@ -568,6 +568,12 @@ export async function openFromMore(page: Page, item: (typeof moreItems)[number])
  * link: a click on it loads a whole new page, so anything marked or measured on the page before
  * the click is gone, and a button does nothing. It asks React itself: the node's fiber is in the
  * tree React has committed, not the one it is still building.
+ *
+ * "In the committed tree" is read from the root down. A fiber has two versions and its `return`
+ * points at whichever version of its parent was being built when it was last touched, so walking
+ * up from the node ends at the root's other version about as often as not once something else on
+ * the page has rendered again, and stays there until the next render (issue 134: the month
+ * summary's buttons, which nothing renders again, were "never hydrated" on half the loads).
  */
 export async function hydrated(target: Locator) {
 	await expect
@@ -577,17 +583,30 @@ export async function hydrated(target: Locator) {
 					type Fiber = {
 						return: Fiber | null;
 						alternate: Fiber | null;
+						child: Fiber | null;
+						sibling: Fiber | null;
 						tag: number;
 						stateNode: { current?: Fiber } | null;
 					};
 					const key = Object.keys(node).find((name) => name.startsWith("__reactFiber$"));
 					const fiber = key ? (node as unknown as Record<string, Fiber>)[key] : undefined;
-					const committed = (from: Fiber | null | undefined) => {
-						let top = from;
-						while (top?.return) top = top.return;
-						return !!top && top.tag === 3 && top.stateNode?.current === top;
-					};
-					return committed(fiber) || committed(fiber?.alternate);
+					if (!fiber) return false;
+					// The node's ancestors, either version of each, up to the root.
+					const path: Fiber[] = [];
+					for (let at: Fiber | null = fiber; at; at = at.return) path.push(at);
+					const top = path.pop();
+					let current = top?.tag === 3 ? top.stateNode?.current : undefined;
+					if (!current || (current !== top && current !== top?.alternate)) return false;
+					// Down the committed tree: each ancestor (one version or the other) must be among the
+					// committed parent's children. Content still being hydrated isn't: its boundary's
+					// committed child is the server's HTML, not these fibers.
+					for (const wanted of path.reverse()) {
+						let child: Fiber | null = current.child;
+						while (child && child !== wanted && child !== wanted.alternate) child = child.sibling;
+						if (!child) return false;
+						current = child;
+					}
+					return true;
 				}),
 			clientRendered,
 		)

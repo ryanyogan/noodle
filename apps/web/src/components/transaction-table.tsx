@@ -7,8 +7,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, type Ref, useEffect, useMemo, useRef, useState } from "react";
 import { isUnassigned, nothingToFileIn, pastPlanSentence } from "../before-plan";
 import { dayName, formatMoney } from "../format";
-import type { MemberSummary } from "../members";
-import { cellEdits, refileOf, renameOf, undoOf } from "../transaction-cells";
+import { forLabel, type MemberSummary } from "../members";
+import { cellEdits, forOf, refileOf, renameOf, undoOf } from "../transaction-cells";
 import { monthHeading } from "../transaction-range";
 import { rowView } from "../transaction-row";
 import {
@@ -305,6 +305,18 @@ export function TransactionTable({
 			});
 		},
 		refile,
+		members,
+		refor: (transaction, memberIds) => {
+			const next = forOf(transaction, memberIds);
+			if (!next) return;
+			onChange({
+				transaction,
+				label: transactionLabel(transaction),
+				next,
+				said: `${titleOf(transaction)} is For ${forLabel(members, memberIds)}`,
+				back: undoOf(transaction, next),
+			});
+		},
 		create: (transaction, name) => setCreating({ transaction, name }),
 	};
 	const columns = transactionColumns({ dated: !byDate, open, checked, onEdit, cells });

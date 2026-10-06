@@ -4,6 +4,7 @@ import { createPlannedHousehold, hydrated, signedInPage } from "./session";
 
 // Money in has a kind (issue 131, ADR-0057): it is listed on Transactions with its kind in plain
 // words, and a Parent can say it is something other than Income, which takes it out of Income.
+// The month's summary over the table (issue 134) says what came in, and each figure is a filter.
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -48,8 +49,16 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 	const casey = rows.filter({ hasText: "Casey for tuition" });
 	await expect(casey).toContainText("+$300");
 	await expect(casey.getByTestId("money-in-kind")).toHaveText("Income");
+	// The month at a glance: both lines are Income; nothing is spent and nothing waits.
+	const summary = page.getByRole("group", { name: "The month at a glance" });
+	await expect(summary.getByTestId("month-in")).toHaveText("+$5,300");
+	await expect(summary.getByTestId("month-total")).toHaveText("$0");
+	await expect(summary.getByTestId("month-review")).toHaveText("0");
 
-	await casey.getByRole("button", { name: "Change what Casey for tuition is" }).click();
+	// The month's money in is in the server's HTML now (issue 134): wait for React before pressing.
+	const changeCasey = casey.getByRole("button", { name: "Change what Casey for tuition is" });
+	await hydrated(changeCasey);
+	await changeCasey.click();
 	await expect(casey.getByRole("button", { name: "Income", exact: true })).toHaveAttribute(
 		"aria-pressed",
 		"true",
@@ -63,6 +72,29 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 	await expect(casey.getByTestId("paid-back-matching")).toContainText(
 		"$300 is Paid back, not matched yet",
 	);
+	// Paid back is still money in.
+	await expect(summary.getByTestId("month-in")).toHaveText("+$5,300");
+
+	// Each figure is a filter, kept in the address: Money out leaves the money in out, Money in
+	// shows it alone, and pressing the one that is on takes it off.
+	const moneyOut = summary.getByRole("button", { name: /^Money out/ });
+	await moneyOut.click();
+	await expect(page).toHaveURL(/[?&]show=out/);
+	await expect(moneyOut).toHaveAttribute("aria-pressed", "true");
+	await expect(moneyIn(page)).toHaveCount(0);
+	const moneyInFilter = summary.getByRole("button", { name: /^Money in/ });
+	await moneyInFilter.click();
+	await expect(page).toHaveURL(/[?&]show=in/);
+	await expect(rows).toHaveCount(2);
+	// Nothing in the bar narrows money in, so it waits while Money in shows alone.
+	await expect(page.getByRole("searchbox", { name: "Search notes and merchants" })).toBeDisabled();
+	await expect(page.getByRole("combobox", { name: "Bucket", exact: true })).toBeDisabled();
+	await page.reload();
+	await expect(moneyInFilter).toHaveAttribute("aria-pressed", "true");
+	await expect(rows).toHaveCount(2);
+	await hydrated(moneyInFilter);
+	await moneyInFilter.click();
+	await expect(page).not.toHaveURL(/show=/);
 
 	// The server keeps it: it is out of the month's Income.
 	await page.goto("/month");

@@ -58,11 +58,12 @@ import { OwedBackList } from "../../../components/owed-back-list";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import { useBringsSpendingIn } from "../../../components/transaction-list";
 import { DeleteSelectedSheet, SelectionBar } from "../../../components/transaction-selection";
+import { MonthSummary } from "../../../components/transaction-summary";
 import { TransactionTable, tableIsStacked } from "../../../components/transaction-table";
-import { formatMoney, monthName } from "../../../format";
+import { monthName } from "../../../format";
 import { type AccountView, useGoals } from "../../../goals";
 import { type MemberSummary, pickableMembers } from "../../../members";
-import { useReviewWaiting } from "../../../money-in";
+import { moneyInQuery, useReviewWaiting } from "../../../money-in";
 import { goalsQuery, membersQuery, monthQuery, reviewQuery } from "../../../queries";
 import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
@@ -80,6 +81,7 @@ import {
 	type Picking,
 	togglePicked,
 } from "../../../transaction-selection";
+import { TRANSACTION_SHOWS } from "../../../transaction-summary";
 import { escapeStep } from "../../../transaction-table";
 import {
 	monthOfTransaction,
@@ -105,6 +107,8 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 		sort: transactionSortSchema.exclude(["newest"]).optional().catch(undefined),
 		// More than the month (issue 99), ending at it; the month alone never shows in the URL.
 		range: z.enum(TRANSACTION_RANGES).optional().catch(undefined),
+		// The summary's filter (issue 134): money in, money out, or what needs review.
+		show: z.enum(TRANSACTION_SHOWS).optional().catch(undefined),
 	}),
 	beforeLoad: ({ params, context }) => {
 		if (!monthKeySchema.safeParse(params.month).success) throw notFound();
@@ -120,6 +124,7 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 		q: search.q || undefined,
 		sort: search.sort,
 		range: search.range,
+		show: search.show,
 	}),
 	// The first page is rendered on the server; later pages load as the Parent scrolls.
 	loader: ({ context, deps, cause, preload }) => {
@@ -143,6 +148,8 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 			context.queryClient.ensureQueryData(membersQuery()),
 			context.queryClient.ensureQueryData(reviewQuery()),
 			context.queryClient.ensureQueryData(goalsQuery()),
+			// The summary's Money in is in the server's HTML, not filled in afterwards.
+			context.queryClient.ensureQueryData(moneyInQuery(context.month)),
 			narrowing
 				? void context.queryClient.prefetchInfiniteQuery(list)
 				: context.queryClient.ensureInfiniteQueryData(list),
@@ -269,10 +276,12 @@ function TransactionsPage() {
 	const sameYear = month.slice(0, 4) === current.slice(0, 4);
 	// The order isn't a filter: every Transaction is still there.
 	// Nor is how many months are listed.
-	const { sort: _sort, range, ...narrowing } = filters;
-	const filtered = Object.values(narrowing).some((value) => value !== undefined);
+	// The summary's Money in and Money out choose which list shows; only Needs review narrows one.
+	const { sort: _sort, range, show, ...narrowing } = filters;
+	const narrowed = Object.values(narrowing).some((value) => value !== undefined);
+	const filtered = narrowed || show === "review";
 	// Another month or other filters: "all that match" would mean something else, so start again.
-	const shown = JSON.stringify([month, range, narrowing]);
+	const shown = JSON.stringify([month, range, narrowing, show]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `shown` is what resets the selection
 	useEffect(() => {
 		setPicking((was) => (was ? nothingPicked : was));
@@ -365,17 +374,25 @@ function TransactionsPage() {
 			    picked from it opens in place, under its row; below lg it is a page of its own, the
 			    filters and the other rows hidden. */}
 			<div className="grid gap-4">
-				<div data-slot="transaction-filters" className={cn("min-w-0", picked && "max-lg:hidden")}>
+				<div
+					data-slot="transaction-filters"
+					className={cn("grid min-w-0 gap-3", picked && "max-lg:hidden")}
+				>
+					<MonthSummary
+						month={month}
+						filters={filters}
+						caption={totalLabel(range, month, { filtered: narrowed, current })}
+						onShow={(next) => onChange({ show: next })}
+					/>
 					<Filters
 						month={month}
-						current={current}
 						plan={plan}
 						members={members}
 						accounts={accounts}
 						filters={filters}
-						filtered={filtered}
 						onChange={onChange}
 						onSelect={picking ? undefined : () => setPicking(nothingPicked)}
+						idle={show === "in" && !picked}
 					/>
 				</div>
 				<div data-slot="transaction-list" className="min-w-0">
@@ -387,7 +404,7 @@ function TransactionsPage() {
 							picked && "max-lg:[&>[aria-label='Selecting_Transactions']]:hidden",
 						)}
 					>
-						{picking ? (
+						{picking && (show !== "in" || picked) ? (
 							<SelectionBar
 								month={month}
 								current={current}
@@ -401,30 +418,33 @@ function TransactionsPage() {
 								onFiled={() => setPicking(null)}
 							/>
 						) : null}
-						<TransactionList
-							parentId={parentId}
-							picking={picking}
-							onPick={onPick}
-							month={month}
-							filters={filters}
-							today={asOf}
-							plan={plan}
-							members={members}
-							filtered={filtered}
-							picked={picked}
-							onSort={(sort) => onChange({ sort })}
-							onEdit={onEdit}
-							onCellChange={change.mutate}
-							detail={
-								picked ? (
-									<Suspense fallback={<DetailPending />}>
-										<Outlet />
-									</Suspense>
-								) : undefined
-							}
-						/>
+						{/* Money in alone: the table steps aside (an open Transaction keeps it, it lives there). */}
+						{show !== "in" || picked ? (
+							<TransactionList
+								parentId={parentId}
+								picking={picking}
+								onPick={onPick}
+								month={month}
+								filters={filters}
+								today={asOf}
+								plan={plan}
+								members={members}
+								filtered={filtered}
+								picked={picked}
+								onSort={(sort) => onChange({ sort })}
+								onEdit={onEdit}
+								onCellChange={change.mutate}
+								detail={
+									picked ? (
+										<Suspense fallback={<DetailPending />}>
+											<Outlet />
+										</Suspense>
+									) : undefined
+								}
+							/>
+						) : null}
 						<OwedBackList today={asOf} />
-						<MoneyInSection month={month} today={asOf} />
+						<MoneyInSection month={month} today={asOf} show={show} />
 					</div>
 				</div>
 			</div>
@@ -465,31 +485,27 @@ const SEARCH_PAUSE_MS = 300;
  */
 function Filters({
 	month,
-	current,
 	plan,
 	members,
 	accounts,
 	filters,
-	filtered,
 	onChange,
 	onSelect,
+	idle = false,
 }: {
 	month: MonthKey;
-	/** The month it is now: "all time" ends there unless the address is an earlier month. */
-	current: MonthKey;
 	plan: Pick<Plan, "buckets">;
 	members: MemberSummary[];
 	accounts: AccountView[];
 	filters: TransactionFilters;
-	filtered: boolean;
 	onChange: (filters: TransactionFilters) => void;
 	/** Starts selecting, from the phone's Select button. Left out while selecting. */
 	onSelect?: () => void;
+	/** Money in is showing alone (issue 134): nothing here narrows or orders it, so it all waits. */
+	idle?: boolean;
 }) {
-	// The list's own query (already loaded): its first page carries the month's total.
-	const total = useSuspenseInfiniteQuery(transactionsQuery(month, filters)).data.pages[0]?.total;
 	// Until hydrated, a change would only move the select, not the list.
-	const hydrated = useHydrated();
+	const hydrated = useHydrated() && !idle;
 	const [search, setSearch] = useState(filters.q ?? "");
 	const change = useRef(onChange);
 	change.current = onChange;
@@ -535,22 +551,6 @@ function Filters({
 	).flatMap(([key, label]) => (label === undefined ? [] : [{ key, label }]));
 	return (
 		<div className="grid gap-2 max-lg:grid-cols-1 lg:flex lg:flex-wrap lg:items-end lg:gap-3">
-			{total !== null && total !== undefined ? (
-				// From lg the month's total ends the bar, as big as a headline.
-				// Under 1440 the four selects need a line of their own to show their words whole (issue 73),
-				// so the total ends the search's line there.
-				<p className="flex items-baseline justify-between gap-3 px-1 text-sm max-lg:flex-wrap lg:order-2 lg:ms-auto min-[90rem]:order-last lg:grid lg:justify-items-end lg:gap-0.5">
-					<span className="text-muted-foreground">
-						{totalLabel(filters.range, month, { filtered, current })}
-					</span>
-					<span
-						className="font-semibold tabular-nums lg:text-2xl lg:tracking-tight"
-						data-testid="month-total"
-					>
-						{formatMoney(total)}
-					</span>
-				</p>
-			) : null}
 			{/* A phone: the search on a line of its own, then Filters, Sort and Select on the next. */}
 			<div className="flex flex-wrap gap-2 lg:order-1 lg:flex-[1_1_14rem]">
 				<div className="relative min-w-0 flex-[1_1_10rem] max-sm:basis-full">

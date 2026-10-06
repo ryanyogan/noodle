@@ -783,6 +783,63 @@ test("a Transaction is refiled in its Assigned to cell, Undo puts it back, and T
 	await page.context().close();
 });
 
+test("who a Transaction was For is changed from its chips, Undo puts it back, and Needs review narrows the list", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	// Wide enough that the table keeps its For column.
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await setUp(page);
+	await openTransactions(page);
+
+	// The chips are one button: it opens the picker, and closing it writes the change (issue 134).
+	const chips = list(page).getByRole("button", {
+		name: /^Change who Pro Hockey Life is For, now /,
+	});
+	await expect(chips).toHaveText("Everyone");
+	await hydrated(chips);
+	await chips.click();
+	const picker = page.getByRole("toolbar", { name: "For" });
+	await picker.getByRole("button", { name: "Leo" }).click();
+	const saved = savedBy(page, "updateTransaction");
+	await page.keyboard.press("Escape");
+	await saved;
+	await expect(picker).toBeHidden();
+	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
+		"Pro Hockey Life, $64.99, Groceries, For Leo",
+	);
+	await expect(chips).toHaveText("Leo");
+	await expect(said(page, "is For")).toContainText("Pro Hockey Life is For Leo");
+	// It was opened in place, not in the editor.
+	await expect(editSheet(page)).toBeHidden();
+
+	const undone = savedBy(page, "updateTransaction");
+	await said(page, "is For").getByRole("button", { name: "Undo" }).click();
+	await undone;
+	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
+		"Pro Hockey Life, $64.99, Groceries, For Everyone",
+	);
+
+	// Needs review is a filter, kept in the address: both rows are filed, so it leaves none.
+	const summary = page.getByRole("group", { name: "The month at a glance" });
+	await expect(summary.getByTestId("month-total")).toHaveText("$150.49");
+	await expect(summary.getByTestId("month-review")).toHaveText("0");
+	const review = summary.getByRole("button", { name: /^Needs review/ });
+	await review.click();
+	await expect(page).toHaveURL(/[?&]show=review/);
+	await expect(review).toHaveAttribute("aria-pressed", "true");
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(0);
+	// The figures stay as they were while one is pressed.
+	await expect(summary.getByTestId("month-total")).toHaveText("$150.49");
+	await page.reload();
+	await expect(review).toHaveAttribute("aria-pressed", "true");
+	await hydrated(review);
+	await review.click();
+	await expect(page).not.toHaveURL(/show=/);
+	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(2);
+	await page.context().close();
+});
+
 test("a Bucket is created from the Assigned to cell's picker, and the Transaction is filed in it", async ({
 	browser,
 }) => {

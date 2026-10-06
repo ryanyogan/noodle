@@ -35,6 +35,7 @@ import {
 	updateTransaction,
 } from "./server/transactions";
 import { rangeBounds, type TransactionRange } from "./transaction-range";
+import type { TransactionShow } from "./transaction-summary";
 import {
 	CHANGED_ELSEWHERE,
 	ChangedElsewhere,
@@ -58,7 +59,16 @@ export type TransactionFilters = {
 	sort?: TransactionSort;
 	/** More than the month (issue 99): the last 3 months, its year, or every month up to it. */
 	range?: TransactionRange;
+	/**
+	 * The summary's filter (issue 134). Only "review" narrows this list (to spending that waits to
+	 * be filed); "in" and "out" choose which of the page's two lists show.
+	 */
+	show?: TransactionShow;
 };
+
+/** The filters as a list's key: "in" and "out" ask the server for nothing different. */
+const listKey = ({ show, ...filters }: TransactionFilters) =>
+	show === "review" ? { ...filters, show } : filters;
 
 /**
  * Every cached list of more than a month (issue 99). Its rows are in several months, so it is
@@ -81,8 +91,8 @@ export const transactionsKey = (month: MonthKey) =>
 export const transactionsQuery = (month: MonthKey, filters: TransactionFilters) =>
 	infiniteQueryOptions({
 		queryKey: filters.range
-			? [...rangeTransactionsKey, month, filters]
-			: [...transactionsKey(month), filters],
+			? [...rangeTransactionsKey, month, listKey(filters)]
+			: [...transactionsKey(month), listKey(filters)],
 		queryFn: ({ pageParam }) =>
 			getTransactions({
 				data: {
@@ -92,6 +102,7 @@ export const transactionsQuery = (month: MonthKey, filters: TransactionFilters) 
 					forMember: filters.for,
 					accountId: filters.account,
 					search: filters.q || undefined,
+					review: filters.show === "review" || undefined,
 					sort: filters.sort,
 					after: pageParam,
 				},

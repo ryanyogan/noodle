@@ -96,6 +96,22 @@ export function refileOf(row: Row, value: string): TransactionEdit | null {
 	};
 }
 
+/** A row's For chips change who it was For: only where it is assigned whole, to one thing. */
+export const forEdits = (row: Row) => cellEdits(row).name === "edit";
+
+/**
+ * The change that says who a row was For (its chips, issue 134), with its amount, note and
+ * assignment as they are. Null when For is as it was, or the row has no single Bucket or
+ * Commitment to keep (unassigned, split, a side of a Transfer, money back, Goal spending).
+ */
+export function forOf(row: Row, memberIds: string[]): TransactionEdit | null {
+	const assignment = assignmentOf(row);
+	if (!forEdits(row) || !assignment) return null;
+	const forMemberIds = [...new Set(memberIds)].sort();
+	if (forMemberIds.join() === [...row.for].sort().join()) return null;
+	return { amountCents: row.amountCents, note: row.note, assignment, forMemberIds };
+}
+
 /**
  * The change that puts a row back as it was before `next` (a cell's rename or refile), for the
  * message's Undo. Null where no write can: a row that was unassigned can't be unassigned again

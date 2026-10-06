@@ -1,11 +1,15 @@
+import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Input } from "@noodle/ui/components/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@noodle/ui/components/popover";
 import type { ChoiceGroup } from "@noodle/ui/components/select";
 import { ChevronDown, Pencil } from "lucide-react";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import type { MemberSummary } from "../members";
 import { assignedValue, cellName, NAME_MAX } from "../transaction-cells";
 import { type TransactionRow, useEditFormKey } from "../transactions";
 import { BucketPicker } from "./bucket-picker";
+import { ForPicker } from "./for-picker";
 
 // Editing in a cell of the Transactions table (issue 99). A cell is plain words and a quiet
 // button until it is asked for, so a long month's rows stay cheap; one cell edits at a time
@@ -13,16 +17,20 @@ import { BucketPicker } from "./bucket-picker";
 // the row's sheet as before.
 
 /** The cell being edited: which Transaction's, and which column. */
-export type CellEditing = { id: string; column: "name" | "assigned" } | null;
+export type CellEditing = { id: string; column: "name" | "assigned" | "for" } | null;
 
 /** What the cells need from the table. */
 export type CellEdits = {
 	editing: CellEditing;
-	start: (transaction: TransactionRow, column: "name" | "assigned") => void;
+	start: (transaction: TransactionRow, column: "name" | "assigned" | "for") => void;
 	/** The edit is over. `refocus`: it ended from the keyboard, so focus goes back to the cell. */
 	stop: (refocus: boolean) => void;
 	rename: (transaction: TransactionRow, typed: string) => void;
 	refile: (transaction: TransactionRow, value: string) => void;
+	/** Says who the Transaction was For (its chips, issue 134): no Members is the whole Household. */
+	refor: (transaction: TransactionRow, memberIds: string[]) => void;
+	/** The Household's Members, for the For chips' picker. */
+	members: MemberSummary[];
 	/** "Create Bucket" in the picker: asks for a new Bucket to file the Transaction in. */
 	create: (transaction: TransactionRow, name: string) => void;
 	/** The month's Buckets and Commitments this Parent can assign to. */
@@ -203,5 +211,77 @@ export function AssignedCell({
 				className={`size-3.5 shrink-0 text-subtle-foreground ${quiet}`}
 			/>
 		</Button>
+	);
+}
+
+/** Who a row was For, a chip a name. One line: the column cuts off what doesn't fit. */
+export function ForChips({ names }: { names: string[] }) {
+	return (
+		<span className="flex min-w-0 items-center gap-1 overflow-hidden">
+			{names.map((name) => (
+				<Badge key={name} className="h-4.5 min-w-0 shrink px-1.5 text-[11px] first:shrink-0">
+					<span className="truncate">{name}</span>
+				</Badge>
+			))}
+		</span>
+	);
+}
+
+/**
+ * The For cell of a row whose For can be changed here (issue 134): its chips as one quiet button,
+ * and once pressed the For picker in a popover. The change is written when the popover closes.
+ * For names Members only, so nothing of the other Parent's Personal Allowance is ever offered
+ * (its Transactions never reach this Parent at all, ADR-0003).
+ */
+export function ForCell({
+	transaction,
+	title,
+	who,
+	names,
+	cells,
+}: {
+	transaction: TransactionRow;
+	title: string;
+	who: string;
+	names: string[];
+	cells: CellEdits;
+}) {
+	const editing = cells.editing?.id === transaction.id && cells.editing.column === "for";
+	const [value, setValue] = useState(transaction.for);
+	return (
+		<Popover
+			open={editing}
+			onOpenChange={(open) => {
+				if (open) {
+					setValue(transaction.for);
+					cells.start(transaction, "for");
+				} else {
+					cells.stop(true);
+					cells.refor(transaction, value);
+				}
+			}}
+		>
+			<PopoverTrigger asChild>
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					data-cell="for"
+					aria-label={`Change who ${title} is For, now ${who}`}
+					className="-mx-2 max-w-full min-w-0 justify-start px-2 font-normal max-lg:min-w-0"
+				>
+					<ForChips names={names} />
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent
+				align="start"
+				className="w-80 max-w-[calc(100vw-2rem)]"
+				data-cell-editor=""
+				// Drawn outside the row, but its clicks still come up through it: not a click on the row.
+				onClick={(event) => event.stopPropagation()}
+			>
+				<ForPicker members={cells.members} value={value} onChange={setValue} multiple />
+			</PopoverContent>
+		</Popover>
 	);
 }

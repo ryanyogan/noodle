@@ -13,11 +13,18 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeftRight, Check, Sparkles, Split as SplitIcon, Target } from "lucide-react";
 import { monogram } from "../buckets";
 import { shortDay } from "../format";
-import { cellEdits } from "../transaction-cells";
+import { cellEdits, forEdits } from "../transaction-cells";
 import type { RowView } from "../transaction-row";
 import { editsInCell } from "../transaction-table";
 import type { TransactionRow } from "../transactions";
-import { AssignedCell, type CellEdits, NameEditor, RenameButton } from "./transaction-cells";
+import {
+	AssignedCell,
+	type CellEdits,
+	ForCell,
+	ForChips,
+	NameEditor,
+	RenameButton,
+} from "./transaction-cells";
 
 // The Transactions table's columns (issue 99): Date, Name, Assigned to, For, Account, Amount.
 // The table drops For and then Account as its own width narrows, and on a phone stacks each row
@@ -171,6 +178,12 @@ function NameCell({
 					</Button>
 				)}
 				<span className="peer/badges col-start-1 row-start-2 me-1.5 flex shrink-0 items-center gap-1.5 empty:hidden sm:col-start-2 sm:row-start-1 sm:ms-1.5 sm:me-0">
+					{/* One word where the line isn't plain spending (issue 134); the row's label says it too. */}
+					{view.kindWord ? (
+						<Badge aria-hidden="true" data-slot="row-kind" className={pill}>
+							{view.kindWord}
+						</Badge>
+					) : null}
 					{view.pending ? (
 						<Badge aria-hidden="true" dot className={pill}>
 							Pending
@@ -285,7 +298,22 @@ export function transactionColumns({
 			priority: 3,
 			stacked: "hidden",
 			className: "text-muted-foreground",
-			cell: ({ view }) => <span className="truncate">{view.who}</span>,
+			// Chips, a name each (issue 134): pressed, they change who it was For, where the row has one
+			// assignment to keep. Empty where For doesn't apply (a Transfer, Goal spending, money back).
+			cell: ({ transaction, view }) =>
+				view.who === "" ? null : cells &&
+					editsInCell(transaction.id, open) &&
+					forEdits(transaction) ? (
+					<ForCell
+						transaction={transaction}
+						title={view.title}
+						who={view.who}
+						names={view.forNames}
+						cells={cells}
+					/>
+				) : (
+					<ForChips names={view.forNames} />
+				),
 		},
 		{
 			id: "account",
@@ -315,7 +343,10 @@ export function transactionColumns({
 			stacked: "value",
 			sortable: { descFirst: true, said: { asc: "smallest first", desc: "largest first" } },
 			className: "font-semibold",
-			cell: ({ view }) => view.amount,
+			// Money in is green with its "+"; money out is plain ink (issue 134).
+			cell: ({ view }) => (
+				<span className={view.moneyIn ? "text-money-in" : undefined}>{view.amount}</span>
+			),
 		},
 	];
 }
