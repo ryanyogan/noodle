@@ -278,3 +278,44 @@ export function planHealth({
 	warnings.push(...cardsNowFollowed(planForMonth(records, month).commitments, cards));
 	return warnings;
 }
+
+/** Most urgent first: money running out, then income, then advice. */
+const urgency: Record<PlanWarning["kind"], number> = {
+	"negative-ahead": 0,
+	"income-behind": 1,
+	// Spending counted twice is wrong today, not advice.
+	"card-followed": 2,
+	"goal-late": 3,
+	"bucket-over": 4,
+};
+
+/** What orders two warnings of one kind: the nearer date or the larger gap, then the name, then the id. */
+function tieBreak(warning: PlanWarning): [string, number, string, string] {
+	switch (warning.kind) {
+		case "goal-late":
+			return [warning.targetDate, 0, warning.name, warning.goalId];
+		case "bucket-over":
+			return ["", -warning.gap, warning.name, warning.bucketId];
+		case "card-followed":
+			return ["", 0, warning.name, warning.commitmentId];
+		default:
+			return [warning.month, 0, "", ""];
+	}
+}
+
+/**
+ * The warnings in the order they are shown, the same on every load: by urgency, then within a kind
+ * the Goal due soonest or the Bucket furthest over, then by name. The order they were found in
+ * follows the database's, which is not one a Parent can read.
+ */
+export function byUrgency(warnings: readonly PlanWarning[]): PlanWarning[] {
+	return [...warnings].sort((a, b) => {
+		if (urgency[a.kind] !== urgency[b.kind]) return urgency[a.kind] - urgency[b.kind];
+		const [dayA, sizeA, nameA, idA] = tieBreak(a);
+		const [dayB, sizeB, nameB, idB] = tieBreak(b);
+		if (dayA !== dayB) return dayA < dayB ? -1 : 1;
+		if (sizeA !== sizeB) return sizeA - sizeB;
+		if (nameA !== nameB) return nameA < nameB ? -1 : 1;
+		return idA < idB ? -1 : idA > idB ? 1 : 0;
+	});
+}

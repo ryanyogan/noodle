@@ -123,12 +123,24 @@ function ScenariosPage() {
 			asideFills
 			aside={
 				compared.length > 0 ? (
-					<Compare
-						plan={plan}
-						compared={compared.flatMap((id) => projected.find((p) => p.scenario.id === id) ?? [])}
-						goals={goals}
-						horizonLabel={horizon.label}
-					/>
+					// With a Scenario open beside the list, Compare keeps to the room left of the panel
+					// (the panel covers a rail's width and the gap), so its figures stay in view (issue 73).
+					// Explore is a wide page and the panel is measured from the usual cap: past 1920 the
+					// panel reaches further in by half the difference between the two caps.
+					<div
+						className={cn(
+							"grid min-w-0 gap-4",
+							picked !== undefined &&
+								"xl:me-[calc(var(--rail-width)+var(--layout-gap)+min((var(--shell-max-wide)-var(--shell-max))/2,max(0px,(100vw-var(--sidebar-width)-var(--shell-max))/2)))]",
+						)}
+					>
+						<Compare
+							plan={plan}
+							compared={compared.flatMap((id) => projected.find((p) => p.scenario.id === id) ?? [])}
+							goals={goals}
+							horizonLabel={horizon.label}
+						/>
+					</div>
 				) : undefined
 			}
 			list={
@@ -279,13 +291,15 @@ function Compare({
 		}));
 
 	return (
-		<Section aria-labelledby="compare" className="min-w-0">
+		// Its own container: the table needs a column per Scenario, so in a narrow place (a phone, or
+		// beside an open Scenario) each number is a short list instead, and the charts stack.
+		<Section aria-labelledby="compare" className="@container/compare min-w-0">
 			<SectionHeader id="compare" title="Compare" />
 			<Card className="min-w-0">
 				<CardContent>
 					{/* A phone has no room for a column per Scenario: each number is a short list instead,
 					    the Plan first, a name on the left (wrapping, never cut) and its value on the right. */}
-					<div className="sm:hidden">
+					<div className="@md/compare:hidden">
 						{rows.map((row) => (
 							<div key={row.label} className="border-t py-3 first:border-0 first:pt-0 last:pb-0">
 								<h3 className="text-[13px] text-muted-foreground">{row.label}</h3>
@@ -293,7 +307,12 @@ function Compare({
 									{columns.map((c) => {
 										const note = row.note?.(c.projection);
 										return (
-											<div key={c.key} className="flex items-baseline justify-between gap-4">
+											// Beside an open Scenario at 1280 the list is about 130px wide: the value goes
+											// under its name there, or the name broke into one letter a line.
+											<div
+												key={c.key}
+												className="flex @max-[15rem]/compare:flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5"
+											>
 												<dt
 													className={cn(
 														"min-w-0 [overflow-wrap:anywhere]",
@@ -304,7 +323,7 @@ function Compare({
 												</dt>
 												<dd
 													className={cn(
-														"shrink-0 text-end tabular-nums",
+														"@max-[15rem]/compare:ml-auto shrink-0 text-end tabular-nums",
 														c.key === "plan" ? "text-muted-foreground" : "font-medium",
 														row.over?.(c.projection) && "text-over",
 													)}
@@ -324,7 +343,7 @@ function Compare({
 							</div>
 						))}
 					</div>
-					<div className="max-sm:hidden">
+					<div className="@max-md/compare:hidden">
 						<Table className="text-sm">
 							<TableCaption className="sr-only">
 								Key numbers, the Plan against each Scenario
@@ -348,7 +367,7 @@ function Compare({
 							</TableHeader>
 							<TableBody>
 								{rows.map((row) => (
-									<TableRow key={row.label} className="border-0 border-t">
+									<TableRow key={row.label} className="border-0 border-t!">
 										<th
 											scope="row"
 											className="min-w-24 py-2 sm:min-w-40 pe-3 text-start align-top font-normal text-muted-foreground"
@@ -379,7 +398,7 @@ function Compare({
 					</div>
 				</CardContent>
 			</Card>
-			<div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+			<div className="grid gap-4 @3xl/compare:grid-cols-2 @3xl/compare:items-start">
 				<Suspense
 					fallback={
 						<>

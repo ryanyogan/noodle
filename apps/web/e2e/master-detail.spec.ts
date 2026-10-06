@@ -645,7 +645,12 @@ test("a kept Scenario opens in a panel over Compare, which stays, and is a page 
 	// first columns still show beside it.
 	expect((listBefore?.x ?? 0) + (listBefore?.width ?? 0)).toBeLessThanOrEqual(panelBox?.x ?? 0);
 	expect(compareBefore?.x ?? 0).toBeLessThan((panelBox?.x ?? 0) - 100);
-	await expect(numbers.getByRole("columnheader")).toHaveText(["Number", "Plan", "Raise"]);
+	// Beside the open Scenario Compare has no room for a column each: every number lists the Plan and
+	// the Scenario by name instead, and the table comes back when the panel closes.
+	await expect(numbers).toBeHidden();
+	const stacked = page.locator("section[aria-labelledby=compare] dl").first();
+	await expect(stacked.locator("dt")).toHaveText(["Plan", "Raise"]);
+	await expect(stacked.locator("dd").first()).toBeVisible();
 	await expect(page.getByRole("checkbox", { name: "Compare “Raise”" })).toBeChecked();
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 	await expect(title(page)).toBeFocused();

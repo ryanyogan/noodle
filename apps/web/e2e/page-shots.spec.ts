@@ -320,6 +320,11 @@ test.beforeAll(async ({ browser }) => {
 		page,
 		parent.userId,
 	);
+	// Two groups of Buckets, so the Buckets table has heading rows and subtotals (issue 98).
+	await seedSql([
+		`update buckets set group_name = 'Food' where household_id = ${q(householdId)} and name in ('Groceries', 'Eating out');`,
+		`update buckets set group_name = 'Family and home' where household_id = ${q(householdId)} and name in ('Kids', 'Household', 'Pets');`,
+	]);
 	// Money between the two Parents: a deposit from Sam among the Income, and a line sent to Sam.
 	let sentToSam = "";
 	await attempt("Money between the two Parents", async () => {
@@ -679,8 +684,59 @@ test.beforeAll(async ({ browser }) => {
 		},
 		// The Plan's first page, whole: the take-home split, the Buckets table under it, Personal
 		// Allowances and what changed. Then what the window shows of it on arriving.
+		// The Sidebar collapsed to its icon rail. Only when asked for by name (PAGE_SHOTS_ONLY=00): the
+		// Sidebar stays collapsed for every picture after it.
+		...(only.includes("00")
+			? [
+					{
+						name: "00-sidebar-collapsed",
+						path: `/plan/${month}`,
+						window: true,
+						ready: async (page: Page) => {
+							await page.getByRole("button", { name: "Toggle sidebar" }).click();
+							// The rail slides shut: wait for it to settle.
+							await page.waitForTimeout(500);
+							await page.mouse.move(700, 500);
+						},
+					},
+				]
+			: []),
 		{ name: "03-plan-overview", path: `/plan/${month}` },
 		{ name: "03w-plan-overview-window", path: `/plan/${month}`, window: true },
+		{
+			// Every fold on the Plan's first page opened: "Things to check" and "What changed" (issue 73).
+			name: "03b-plan-overview-folds-open",
+			path: `/plan/${month}`,
+			ready: async (page) => {
+				const check = page.getByRole("button", { name: /^Things to check/, expanded: false });
+				if (await check.isVisible()) await check.click({ timeout: 5000 });
+				for (const all of await page.getByRole("button", { name: /^Show all/ }).all())
+					await all.click({ timeout: 5000 }).catch(() => {});
+			},
+		},
+		{
+			// A group's Rename sheet, from the group's heading row in the Buckets table (issue 98).
+			name: "04d-bucket-group-rename",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: "Rename the group Food", exact: true }),
+					page.getByRole("dialog"),
+				);
+			},
+		},
+		{
+			name: "04e-add-buckets-sheet",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Add Buckets/ }).first(),
+					page.getByRole("dialog", { name: "Add Buckets" }),
+				);
+			},
+		},
 		{
 			// A Bucket's sheet, opened from its row: Allowance, from when, Name. What's in the window.
 			name: "04a-bucket-sheet",
@@ -743,7 +799,34 @@ test.beforeAll(async ({ browser }) => {
 			path: `/plan/${month}/commitments/${firstCommitment}`,
 			window: true,
 		},
+		{
+			// The Commitment sheet from its panel's Edit: amount, how often, "Pays down".
+			name: "07c-commitment-sheet",
+			path: `/plan/${month}/commitments/${firstCommitment}`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page
+						.getByRole("link", { name: "Edit", exact: true })
+						.or(page.getByRole("button", { name: "Edit", exact: true })),
+					// Under 1440 the panel is itself a dialog (a drawer): the sheet is the one with the form.
+					page.getByRole("dialog").filter({ has: page.getByRole("textbox", { name: "Amount" }) }),
+				);
+			},
+		},
 		{ name: "08-plan-goal-funding", path: `/plan/${month}/goals` },
+		{
+			// An Income row's actions menu, open.
+			name: "08y-plan-income-row-menu",
+			path: `/plan/${month}/income`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Actions for / }).first(),
+					page.getByRole("menu"),
+				);
+			},
+		},
 		{ name: "09-plan-year", path: `/plan/${month}/year` },
 		{ name: "10-transactions", path: `/transactions/${month}`, tall: true },
 		// The top of the list as a Parent arrives: search, Filters, Sort and Select above the rows.
@@ -1162,6 +1245,23 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		...(scenarioPath ? [{ name: "22-scenario", path: scenarioPath }] : []),
+		{
+			// A Scenario open while two are compared: Compare keeps to the room left of the panel.
+			name: "22a-scenario-open-over-compare",
+			path: "/explore/scenarios",
+			window: true,
+			ready: async (page) => {
+				for (const name of ["Sam’s raise", "Pay cut"]) {
+					const tick = page.getByRole("checkbox", { name: `Compare “${name}”` });
+					await expect(async () => {
+						if (!(await tick.isChecked())) await tick.click();
+						await expect(tick).toBeChecked({ timeout: 2000 });
+					}).toPass({ timeout: 20_000 });
+				}
+				await page.getByRole("link", { name: "Sam’s raise", exact: true }).first().click();
+				await expect(page.getByRole("button", { name: "Rename" })).toBeVisible({ timeout: 15_000 });
+			},
+		},
 		{ name: "23-reports", path: "/reports" },
 		{ name: "23a-reports-cash-flow", path: "/reports?view=cash-flow" },
 		// The other eight Reports views, in the tab row's order (#73).
@@ -1910,6 +2010,9 @@ for (const viewport of viewports) {
 					carryPage ??= await signedInPage(browser, carryParent.email, device);
 					page = carryPage;
 				}
+				// Off the page first: the next picture may differ only by its "#…", which loads nothing
+				// and would leave the last picture's sheet open.
+				await page.goto("about:blank");
 				await page.goto(shot.path);
 				await settled(page);
 				if (shot.ready) {
