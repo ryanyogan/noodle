@@ -16,7 +16,9 @@ import {
 	cancelFreshStart,
 	type FreshStartStatus,
 	getFreshStartStatus,
+	retryFreshStart,
 	startFreshStart,
+	startFreshStartNow,
 } from "../server/fresh-start";
 import { restartSetup } from "../server/setup";
 import { PhoneMore } from "./phone-more";
@@ -48,42 +50,275 @@ const joined = (names: string[]) =>
 const plural = (n: number, one: string, many = `${one}s`) =>
 	`${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 
+type Status = NonNullable<FreshStartStatus>;
+
+/**
+ * What the confirm step still needs before its button works, said beside the button (issue 118):
+ * the Household's name typed, and the bank box ticked when a bank is connected. Null when nothing.
+ */
+export function stillNeeded({
+	typed,
+	householdName,
+	banks,
+	disconnect,
+}: {
+	typed: string;
+	householdName: string;
+	banks: string[];
+	disconnect: boolean;
+}): string | null {
+	const needs: string[] = [];
+	if (typed.trim() !== householdName.trim()) needs.push(`type “${householdName.trim()}”`);
+	if (banks.length > 0 && !disconnect) needs.push(`tick “Disconnect ${joined(banks)} from Noodle”`);
+	return needs.length > 0 ? `Still needed: ${needs.join(" and ")}.` : null;
+}
+
+/** The line itself: always there for screen readers to follow, seen only while something is needed. */
+function StillNeeded({ id, reason }: { id: string; reason: string | null }) {
+	return (
+		<p
+			id={id}
+			role="status"
+			aria-live="polite"
+			className={reason ? "text-sm text-muted-foreground" : "sr-only"}
+		>
+			{reason}
+		</p>
+	);
+}
+
+/**
+ * What a failed or stuck fresh start says (issue 118): where it stopped, what has been done and
+ * no more, and that nothing else has been cleared since.
+ */
+export function troubleWords(
+	status: Pick<Status, "level" | "trouble">,
+	now: Date = new Date(),
+): { title: string; body: string } | null {
+	const trouble = status.trouble;
+	if (!trouble) return null;
+	const what = status.level === "delete" ? "Deleting the Household" : "Starting fresh";
+	const when = whenItRuns(trouble.since, now);
+	if (trouble.notBegun)
+		return {
+			title: `${what} was due ${when} and hasn’t begun.`,
+			body: "Nothing has been cleared yet. Try again starts it now.",
+		};
+	const at = trouble.stoppedAt ? `“${trouble.stoppedAt}”` : null;
+	const title =
+		trouble.kind === "failed"
+			? `${what} stopped${at ? ` at ${at}` : ""}.`
+			: `${what} hasn’t moved since ${when}${at ? `, at ${at}` : ""}.`;
+	const body =
+		trouble.done.length > 0
+			? `Done so far: ${joined(trouble.done)}. Nothing else has been cleared since ${when}.`
+			: "Nothing has been cleared yet.";
+	return { title, body: `${body} Try again carries on from that step.` };
+}
+
 /** Scheduled and waiting out its grace period (one about to run at once isn't). */
-const isWaiting = (status: FreshStartStatus | undefined): status is NonNullable<FreshStartStatus> =>
+const isWaiting = (status: FreshStartStatus | undefined): status is Status =>
 	status?.status === "scheduled" && status.runAt > Date.now();
 
-/** "Fresh start scheduled for tomorrow 3:12 PM · Cancel": either Parent can cancel it. */
-function Scheduled({ status }: { status: NonNullable<FreshStartStatus> }) {
+/** Failed, or not moved for 20 minutes: either Parent can try again. */
+const inTrouble = (status: FreshStartStatus | undefined): status is Status =>
+	Boolean(status?.trouble);
+
+/** Shows the progress screen at once for the Parent who set a clear going. */
+function showStarting(status: Status) {
+	setFreshStartProgress({
+		id: status.id,
+		level: status.level,
+		state: "running",
+		step: status.step,
+		steps: status.steps || 6,
+		label: status.label ?? "Starting",
+	});
+}
+
+/** A failed or stuck fresh start, said plainly, with Try again. Both Parents see it. */
+function Trouble({ status }: { status: Status }) {
 	const queryClient = useQueryClient();
 	const hydrated = useHydrated();
+	const retry = useMutation({
+		mutationFn: () => retryFreshStart(),
+		onSuccess: (next) => {
+			queryClient.setQueryData(freshStartQuery().queryKey, next);
+			if (next && !next.trouble) showStarting(next);
+		},
+		onError: () => toast("Couldn’t try again. Please try once more.", { tone: "error" }),
+	});
+	const words = troubleWords(status);
+	if (!words) return null;
+	return (
+		<div className="grid min-w-0 gap-2 text-sm">
+			<p className="font-medium text-foreground">{words.title}</p>
+			<p className="text-foreground">{words.body}</p>
+			<div>
+				<Button
+					variant="outline"
+					disabled={!hydrated || retry.isPending}
+					onClick={() => retry.mutate()}
+				>
+					Try again
+				</Button>
+			</div>
+		</div>
+	);
+}
+
+/**
+ * "Fresh start scheduled for tomorrow 3:12 PM · Cancel" for the Parent who asked. The other
+ * Parent reads "Ryan asked to start fresh. It happens tomorrow 3:12 PM." and can cancel it or,
+ * agreeing, start it now (issue 118): nobody skips their own wait alone.
+ */
+function Scheduled({ status }: { status: Status }) {
+	const queryClient = useQueryClient();
+	const hydrated = useHydrated();
+	const [agreeing, setAgreeing] = useState(false);
 	const cancel = useMutation({
 		mutationFn: () => cancelFreshStart(),
 		onSuccess: () => queryClient.setQueryData(freshStartQuery().queryKey, null),
 		onError: () => toast("Couldn’t cancel. Please try again.", { tone: "error" }),
 	});
 	const what = status.level === "delete" ? "Deleting the Household" : "Fresh start";
+	const asked = status.level === "delete" ? "delete the Household" : "start fresh";
 	return (
-		<p className="flex flex-wrap items-center gap-x-2 text-sm">
-			<span>
-				{what} scheduled for {whenItRuns(status.runAt)}
-			</span>
-			<span aria-hidden>·</span>
-			<Button
-				variant="link"
-				size="sm"
-				className="px-0"
-				disabled={!hydrated || cancel.isPending}
-				onClick={() => cancel.mutate()}
-			>
-				Cancel
-			</Button>
-		</p>
+		<div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+			<p className="min-w-0">
+				{status.mine
+					? `${what} scheduled for ${whenItRuns(status.runAt)}`
+					: `${status.requestedByName} asked to ${asked}. It happens ${whenItRuns(status.runAt)}.`}
+			</p>
+			<div className="flex flex-wrap items-center gap-x-3">
+				<Button
+					variant="link"
+					size="sm"
+					className="px-0"
+					disabled={!hydrated || cancel.isPending}
+					onClick={() => cancel.mutate()}
+				>
+					Cancel
+				</Button>
+				{status.mine ? null : (
+					<Button
+						variant="link"
+						size="sm"
+						className="px-0"
+						disabled={!hydrated}
+						onClick={() => setAgreeing(true)}
+					>
+						Start it now
+					</Button>
+				)}
+			</div>
+			{agreeing ? <StartNowSheet status={status} onClose={() => setAgreeing(false)} /> : null}
+		</div>
 	);
 }
 
-/** A quiet banner on every page while a fresh start waits out its grace period. */
+/** The other Parent agrees: the same typed name as the Parent who asked, then it runs at once. */
+function StartNowSheet({ status, onClose }: { status: Status; onClose: () => void }) {
+	const queryClient = useQueryClient();
+	const hydrated = useHydrated();
+	const nameId = useId();
+	const reasonId = useId();
+	const [typed, setTyped] = useState("");
+	const start = useMutation({
+		mutationFn: async () => {
+			const result = await startFreshStartNow({ data: { typedName: typed } });
+			if (!result.ok) throw new Error("Not started");
+			return result.freshStart;
+		},
+		onSuccess: (next) => {
+			queryClient.setQueryData(freshStartQuery().queryKey, next);
+			if (next) showStarting(next);
+			onClose();
+		},
+	});
+	const reason = stillNeeded({
+		typed,
+		householdName: status.householdName,
+		banks: [],
+		disconnect: false,
+	});
+	const title = status.level === "delete" ? "Delete Household now?" : "Start fresh now?";
+	return (
+		<Sheet open onOpenChange={(open) => (open ? null : onClose())}>
+			<SheetContent>
+				<form
+					className="grid gap-4"
+					onSubmit={(event) => {
+						event.preventDefault();
+						if (!reason) start.mutate();
+					}}
+				>
+					<SheetHeader title={title} description="Type the Household’s name to confirm." />
+					<p className="text-sm">
+						{status.requestedByName} asked for this. With both of you agreed it doesn’t wait until{" "}
+						{whenItRuns(status.runAt)}: it happens as soon as you confirm
+						{status.level === "delete"
+							? ", and can’t be stopped or undone once it starts."
+							: ", and can’t be stopped once it starts. Noodle takes a snapshot first."}
+					</p>
+					<Field label={`Type “${status.householdName}”`} htmlFor={nameId}>
+						<Input
+							id={nameId}
+							autoComplete="off"
+							value={typed}
+							onChange={(event) => setTyped(event.currentTarget.value)}
+						/>
+					</Field>
+					{start.isError ? (
+						<FormError>
+							We couldn’t start it. It may have been cancelled or already begun. Please close this
+							and look again.
+						</FormError>
+					) : null}
+					<StillNeeded id={reasonId} reason={reason} />
+					<SheetFooter className="max-lg:grid-cols-2">
+						<Button type="button" variant="outline" onClick={onClose}>
+							Not now
+						</Button>
+						<Button
+							type="submit"
+							variant="destructive"
+							aria-describedby={reason ? reasonId : undefined}
+							disabled={!hydrated || Boolean(reason) || start.isPending}
+						>
+							Start it now
+						</Button>
+					</SheetFooter>
+				</form>
+			</SheetContent>
+		</Sheet>
+	);
+}
+
+/**
+ * A quiet banner on every page while a fresh start waits out its grace period, and a plain one
+ * when it has failed or stopped moving.
+ */
 export function FreshStartBanner() {
 	const { data } = useQuery(freshStartQuery());
+	const progress = useFreshStartProgress();
+	// The progress screen is over the page and says it there.
+	if (inTrouble(data) && !progress)
+		return (
+			<Alert
+				role="status"
+				variant="destructive"
+				className="mx-4 mt-3 w-auto lg:mx-6"
+				aria-label={
+					data.level === "delete" ? "Deleting the Household stopped" : "Fresh start stopped"
+				}
+			>
+				<TriangleAlert />
+				<AlertDescription>
+					<Trouble status={data} />
+				</AlertDescription>
+			</Alert>
+		);
 	if (!isWaiting(data)) return null;
 	return (
 		<Alert role="status" className="mx-4 mt-3 w-auto lg:mx-6" aria-label="Fresh start scheduled">
@@ -120,7 +355,9 @@ export function DangerZone({ householdName }: { householdName: string }) {
 						snapshot for {FINAL_SNAPSHOT_DAYS} days, then deletes it.
 					</p>
 				</PhoneMore>
-				{isWaiting(data) ? (
+				{inTrouble(data) ? (
+					<Trouble status={data} />
+				) : isWaiting(data) ? (
 					<Scheduled status={data} />
 				) : (
 					<div className="grid gap-4 sm:flex sm:flex-wrap sm:gap-2">
@@ -166,6 +403,7 @@ function FreshStartSheet({
 	const nameId = useId();
 	const banksId = useId();
 	const backupsId = useId();
+	const reasonId = useId();
 	const [step, setStep] = useState<1 | 2>(1);
 	const [typed, setTyped] = useState("");
 	const [disconnect, setDisconnect] = useState(false);
@@ -182,19 +420,13 @@ function FreshStartSheet({
 			if (status.runAt > Date.now() + 60_000) {
 				toast(`Scheduled for ${whenItRuns(status.runAt)}. The other Parent can cancel it.`);
 			} else {
-				setFreshStartProgress({
-					id: status.id,
-					level,
-					state: "running",
-					step: 0,
-					steps: status.steps || 6,
-					label: "Starting",
-				});
+				showStarting(status);
 			}
 			onClose();
 		},
 	});
-	const confirmed = typed.trim() === householdName.trim() && (banks.length === 0 || disconnect);
+	const reason = stillNeeded({ typed, householdName, banks, disconnect });
+	const confirmed = reason === null;
 	const title = level === "delete" ? "Delete Household?" : "Start fresh?";
 
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -359,6 +591,8 @@ function FreshStartSheet({
 							</label>
 						) : null}
 						{start.isError ? <FormError>We couldn’t start it. Please try again.</FormError> : null}
+						{/* Why the button beside it doesn't work yet (issue 118). */}
+						<StillNeeded id={reasonId} reason={reason} />
 						<SheetFooter className="max-lg:grid-cols-2">
 							<Button type="button" variant="outline" onClick={() => setStep(1)}>
 								Back
@@ -366,6 +600,7 @@ function FreshStartSheet({
 							<Button
 								type="submit"
 								variant="destructive"
+								aria-describedby={reason ? reasonId : undefined}
 								disabled={!hydrated || !confirmed || start.isPending}
 							>
 								{level === "delete" ? "Delete Household" : "Start fresh"}
@@ -387,6 +622,7 @@ export function FreshStartScreen() {
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const finished = progress?.state === "cleared" || progress?.state === "done";
+	const { data: current } = useQuery(freshStartQuery());
 
 	// If the Agent's messages are missed, ask the server; gone (or no Household) means finished.
 	useEffect(() => {
@@ -399,9 +635,11 @@ export function FreshStartScreen() {
 				status = null;
 			}
 			if (status === null) setFreshStartProgress({ ...progress, state: "done" });
+			// Failed or stuck is said here too, in place of a step that no longer moves.
+			else if (status) queryClient.setQueryData(freshStartQuery().queryKey, status);
 		}, 4000);
 		return () => clearInterval(timer);
-	}, [progress, finished]);
+	}, [progress, finished, queryClient]);
 
 	useEffect(() => {
 		if (finished && progress?.level === "delete") window.location.assign("/welcome");
@@ -435,6 +673,8 @@ export function FreshStartScreen() {
 							<FormError>We couldn’t start setup. Please try again.</FormError>
 						) : null}
 					</>
+				) : !finished && inTrouble(current) && current.id === progress.id ? (
+					<Trouble status={current} />
 				) : (
 					<>
 						<h1 className="text-lg font-semibold">{what}</h1>

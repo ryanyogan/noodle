@@ -335,6 +335,8 @@ export const freshStartQuery = () =>
 	queryOptions({
 		queryKey: ["fresh-start"],
 		queryFn: () => getFreshStartStatus(),
+		// While one is there, look again each minute: a clear that stops moving says so on its own.
+		refetchInterval: (query) => (query.state.data ? 60_000 : false),
 	});
 
 /** What a fresh start would clear, with counts, for the Danger zone's first sheet. */

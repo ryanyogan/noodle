@@ -286,7 +286,10 @@ export async function learnedMerchantBuckets(
 
 export type FreshStart = typeof s.freshStarts.$inferSelect;
 
-/** The Household's fresh start that's scheduled or running, if any. */
+/** A request not yet over: waiting, clearing, or stopped at a step and waiting for Try again. */
+const ACTIVE = ["scheduled", "running", "failed"] as const;
+
+/** The Household's fresh start that's scheduled, running or failed, if any. */
 export async function loadActiveFreshStart(
 	db: Db,
 	householdId: string,
@@ -295,10 +298,7 @@ export async function loadActiveFreshStart(
 		.select()
 		.from(s.freshStarts)
 		.where(
-			and(
-				eq(s.freshStarts.householdId, householdId),
-				inArray(s.freshStarts.status, ["scheduled", "running"]),
-			),
+			and(eq(s.freshStarts.householdId, householdId), inArray(s.freshStarts.status, [...ACTIVE])),
 		)
 		.orderBy(desc(s.freshStarts.createdAt))
 		.limit(1);
@@ -310,7 +310,7 @@ export async function loadFreshStart(db: Db, id: string): Promise<FreshStart | n
 	return row ?? null;
 }
 
-/** Schedules one, unless one is already scheduled or running: then that one is returned. */
+/** Schedules one, unless one is already scheduled, running or failed: then that one is returned. */
 export async function scheduleFreshStart(
 	db: Db,
 	input: {
@@ -320,6 +320,7 @@ export async function scheduleFreshStart(
 		requestedBy: string;
 		runAt: number;
 		now: number;
+		deleteBackups?: boolean;
 	},
 ): Promise<{ created: boolean; freshStart: FreshStart }> {
 	const active = await loadActiveFreshStart(db, input.householdId);
@@ -334,6 +335,7 @@ export async function scheduleFreshStart(
 			runAt: new Date(input.runAt),
 			status: "scheduled",
 			createdAt: new Date(input.now),
+			deleteBackups: input.deleteBackups ?? false,
 		})
 		.returning();
 	return { created: true, freshStart: row as FreshStart };
@@ -353,21 +355,196 @@ export async function cancelFreshStart(
 	return row ?? null;
 }
 
-/** The Workflow takes it from scheduled to running; false when it was cancelled. Retries are fine. */
-export async function startFreshStartRun(db: Db, id: string): Promise<boolean> {
-	await db
-		.update(s.freshStarts)
-		.set({ status: "running" })
-		.where(and(eq(s.freshStarts.id, id), eq(s.freshStarts.status, "scheduled")));
-	return (await loadFreshStart(db, id))?.status === "running";
+// --- Runs (issue 118) ---------------------------------------------------------------------------
+// A request is carried by one Workflow instance at a time, its run. The first run's id is the
+// request's own; Try again and "Start it now" hand the request to a new run (`run_id`). A run that
+// is no longer the request's stops before its next step, so two runs never clear side by side
+// for longer than the one step the older was in, and every step is safe to run twice.
+
+/** The Workflow instance that carries the request now. */
+export const freshStartRunId = (row: Pick<FreshStart, "id" | "runId">): string =>
+	row.runId ?? row.id;
+
+const isRun = (runId: string) =>
+	or(eq(s.freshStarts.runId, runId), and(isNull(s.freshStarts.runId), eq(s.freshStarts.id, runId)));
+
+/**
+ * What a run does when it begins: `wait` out the grace period then clear; `clear` at once, for a
+ * request already running or failed (a restarted or new run carries on: every step is
+ * repeatable); `exit` when it was cancelled, is done, is gone, or belongs to another run now.
+ */
+export function freshStartRunPlan(
+	row: Pick<FreshStart, "id" | "runId" | "status"> | null,
+	runId: string,
+): "wait" | "clear" | "exit" {
+	if (!row || freshStartRunId(row) !== runId) return "exit";
+	if (row.status === "scheduled") return "wait";
+	if (row.status === "running" || row.status === "failed") return "clear";
+	return "exit";
 }
 
+/**
+ * Asked before every step: whether this run still clears. Not once the request is done, failed
+ * or handed to another run. A request that is gone carries on: Delete Household removes its own
+ * record in its last step, and a retry of that step must still finish it.
+ */
+export function freshStartCarriesOn(
+	row: Pick<FreshStart, "id" | "runId" | "status"> | null,
+	runId: string,
+): boolean {
+	if (!row) return true;
+	return row.status === "running" && freshStartRunId(row) === runId;
+}
+
+/**
+ * The Workflow takes it to running: from scheduled, from failed, or already running (a restarted
+ * run carries on). False when it was cancelled, is done, or (given `run`) is another run's now.
+ */
+export async function startFreshStartRun(
+	db: Db,
+	id: string,
+	run?: { runId: string; now: number },
+): Promise<boolean> {
+	await db
+		.update(s.freshStarts)
+		.set({
+			status: "running",
+			failedStep: null,
+			failedAt: null,
+			...(run ? { progressAt: new Date(run.now) } : {}),
+		})
+		.where(
+			and(
+				eq(s.freshStarts.id, id),
+				inArray(s.freshStarts.status, ["scheduled", "failed"]),
+				run ? isRun(run.runId) : undefined,
+			),
+		);
+	const row = await loadFreshStart(db, id);
+	return row?.status === "running" && (!run || freshStartRunId(row) === run.runId);
+}
+
+/** Before a step: how far it has got, and that it moved just now (`at`). */
 export async function setFreshStartProgress(
 	db: Db,
 	id: string,
 	progress: { step: number; steps: number; label: string | null },
+	at?: number,
 ): Promise<void> {
-	await db.update(s.freshStarts).set(progress).where(eq(s.freshStarts.id, id));
+	await db
+		.update(s.freshStarts)
+		.set({ ...progress, ...(at === undefined ? {} : { progressAt: new Date(at) }) })
+		.where(eq(s.freshStarts.id, id));
+}
+
+/** A step run again quietly by a later run: it moved, but is no further than before. */
+export async function stampFreshStart(db: Db, id: string, at: number): Promise<void> {
+	await db
+		.update(s.freshStarts)
+		.set({ progressAt: new Date(at) })
+		.where(eq(s.freshStarts.id, id));
+}
+
+/** A step used up its retries: the request stops there until a Parent tries again. */
+export async function failFreshStart(
+	db: Db,
+	id: string,
+	failure: { step: string; now: number; runId: string },
+): Promise<boolean> {
+	const rows = await db
+		.update(s.freshStarts)
+		.set({ status: "failed", failedStep: failure.step, failedAt: new Date(failure.now) })
+		.where(and(eq(s.freshStarts.id, id), eq(s.freshStarts.status, "running"), isRun(failure.runId)))
+		.returning({ id: s.freshStarts.id });
+	return rows.length > 0;
+}
+
+/**
+ * A running request that has not begun a step for this long is shown as stuck. Longer than any
+ * silence a healthy run leaves: a step's attempt may take 10 minutes (the Workflow's limit) and
+ * the longest wait between retries is 8 (30 seconds doubling, five retries), so 18 at most.
+ */
+export const STUCK_AFTER_MS = 20 * 60 * 1000;
+
+/**
+ * `failed`: a step used up its retries. `stuck`: it should be moving and hasn't for
+ * STUCK_AFTER_MS (running with no step begun, or due and never begun). Either can be tried again.
+ */
+export function freshStartTrouble(
+	row: Pick<FreshStart, "status" | "runAt" | "progressAt">,
+	now: number,
+): "failed" | "stuck" | null {
+	if (row.status === "failed") return "failed";
+	if (row.status !== "running" && row.status !== "scheduled") return null;
+	const moved =
+		row.status === "running"
+			? (row.progressAt ?? row.runAt).getTime()
+			: Math.max(row.runAt.getTime(), row.progressAt?.getTime() ?? 0);
+	return now - moved > STUCK_AFTER_MS ? "stuck" : null;
+}
+
+/** Hands the request to a new run, only if nobody else changed it meanwhile. */
+async function handOver(
+	db: Db,
+	row: FreshStart,
+	to: { runId: string; now: number; runAt?: number; agreedBy?: string },
+): Promise<FreshStart | null> {
+	const [next] = await db
+		.update(s.freshStarts)
+		.set({
+			runId: to.runId,
+			progressAt: new Date(to.now),
+			failedStep: null,
+			failedAt: null,
+			status: row.status === "failed" ? "running" : row.status,
+			...(to.runAt === undefined ? {} : { runAt: new Date(to.runAt) }),
+			...(to.agreedBy === undefined ? {} : { agreedBy: to.agreedBy }),
+		})
+		.where(
+			and(
+				eq(s.freshStarts.id, row.id),
+				eq(s.freshStarts.status, row.status),
+				row.runId === null ? isNull(s.freshStarts.runId) : eq(s.freshStarts.runId, row.runId),
+			),
+		)
+		.returning();
+	return next ?? null;
+}
+
+export type FreshStartHandOver = { freshStart: FreshStart; previousRunId: string };
+
+/**
+ * Try again: a failed or stuck request goes to a new run, which carries on with the clear. Null
+ * when there is nothing to try again (none, or one moving along), or the other Parent just did.
+ */
+export async function retryFreshStart(
+	db: Db,
+	input: { householdId: string; runId: string; now: number },
+): Promise<FreshStartHandOver | null> {
+	const row = await loadActiveFreshStart(db, input.householdId);
+	if (!row || !freshStartTrouble(row, input.now)) return null;
+	const freshStart = await handOver(db, row, input);
+	return freshStart && { freshStart, previousRunId: freshStartRunId(row) };
+}
+
+/**
+ * "Start it now": the Parent who did not ask agrees, so the wait is over and a new run begins at
+ * once. Null for the Parent who asked (nobody skips their own wait alone), and when nothing is
+ * waiting (cancelled meanwhile, already begun).
+ */
+export async function agreeToFreshStart(
+	db: Db,
+	input: { householdId: string; memberId: string; runId: string; now: number },
+): Promise<FreshStartHandOver | null> {
+	const row = await loadActiveFreshStart(db, input.householdId);
+	if (row?.status !== "scheduled" || row.requestedBy === input.memberId) return null;
+	const freshStart = await handOver(db, row, {
+		runId: input.runId,
+		now: input.now,
+		runAt: input.now,
+		agreedBy: input.memberId,
+	});
+	return freshStart && { freshStart, previousRunId: freshStartRunId(row) };
 }
 
 export async function finishFreshStart(db: Db, id: string, now: number): Promise<void> {
@@ -418,7 +595,8 @@ export async function clearedSince(
 			and(
 				eq(s.freshStarts.householdId, householdId),
 				or(
-					eq(s.freshStarts.status, "running"),
+					// Failed is still being cleared: it stopped part-way and waits for Try again.
+					inArray(s.freshStarts.status, ["running", "failed"]),
 					and(eq(s.freshStarts.status, "done"), gt(s.freshStarts.finishedAt, new Date(startedAt))),
 				),
 			),
