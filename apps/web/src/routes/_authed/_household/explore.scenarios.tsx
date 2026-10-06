@@ -307,7 +307,12 @@ function Compare({
 									{columns.map((c) => {
 										const note = row.note?.(c.projection);
 										return (
-											<div key={c.key} className="flex items-baseline justify-between gap-4">
+											// Beside an open Scenario at 1280 the list is about 130px wide: the value goes
+											// under its name there, or the name broke into one letter a line.
+											<div
+												key={c.key}
+												className="flex @max-[15rem]/compare:flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5"
+											>
 												<dt
 													className={cn(
 														"min-w-0 [overflow-wrap:anywhere]",
@@ -318,7 +323,7 @@ function Compare({
 												</dt>
 												<dd
 													className={cn(
-														"shrink-0 text-end tabular-nums",
+														"@max-[15rem]/compare:ml-auto shrink-0 text-end tabular-nums",
 														c.key === "plan" ? "text-muted-foreground" : "font-medium",
 														row.over?.(c.projection) && "text-over",
 													)}
