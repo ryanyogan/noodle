@@ -69,6 +69,13 @@ const enabled = !!process.env.PAGE_SHOTS;
 // One worker, in order, and no second try: the Household is made once, in beforeAll.
 test.describe.configure({ mode: "default", retries: 0 });
 
+/** Focus as the keyboard gives it (a ring shows): focus, then Tab away and back. */
+async function keyboardFocus(page: Page, target: Locator) {
+	await target.focus();
+	await page.keyboard.press("Tab");
+	await page.keyboard.press("Shift+Tab");
+}
+
 type Shot = {
 	name: string;
 	path: string;
@@ -77,6 +84,8 @@ type Shot = {
 	phoneSheet?: boolean;
 	/** Only at phone widths, the whole page: what only a phone shows (a folded group opened). */
 	phone?: boolean;
+	/** A phone's sheet picture taken at desktop widths too: what's in the window (issue 73). */
+	desk?: boolean;
 	/**
 	 * The page draws only the rows in the window (Transactions): the window is made as tall as the
 	 * page for the picture, or the rows below the fold come out as an empty card.
@@ -158,6 +167,9 @@ async function settled(page: Page) {
 	await page.waitForTimeout(600);
 }
 
+/** The row that opens and closes a Perk Source: the first button of its first heading. */
+const perkRow = (card: Locator) => card.locator("h3").first().getByRole("button").first();
+
 /** A credit card added on Perks & Benefits, as perks-page.spec.ts does (AI_MODEL=stub reads the page). */
 async function addCard(page: Page, name: string, pageUrl: string, fee: string, perks: number) {
 	await page.getByRole("button", { name: "Add a card or membership" }).click();
@@ -169,13 +181,16 @@ async function addCard(page: Page, name: string, pageUrl: string, fee: string, p
 	await expect(sheet).toBeHidden({ timeout: 30_000 });
 	const card = page.getByRole("article", { name });
 	// One Perk Source is open at a time: open this one's row.
-	const row = card.locator("h3").getByRole("button");
+	// The row may open by itself as the Perks arrive, and an open card has more headings with
+	// buttons: take the card's own row, and try again if a click landed on a row that had opened.
+	const row = perkRow(card);
 	await expect(row).toBeEnabled();
-	if ((await row.getAttribute("aria-expanded")) !== "true") await row.click();
-	await expect(card.getByRole("list", { name: `${name} Perks` }).getByRole("listitem")).toHaveCount(
-		perks,
-		{ timeout: 30_000 },
-	);
+	await expect(async () => {
+		if ((await row.getAttribute("aria-expanded")) !== "true") await row.click();
+		await expect(
+			card.getByRole("list", { name: `${name} Perks` }).getByRole("listitem"),
+		).toHaveCount(perks, { timeout: 5_000 });
+	}).toPass({ timeout: 45_000 });
 	await card.getByLabel("Annual fee").fill(fee);
 	await card.getByRole("button", { name: "Save fee" }).click();
 	await expect(card).toContainText(`annual fee $${fee}`);
@@ -214,16 +229,31 @@ async function toSetupStep(page: Page, wanted: number) {
 /** Opens one line of Explore's outline: on a phone its editor comes up in a sheet. */
 async function openLine(page: Page, title: string) {
 	const sheet = page.getByRole("dialog", { name: title });
+	let inline = false;
 	// The row only answers once the page is hydrated.
 	await expect(async () => {
 		// On a phone a long group is folded once the page is hydrated: its lines are behind
 		// "Show all N …", so every group is opened first (nothing to press from 640 up).
 		for (const all of await page.getByRole("button", { name: /^Show all \d+ / }).all())
 			await all.click({ timeout: 2000 });
-		if (!(await sheet.isVisible()))
-			await page.getByRole("button", { name: `Edit ${title}` }).click({ timeout: 2000 });
+		const edit = page.getByRole("button", { name: `Edit ${title}` });
+		// From 640 up the editor opens under its row, not in a sheet.
+		if ((await edit.getAttribute("aria-expanded")) !== null) {
+			if ((await edit.getAttribute("aria-expanded")) !== "true")
+				await edit.click({ timeout: 2000 });
+			await expect(edit).toHaveAttribute("aria-expanded", "true", { timeout: 2000 });
+			inline = true;
+			return;
+		}
+		if (!(await sheet.isVisible())) await edit.click({ timeout: 2000 });
 		await expect(sheet).toBeVisible({ timeout: 2000 });
 	}).toPass({ timeout: 20_000 });
+	if (inline) {
+		await page
+			.getByRole("button", { name: `Edit ${title}` })
+			.evaluate((node) => node.scrollIntoView({ block: "center" }));
+		return page.getByRole("main");
+	}
 	return sheet;
 }
 
@@ -272,11 +302,12 @@ async function attempt(what: string, run: () => Promise<void>) {
 const opened =
 	(button: string | RegExp, confirm = false) =>
 	async (page: Page) => {
+		// One more than is up already: at 1024 an open item is itself a dialog (a drawer).
+		const layers = page.locator("[role=dialog], [role=menu]");
+		const before = await layers.count();
 		await pressFor(
 			page.getByRole("button", { name: button }).first(),
-			confirm
-				? page.getByRole("button", { name: "Cancel" }).first()
-				: page.getByRole("dialog").or(page.getByRole("menu")).first(),
+			confirm ? page.getByRole("button", { name: "Cancel" }).first() : layers.nth(before),
 		);
 		await page.waitForTimeout(400);
 	};
@@ -335,10 +366,27 @@ test.beforeAll(async ({ browser }) => {
 	await attempt("Money between the two Parents", async () => {
 		sentToSam = await seedBetweenUs(householdId, parentId, ids.checking);
 	});
+	// Two Buckets for the last phone pass (issue 74): one nothing was ever spent from, which can be
+	// deleted, and one archived from this month on, which can be restored.
+	const unused = ulid();
+	const archivedBucket = ulid();
+	await attempt("A Bucket to delete and one to restore", async () => {
+		const h = q(householdId);
+		const [year, monthOfYear] = month.split("-").map(Number);
+		const before = new Date(Date.UTC(year ?? 0, (monthOfYear ?? 1) - 2, 1))
+			.toISOString()
+			.slice(0, 7);
+		await seedSql([
+			`insert into buckets (id, household_id, name, color, position, from_month) values (${q(unused)}, ${h}, 'Keepsakes', 5, 90, ${q(month)});`,
+			`insert into bucket_allowances (household_id, bucket_id, month, amount_cents) values (${h}, ${q(unused)}, ${q(month)}, 5000);`,
+			`insert into buckets (id, household_id, name, color, position, from_month, archived_from_month) values (${q(archivedBucket)}, ${h}, 'Camping', 6, 91, ${q(before)}, ${q(month)});`,
+			`insert into bucket_allowances (household_id, bucket_id, month, amount_cents) values (${h}, ${q(archivedBucket)}, ${q(before)}, 15000);`,
+		]);
+	});
 	/** Plan › Income with the Zelle from Sam counted as Income (`marked` false) or between us. */
 	const zelleFromSam = async (page: Page, marked: boolean) => {
 		const region = page.locator('section[aria-label="Between us"]:visible').first();
-		const hint = page.getByText("From the other Parent? It’s between us").first();
+		const hint = page.getByText(/\? It’s between us$/).first();
 		if (marked) {
 			await expect(async () => {
 				if (!(await region.isVisible())) {
@@ -352,10 +400,14 @@ test.beforeAll(async ({ browser }) => {
 				}
 				await expect(region).toBeVisible({ timeout: 5000 });
 			}).toPass({ timeout: 30_000 });
-			// The toast has gone before the picture: it would sit over the rows on a phone.
-			await expect(page.getByRole("status").filter({ hasText: "is between you" })).toHaveCount(0, {
-				timeout: 20_000,
-			});
+			// The toast has gone before the picture: it would sit over the rows on a phone. It comes
+			// only when the server has answered, after the row has already moved, so it is waited
+			// for first (it may not come at all when the entry was marked by an earlier width).
+			const toast = page.getByRole("status").filter({ hasText: "is between you" });
+			await toast.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+			// Away from it: a toast under the pointer never counts down.
+			await page.mouse.move(1, 1);
+			await expect(toast).toHaveCount(0, { timeout: 20_000 });
 		} else {
 			await expect(async () => {
 				if (await region.isVisible())
@@ -400,12 +452,21 @@ test.beforeAll(async ({ browser }) => {
 		await page.goto("/insights/perks");
 		const amex = await addCard(page, "Amex Platinum", "https://example.com/premium-card", "695", 4);
 		await addCard(page, "Chase Sapphire Reserve", "https://example.com/travel-card", "550", 3);
-		await amex.locator("h3").getByRole("button").click();
+		// The fee's save redraws the cards: let it finish, or it empties the note being typed.
+		await page.waitForLoadState("networkidle");
+		const amexRow = perkRow(amex);
 		const uber = amex.getByRole("listitem", { name: "Uber Cash" });
-		await uber.getByRole("button", { name: "Mark Uber Cash used" }).click();
-		await uber.getByLabel("Note (optional)").fill("Rides to the airport");
-		await uber.getByRole("button", { name: "Save" }).click();
-		await expect(uber).toContainText("Rides to the airport");
+		await expect(async () => {
+			if ((await amexRow.getAttribute("aria-expanded")) !== "true") await amexRow.click();
+			const mark = uber.getByRole("button", { name: "Mark Uber Cash used" });
+			if (await mark.isVisible()) await mark.click();
+			const note = uber.getByLabel("Note (optional)");
+			if (await note.isVisible()) {
+				await note.fill("Rides to the airport");
+				await uber.getByRole("button", { name: "Save" }).click();
+			}
+			await expect(uber).toContainText("Rides to the airport", { timeout: 5_000 });
+		}).toPass({ timeout: 45_000 });
 	});
 
 	// A saved Scenario: a raise to $10,200 a month.
@@ -1153,37 +1214,51 @@ test.beforeAll(async ({ browser }) => {
 			name: "15b-accounts-add-sheet",
 			path: "/accounts",
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Add Account"),
 		},
 		{
 			name: "16b-account-more-or-rename",
 			path: `/accounts/${ids.sapphire}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened(/^(More actions for|Rename)/),
 		},
 		{
 			name: "16c-account-balance-sheet",
 			path: `/accounts/${ids.sapphire}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened(/^(Update|Add) (balance|what’s owed)/),
 		},
 		{
 			name: "16d-account-upload-statement",
 			path: `/accounts/${ids.college}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Upload statement"),
 		},
 		{
 			name: "16e-account-archive-confirm",
 			path: `/accounts/${ids.college}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Archive this Account", true),
 		},
 		{
 			name: "16f-account-rename-sheet",
 			path: `/accounts/${ids.college}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened(/^(More actions for|Rename)/),
+		},
+		{
+			// "Connect a bank": how far back to bring Transactions in, asked before the bank's own
+			// window opens (issue 73).
+			name: "15c-accounts-connect-a-bank",
+			path: "/accounts",
+			window: true,
+			ready: opened("Connect a bank"),
 		},
 		{ name: "17-goals", path: "/goals" },
 		{ name: "18-goal", path: `/goals/${ids.vacation}` },
@@ -1192,35 +1267,57 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "18a-goal-long-history", path: `/goals/${ids.roof}` },
 		{ name: "18b-goal-long-history-scrolled", path: `/goals/${ids.roof}`, scrolledTo: 700 },
 		// A Goal's sheets on a phone (issue 74).
-		{ name: "17a-goals-add-sheet", path: "/goals", phoneSheet: true, ready: opened("Add Goal") },
+		{
+			name: "17a-goals-add-sheet",
+			path: "/goals",
+			phoneSheet: true,
+			desk: true,
+			ready: opened("Add Goal"),
+		},
+		{
+			// Add Goal opened on paying off a card or loan, as the Plan's pages link to it (issue 73).
+			name: "17b-goals-add-payoff",
+			path: "/goals?add=payoff",
+			window: true,
+			ready: async (page) => {
+				await expect(page.getByRole("dialog")).toBeVisible({ timeout: 15_000 });
+			},
+		},
+		// The Goals of one Account, on their own page (issue 73).
+		{ name: "18h-goals-account", path: `/goals/accounts/${ids.savings}` },
 		{
 			name: "18c-goal-add-money-sheet",
 			path: `/goals/${ids.vacation}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Add money"),
 		},
 		{
 			name: "18d-goal-edit-sheet",
 			path: `/goals/${ids.vacation}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Edit"),
 		},
 		{
 			name: "18e-goal-spend-sheet",
 			path: `/goals/${ids.vacation}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Spend"),
 		},
 		{
 			name: "18f-goal-take-back-sheet",
 			path: `/goals/${ids.vacation}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Take money back"),
 		},
 		{
 			name: "18g-goal-archive-confirm",
 			path: `/goals/${ids.vacation}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Archive", true),
 		},
 		{ name: "19-explore", path: "/explore" },
@@ -1231,8 +1328,21 @@ test.beforeAll(async ({ browser }) => {
 			name: "19b-explore-line-open",
 			path: "/explore",
 			phoneSheet: true,
+			desk: true,
 			ready: async (page) => {
 				await openLine(page, "Electricity");
+			},
+		},
+		{
+			// "Apply to Plan" pressed with one change: what would change, asked first (issue 73).
+			name: "19e-explore-apply-dialog",
+			path: "/explore?lever=baseline:1020000",
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: "Apply to Plan", exact: true }).first(),
+					page.getByRole("alertdialog"),
+				);
 			},
 		},
 		{
@@ -1257,11 +1367,14 @@ test.beforeAll(async ({ browser }) => {
 			name: "19c-explore-growth-open",
 			path: "/explore",
 			phoneSheet: true,
+			desk: true,
 			ready: async (page) => {
 				const sheet = await openLine(page, "Raises & inflation");
 				const on = sheet.getByRole("switch", { name: "Model raises and inflation" });
 				if ((await on.getAttribute("aria-checked")) !== "true") await on.click({ timeout: 15_000 });
-				await expect(sheet.getByLabel("Income, % a year")).toBeVisible({ timeout: 15_000 });
+				const income = sheet.getByLabel("Income, % a year");
+				await expect(income).toBeVisible({ timeout: 15_000 });
+				await income.evaluate((node) => node.scrollIntoView({ block: "center" }));
 			},
 		},
 		{ name: "20-can-we-afford-it", path: "/explore/afford" },
@@ -1294,6 +1407,22 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		...(scenarioPath ? [{ name: "22-scenario", path: scenarioPath }] : []),
+		// A saved Scenario's Rename and Delete, each asked in its own dialog (issue 73).
+		...(scenarioPath ? [scenarioPath] : []).flatMap((path) =>
+			(["Rename", "Delete"] as const).map(
+				(action, at): Shot => ({
+					name: `22${"bc"[at]}-scenario-${action.toLowerCase()}`,
+					path,
+					window: true,
+					ready: async (page) => {
+						await pressFor(
+							page.getByRole("button", { name: action, exact: true }).first(),
+							page.getByRole("alertdialog"),
+						);
+					},
+				}),
+			),
+		),
 		{
 			// A Scenario open while two are compared: Compare keeps to the room left of the panel.
 			name: "22a-scenario-open-over-compare",
@@ -1446,6 +1575,54 @@ test.beforeAll(async ({ browser }) => {
 					.getByRole("button", { name: /^Groceries: \$/ })
 					.first()
 					.hover();
+			},
+		},
+		// One of each control of Reports in its two other states (issue 73). A picture holds one
+		// keyboard focus and one pointer, so: a tab focused and a table toggle under the pointer; the
+		// toggle focused and a tab under the pointer; a row focused and a select under the pointer;
+		// a chip of the Filters sheet focused and another under the pointer.
+		{
+			name: "23sa-reports-tab-focus-toggle-hover",
+			path: "/reports?view=buckets",
+			window: true,
+			ready: async (page) => {
+				await keyboardFocus(page, page.getByRole("link", { name: "Trends", exact: true }));
+				await page
+					.getByRole("button", { name: /^Show .* as a table$/ })
+					.first()
+					.hover();
+			},
+		},
+		{
+			name: "23sb-reports-toggle-focus-tab-hover",
+			path: "/reports?view=buckets",
+			window: true,
+			ready: async (page) => {
+				await keyboardFocus(
+					page,
+					page.getByRole("button", { name: /^Show .* as a table$/ }).first(),
+				);
+				await page.getByRole("link", { name: "Merchants", exact: true }).hover();
+			},
+		},
+		{
+			name: "23sc-reports-row-focus-select-hover",
+			path: "/reports?view=buckets",
+			window: true,
+			ready: async (page) => {
+				await keyboardFocus(page, page.getByRole("button", { name: /^Kids: \$/ }).first());
+				await page.getByRole("combobox", { name: "Compare with" }).hover();
+			},
+		},
+		{
+			name: "23sd-reports-chip-focus-and-hover",
+			path: "/reports",
+			window: true,
+			ready: async (page) => {
+				const sheet = page.getByRole("dialog", { name: "Filters" });
+				await pressFor(page.getByRole("button", { name: /^Filters/ }), sheet);
+				await keyboardFocus(page, sheet.locator("button", { hasText: /^Kids$/ }));
+				await sheet.locator("button", { hasText: /^Household$/ }).hover();
 			},
 		},
 		{
@@ -1666,6 +1843,21 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		{
+			// The Bucket's sheet closed with a change not saved: "Discard changes" is asked (issue 73).
+			name: "04a5-bucket-sheet-discard",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				const sheet = page.getByRole("dialog", { name: "Groceries", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Groceries", exact: true }), sheet);
+				await sheet.getByRole("textbox", { name: "Allowance", exact: true }).fill("1,000");
+				await page.keyboard.press("Escape");
+				await expect(page.getByRole("button", { name: "Discard changes" })).toBeVisible({
+					timeout: 15_000,
+				});
+			},
+		},
+		{
 			// A Bucket nothing was ever spent from can be deleted: the question asked first.
 			name: "44-bucket-delete-confirm",
 			path: `/plan/${month}#buckets`,
@@ -1794,6 +1986,61 @@ test.beforeAll(async ({ browser }) => {
 				await page.waitForTimeout(400);
 			},
 		},
+		{
+			// A Bucket nothing was ever spent from: Delete is offered, and asks first.
+			name: "52-bucket-delete-confirm",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await page.reload();
+				await settled(page);
+				const sheet = page.getByRole("dialog", { name: "Keepsakes", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Keepsakes", exact: true }), sheet);
+				const remove = sheet.getByRole("button", { name: "Delete", exact: true });
+				await remove.scrollIntoViewIfNeeded({ timeout: 15_000 });
+				await remove.click({ timeout: 15_000 });
+				await page.waitForTimeout(400);
+			},
+		},
+		{ name: "53-archived-bucket", path: `/plan/${month}/buckets/${archivedBucket}`, phone: true },
+		{
+			name: "53a-restore-bucket-sheet",
+			path: `/plan/${month}/buckets/${archivedBucket}`,
+			window: true,
+			ready: (page) =>
+				pressFor(
+					page.getByRole("button", { name: "Restore to the Plan" }).first(),
+					page.getByRole("dialog", { name: "Restore Camping" }),
+				),
+		},
+		{
+			// Larger text (iOS, 200%): the root's size doubled, so everything set in rem follows.
+			name: "54-plan-large-text",
+			path: `/plan/${month}`,
+			phone: true,
+			ready: async (page) => {
+				await page.addStyleTag({ content: "html{font-size:200%}" });
+				await page.waitForTimeout(400);
+			},
+		},
+		{
+			// The toast after a Quick Add, over the page and above the tab bar. It saves $24 in the first Bucket offered.
+			name: "55-quick-add-toast",
+			path: `/month/${month}`,
+			phoneSheet: true,
+			ready: async (page) => {
+				await quickAdd("amount")(page);
+				const sheet = page.getByRole("dialog", { name: "Quick Add" });
+				await sheet
+					.getByRole("list", { name: "Add to" })
+					.getByRole("button")
+					.first()
+					.tap({ timeout: 15_000 });
+				await expect(page.getByRole("status").filter({ hasText: "added to" })).toBeVisible({
+					timeout: 15_000,
+				});
+			},
+		},
 		...small,
 		...carried,
 		...fresh,
@@ -1850,6 +2097,7 @@ test.beforeAll(async ({ browser }) => {
 			name: "12l-review-new-bucket",
 			path: "/review",
 			phoneSheet: true,
+			desk: true,
 			ready: async (page) => {
 				const card = await reviewCardOnTop(page, ":has([role=combobox])");
 				await card.getByRole("combobox").first().click({ timeout: 15_000 });
@@ -2012,7 +2260,7 @@ test.beforeAll(async ({ browser }) => {
 				),
 				...([1, 2] as const).map(
 					(toasts): Shot => ({
-						// One toast with Undo, then two stacked: a row of last month deleted for each.
+						// One toast, then two stacked: a row of last month deleted, then a Quick Add.
 						name: toasts === 1 ? "d62-toast-undo" : "d63-toasts-two",
 						path: `/transactions/${monthBefore}`,
 						ready: async (page) => {
@@ -2020,21 +2268,42 @@ test.beforeAll(async ({ browser }) => {
 								.getByRole("grid", { name: /^Transactions in / })
 								.locator("[data-slot=data-table-body]")
 								.getByRole("checkbox");
-							for (let made = 0; made < toasts; made++) {
-								await boxes.first().click({ timeout: 15_000 });
-								await page
-									.getByRole("region", { name: "Selecting Transactions" })
-									.getByRole("button", { name: "Delete" })
-									.click({ timeout: 15_000 });
-								const sheet = page.getByRole("dialog", { name: /^Delete \d+ Transactions?\?$/ });
-								await sheet.getByRole("button", { name: /^Delete/ }).click({ timeout: 15_000 });
-								await expect(page.locator("[data-sonner-toast]")).toHaveCount(made + 1, {
-									timeout: 15_000,
-								});
-							}
+							await boxes.first().click({ timeout: 15_000 });
+							await page
+								.getByRole("region", { name: "Selecting Transactions" })
+								.getByRole("button", { name: "Delete" })
+								.click({ timeout: 15_000 });
+							const sheet = page.getByRole("dialog", { name: /^Delete \d+ Transactions?\?$/ });
+							await sheet.getByRole("button", { name: /^Delete/ }).click({ timeout: 15_000 });
+							const said = page.locator("[data-sonner-toast]");
+							await expect(said).toHaveCount(1, { timeout: 15_000 });
+							if (toasts === 1) return;
+							// The second, while the first still shows (it stays ten seconds): a Quick Add.
+							const quick = page.getByRole("dialog", { name: "Quick Add" });
+							await expect(sheet).toBeHidden({ timeout: 15_000 });
+							await page.keyboard.press("q");
+							await expect(quick).toBeVisible({ timeout: 15_000 });
+							await page.keyboard.type("7");
+							await quick.getByRole("button", { name: /^Add \$7 to / }).click({ timeout: 15_000 });
+							await expect(said).toHaveCount(2, { timeout: 15_000 });
 						},
 					}),
 				),
+				{
+					// Ask with an answer (the shots build answers from the stub model).
+					name: "d24y-ask-answer",
+					path: "/ask",
+					ready: async (page) => {
+						const question = page.getByPlaceholder("Ask about your money");
+						await expect(question).toBeEnabled({ timeout: 15_000 });
+						await question.fill("How much did we spend on groceries this month?");
+						const ask = page.getByRole("button", { name: "Ask", exact: true });
+						await ask.click({ timeout: 15_000 });
+						// Asked and answered: the field is empty again and the button no longer busy.
+						await expect(question).toHaveValue("", { timeout: 30_000 });
+						await page.waitForTimeout(2500);
+					},
+				},
 			] satisfies Shot[]
 		).map((shot): Shot => ({ ...shot, desktop: true, window: true })),
 		{ name: "50-bank-return", path: "/bank/return", window: true },
@@ -2131,7 +2400,7 @@ for (const viewport of viewports) {
 		mkdirSync(dir, { recursive: true });
 		const failures: string[] = [];
 		for (const shot of shots) {
-			if ((shot.phoneSheet || shot.phone) && !phone) continue;
+			if ((shot.phoneSheet || shot.phone) && !phone && !shot.desk) continue;
 			if (shot.desktop && phone) continue;
 			if (only.length > 0 && !only.some((name) => shot.name.startsWith(name))) continue;
 			let page = main;

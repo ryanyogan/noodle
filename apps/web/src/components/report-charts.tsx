@@ -190,6 +190,25 @@ export function ChartCard({
 
 const isDayKey = (value: unknown) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
+const longMonth =
+	/^(January|February|March|April|May|June|July|August|September|October|November|December) (\d{4})$/;
+
+/**
+ * A month in a table cell: "September 2026", or "Sep 2026" on one line where the table is under
+ * 320px wide (a two-fifths card at 1024), so every row keeps one height (issue 73). One text node
+ * run, no hidden twin: the rest of the name is what goes. The CSV keeps the whole name.
+ */
+function cellText(text: string): ReactNode {
+	const month = longMonth.exec(text);
+	if (!month?.[1]) return text;
+	return (
+		<span className="@max-xs:whitespace-nowrap">
+			{month[1].slice(0, 3)}
+			<span className="@max-xs:hidden">{month[1].slice(3)}</span> {month[2]}
+		</span>
+	);
+}
+
 /** A ReportTable as an HTML table, money right-aligned in tabular figures. */
 export function DataTable({ table, className }: { table: ReportTable; className?: string }) {
 	// 24px between columns, the card's own padding at its two edges: four columns then fit a
@@ -197,7 +216,7 @@ export function DataTable({ table, className }: { table: ReportTable; className?
 	const pad = "px-3 first:ps-(--card-pad) last:pe-(--card-pad)";
 	const formats = table.columns.map((_, i) => columnFormatter(table, i));
 	return (
-		<div className={cn("-mx-(--card-pad)", className)}>
+		<div className={cn("@container -mx-(--card-pad)", className)}>
 			{/* From lg a name may take two lines before a column goes under the card's edge (issue 73). */}
 			<Table className="min-w-max lg:min-w-0">
 				<TableCaption className="sr-only">{table.title}</TableCaption>
@@ -227,7 +246,9 @@ export function DataTable({ table, className }: { table: ReportTable; className?
 										// A day stays on one line; a name is what wraps.
 										className={cn(pad, isDayKey(value) && "whitespace-nowrap")}
 									>
-										{(formats[i] ?? ((v) => formatCell(kind, v)))(value)}
+										{kind === "text" && typeof value === "string"
+											? cellText((formats[i] ?? ((v) => formatCell(kind, v)))(value))
+											: (formats[i] ?? ((v) => formatCell(kind, v)))(value)}
 									</TableCell>
 								);
 							})}
@@ -1097,10 +1118,13 @@ export function CalendarHeatmap({
 						pointer.current = event.pointerType;
 					}}
 					// From lg up the weeks share the card's width, each up to twice as wide as tall, so a
-					// half year reaches the card's right edge instead of stopping at 60% (issue 73).
-					className="grid w-max gap-[3px] text-[11px] text-muted-foreground lg:w-full lg:min-w-min lg:[--heat-week:3rem]"
+					// half year reaches the card's right edge instead of stopping at 60% (issue 73). They may
+					// narrow to 20px so a half year fits a 1024 window without its first week going under
+					// the weekday names, and in a card wider than the weeks need the grid stays at the
+					// start, beside those names (an auto column took the spare width and parted them).
+					className="grid w-max gap-[3px] text-[11px] text-muted-foreground lg:w-full lg:min-w-min lg:justify-start lg:[--heat-week-min:1.25rem] lg:[--heat-week:3rem]"
 					style={{
-						gridTemplateColumns: `auto repeat(${weeks}, minmax(1.5rem, var(--heat-week, 1.5rem)))`,
+						gridTemplateColumns: `auto repeat(${weeks}, minmax(var(--heat-week-min, 1.5rem), var(--heat-week, 1.5rem)))`,
 						gridTemplateRows: "auto repeat(7, 1.5rem)",
 					}}
 				>
@@ -1109,7 +1133,8 @@ export function CalendarHeatmap({
 							key={`${week}-${label}`}
 							aria-hidden="true"
 							className="pb-0.5 whitespace-nowrap"
-							style={{ gridColumn: `${week + 2} / span 3`, gridRow: 1 }}
+							// Never past the last week: a span over the end made a column of its own.
+							style={{ gridColumn: `${week + 2} / span ${Math.min(3, weeks - week)}`, gridRow: 1 }}
 						>
 							{label}
 						</span>
