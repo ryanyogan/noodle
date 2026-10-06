@@ -17,7 +17,7 @@ import {
 	monthCloseProposal,
 	monthEnd,
 	monthOfDay,
-	nothingToClose,
+	nothingToDecide,
 	whatChanged,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -66,7 +66,9 @@ import { formatMoney, monthName, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { useLearned } from "../../../learned";
 import { closingWeek, useCloseMonth } from "../../../month-close";
+import { useFreeCarry } from "../../../plan-changes";
 import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
+import { carriedOverText } from "../../../plan-split";
 import {
 	checkInStatusQuery,
 	commitmentsQuery,
@@ -99,6 +101,7 @@ export const Route = createFileRoute("/_authed/_household/month/$month/")({
 function ThisMonth() {
 	const { month, parentId } = Route.useRouteContext();
 	const state = useMonthState(month);
+	const freeKept = useFreeCarry(month).handedOn ?? 0;
 	const { cover } = useCovers();
 	// The overspent Bucket being covered, by ID, so the sheet follows its latest state.
 	const [covering, setCovering] = useState<string | null>(null);
@@ -213,6 +216,7 @@ function ThisMonth() {
 								<MonthEndSection
 									month={month}
 									end={monthEnd(state, state)}
+									freeKept={freeKept}
 									closed={state.closed}
 									parentId={parentId}
 									goals={goals.goals}
@@ -304,7 +308,7 @@ function ThisMonth() {
 						</div>
 						{/* Under Free to Spend at every size: on a phone a closed strip, from lg open in the
 						    rail, so the prompts never push Buckets down. */}
-						<WithClosePrevious month={month} asOf={state.asOf}>
+						<WithClosePrevious month={month} asOf={state.asOf} hasGoal={activeGoals.length > 0}>
 							{(closeStatus) => (
 								<ToDo
 									className="order-2 lg:order-none"
@@ -537,14 +541,19 @@ function Chip({
 function WithClosePrevious({
 	month,
 	asOf,
+	hasGoal,
 	children,
 }: {
 	month: MonthKey;
 	asOf: DayKey;
+	/** Whether there is an active Goal that Free to Spend left could be sent to. */
+	hasGoal: boolean;
 	children: (status: string | null) => ReactNode;
 }) {
 	return closingWeek(month, asOf) ? (
-		<PreviousMonthOpen month={addMonths(month, -1)}>{children}</PreviousMonthOpen>
+		<PreviousMonthOpen month={addMonths(month, -1)} hasGoal={hasGoal}>
+			{children}
+		</PreviousMonthOpen>
 	) : (
 		children(null)
 	);
@@ -552,24 +561,29 @@ function WithClosePrevious({
 
 function PreviousMonthOpen({
 	month,
+	hasGoal,
 	children,
 }: {
 	month: MonthKey;
+	hasGoal: boolean;
 	children: (status: string | null) => ReactNode;
 }) {
 	const state = useMonthState(month);
-	const proposal = monthCloseProposal(state);
-	return children(state.closed || nothingToClose(proposal) ? null : closeStatus(proposal));
+	const proposal = monthCloseProposal(state, useFreeCarry(month).leftToSend);
+	return children(
+		state.closed || nothingToDecide(proposal, hasGoal) ? null : closeStatus(proposal, hasGoal),
+	);
 }
 
 /** The Close row's line from lg: "2 Buckets and Extra income to decide". */
-function closeStatus(proposal: MonthCloseProposal) {
+function closeStatus(proposal: MonthCloseProposal, hasGoal: boolean) {
 	const n = proposal.leftovers.length;
 	const parts = [
 		n > 0 && `${n} ${n === 1 ? "Bucket" : "Buckets"}`,
+		hasGoal && (proposal.freeToSpend ?? 0) > 0 && "Free to Spend",
 		proposal.windfall > 0 && "Extra income",
 	].filter(Boolean);
-	return `${parts.join(" and ")} to decide`;
+	return `${new Intl.ListFormat("en", { type: "conjunction" }).format(parts as string[])} to decide`;
 }
 
 /** The month before, while it waits to be closed and has something to decide. */
@@ -587,8 +601,8 @@ function ClosePreviousMonth({
 	const state = useMonthState(month);
 	const close = useCloseMonth();
 	const extraIncomes = useExtraIncomes();
-	const proposal = monthCloseProposal(state);
-	if (state.closed || nothingToClose(proposal)) return null;
+	const proposal = monthCloseProposal(state, useFreeCarry(month).leftToSend);
+	if (state.closed || nothingToDecide(proposal, goals.length > 0)) return null;
 	return (
 		<MonthCloseSection
 			proposal={proposal}
@@ -618,6 +632,10 @@ function ClosePreviousMonth({
 					windfall: choice.windfallGoalId
 						? [{ moveId: ulid(), goalId: choice.windfallGoalId, amountCents: proposal.windfall }]
 						: [],
+					freeToSpend:
+						choice.freeGoalId && proposal.freeToSpend
+							? [{ goalId: choice.freeGoalId, amountCents: proposal.freeToSpend }]
+							: [],
 				});
 			}}
 		/>
@@ -641,6 +659,11 @@ function FreeToSpend({
 	const overPlanned = state.freeToSpend < 0;
 	// An ended month has no days left, and what wasn't planned is simply what it ended with.
 	const ended = state.month < monthOfDay(state.asOf);
+	// Free to Spend is carried over (issue 113): what the months before handed on, of either sign,
+	// and what this month adds on its own, so the month still reads fresh.
+	const carry = useFreeCarry(state.month);
+	const ownFree = state.freeToSpend - state.freeCarriedIn;
+	const lastMonth = monthName(addMonths(state.month, -1));
 	return (
 		<Section aria-labelledby="free-to-spend">
 			<SectionHeader
@@ -664,12 +687,25 @@ function FreeToSpend({
 								Set your take-home pay to see what’s free.{" "}
 								<PlanLink month={state.month}>Set take-home pay</PlanLink>
 							</>
+						) : overPlanned && ownFree >= 0 ? (
+							<>
+								{lastMonth} ended {formatMoney(-state.freeCarriedIn)} short, more than the{" "}
+								{formatMoney(ownFree)} {monthName(state.month)} adds.{" "}
+								<PlanLink month={state.month}>Adjust the Plan</PlanLink>
+							</>
 						) : overPlanned ? (
 							<>
 								Your {state.committed > 0 ? "Commitments and Buckets" : "Buckets"} add up to{" "}
-								{formatMoney(-state.freeToSpend)} more than your take-home pay.{" "}
+								{formatMoney(-ownFree)} more than your take-home pay.{" "}
 								<PlanLink month={state.month}>Adjust the Plan</PlanLink>
 							</>
+						) : ended && carry.handedOn !== null ? (
+							<span data-slot="free-handed-on">
+								{carry.handedOn < 0
+									? `Ended ${formatMoney(-carry.handedOn)} short, carried over into `
+									: `Ended with ${formatMoney(carry.handedOn)}, carried over into `}
+								{monthName(addMonths(state.month, 1))}
+							</span>
 						) : ended ? (
 							<>Left unplanned at the end of {monthName(state.month)}</>
 						) : (
@@ -678,6 +714,26 @@ function FreeToSpend({
 							))
 						)}
 					</p>
+					{state.freeCarriedIn !== 0 ? (
+						<p data-slot="free-carried-in" className="text-sm text-muted-foreground tabular-nums">
+							{formatMoney(ownFree)} {ended ? `in ${monthName(state.month)}` : "this month"} ·{" "}
+							{carriedOverText(state.freeCarriedIn, lastMonth)}
+						</p>
+					) : null}
+					{carry.builtUp.length > 1 && state.freeCarriedIn !== 0 ? (
+						<div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-muted-foreground tabular-nums">
+							{/* The list's name says the same to a screen reader. */}
+							<span aria-hidden="true">Each month carried over:</span>
+							<ul aria-label="What each month carried over into the next" className="contents">
+								{carry.builtUp.map((m) => (
+									<li key={m.month}>
+										{monthName(m.month).slice(0, 3)}{" "}
+										{m.amount < 0 ? `${formatMoney(-m.amount)} short` : formatMoney(m.amount)}
+									</li>
+								))}
+							</ul>
+						</div>
+					) : null}
 					{lower?.prompt ? (
 						<LowerTakeHomePayNote
 							className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5"
@@ -708,15 +764,29 @@ function Breakdown({ state, baseline }: { state: MonthState; baseline: number })
 	const id = useId();
 	return (
 		<div className="grid gap-2.5 border-t px-(--card-pad) py-3">
-			<p id={id} className="text-[13px] text-muted-foreground tabular-nums">
-				Where {formatMoney(baseline)} take-home pay
-				{state.extraToFreeToSpend > 0
-					? ` and ${formatMoney(state.extraToFreeToSpend)} Extra income go`
-					: " goes"}
+			<p id={id} className="text-[13px] text-balance text-muted-foreground tabular-nums">
+				{breakdownLabel(baseline, state.extraToFreeToSpend, state.freeCarriedIn)}
 			</p>
 			<MonthGlance state={state} labelledBy={id} />
 		</div>
 	);
+}
+
+/** "Where $5,000 take-home pay goes", with Extra income and what was carried over, of either sign. */
+function breakdownLabel(baseline: number, extra: number, carried: number) {
+	const added = [
+		...(extra > 0 ? [`${formatMoney(extra)} Extra income`] : []),
+		...(carried > 0 ? [carriedOverText(carried)] : []),
+	];
+	const pay = `Where ${formatMoney(baseline)} take-home pay`;
+	const whole =
+		added.length === 0
+			? `${pay} goes`
+			: added.length === 1
+				? `${pay} and ${added[0]} go`
+				: `${pay}, ${added.join(" and ")} go`;
+	// A shortfall carried over is taken off first: the parts then add up to the pay less it.
+	return carried < 0 ? `${whole}, less ${carriedOverText(carried)}` : whole;
 }
 
 function PlanLink({ month, children }: { month: MonthState["month"]; children: string }) {
@@ -791,7 +861,9 @@ function BucketRow({
 						</Badge>
 					) : null}
 					{bucket.rolling ? <Badge>Carries over</Badge> : null}
-					<span>
+					{/* On a phone "spent" always has its own line, so every row with a badge reads alike
+					    (issue 110: at 320 px it fitted beside "Ahead" in some rows and wrapped in others). */}
+					<span className="max-sm:basis-full">
 						{formatMoney(bucket.spent)} spent{isPrivate ? " · Private" : ""}
 					</span>
 				</>
@@ -813,6 +885,9 @@ function BucketRow({
 								of {formatMoney(bucket.available)}
 							</span>
 						) : null}
+						{/* On a phone Cover is a link under how far over it is, level with "spent", not a
+						    button under the bar (issue 110). Beside the "Over" badge it wrapped in some rows. */}
+						{onCover ? <CoverLink name={bucket.name} onCover={onCover} /> : null}
 					</span>
 					<ChevronRight
 						aria-hidden="true"
@@ -837,7 +912,7 @@ function BucketRow({
 					/>
 					{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
 					{onCover ? (
-						<div className="relative z-10">
+						<div className="relative z-10 max-sm:hidden">
 							<CoverButton name={bucket.name} onCover={onCover} explain={explainCover} />
 						</div>
 					) : null}
@@ -873,6 +948,24 @@ function BucketsHelpExtra() {
 				Bucket back to $0 from another Bucket or Free to Spend.
 			</p>
 		</div>
+	);
+}
+
+/** Cover on a phone: a link under the row's figures, 44 px tall to the thumb. */
+function CoverLink({ name, onCover }: { name: string; onCover: () => void }) {
+	const hydrated = useHydrated();
+	return (
+		<Button
+			type="button"
+			variant="link"
+			size="sm"
+			className="relative z-10 -my-3 font-semibold text-foreground underline underline-offset-2 sm:hidden"
+			disabled={!hydrated}
+			aria-label={`Cover ${name}`}
+			onClick={onCover}
+		>
+			Cover
+		</Button>
 	);
 }
 
@@ -948,7 +1041,7 @@ function useGetStartedSteps(state: MonthState) {
 	const { accounts } = useGoals();
 	const members = useSuspenseQuery(membersQuery()).data;
 	const parents = members.filter((m) => m.kind === "parent" && !m.removed).length;
-	const steps: { done: boolean; title: string; link: ReactNode }[] = [
+	const steps: { done: boolean; title: string; shown?: ReactNode; link: ReactNode }[] = [
 		{
 			done: state.baseline !== null,
 			title: "Set your take-home pay",
@@ -971,7 +1064,18 @@ function useGetStartedSteps(state: MonthState) {
 			done: accounts.length > 0,
 			// Short, so it isn't cut off beside its button at 320px (#74); a bank is added there too.
 			title: "Add your Accounts",
-			link: <Link to="/accounts">Add an Account</Link>,
+			// Shorter still to the eye at 320px, where it took two lines beside its button (issue 110):
+			// "Add Accounts" and "Add", read out in full.
+			shown: (
+				<>
+					Add <span className="max-[359px]:sr-only">your </span>Accounts
+				</>
+			),
+			link: (
+				<Link to="/accounts">
+					Add<span className="max-[359px]:sr-only"> an Account</span>
+				</Link>
+			),
 		},
 		{
 			done: parents > 1,
@@ -1078,7 +1182,7 @@ function GetStarted({
 					}
 					title={
 						<span className={cn(step.done && "text-muted-foreground line-through")}>
-							{step.title}
+							{step.shown ?? step.title}
 						</span>
 					}
 					trailing={

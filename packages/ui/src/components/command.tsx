@@ -107,7 +107,7 @@ function CommandItem({
 			data-checked={checked || undefined}
 			className={cn(
 				"relative flex min-h-9 cursor-default items-center gap-2 rounded-lg py-1.5 ps-2 pe-8 text-sm outline-hidden select-none",
-				"data-[selected=true]:bg-surface-2 data-[selected=true]:text-foreground data-checked:font-medium",
+				"data-[selected=true]:bg-menu-hover data-[selected=true]:text-foreground data-checked:font-medium",
 				"data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
 				"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 				className,

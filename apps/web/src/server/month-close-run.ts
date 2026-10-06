@@ -3,6 +3,7 @@ import type { CloseMonthInput, MonthCloseResult } from "@noodle/db";
 import {
 	addMonths,
 	type Cents,
+	closeFreeMoveId,
 	dayKeyAt,
 	defaultDecision,
 	type MonthCloseDecision,
@@ -17,7 +18,7 @@ import type { HouseholdChange } from "../household-changes";
 // Household's 1st (see monthClosesToStart), proposes what there is to decide, and waits up to a
 // week for the Parents' decision (closeMonth sends it as an event once it has landed). When none
 // comes, it applies the defaults: leftovers Swept into the emergency Goal, the Extra income left for
-// the Parents (ADR-0001). The database guard lets only one of the two close the month.
+// the Parents (ADR-0001), and the Free to Spend the month ended with kept, carried over (issue 113). The database guard lets only one of the two close the month.
 
 export type MonthCloseParams = { householdId: string; timeZone: string; month: MonthKey };
 
@@ -119,6 +120,11 @@ export function closeMonthInput({
 			moveId: windfallMoveIds[i] ?? `${close.closeId}:windfall:${i}`,
 			goalId: w.goalId,
 			amountCents: w.amount,
+		})),
+		freeToSpend: (decision.freeToSpend ?? []).map((sent, i) => ({
+			moveId: closeFreeMoveId(close.closeId, i),
+			goalId: sent.goalId,
+			amountCents: sent.amount,
 		})),
 	};
 }

@@ -9,7 +9,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, type LinkProps, useHydrated } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, CircleAlert, TriangleAlert } from "lucide-react";
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { formatMoney, fullDay, monthName } from "../format";
 import { planHealthQuery } from "../queries";
 import { endCommitment, keepCarriedBalance } from "../server/commitments";
@@ -95,19 +95,85 @@ const urgency: Record<PlanWarning["kind"], number> = {
 
 const monthsText = (n: number) => `${n} month${n === 1 ? "" : "s"}`;
 
+/** A link inside a row that is itself one big link: it sits above the row's. */
+const inline =
+	"relative z-1 font-medium text-foreground underline decoration-border-strong underline-offset-3 hover:decoration-foreground";
+
+/** "November starts with $600 carried over, and its Plan uses $1,282.70 more than its take-home pay, which leaves −$682.70." */
+export function negativeAheadText(warning: Extract<PlanWarning, { kind: "negative-ahead" }>) {
+	const name = monthName(warning.month);
+	const own =
+		warning.own < 0
+			? `uses ${formatMoney(-warning.own)} more than its take-home pay`
+			: `adds ${formatMoney(warning.own)}`;
+	const sentence =
+		warning.carriedIn === 0
+			? `${name}’s Plan ${own}.`
+			: `${name} starts ${
+					warning.carriedIn > 0
+						? `with ${formatMoney(warning.carriedIn)} carried over`
+						: `${formatMoney(-warning.carriedIn)} short`
+				}, and its Plan ${own}, which leaves ${formatMoney(warning.freeToSpend)}.`;
+	return warning.months > 1
+		? `${sentence} Below zero in ${monthsText(warning.months)} of the next 12.`
+		: sentence;
+}
+
+/**
+ * What the figure is made of, then where to change it (issue 113): the month's largest one or two
+ * planned amounts, each a link to where it is set, and its take-home pay.
+ */
+function NegativeAhead({ warning }: { warning: Extract<PlanWarning, { kind: "negative-ahead" }> }) {
+	const params = { month: warning.month };
+	return (
+		<>
+			{negativeAheadText(warning)} {warning.largest.length > 0 ? "Its largest: " : null}
+			{warning.largest.map((item, index) => (
+				<span key={item.kind === "goal-funding" ? item.kind : item.id}>
+					{index > 0 ? " and " : null}
+					{item.kind === "goal-funding" ? (
+						<Link to="/plan/$month/goals" params={params} className={inline}>
+							Goal funding
+						</Link>
+					) : item.kind === "bucket" ? (
+						<Link
+							to="/plan/$month/buckets/$id"
+							params={{ ...params, id: item.id }}
+							className={inline}
+						>
+							{item.name}
+						</Link>
+					) : (
+						<Link
+							to="/plan/$month/commitments/$id"
+							params={{ ...params, id: item.id }}
+							className={inline}
+						>
+							{item.name}
+						</Link>
+					)}{" "}
+					{formatMoney(item.amount)}
+				</span>
+			))}
+			{warning.largest.length > 0 ? ". Or change its " : "Change its "}
+			<Link to="/plan/$month/income" params={params} className={inline}>
+				take-home pay
+			</Link>
+			.
+		</>
+	);
+}
+
 /** What a warning says, and where its fix is. */
 function describe(
 	warning: PlanWarning,
 	month: MonthKey,
-): { title: string; meta: string; link: LinkProps } {
+): { title: string; meta: ReactNode; link: LinkProps } {
 	switch (warning.kind) {
 		case "negative-ahead":
 			return {
 				title: `Free to Spend goes below zero in ${monthName(warning.month)}`,
-				meta:
-					warning.months > 1
-						? `${formatMoney(warning.freeToSpend)} then, and below zero in ${monthsText(warning.months)} of the next 12. Lower an amount, or raise your take-home pay if it has gone up.`
-						: `${formatMoney(warning.freeToSpend)} in the Plan as it stands. Lower an amount, or raise your take-home pay if it has gone up.`,
+				meta: <NegativeAhead warning={warning} />,
 				link: { to: "/plan/$month", params: { month: warning.month } },
 			};
 		case "income-behind":
@@ -194,7 +260,7 @@ function FollowedCardRow({
 						<Link {...link} className="font-medium text-foreground underline underline-offset-2">
 							{warning.name}
 						</Link>
-						{meta.slice(warning.name.length)}
+						{typeof meta === "string" ? meta.slice(warning.name.length) : meta}
 					</p>
 				</div>
 				<div className="flex min-w-0 flex-wrap gap-2">

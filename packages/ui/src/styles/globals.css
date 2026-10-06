@@ -2,7 +2,8 @@
  * Noodle design tokens: the single source of colour, type, spacing, radii, and motion.
  * Palette: Indigo (#83, ADR-0038): a near-white page, white cards, cool neutral greys, hairline
  * borders and near-black ink in light; a near-black ground with a slight cool cast that steps up,
- * with off-white text, in dark. One indigo accent, which is also the main button's fill.
+ * with off-white text, in dark. One accent, which is also the main button's fill: indigo in light,
+ * a calm blue in dark (issue 116: dark follows Linear's blue-cast dark look).
  * Approved in #2 (round 2 prototype). Every component reads these through Tailwind utilities
  * (bg-card, text-muted-foreground, bg-pace, …) or the raw custom properties.
  */
@@ -48,6 +49,8 @@
 	--surface-3: #e8e8eb;
 	--border: #e7e7ea;
 	--border-strong: #d4d4d9;
+	/* A picked or current row. Light keeps the raised grey it always had; dark has its own (issue 116). */
+	--selected: var(--surface-2);
 
 	/* Text */
 	--foreground: #16171a;
@@ -119,6 +122,8 @@
 	/* shadcn role names, mapped onto the tokens above */
 	--card-foreground: var(--foreground);
 	--popover: var(--card);
+	/* The row under the pointer or the keys in a menu, a select or a calendar: one step up from the menu. */
+	--menu-hover: var(--surface-2);
 	--popover-foreground: var(--foreground);
 	/* The main button is the accent with white text (ADR-0038); dark gives --primary its own darker fill. */
 	--primary: var(--brand);
@@ -203,21 +208,29 @@
 }
 
 @media (prefers-color-scheme: dark) {
+	/* Dark (issue 116): Linear's dark look in a blue cast. A blue-black page, grounds that step up a
+	   little at a time in one cool hue, hairline edges, a calm blue accent. Shadows only where a
+	   layer floats. Measured pairs: docs/reviews/theme.md section 12. */
 	:root {
 		color-scheme: dark;
-		--background: #0c0d10;
-		--card: #1c1d21;
-		--surface-2: #232429;
-		--surface-3: #292b31;
-		--border: #2a2c32;
-		--border-strong: #383b43;
-		--foreground: #f0f1f3;
-		--muted-foreground: #a4a7b0;
-		--subtle-foreground: #8f929c;
-		--brand: #8e96ff;
-		--brand-soft: rgb(142 150 255 / 0.16);
-		/* The main button's fill: darker than --brand so its white text is at least 4.5:1 (4.97:1). */
-		--primary: #5a64d6;
+		--background: #080a0f;
+		--card: #151821;
+		--surface-2: #1b1f2a;
+		--surface-3: #222734;
+		--border: #262b39;
+		--border-strong: #343b4c;
+		/* A picked or current row: the accent, faintly, on the card. */
+		--selected: #20283a;
+		/* A menu over a card is one step lighter than the card, so it reads as its own layer (issue 116). */
+		--popover: var(--surface-2);
+		--menu-hover: var(--surface-3);
+		--foreground: #e9ecf3;
+		--muted-foreground: #a3aaba;
+		--subtle-foreground: #8b93a5;
+		--brand: #6c9af2;
+		--brand-soft: rgb(108 154 242 / 0.14);
+		/* The main button's fill: darker than --brand so its white text is at least 4.5:1 (5.21:1). */
+		--primary: #3568cf;
 		--primary-hover: color-mix(in oklab, var(--primary) 88%, var(--background));
 		--pace: #f5b23a;
 		--pace-soft: rgb(245 178 58 / 0.14);
@@ -225,13 +238,14 @@
 		--over: #f07171;
 		--over-soft: rgb(240 113 113 / 0.14);
 		--over-foreground: #f38383;
-		--glow-1: rgb(142 150 255 / 0.07);
+		--glow-1: rgb(108 154 242 / 0.05);
 		--glow-2: transparent;
-		--scrim: rgb(0 0 0 / 0.62);
-		--elevation-card: 0 1px 2px rgb(0 0 0 / 0.4);
-		--elevation-pop: 0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.06);
-		--elevation-side: -20px 0 48px -8px rgb(0 0 0 / 0.75), -2px 0 8px rgb(0 0 0 / 0.5);
-		--card-highlight: inset 0 1px 0 rgb(255 255 255 / 0.04);
+		--scrim: rgb(3 5 9 / 0.66);
+		/* A card is held by its edge and its step off the page, not by a shadow. */
+		--elevation-card: 0 0 0 0 transparent;
+		--elevation-pop: 0 16px 48px -12px rgb(0 2 8 / 0.72), 0 0 0 1px rgb(150 175 230 / 0.09);
+		--elevation-side: -20px 0 48px -12px rgb(0 2 8 / 0.7), -1px 0 0 rgb(150 175 230 / 0.07);
+		--card-highlight: inset 0 1px 0 rgb(190 210 255 / 0.03);
 		--bucket-1: #3987e5;
 		--bucket-2: #a95cc0;
 		--bucket-3: #2aa3bd;
@@ -240,15 +254,15 @@
 		--bucket-6: #199e70;
 		--bucket-7: #c47a36;
 		--bucket-8: #d55181;
-		--chart-spend: #c3c6ce;
-		/* A quiet reference series (Explore's Plan bars, a comparison period): 3.1:1 on the card. */
-		--chart-compare: #676a75;
-		--chart-allowance: #6a6d77;
-		/* Dark's own low steps: 1.56:1 from an empty cell, then 1.50, 1.55, 1.62 between steps. */
+		--chart-spend: #c1c7d4;
+		/* A quiet reference series (Explore's Plan bars, a comparison period): 3.04:1 on the card. */
+		--chart-compare: #5d6578;
+		--chart-allowance: #626a7d;
+		/* Dark's own low steps: 1.53:1 from an empty cell, then 1.50, 1.57, 1.64 between steps. */
 		--chart-seq-1: color-mix(in oklab, var(--brand) 32%, var(--card));
 		--chart-seq-2: color-mix(in oklab, var(--brand) 52%, var(--card));
 		--chart-seq-3: color-mix(in oklab, var(--brand) 74%, var(--card));
-		--input: #6c6f79;
+		--input: #6e778b;
 		--switch-track: var(--input);
 		--chart-flow-hub: var(--muted-foreground);
 		--chart-flow-out: var(--subtle-foreground);
@@ -278,6 +292,7 @@
 	--color-card: var(--card);
 	--color-card-foreground: var(--card-foreground);
 	--color-popover: var(--popover);
+	--color-menu-hover: var(--menu-hover);
 	--color-popover-foreground: var(--popover-foreground);
 	--color-primary: var(--primary);
 	--color-primary-foreground: var(--primary-foreground);
@@ -296,6 +311,7 @@
 	--color-switch-track: var(--switch-track);
 	--color-ring: var(--ring);
 	--color-surface-2: var(--surface-2);
+	--color-selected: var(--selected);
 	--color-surface-3: var(--surface-3);
 	--color-brand: var(--brand);
 	--color-chart-spend: var(--chart-spend);

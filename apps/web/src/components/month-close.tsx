@@ -23,6 +23,8 @@ export type MonthCloseChoice = {
 	windfallGoalId: string | null;
 	/** The Extra income stays where it landed: counted as that month's Free to Spend (#86). */
 	leaveExtraIncome: boolean;
+	/** The Goal the Free to Spend the month ended with is sent to; null keeps it carried over. */
+	freeGoalId: string | null;
 };
 
 /** The Extra income select's value for "Leave it in the account"; never a Goal's ID. */
@@ -53,8 +55,16 @@ export function MonthCloseSection({
 		Object.fromEntries(proposal.leftovers.map((l) => [l.bucketId, emergency?.id ?? ""])),
 	);
 	const [extraIncomeGoalId, setExtraIncomeGoalId] = useState("");
+	// Kept unless a Parent says otherwise: it is already carried over, so nothing is written.
+	const [freeGoalId, setFreeGoalId] = useState("");
 	const name = monthName(proposal.month);
 	const goalChoices = goals.map((g) => ({ value: g.id, label: g.name }));
+	const free = goals.length > 0 ? (proposal.freeToSpend ?? 0) : 0;
+	// The emergency Goal on top, then the other savings Goals, then payoff Goals.
+	const rank = (g: GoalView) => (g.id === emergencyGoalId ? 0 : g.payoff === null ? 1 : 2);
+	const sendChoices = [...goals]
+		.sort((a, b) => rank(a) - rank(b))
+		.map((g) => ({ value: g.id, label: `Send to ${g.name}` }));
 	return (
 		<Section aria-labelledby="month-close">
 			{/* From lg this sits in a To do row that already says "Close September" and holds its
@@ -81,6 +91,9 @@ export function MonthCloseSection({
 					? emergency
 						? `If nobody decides within a week, leftovers go to ${emergency.name}.`
 						: "If nobody decides within a week, they’re left as they are."
+					: null}{" "}
+				{free > 0
+					? `What’s left in Free to Spend is carried over into ${monthName(addMonths(proposal.month, 1))} unless you send it to a Goal.`
 					: null}
 			</p>
 			{/* From lg the To do card is the card: the list loses its own and its rows run edge to
@@ -107,6 +120,25 @@ export function MonthCloseSection({
 							}
 						/>
 					))}
+					{free > 0 ? (
+						<ListRow
+							title="Free to Spend"
+							meta={`${formatMoney(free)} left`}
+							// Its choices are longer than a Goal's name: under the title on a phone and in
+							// the To do card's narrow column, as the Extra income row is.
+							className="max-sm:grid-cols-1 lg:grid-cols-1"
+							trailing={
+								<OptionSelect
+									className="w-60 max-sm:w-full lg:w-full"
+									aria-label="Where the Free to Spend left goes"
+									value={freeGoalId}
+									disabled={!hydrated || pending}
+									onValueChange={setFreeGoalId}
+									choices={[{ value: "", label: "Keep it in Free to Spend" }, ...sendChoices]}
+								/>
+							}
+						/>
+					) : null}
 					{proposal.windfall > 0 ? (
 						<ListRow
 							title="Extra income"
@@ -142,6 +174,7 @@ export function MonthCloseSection({
 									? extraIncomeGoalId
 									: null,
 							leaveExtraIncome: extraIncomeGoalId === LEAVE_EXTRA_INCOME,
+							freeGoalId: free > 0 && freeGoalId ? freeGoalId : null,
 						})
 					}
 				>
@@ -154,8 +187,9 @@ export function MonthCloseSection({
 
 /**
  * How an ended month's money ended up, on that month: the leftovers Swept into Goals, the
- * Extra income sent to Goals, what each Bucket that carries over took into the next month, and who closed
- * it (or that the defaults did). Nothing when the month closed with nothing to tell.
+ * Extra income sent to Goals, what each Bucket that carries over took into the next month, the Free to
+ * Spend it ended with (carried over, or sent to a Goal as Goal funding), and who closed it (or that
+ * the defaults did). Nothing when the month closed with nothing to tell.
  */
 export function MonthEndSection({
 	month,
@@ -164,8 +198,11 @@ export function MonthEndSection({
 	parentId,
 	goals,
 	members,
+	freeKept = 0,
 }: {
 	month: MonthKey;
+	/** The Free to Spend the month ended with and handed on to the next; none when it was short. */
+	freeKept?: number;
 	end: MonthEnd;
 	closed: MonthCloseRecord | null;
 	/** The Parent viewing. */
@@ -195,7 +232,7 @@ export function MonthEndSection({
 					closedBy ? <span className="text-[13px] text-muted-foreground">{closedBy}</span> : null
 				}
 			/>
-			{quietEnd(end) ? (
+			{quietEnd(end) && freeKept <= 0 ? (
 				<p className="rounded-xl border border-dashed px-(--card-pad) py-4 text-[13px] text-muted-foreground">
 					Nothing was Swept or carried over.
 				</p>
@@ -217,6 +254,21 @@ export function MonthEndSection({
 							trailing={<Amount cents={extraIncome.amount} />}
 						/>
 					))}
+					{end.freeToSpend.map((sent) => (
+						<ListRow
+							key={`free:${sent.goalId}`}
+							title="Free to Spend"
+							meta={`Sent to ${goalName(sent.goalId)} as Goal funding`}
+							trailing={<Amount cents={sent.amount} />}
+						/>
+					))}
+					{freeKept > 0 ? (
+						<ListRow
+							title="Free to Spend"
+							meta={`Carried over into ${next}`}
+							trailing={<Amount cents={freeKept} />}
+						/>
+					) : null}
 					{end.rolledOver.map((rolled) => (
 						<ListRow
 							key={`rolled:${rolled.bucketId}`}

@@ -37,7 +37,8 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 	// A healthy Plan has nothing to warn about.
 	await expect(health(page)).toHaveCount(0);
 
-	// A yearly Commitment bigger than a month's take-home pay, due two months from now.
+	// A yearly Commitment bigger than what this month and the next leave on top of its own pay
+	// (Free to Spend is carried over, issue 113), due two months from now.
 	const lumpy = addMonths(month, 2);
 	await page
 		.getByRole("navigation", { name: "Plan pages" })
@@ -45,7 +46,7 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 		.click();
 	const form = addForm(page);
 	await form.getByLabel("New Commitment").fill("Roof");
-	await form.getByLabel("Amount due").fill("12,000");
+	await form.getByLabel("Amount due").fill("24,000");
 	await choose(form, "How often", "Yearly");
 	await pickDate(form, "Due on", `${lumpy}-10`);
 	await form.getByRole("button", { name: "Add Commitment" }).click();
@@ -62,7 +63,14 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 		name: `Free to Spend goes below zero in ${monthName(lumpy)}`,
 	});
 	await expect(warning).toBeVisible();
-	await expect(health(page)).toContainText("−$4,200 in the Plan as it stands");
+	// What the figure is made of (the months before leave $7,800 each), and where to change it.
+	await expect(health(page)).toContainText(
+		`${monthName(lumpy)} starts with $15,600 carried over, and its Plan uses $16,200 more than its take-home pay, which leaves −$600.`,
+	);
+	await expect(health(page).getByRole("link", { name: "Roof" })).toHaveAttribute(
+		"href",
+		new RegExp(`/plan/${lumpy}/commitments/`),
+	);
 	await warning.click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${lumpy}$`));
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText(monthName(lumpy));
@@ -80,10 +88,11 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 	const row = table.getByRole("row", { name: new RegExp(`^${monthName(lumpy)}`) });
 	await expect(row).toContainText("Lumpy");
 	await expect(row).toContainText("$9,000");
-	await expect(row).toContainText("$12,000");
-	await expect(row).toContainText("−$4,200");
+	await expect(row).toContainText("$24,000");
+	// Carried over: the two months before leave $15,600, so the month is $600 short, not $16,200.
+	await expect(row).toContainText("−$600");
 	await expect(page.getByRole("region", { name: "Lumpy months" })).toContainText(
-		`Roof $12,000 is due in ${monthName(lumpy)}.`,
+		`Roof $24,000 is due in ${monthName(lumpy)}.`,
 	);
 	if (lumpy.slice(0, 4) === month.slice(0, 4)) {
 		// This month shows what's actually happened so far beneath its Plan.
@@ -98,7 +107,7 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 	const list = page.getByRole("list", { name: "The Plan month by month" });
 	await expect(list).toBeVisible();
 	await expect(list.getByRole("listitem").filter({ hasText: monthName(lumpy) })).toContainText(
-		"−$4,200",
+		"−$600",
 	);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
 		true,

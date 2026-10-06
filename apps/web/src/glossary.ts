@@ -23,7 +23,7 @@ export const glossary = {
 		term: "Free to Spend",
 		short:
 			"Take-home pay that isn’t planned for a Commitment, a Bucket or a Goal yet. It’s yours to spend or to plan.",
-		more: "Plan more for something and it goes down. Below zero means the Plan promises more than comes in.",
+		more: "Plan more for something and it goes down. Below zero means the Plan promises more than comes in. What a month actually ends with is carried over into the next month’s Free to Spend: money left adds to it, and a month that ended short takes from it. This Month shows the two parts, what this month adds and what was carried over.",
 	},
 	commitment: {
 		term: "Commitment",
@@ -119,7 +119,7 @@ export const glossary = {
 	"month-close": {
 		term: "Closing a month",
 		short:
-			"After a month ends, deciding where its leftovers and Extra income go. If nobody does in the first week, Noodle uses the suggestions.",
+			"After a month ends, deciding where its leftovers and Extra income go, and whether what is left in Free to Spend stays there, carried over, or goes to a Goal. If nobody does in the first week, Noodle uses the suggestions and Free to Spend stays carried over.",
 		more: "The app says “Close August”, and afterwards shows how August ended.",
 	},
 	review: {

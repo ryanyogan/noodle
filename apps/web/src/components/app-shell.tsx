@@ -485,7 +485,7 @@ function MoreTab({ householdName }: { householdName: string }) {
 
 /** A row of the More sheet: 44px tall, the current page on the raised ground. */
 const moreRow =
-	"min-w-0 justify-start gap-2.5 px-3 text-left text-sm leading-tight font-medium whitespace-normal aria-[current=page]:bg-surface-2";
+	"min-w-0 justify-start gap-2.5 px-3 text-left text-sm leading-tight font-medium whitespace-normal aria-[current=page]:bg-selected";
 
 function MoreGroup({
 	group,

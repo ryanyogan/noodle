@@ -232,7 +232,7 @@ describe("ListWithPanel", () => {
 		expect(panel).toContain("lg:right-0");
 		expect(panel).toContain("xl:w-detail-panel-wide");
 		expect(panel).toContain("lg:w-[min(var(--detail-panel-drawer),100%)]");
-		expect(panel).toContain("lg:bg-popover");
+		expect(panel).toContain("lg:bg-card");
 		expect(panel).toContain("lg:border-border-strong");
 		expect(panel).toContain("lg:shadow-side");
 		expect(panel).toContain("lg:overflow-y-auto");

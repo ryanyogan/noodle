@@ -11,6 +11,7 @@ import {
 	loadOpenSuggestion,
 	loadPlanChanges,
 	parentsWithPersonalAllowance,
+	renameBucketGroup as renameBucketGroupInDb,
 	reorderBuckets as reorderBucketsInDb,
 	restoreBucket as restoreBucketInDb,
 	setAllowance as setAllowanceInDb,
@@ -42,6 +43,8 @@ import { ulidSchema } from "./schemas";
 export const centsSchema = z.number().int().min(0).max(MAX_CENTS);
 export const bucketNameSchema = z.string().trim().min(1).max(40);
 const colorSchema = z.number().int().min(1).max(8);
+/** A group's name as typed: more than it keeps is cut, not refused. */
+const groupNameSchema = z.string().max(200);
 /** How far a change reaches: from its month onward (the default), or just that month. */
 export const planScopeSchema = z.enum(["from-on", "just"]).optional();
 
@@ -155,6 +158,9 @@ export const updateBucket = createServerFn({ method: "POST" })
 			bucketId: ulidSchema,
 			name: bucketNameSchema.optional(),
 			color: colorSchema.optional(),
+			// The group it is listed under (issue 98); null or empty for none. Trimmed and cut where
+			// it is saved.
+			group: groupNameSchema.nullable().optional(),
 		}),
 	)
 	.handler(async ({ data, context }) => {
@@ -167,6 +173,18 @@ export const updateBucket = createServerFn({ method: "POST" })
 		await notifyHousehold(context.household.id, ["months"]);
 		// A renamed Bucket may now fit what waits in Review.
 		if (data.name !== undefined) await queueAi({ ...viewerOf(context), kind: "buckets-changed" });
+	});
+
+/**
+ * Renames a group of Buckets (issue 98): every Bucket in `from` goes to `to`. An empty `to` takes
+ * them all out of the group.
+ */
+export const renameBucketGroup = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ from: groupNameSchema.min(1), to: groupNameSchema.nullable() }))
+	.handler(async ({ data, context }) => {
+		await renameBucketGroupInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["months"]);
 	});
 
 /** Adds the signed-in Parent's Personal Allowance to the Plan from `month` onward. */

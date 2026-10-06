@@ -536,6 +536,11 @@ export {
 	removeIncome,
 	undoExtraIncome,
 } from "./extra-income";
+export {
+	loadFreeCarriedIn,
+	loadFreeCarriedInto,
+	loadFreeCarryMonths,
+} from "./free-carry";
 export * from "./fresh-start";
 export {
 	type AccountRecord,
@@ -689,6 +694,7 @@ export {
 	bucketsWithAllowanceChanges,
 	loadPlanRecords,
 	parentsWithPersonalAllowance,
+	renameBucketGroup,
 	reorderBuckets,
 	restoreBucket,
 	setAllowance,

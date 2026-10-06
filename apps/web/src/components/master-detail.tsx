@@ -26,7 +26,7 @@ export const masterDetailItem = { "data-md-item": "", resetScroll: false } as co
 
 /** On the list's wrapper: the picked item's row stands out. */
 export const selectedRow =
-	"[&_[data-slot=list-row]:has([data-md-item][aria-current])]:bg-surface-2 [&_[data-slot=list-row]:has([data-md-item][aria-current])]:shadow-[inset_2px_0_0_var(--color-primary)]";
+	"[&_[data-slot=list-row]:has([data-md-item][aria-current])]:bg-selected [&_[data-slot=list-row]:has([data-md-item][aria-current])]:shadow-[inset_2px_0_0_var(--color-primary)]";
 
 const EDITING =
 	'input, textarea, select, [contenteditable="true"], [role="menu"], [role="listbox"], [role="combobox"], [role="dialog"]';

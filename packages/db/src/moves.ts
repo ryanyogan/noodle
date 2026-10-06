@@ -127,10 +127,15 @@ function committedSql(householdId: string, month: MonthKey): SQL {
 /**
  * Free to Spend this month: take-home pay, plus Extra income a Parent added to it, less
  * Commitments, allowances, and Moves out of it (an Extra income Move to a Bucket or Goal comes
- * from the Extra income, not from it).
+ * from the Extra income, not from it), plus what the months before left or were short by
+ * (`carriedInCents`, any sign: freeCarriedIn in @noodle/domain, loaded with loadFreeCarriedIn).
  */
-export function freeToSpendSql(householdId: string, month: MonthKey): SQL {
-	return sql`(coalesce((select b.amount_cents from baselines b
+export function freeToSpendSql(
+	householdId: string,
+	month: MonthKey,
+	carriedInCents: Cents = 0,
+): SQL {
+	return sql`(${carriedInCents} + coalesce((select b.amount_cents from baselines b
 			where b.household_id = ${householdId} and b.month <= ${month}
 			order by b.month desc limit 1), 0)
 		- ${committedSql(householdId, month)}
@@ -172,13 +177,15 @@ export async function addCover(
 		amountCents: Cents;
 		/** What rolled into the source Bucket from last month (see rolledOver in @noodle/domain). */
 		fromRolledOverCents?: Cents;
+		/** What earlier months carried into `month`'s Free to Spend (see loadFreeCarriedIn). */
+		freeCarriedInCents?: Cents;
 		createdByMemberId: string;
 	},
 ): Promise<CoverResult> {
 	const { householdId, month, fromBucketId } = input;
 	const sourceLeft =
 		fromBucketId === null
-			? freeToSpendSql(householdId, month)
+			? freeToSpendSql(householdId, month, input.freeCarriedInCents)
 			: bucketLeftSql(householdId, fromBucketId, month, input.fromRolledOverCents);
 	await db
 		.insert(moves)

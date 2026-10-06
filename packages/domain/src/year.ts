@@ -44,6 +44,12 @@ export type YearMonth = {
 	/** No take-home pay was set for the month. */
 	noBaseline: boolean;
 	plan: YearFigures;
+	/**
+	 * What the months before left for this month's Free to Spend, or were short by (issue 113);
+	 * counted in `plan.freeToSpend`. An ended month handed on what it actually ended with; the
+	 * Household's month and those ahead hand on their Plan's figure.
+	 */
+	carriedIn: Cents;
 	/** What happened, so far for the current month; null for months ahead. */
 	actual: YearFigures | null;
 	/** The Commitments that make the month lumpy (see lumpsIn); empty when it isn't. */
@@ -65,8 +71,11 @@ export type YearActuals = {
 const sumIn = (rows: readonly { month: MonthKey; amount: Cents }[], month: MonthKey) =>
 	rows.reduce((sum, row) => (row.month === month ? sum + row.amount : sum), 0);
 
-/** What actually happened in `month`. */
-function actualIn(actuals: YearActuals, month: MonthKey): YearFigures {
+/**
+ * What actually happened in `month`. Its `freeToSpend` is the Actual Free to Spend, which an ended
+ * month hands on to the next (see free-carry.ts).
+ */
+export function actualFigures(actuals: YearActuals, month: MonthKey): YearFigures {
 	let commitments = 0;
 	let allowances = 0;
 	let other = 0;
@@ -99,12 +108,18 @@ export function yearGrid({
 	records,
 	goals,
 	actuals,
+	freeCarry = [],
 }: {
 	year: number;
 	current: MonthKey;
 	records: PlanRecords;
 	goals: ProjectionGoal[];
 	actuals: YearActuals;
+	/**
+	 * Per month through `current`, what was carried into its Free to Spend and what it hands on
+	 * (see freeCarryMonths). Months ahead chain on from what `current` hands on.
+	 */
+	freeCarry?: readonly { month: MonthKey; carriedIn: Cents; left: Cents }[];
 }): YearMonth[] {
 	const first = `${String(year).padStart(4, "0")}-01` as MonthKey;
 	const last = addMonths(first, 11);
@@ -112,16 +127,25 @@ export function yearGrid({
 	const ahead: PlanAhead | null =
 		aheadCount > 0 ? planAhead(records, goals, current, aheadCount) : null;
 	const projected = ahead ? project(ahead).months : [];
+	// What each month ahead is carried: the Household's month's Free to Spend, then each projected
+	// month's own figure on top, so a month the ones before it cover is not shown short.
+	const carriedAhead: Cents[] = [];
+	let handedOn = freeCarry.find((m) => m.month === current)?.left ?? 0;
+	for (let index = 1; index < projected.length; index++) {
+		carriedAhead[index] = handedOn;
+		handedOn += projected[index]?.freeToSpend ?? 0;
+	}
 	return Array.from({ length: 12 }, (_, i) => {
 		const month = addMonths(first, i);
 		const when = month < current ? "past" : month === current ? "current" : "ahead";
 		const lumps = lumpsIn({ month, commitments: commitmentsIn(records, month) });
-		const actual = when === "ahead" ? null : actualIn(actuals, month);
+		const actual = when === "ahead" ? null : actualFigures(actuals, month);
 		if (when !== "ahead") {
 			const plan = planForMonth(records, month);
 			const goalFunding = actual?.goalFunding ?? 0;
 			const covers = sumIn(actuals.covers ?? [], month);
 			const extraToFree = sumIn(actuals.extraToFree ?? [], month);
+			const carriedIn = freeCarry.find((m) => m.month === month)?.carriedIn ?? 0;
 			return {
 				month,
 				when,
@@ -131,8 +155,9 @@ export function yearGrid({
 					commitments: totalCommitments(plan),
 					allowances: plan.buckets.reduce((sum, b) => sum + b.allowance, 0) + covers,
 					goalFunding,
-					freeToSpend: freeToSpend(plan) - goalFunding - covers + extraToFree,
+					freeToSpend: freeToSpend(plan) - goalFunding - covers + extraToFree + carriedIn,
 				},
+				carriedIn,
 				actual,
 				lumps,
 			};
@@ -140,6 +165,7 @@ export function yearGrid({
 		const index = monthsBetween(current, month);
 		const p = projected[index];
 		const resolved = ahead?.months[index];
+		const carriedIn = carriedAhead[index] ?? 0;
 		return {
 			month,
 			when,
@@ -149,8 +175,9 @@ export function yearGrid({
 				commitments: p?.commitments ?? 0,
 				allowances: p?.allowances ?? 0,
 				goalFunding: p?.goalFunding ?? 0,
-				freeToSpend: p?.freeToSpend ?? 0,
+				freeToSpend: (p?.freeToSpend ?? 0) + carriedIn,
 			},
+			carriedIn,
 			actual,
 			lumps,
 		};

@@ -156,7 +156,7 @@ export function TransactionItem({
 		<li
 			data-slot="list-row"
 			data-selected={selected || (picking && checked) || undefined}
-			className={`${className ?? ""}${picking ? " relative" : ""} data-selected:bg-surface-2 data-selected:shadow-[inset_2px_0_0_var(--color-primary)]`}
+			className={`${className ?? ""}${picking ? " relative" : ""} data-selected:bg-selected data-selected:shadow-[inset_2px_0_0_var(--color-primary)]`}
 			{...props}
 		>
 			{picking ? (

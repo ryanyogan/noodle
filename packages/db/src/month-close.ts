@@ -4,7 +4,7 @@ import type { BatchItem } from "drizzle-orm/batch";
 import { insertExtraIncomeMove } from "./extra-income";
 import type { Db } from "./index";
 import { bucketInPlan, bucketLeftSql } from "./moves";
-import { buckets, households, monthCloses, moves } from "./schema";
+import { buckets, goals, households, monthCloses, moves } from "./schema";
 
 // Month-close: the Sweeps and Extra income Moves decided for a month that has ended, written in one
 // batch together with the month's `month_closes` row, and only while it has none (ADR-0004), so
@@ -81,6 +81,11 @@ export type CloseMonthInput = {
 		rolledOverCents: Cents;
 	}[];
 	windfall: { moveId: string; goalId: string; amountCents: Cents }[];
+	/**
+	 * Free to Spend the month ended with, sent to Goals (issue 113): Goal funding dated in `month`.
+	 * The caller has checked the amounts against what the month hands on (see fitsProposal).
+	 */
+	freeToSpend?: { moveId: string; goalId: string; amountCents: Cents }[];
 };
 
 /**
@@ -88,7 +93,7 @@ export type CloseMonthInput = {
  * one atomic batch. Every Move lands only while the month isn't closed yet, and each is guarded
  * as it would be alone: a Sweep only from a Household Bucket that is resets monthly that month and
  * still has the amount left, into an active Goal of the Household's; Extra income Move as in
- * decideExtraIncome. Idempotent per `closeId`; refused when the month was already closed otherwise.
+ * decideExtraIncome; Free to Spend only into an active Goal of the Household's. Idempotent per `closeId`; refused when the month was already closed otherwise.
  */
 export async function closeMonth(db: Db, input: CloseMonthInput): Promise<MonthCloseResult> {
 	const { householdId, month, decidedByMemberId } = input;
@@ -146,12 +151,47 @@ export async function closeMonth(db: Db, input: CloseMonthInput): Promise<MonthC
 			open,
 		),
 	);
+	// Ordinary Goal funding dated in the ended month, as fundGoal writes it. An ended month hands
+	// on its actual, which subtracts Goal funding, so what is carried over falls by the amount.
+	// There is no SQL twin of an ended month's actual: the amount was checked by the caller.
+	const freeToSpend = (input.freeToSpend ?? []).map((sent) =>
+		db
+			.insert(moves)
+			.select(
+				db
+					.select({
+						// Selected in the table's column order: insert … select is positional.
+						id: sql<string>`${sent.moveId}`.as("id"),
+						householdId: goals.householdId,
+						kind: sql<"goal-funding">`'goal-funding'`.as("kind"),
+						month: sql<string>`${month}`.as("month"),
+						fromBucketId: sql<string | null>`null`.as("from_bucket_id"),
+						toBucketId: sql<string | null>`null`.as("to_bucket_id"),
+						amountCents: sql<number>`${sent.amountCents}`.as("amount_cents"),
+						createdByMemberId: sql<string | null>`${decidedByMemberId}`.as("created_by_member_id"),
+						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+						toGoalId: goals.id,
+					})
+					.from(goals)
+					.where(
+						and(
+							eq(goals.id, sent.goalId),
+							eq(goals.householdId, householdId),
+							isNull(goals.completedAt),
+							isNull(goals.archivedAt),
+							sql`${sent.amountCents} > 0`,
+							open,
+						),
+					),
+			)
+			.onConflictDoNothing({ target: moves.id }),
+	);
 	const close = db
 		.insert(monthCloses)
 		.values({ id: input.closeId, householdId, month, decidedByMemberId })
 		.onConflictDoNothing();
 	// The row goes last: every Move before it checks that the month isn't closed yet.
-	const batch: BatchItem<"sqlite">[] = [...sweeps, ...extraIncome, close];
+	const batch: BatchItem<"sqlite">[] = [...sweeps, ...extraIncome, ...freeToSpend, close];
 	await db.batch(batch as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
 	const [row] = await db
 		.select({ id: monthCloses.id })

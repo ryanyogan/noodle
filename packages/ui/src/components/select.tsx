@@ -138,7 +138,7 @@ function SelectItem({
 			data-slot="select-item"
 			className={cn(
 				"relative flex min-h-9 max-lg:min-h-11 w-full cursor-default items-center gap-2 rounded-lg py-1.5 ps-2 pe-8 text-sm outline-hidden select-none",
-				"focus:bg-surface-2 focus:text-foreground data-[state=checked]:font-medium",
+				"focus:bg-menu-hover focus:text-foreground data-[state=checked]:font-medium",
 				"data-disabled:pointer-events-none data-disabled:opacity-50",
 				"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 				className,

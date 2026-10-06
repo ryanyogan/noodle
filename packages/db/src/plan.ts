@@ -1,6 +1,7 @@
 import {
 	addMonths,
 	type Cents,
+	cleanGroupName,
 	type MonthKey,
 	type PlanRecords,
 	type PlanScope,
@@ -47,6 +48,7 @@ export async function loadPlanRecords(
 					fromMonth: buckets.fromMonth,
 					archivedFromMonth: buckets.archivedFromMonth,
 					owner: buckets.ownerMemberId,
+					group: buckets.groupName,
 				})
 				.from(buckets)
 				.where(and(eq(buckets.householdId, householdId), lte(buckets.fromMonth, month))),
@@ -390,8 +392,10 @@ export async function addPersonalAllowance(
 }
 
 /**
- * Renames or recolours a Bucket (in every month), for the Parent `memberId`; `month` (the
- * Household's current one) is when its Plan change says a rename happened.
+ * Renames or recolours a Bucket (in every month), or puts it in a group (issue 98), for the Parent
+ * `memberId`; `month` (the Household's current one) is when its Plan change says a rename
+ * happened. `group` null, or a name that is empty once trimmed, takes it out of its group. A group
+ * changes no figure, so like a colour it writes no Plan change; a Personal Allowance has none.
  */
 export async function updateBucket(
 	db: Db,
@@ -402,11 +406,19 @@ export async function updateBucket(
 		month: MonthKey;
 		name?: string;
 		color?: number;
+		group?: string | null;
 	},
 ): Promise<void> {
 	const { name, color } = input;
-	if (name === undefined && color === undefined) return;
-	const write = db.update(buckets).set({ name, color }).where(changeableBucket(input));
+	if (name === undefined && color === undefined && input.group === undefined) return;
+	const group = cleanGroupName(input.group);
+	const groupName =
+		input.group === undefined
+			? undefined
+			: group === null
+				? null
+				: sql<string | null>`case when ${buckets.ownerMemberId} is null then ${group} end`;
+	const write = db.update(buckets).set({ name, color, groupName }).where(changeableBucket(input));
 	if (name === undefined) {
 		await write;
 		return;
@@ -422,6 +434,23 @@ export async function updateBucket(
 		}),
 		write,
 	]);
+}
+
+/**
+ * Renames a group of the Household's Buckets (issue 98): every Bucket in `from` goes to `to`, in
+ * one statement. `to` null, or empty once trimmed, takes them all out of it; a `to` that is
+ * another group's name joins the two. Returns how many Buckets it was.
+ */
+export async function renameBucketGroup(
+	db: Db,
+	input: { householdId: string; from: string; to: string | null },
+): Promise<number> {
+	const changed = await db
+		.update(buckets)
+		.set({ groupName: cleanGroupName(input.to) })
+		.where(and(eq(buckets.householdId, input.householdId), eq(buckets.groupName, input.from)))
+		.returning({ id: buckets.id });
+	return changed.length;
 }
 
 /**

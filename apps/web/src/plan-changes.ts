@@ -87,8 +87,32 @@ export const withCarriesOver = (
 
 export const withBucketDetails = (
 	data: MonthData,
-	{ bucketId, name, color }: { bucketId: string; name?: string; color?: number },
-) => mapBucket(data, bucketId, (b) => ({ ...b, name: name ?? b.name, color: color ?? b.color }));
+	{
+		bucketId,
+		name,
+		color,
+		group,
+	}: { bucketId: string; name?: string; color?: number; group?: string | null },
+) =>
+	mapBucket(data, bucketId, (b) =>
+		inGroup({ ...b, name: name ?? b.name, color: color ?? b.color }, group),
+	);
+
+/** A Bucket in `group` (issue 98): null takes it out of its group, undefined leaves it where it is. */
+function inGroup<B extends { group?: string }>(bucket: B, group: string | null | undefined): B {
+	if (group === undefined) return bucket;
+	const { group: _was, ...rest } = bucket;
+	return (group ? { ...rest, group } : rest) as B;
+}
+
+/** Every Bucket of the group `from` in `to` instead; null for in no group. */
+export const withGroupRenamed = (
+	data: MonthData,
+	{ from, to }: { from: string; to: string | null },
+) =>
+	data.plan.buckets
+		.filter((b) => b.group === from)
+		.reduce((next, { id }) => mapBucket(next, id, (b) => inGroup(b, to)), data);
 
 export const withNewBucket = (
 	data: MonthData,
@@ -158,3 +182,17 @@ export const withOrder = (data: MonthData, { bucketIds }: { bucketIds: string[] 
 
 export const withoutBucket = (data: MonthData, { bucketId }: { bucketId: string }) =>
 	mapPlan(data, (plan) => ({ ...plan, buckets: plan.buckets.filter((b) => b.id !== bucketId) }));
+
+/**
+ * What the months before this one handed on to Free to Spend (issue 113), and for an ended month
+ * what it handed on itself.
+ */
+export const useFreeCarry = (month: MonthKey) =>
+	useSuspenseQuery({
+		...monthQuery(month),
+		select: (data) => ({
+			builtUp: data.freeBuiltUp ?? [],
+			handedOn: data.freeHandedOn ?? null,
+			leftToSend: data.freeLeftToSend ?? 0,
+		}),
+	}).data;

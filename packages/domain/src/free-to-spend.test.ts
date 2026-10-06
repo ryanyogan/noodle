@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { allowancesByKind, freeToSpendParts, monthState, type Plan } from "./index";
+import {
+	allowancesByKind,
+	freeToSpendParts,
+	freeToSpendSources,
+	monthState,
+	type Plan,
+} from "./index";
 
 const plan: Plan = {
 	month: "2026-09",
@@ -79,5 +85,36 @@ describe("allowancesByKind", () => {
 			asOf: "2026-09-15",
 		});
 		expect(allowancesByKind(state)).toEqual({ buckets: 160_000, personalAllowances: null });
+	});
+});
+
+describe("freeToSpendSources (issue 113)", () => {
+	const sum = (state: Parameters<typeof freeToSpendParts>[0]) =>
+		freeToSpendParts(state).reduce((total, p) => total + p.amount, 0);
+
+	it("is take-home pay alone for a month that starts fresh", () => {
+		const state = monthState({ plan, spending: [], asOf: "2026-09-15" });
+		expect(freeToSpendSources(state)).toEqual({
+			takeHomePay: 600_000,
+			extraIncome: 0,
+			carriedOver: 0,
+			total: 600_000,
+		});
+		expect(freeToSpendSources(state).total - sum(state)).toBe(state.freeToSpend);
+	});
+
+	it("counts what was carried over and Extra income, so the breakdown still adds up", () => {
+		const state = monthState({
+			plan,
+			spending: [],
+			moves: [{ fromBucketId: null, toBucketId: "hockey", amount: 5_000, month: "2026-09" }],
+			goalFunding: [{ goalId: "trip", amount: 30_000, month: "2026-09" }],
+			extraToFree: [{ amount: 10_000, month: "2026-09" }],
+			freeCarriedIn: 41_200,
+			asOf: "2026-09-15",
+		});
+		const sources = freeToSpendSources(state);
+		expect(sources).toMatchObject({ extraIncome: 10_000, carriedOver: 41_200, total: 651_200 });
+		expect(sources.total - sum(state)).toBe(state.freeToSpend);
 	});
 });

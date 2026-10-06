@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
 	barWidths,
+	carriedOverText,
 	freeToSpendAfter,
 	MIN_WIDTH,
 	planSplit,
@@ -123,6 +124,36 @@ describe("where take-home pay goes", () => {
 		expect(splitSentence(split, 50_000)).toBe(
 			"$6,000 of the $9,500 you have this month (take-home pay plus $500 Extra income) is planned. $3,500 is Free to Spend.",
 		);
+	});
+
+	test("the sentence counts what was carried over, and takes a shortfall off the pay", () => {
+		const parts = [{ key: "buckets", label: "Buckets", amount: 120_000 }];
+		expect(
+			splitSentence(planSplit({ income: 631_000, parts, left: 511_000 }), 0, {
+				amount: 131_000,
+				from: "September",
+			}),
+		).toBe(
+			"$1,200 of the $6,310 you have this month (take-home pay plus $1,310 carried over from September) is planned. $5,110 is Free to Spend.",
+		);
+		expect(
+			splitSentence(planSplit({ income: 477_000, parts, left: 357_000 }), 0, {
+				amount: -23_000,
+				from: "September",
+			}),
+		).toBe(
+			"$1,200 of the $4,770 you have this month (take-home pay less $230 short carried over from September) is planned. $3,570 is Free to Spend.",
+		);
+		expect(
+			splitSentence(planSplit({ income: 487_000, parts, left: 367_000 }), 10_000, {
+				amount: -23_000,
+				from: "September",
+			}),
+		).toBe(
+			"$1,200 of the $4,870 you have this month (take-home pay plus $100 Extra income, less $230 short carried over from September) is planned. $3,670 is Free to Spend.",
+		);
+		expect(carriedOverText(60_000)).toBe("$600 carried over");
+		expect(carriedOverText(-23_000, "September")).toBe("$230 short carried over from September");
 	});
 
 	test("the sentence when nothing, or everything, is planned", () => {

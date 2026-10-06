@@ -48,6 +48,17 @@ export {
 	resplit,
 } from "./bank-sync";
 export { looksPersonToPerson, parentNamedIn } from "./between-us";
+export {
+	type BucketGroup,
+	cleanGroupName,
+	GROUP_NAME_MAX,
+	groupBuckets,
+	groupNames,
+	groupTotals,
+	inGroupOrder,
+	peersOf,
+	putInOrder,
+} from "./bucket-groups";
 export { parseCapturedAmount } from "./capture";
 export * from "./card-issuers";
 export {
@@ -167,7 +178,20 @@ export {
 	type SpendTotal,
 	shares,
 } from "./for";
-export { allowancesByKind, freeToSpendParts, type PlanPart } from "./free-to-spend";
+export {
+	type CarryInputs,
+	type FreeCarryMonth,
+	firstCarryMonth,
+	freeCarriedIn,
+	freeCarryMonths,
+	type MonthAmount,
+} from "./free-carry";
+export {
+	allowancesByKind,
+	freeToSpendParts,
+	freeToSpendSources,
+	type PlanPart,
+} from "./free-to-spend";
 export {
 	ACCOUNT_KINDS,
 	type AccountKind,
@@ -258,6 +282,7 @@ export {
 	monthsBetween,
 } from "./month";
 export {
+	closeFreeMoveId,
 	defaultDecision,
 	fitsProposal,
 	type Leftover,
@@ -267,6 +292,7 @@ export {
 	monthCloseProposal,
 	monthEnd,
 	nothingToClose,
+	nothingToDecide,
 	quietEnd,
 } from "./month-close";
 export {
@@ -548,6 +574,7 @@ export {
 	transferPairs,
 } from "./transfers";
 export {
+	actualFigures,
 	type YearActuals,
 	type YearFigures,
 	type YearMonth,

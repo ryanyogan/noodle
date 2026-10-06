@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+	closeFreeMoveId,
 	defaultDecision,
 	fitsProposal,
 	monthCloseProposal,
 	monthEnd,
 	monthState,
 	nothingToClose,
+	nothingToDecide,
 	type Plan,
 	quietEnd,
 } from "./index";
@@ -135,6 +137,7 @@ describe("monthEnd", () => {
 			sweeps: [{ bucketId: "gifts", name: "Gifts", goalId: "trip", amount: 4_000 }],
 			windfall: [{ goalId: "trip", amount: 30_000 }],
 			rolledOver: [{ bucketId: "hockey", name: "Hockey", amount: 40_000 }],
+			freeToSpend: [],
 		});
 		expect(quietEnd(end)).toBe(false);
 	});
@@ -153,6 +156,60 @@ describe("monthEnd", () => {
 			spending: [],
 			asOf: "2026-09-30",
 		});
+		expect(quietEnd(monthEnd(quiet, { sweeps: [], goalFunding: [] }))).toBe(true);
+	});
+});
+
+describe("the Free to Spend a month ended with (issue 113)", () => {
+	const quiet = monthState({ plan: { ...plan, buckets: [] }, spending: [], asOf: "2026-09-30" });
+
+	it("is offered when above zero, and only matters to a Parent with a Goal to send it to", () => {
+		const proposal = monthCloseProposal(quiet, 41_200);
+		expect(proposal).toEqual({ month: "2026-09", leftovers: [], windfall: 0, freeToSpend: 41_200 });
+		// The Workflow does not wait for it: kept is the default and writes nothing.
+		expect(nothingToClose(proposal)).toBe(true);
+		expect(nothingToDecide(proposal, true)).toBe(false);
+		expect(nothingToDecide(proposal, false)).toBe(true);
+		expect(defaultDecision(proposal, "rainy-day")).toEqual({ sweeps: [], windfall: [] });
+	});
+
+	it("is not offered by a month that ended short, or with nothing left", () => {
+		for (const left of [-23_000, 0]) {
+			const proposal = monthCloseProposal(quiet, left);
+			expect(proposal.freeToSpend).toBeUndefined();
+			expect(nothingToDecide(proposal, true)).toBe(true);
+		}
+		expect(monthCloseProposal(closing).freeToSpend).toBeUndefined();
+	});
+
+	it("can be sent to Goals up to what is left, and no more", () => {
+		const proposal = monthCloseProposal(quiet, 41_200);
+		const send = (...amounts: number[]) => ({
+			sweeps: [],
+			windfall: [],
+			freeToSpend: amounts.map((amount) => ({ goalId: "trip", amount })),
+		});
+		expect(fitsProposal(proposal, { sweeps: [], windfall: [] })).toBe(true);
+		expect(fitsProposal(proposal, send(41_200))).toBe(true);
+		expect(fitsProposal(proposal, send(20_000, 21_200))).toBe(true);
+		expect(fitsProposal(proposal, send(41_201))).toBe(false);
+		expect(fitsProposal(proposal, send(20_000, 21_201))).toBe(false);
+		expect(fitsProposal(proposal, send(0))).toBe(false);
+		expect(fitsProposal(monthCloseProposal(quiet, -5_000), send(1))).toBe(false);
+	});
+
+	it("how the month ended tells what was sent at the close from the month's other Goal funding", () => {
+		const end = monthEnd(quiet, {
+			sweeps: [],
+			goalFunding: [
+				{ id: closeFreeMoveId("close", 0), goalId: "trip", amount: 10_000, month: "2026-09" },
+				// Funded during the month, and another month's close: neither is this month's line.
+				{ id: "01JABC", goalId: "trip", amount: 7_000, month: "2026-09" },
+				{ id: closeFreeMoveId("other", 0), goalId: "trip", amount: 3_000, month: "2026-08" },
+			],
+		});
+		expect(end.freeToSpend).toEqual([{ goalId: "trip", amount: 10_000 }]);
+		expect(quietEnd(end)).toBe(false);
 		expect(quietEnd(monthEnd(quiet, { sweeps: [], goalFunding: [] }))).toBe(true);
 	});
 });

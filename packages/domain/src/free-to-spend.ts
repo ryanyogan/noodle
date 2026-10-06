@@ -12,7 +12,8 @@ export type PlanPart =
 /**
  * How a month's take-home pay becomes its Free to Spend, part by part in the Plan's order: the
  * Commitments and Buckets always, the Personal Allowances when there are any, Goal funding, and
- * Covers from Free to Spend when there were some. Take-home pay less every part is Free to Spend.
+ * Covers from Free to Spend when there were some. What the month has (`freeToSpendSources`: take-home
+ * pay, Extra income added, what was carried over) less every part is Free to Spend.
  */
 export function freeToSpendParts(
 	state: Pick<MonthState, "buckets" | "committed" | "fundedGoals" | "movedToBuckets">,
@@ -29,6 +30,20 @@ export function freeToSpendParts(
 			? [{ part: "covers" as const, amount: state.movedToBuckets }]
 			: []),
 	];
+}
+
+/**
+ * What a month has to divide up before any part takes its share: take-home pay, Extra income a
+ * Parent added to Free to Spend, and what last month's Free to Spend carried over when it builds
+ * up (issue 113). `total` less every part of `freeToSpendParts` is the month's Free to Spend.
+ */
+export function freeToSpendSources(
+	state: Pick<MonthState, "baseline" | "extraToFreeToSpend" | "freeCarriedIn">,
+): { takeHomePay: Cents; extraIncome: Cents; carriedOver: Cents; total: Cents } {
+	const takeHomePay = state.baseline ?? 0;
+	const extraIncome = state.extraToFreeToSpend;
+	const carriedOver = state.freeCarriedIn;
+	return { takeHomePay, extraIncome, carriedOver, total: takeHomePay + extraIncome + carriedOver };
 }
 
 /**

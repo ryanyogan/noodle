@@ -1,4 +1,10 @@
-import { type Cents, type DayKey, type MonthKey, monthOfDay } from "@noodle/domain";
+import {
+	type Cents,
+	closeFreeMoveId,
+	type DayKey,
+	type MonthKey,
+	monthOfDay,
+} from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { monthName } from "./format";
@@ -27,6 +33,8 @@ export type CloseMonthVariables = {
 	sweeps: { bucketId: string; goalId: string; amountCents: Cents }[];
 	/** Each with a client ULID for its Move. */
 	windfall: { moveId: string; goalId: string; amountCents: Cents }[];
+	/** Free to Spend the month ended with, sent to Goals as Goal funding; none when it is kept. */
+	freeToSpend?: { goalId: string; amountCents: Cents }[];
 };
 
 /** The first week of `month`, while This Month asks the Parents to close the one before. */
@@ -39,8 +47,16 @@ const sweepId = (closeId: string, bucketId: string) => `${closeId}:${bucketId}`;
 /** A month's inputs once closed with a decision: its Sweeps and Extra income Moves in them. */
 export function withMonthClosed(data: MonthData, v: CloseMonthVariables): MonthData {
 	if (data.closed) return data;
+	const sent = (v.freeToSpend ?? []).reduce((sum, f) => sum + f.amountCents, 0);
 	return {
 		...data,
+		// What was sent to a Goal is no longer carried over into the next month.
+		...(sent > 0 && data.freeHandedOn !== undefined
+			? { freeHandedOn: data.freeHandedOn - sent }
+			: {}),
+		...(sent > 0 && data.freeLeftToSend !== undefined
+			? { freeLeftToSend: data.freeLeftToSend - sent }
+			: {}),
 		closed: { decidedBy: v.parentId },
 		sweeps: [
 			...data.sweeps,
@@ -61,6 +77,12 @@ export function withMonthClosed(data: MonthData, v: CloseMonthVariables): MonthD
 				month: v.month,
 				windfall: true,
 			})),
+			...(v.freeToSpend ?? []).map((f, i) => ({
+				id: closeFreeMoveId(v.closeId, i),
+				goalId: f.goalId,
+				amount: f.amountCents,
+				month: v.month,
+			})),
 		],
 	};
 }
@@ -79,6 +101,12 @@ function withClosingFunding(data: GoalsData, v: CloseMonthVariables): GoalsData 
 			goalId: w.goalId,
 			amount: w.amountCents,
 			from: "windfall" as const,
+		})),
+		...(v.freeToSpend ?? []).map((f, i) => ({
+			id: closeFreeMoveId(v.closeId, i),
+			goalId: f.goalId,
+			amount: f.amountCents,
+			from: undefined,
 		})),
 	];
 	return changes.reduce(

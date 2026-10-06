@@ -7,6 +7,7 @@ import {
 	loadBetweenUsIncome,
 	loadCharges,
 	loadExtraToFree,
+	loadFreeCarryMonths,
 	loadGoalFunding,
 	loadIncome,
 	loadMonthClose,
@@ -60,6 +61,23 @@ export type MonthData = {
 	 * Plan change this month only changes what rolls into later ones.
 	 */
 	rolledOver: Record<string, Cents>;
+	/**
+	 * What the months before left for this month's Free to Spend, or were short by (issue 113);
+	 * 0 for the first month with a Plan. Like `rolledOver`, it depends only on earlier months.
+	 */
+	freeCarriedIn?: Cents;
+	/**
+	 * What each of the last months (six at most, oldest first, ending with last month) handed on,
+	 * since the first month with a Plan.
+	 */
+	freeBuiltUp?: { month: MonthKey; amount: Cents }[];
+	/** For an ended month, what it handed on to the next: what it actually ended with. */
+	freeHandedOn?: Cents;
+	/**
+	 * For an ended month that ended with Free to Spend above zero and had income recorded: that
+	 * amount, which closing the month can send to a Goal (see monthCloseProposal).
+	 */
+	freeLeftToSend?: Cents;
 	/** Moves from Free to Spend into what Goals have set aside. */
 	goalFunding: (GoalFunding & { id: string })[];
 	/** Extra income a Parent added to the month's Free to Spend. */
@@ -90,8 +108,20 @@ export async function loadMonth(
 	month: MonthKey,
 ): Promise<MonthData> {
 	const viewer = viewerOf({ household, parent: { id: parentId } });
+	const now = new Date();
+	const current = monthKeyAt(now, household.timeZone);
+	// What depends on the Plan's records (what rolled over, and what Free to Spend was carried;
+	// issue 113) is read as soon as they arrive, alongside the rest, not after all of it.
+	const planRecords = loadPlanRecords(db, household.id, month);
+	const derived = planRecords.then((loaded) =>
+		Promise.all([
+			loadRolledOver(db, household.id, loaded, month),
+			loadFreeCarryMonths(db, viewer, loaded, month, current),
+		]),
+	);
 	const [
 		records,
+		[rolledOver, carried],
 		spending,
 		charges,
 		moves,
@@ -102,7 +132,8 @@ export async function loadMonth(
 		extraToFree,
 		betweenUs,
 	] = await Promise.all([
-		loadPlanRecords(db, household.id, month),
+		planRecords,
+		derived,
 		loadSpending(db, viewer, month),
 		loadCharges(db, viewer, month),
 		loadMoves(db, household.id, month),
@@ -113,9 +144,12 @@ export async function loadMonth(
 		loadExtraToFree(db, household.id, month),
 		loadBetweenUsIncome(db, household.id, month, addMonths(month, 1)),
 	]);
-	const rolledOver = await loadRolledOver(db, household.id, records, month);
-	const now = new Date();
-	const current = monthKeyAt(now, household.timeZone);
+	const own = carried.find((m) => m.month === month);
+	const freeBuiltUp = carried
+		.filter((m) => m.month < month)
+		.slice(-6)
+		.map((m) => ({ month: m.month, amount: m.left }));
+	const freeCarriedIn = own?.carriedIn ?? 0;
 	return {
 		plan: planForMonth(records, month),
 		planBefore: planForMonth(records, addMonths(month, -1)),
@@ -123,6 +157,10 @@ export async function loadMonth(
 		charges,
 		moves,
 		rolledOver,
+		freeCarriedIn,
+		freeBuiltUp,
+		...(own?.ended ? { freeHandedOn: own.left } : {}),
+		...(own?.ended && !own.noIncome && own.left > 0 ? { freeLeftToSend: own.left } : {}),
 		goalFunding,
 		extraToFree,
 		sweeps,

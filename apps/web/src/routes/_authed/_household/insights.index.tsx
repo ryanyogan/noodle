@@ -334,7 +334,8 @@ function InsightCard({
 				{insight.status === "new" ? (
 					<Button
 						size="sm"
-						variant={offersEnding ? "outline" : "default"}
+						// Always outline: the card's own action is the only filled button (issue 110).
+						variant="outline"
 						className={cn(
 							"max-[359px]:[&>svg]:hidden",
 							// Longer words with something to try: the row to itself, the others under it.

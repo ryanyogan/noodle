@@ -1,0 +1,1 @@
+ALTER TABLE `buckets` ADD `group_name` text;

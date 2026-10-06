@@ -147,16 +147,42 @@ export function shareText(row: Pick<SplitRow, "share" | "amount">): string {
 }
 
 /**
- * The chart's takeaway, in one or two short sentences. `extra` is Extra income sent to Free to
- * Spend this month, which is on top of take-home pay.
+ * What the months before carried over, in the words every page uses (issue 113): "$600 carried
+ * over from October", or for a shortfall "$230 short carried over from September".
  */
-export function splitSentence(split: PlanSplit, extra = 0): string {
+export function carriedOverText(amount: number, from?: string): string {
+	const what =
+		amount < 0
+			? `${formatMoney(-amount)} short carried over`
+			: `${formatMoney(amount)} carried over`;
+	return from ? `${what} from ${from}` : what;
+}
+
+/**
+ * The chart's takeaway, in one or two short sentences. `extra` is Extra income sent to Free to
+ * Spend this month, which is on top of take-home pay, as is what was carried over.
+ */
+export function splitSentence(
+	split: PlanSplit,
+	extra = 0,
+	/** What the months before carried over, of either sign (issue 113), and last month's name. */
+	carried?: { amount: number; from: string },
+): string {
 	const { income, planned, left, overBy } = split;
 	if (income === null)
 		return "Take-home pay isn’t set for this month, so there is nothing to divide up.";
+	const added = [
+		...(extra > 0 ? [`${formatMoney(extra)} Extra income`] : []),
+		...(carried && carried.amount > 0 ? [carriedOverText(carried.amount, carried.from)] : []),
+	];
+	// A shortfall carried over takes from the pay instead of adding to it.
+	const short =
+		carried && carried.amount < 0 ? carriedOverText(carried.amount, carried.from) : null;
+	const plus = added.length > 0 ? ` plus ${added.join(" and ")}` : "";
+	const less = short ? `${plus ? "," : ""} less ${short}` : "";
 	const pay =
-		extra > 0
-			? `the ${formatMoney(income)} you have this month (take-home pay plus ${formatMoney(extra)} Extra income)`
+		plus || less
+			? `the ${formatMoney(income)} you have this month (take-home pay${plus}${less})`
 			: `your ${formatMoney(income)} take-home pay`;
 	if (overBy > 0) {
 		return `${formatMoney(planned)} is planned, ${formatMoney(overBy)} more than ${pay}.`;

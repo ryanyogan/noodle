@@ -63,7 +63,7 @@ for (const look of looks) {
 		    - status "Amount": $ 0
 		    - paragraph: Type an amount
 		    - textbox "Note":
-		      - /placeholder: Where or what? (optional)
+		      - /placeholder: Where or what?
 		    - button "Snap receipt"
 		    - button "Say it"
 		    - list "Add to":
