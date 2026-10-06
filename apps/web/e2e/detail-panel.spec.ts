@@ -571,7 +571,7 @@ test("Buckets is a table from 1024 with the totals under it; a Bucket is a drawe
 		const tops = boxes.map((box) => box.top);
 		const edge = (el.parentElement as HTMLElement).getBoundingClientRect().right;
 		return {
-			lines: Math.max(...tops) - Math.min(...tops) < boxes[0].height / 2 ? 1 : 2,
+			lines: Math.max(...tops) - Math.min(...tops) < (boxes[0]?.height ?? 0) / 2 ? 1 : 2,
 			fits: el.getBoundingClientRect().right <= edge + 0.5,
 		};
 	});
