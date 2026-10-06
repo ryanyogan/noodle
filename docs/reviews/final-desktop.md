@@ -20,7 +20,7 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | "Leave without saving?" dialog | leave an edited form | no | — | — | — | — | — | — |  |
 | Intro video dialog | This Month get-started, "Watch" | no | — | — | — | — | — | — |  |
 | Route error screen | a loader that throws | no | — | — | — | — | — | — |  |
-| Not-found screen | an unknown address | no | — | — | — | — | — | — |  |
+| Not-found screen | an unknown address | no | — | — | — | — | — | — | 73bc: pic 38 taken at all six, NOT opened. |
 | Section loading skeleton | slow loader on any section | no | — | — | — | — | — | — |  |
 
 ## Signed out and getting started
@@ -28,16 +28,16 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
 | Landing / redirect | / | no | — | — | — | — | — | — |  |
-| Sign in | /sign-in | no | — | — | — | — | — | — |  |
-| Sign up | /sign-up | no | — | — | — | — | — | — |  |
+| Sign in | /sign-in | no | ok | ok | ok | ok | ok | ok (layout) | 73bc: pic d60 at all six, opened: clean. |
+| Sign up | /sign-up | no | — | — | — | — | — | — | 73bc: pic d61 taken at all six, NOT opened. |
 | Invite | /invite/$token | no | — | — | — | — | — | — |  |
 | Welcome | /welcome | no | — | — | — | — | — | — |  |
 | Joined | /joined | no | — | — | — | — | — | — |  |
-| Setup wizard step 1 | /setup (pic 31) | no | — | — | — | — | — | — |  |
-| Setup wizard step 2 (income) | /setup (pic 32, 32a) | no | — | — | — | — | — | — |  |
-| Setup wizard step 3 | /setup (pic 33) | no | — | — | — | — | — | — |  |
-| Setup wizard step 4 | /setup (pic 34) | no | — | — | — | — | — | — |  |
-| Setup wizard steps 5 to 7 | /setup, continue | no | — | — | — | — | — | — |  |
+| Setup wizard step 1 | /setup (pic 31) | no | ok | ok | ok | ok | ok | ok (layout) | 73bc: pic 31 at all six, opened: clean (in the full-page picture the sticky foot is drawn mid-page: the picture, not the app). |
+| Setup wizard step 2 (income) | /setup (pic 32, 32a) | no | ok | ok | ok | ok | ok | ok (layout) | 73bc: pic 32 at all six, opened: clean (in the full-page picture the sticky foot is drawn mid-page: the picture, not the app). |
+| Setup wizard step 3 | /setup (pic 33) | no | ok | ok | ok | ok | ok | ok (layout) | 73bc: pic 33 at all six, opened: clean (in the full-page picture the sticky foot is drawn mid-page: the picture, not the app). |
+| Setup wizard step 4 | /setup (pic 34) | no | ok | ok | ok | ok | ok | ok (layout) | 73bc: pic 34 at all six, opened: clean (in the full-page picture the sticky foot is drawn mid-page: the picture, not the app). |
+| Setup wizard steps 5 to 7 | /setup, continue | no | — | — | — | — | — | — | 73bc: pics 35s, 36s, 37s taken at all six, NOT opened. |
 | Bank return | /bank/return | no | — | — | — | — | — | — |  |
 
 ## This Month (another agent)
@@ -84,22 +84,22 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Transactions table | /transactions/$month | yes | fixed 73ax | fixed 73ax | ok | ok | ok | ok (layout) | 73ax: COMPLETE. Pics 10a, 10e (a range of months: month heading, day heading, range total), 10g (Assigned-to picker opens under its cell), 10i, 10j (nothing matches), 11a (the row opened in place, editor under its row) at all six. At 1024 and 1280 the four selects were cut ("This mon", "All Bucke", "Last 3 mont", "All Account"): under 1440 they now have a line of their own and the total ends the search’s line; retaken (10a, 10e, 10j). Amounts, day totals and the header end on one edge; checkboxes in one column. Not pictured: the name being typed in its cell (pic 10h taken, not opened), the "had no Buckets" picker of an old month, the loading state, the fresh Household’s empty table (10m taken, not opened). Seen, not changed: at 1024 a "Waiting for bank" row cuts its name to three letters ("Chi…"): Decision 9 |
+| Transactions table | /transactions/$month | yes | fixed 73ax | fixed 73ax | ok | ok | ok | ok (layout) | 73ax: COMPLETE. Pics 10a, 10e (a range of months: month heading, day heading, range total), 10g (Assigned-to picker opens under its cell), 10i, 10j (nothing matches), 11a (the row opened in place, editor under its row) at all six. At 1024 and 1280 the four selects were cut ("This mon", "All Bucke", "Last 3 mont", "All Account"): under 1440 they now have a line of their own and the total ends the search’s line; retaken (10a, 10e, 10j). Amounts, day totals and the header end on one edge; checkboxes in one column. Not pictured: the name being typed in its cell (pic 10h taken, not opened), the "had no Buckets" picker of an old month, the loading state, the fresh Household’s empty table (10m taken, not opened). Seen, not changed: at 1024 a "Waiting for bank" row cuts its name to three letters ("Chi…"): Decision 9 73bc: 10h (name edit in the cell), 10i (largest first), 10k (Account select open), 10m (empty month) opened at all six: clean. At 1280 the bar was one line or two depending on how wide the total’s label was, with the total in the middle of the line; under 1440 the selects now always have their own line (retaken 10a, 10j at all six, opened). New pics d10r (“File in…” picker from the selection’s bar) and d62 (toast after a delete; it has no Undo, the snapshot is the way back) at all six, opened: clean. Not pictured: the picker for a month that had no Buckets, the loading state, two toasts stacked (step d63 fails at its second delete). |
 | Transactions Filters sheet | Transactions › Filters | yes | — | — | — | — | — | — | 73ax: from 1024 the filters are the selects in the bar (see the row above); the sheet is for phones and tablets. Pic 10k (Account select open) taken, not opened |
 | Selection bar and Delete sheet | select rows | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: COMPLETE. Pics 10b (three ticked: bar with Cancel, File in…, Delete and both "Select all"), 10c (Delete sheet, centred) at all six. "File in…" picker itself not pictured |
-| Transaction in the panel, editor, Split, receipt | /transactions/$month/$id | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: editor under its row (pic 11a) at all six: Name, Amount, Assigned to on one line from 1280, For below. Split and receipt not pictured |
-| Quick Add popover and capture | Sidebar › Quick Add | yes | — | — | — | — | — | — | 73ax: pic 10q added and taken at all six, NOT opened |
+| Transaction in the panel, editor, Split, receipt | /transactions/$month/$id | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: editor under its row (pic 11a) at all six: Name, Amount, Assigned to on one line from 1280, For below. Split and receipt not pictured 73bc: Split opened in the editor (pic d11c) at all six, opened: clean. Receipt not pictured. |
+| Quick Add popover and capture | Sidebar › Quick Add | yes | ok | ok | ok | ok | ok | ok (layout) | 73bc: pic 10q opened at all six: clean. |
 | Upload a statement sheet | Accounts or Transactions › Upload | yes | — | — | — | — | — | — |  |
 
 ## Review (another agent)
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Review cards | /review | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: COMPLETE for the card on top (pic 12 at all six): toolbar on one line, card, Skip and Undo, key hints. 12a to 12d taken, not opened. Finish state not pictured |
+| Review cards | /review | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: COMPLETE for the card on top (pic 12 at all six): toolbar on one line, card, Skip and Undo, key hints. 12a to 12d taken, not opened. Finish state not pictured 73bc: 12a to 12d opened at all six: clean. Picker open (d12q) and Split sheet (d12j) at all six, opened: clean (at 1024×768 the picker opens upward over the page title). Finish state: pics 39l and 46 exist, 39l taken at all six, NOT opened. |
 | Review list | /review?view=list | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: COMPLETE (pic 13 at all six): one column at 1024, two from 1280, three from 1920; amounts on the cards’ right edge |
-| "Make a Rule" sheet | Review card › Make a Rule | yes | — | — | — | — | — | — |  |
+| "Make a Rule" sheet | Review card › Make a Rule | yes | fixed 73bc | fixed 73bc | fixed 73bc | fixed 73bc | fixed 73bc | fixed 73bc | 73bc: pic d12k. The For choices were four to a line with “Sam” alone on a second line at every width; from a tablet up they now wrap only when they don’t fit (for-picker.tsx). Retaken at all six; 1024 and 1280 opened. |
 | Rules list | /review/rules | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: COMPLETE (pic 14 at all six): list with its help beside it |
-| Rule in the panel | /review/rules/$ruleId | yes | — | — | — | — | — | — |  |
+| Rule in the panel | /review/rules/$ruleId | yes | ok | open: For wraps | open: For wraps | ok | ok | open: For wraps | 73bc: pic 14a at all six, opened: a drawer at 1024, a panel from 1280. Same lone “Sam” at 1280 and 1440, and in “Add a Rule” (pic d14b) at every width: the same control as Make a Rule, fixed there, these two NOT retaken. |
 | "Add a Rule" sheet | Rules › Add a Rule | yes | — | — | — | — | — | — |  |
 
 ## Accounts
@@ -170,16 +170,16 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Insights | /insights (pic 24) | no | — | — | — | — | — | — |  |
-| Insights, empty | fresh Household (pic 39d) | no | — | — | — | — | — | — |  |
-| Perks, its row open, "Add a card or membership" sheets | /insights/perks | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: pic 25a (Amex Platinum open) at all six opened; in the full-page picture the Sidebar is drawn where the page was scrolled to (the picture, not the app). The seed has "Chase Sapphire Reserve ··0093" twice in Perk Sources. At 1280 and 1440 the "This year" card stretches to its neighbour’s height with empty room under the figures (judgement). 25, 25b taken, not opened |
+| Insights | /insights (pic 24) | no | fixed 73bc | ok | ok | ok | ok | ok (layout) | 73bc: pic 24 at all six, opened. At 1024 each Insight was 340px wide beside the rail, its yearly figure and actions wrapped; under 1280 the page is one column now and the rail (By type, How Insights work) is not shown, as on a phone. Retaken, opened. |
+| Insights, empty | fresh Household (pic 39d) | no | ok | ok | ok | ok | ok | ok (layout) | 73bc: pic 39d at all six, opened: clean (taken before the one-column change; 1024 not retaken). |
+| Perks, its row open, "Add a card or membership" sheets | /insights/perks | yes | ok | ok | ok | ok | ok | ok (layout) | 73ax: pic 25a (Amex Platinum open) at all six opened; in the full-page picture the Sidebar is drawn where the page was scrolled to (the picture, not the app). The seed has "Chase Sapphire Reserve ··0093" twice in Perk Sources. At 1280 and 1440 the "This year" card stretches to its neighbour’s height with empty room under the figures (judgement). 25, 25b taken, not opened 73bc: pics 25 and 25b opened at all six: clean. At 1280 a “To confirm” row with a long name (Amazon Prime) takes three lines beside a one-line row: seen, left. |
 | Check-in | /check-in (pic 26) | no | ok | ok (reduced) | ok | ok (reduced) | ok (reduced) | ok (reduced) | pic 26 opened again at 1440, clean **73bb: complete.** Opened at 1024 and 1440 at full size, the rest at 25–40%. Clean. The 2560 picture has the card without its five Transactions (taken before they arrived; 26a at 2560 has them). |
 | Check-in footer | pic 26a | no | ok | ok | ok | ok | ok | ok | 73at: pic 26a opened at 1440, clean. **73bb: complete.** 26a's foot opened at all six at 60%: "Open full page" on the card's edge, "Skip for now" a text button whose words end 16px inside the amounts above (its own padding). |
 | Check-in, each step done inline | work through the steps | no | ok | ok (reduced) | ok | ok (reduced) | ok (reduced) | ok (reduced) | 73at: new pics 26b, 26c, 26d (Insights, Sweeps, Extra income, each reached with Skip for now). The "?" of the Sweeps and Extra income cards dropped to a line of its own under a two-line sentence: it follows the last word now; retaken and opened at 1024 (Sweeps). Seen, not fixed (packages/ui StepList): a done step's name starts 8px right of a waiting one's. Steps actually completed inline (a Sweep chosen, Extra income sent) not pictured. 73bb: 26b, 26c, 26d opened at 1024 and 1440 at full size, the rest at 25–40%: clean (a done step's status wraps one word later than a waiting one's, from the 8px of decision 5). Still partly: the steps were reached with Skip for now, none completed inline. |
 | Check-in, empty | fresh Household (pic 39e) | no | fixed 73av | fixed 73av | fixed 73av | fixed 73av | fixed 73av | fixed 73av | 73at: pic 39e opened at 1440; the done card is 480px wide at the left of a wide page. **73av: complete.** The done card now takes the page's column from 1024 (it stopped at 768px, at the left); retaken and opened at full size at all five widths and in dark. |
-| Ask | /ask (pic 24x) | no | — | — | — | — | — | — |  |
+| Ask | /ask (pic 24x) | no | ok | ok | ok | ok | ok | ok (layout) | 73bc: pic 24x at all six, opened: clean; “What Ask can see” is beside it from 1280 only, by design. |
 | Ask with an answer, and its error | ask a question | no | — | — | — | — | — | — |  |
-| Ask, empty | fresh Household (pic 39f) | no | — | — | — | — | — | — |  |
+| Ask, empty | fresh Household (pic 39f) | no | ok | ok | ok | ok | ok | ok (layout) | 73bc: pic 39f at all six, opened: clean. |
 
 ## Decisions for the owner (Reports, This Month, Check-in)
 
@@ -195,7 +195,7 @@ Not built; each waits for a yes or no.
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Household settings, whole page | /household (pic 27) | no | ok (top) | ok (top) | ok | ok | ok | ok (layout, top) | two columns start on one line; Danger zone spans both. 73ax: pic 27 at all six, the first screen opened (whole page at 1920 and 2560): one column at 1024, two from 1280. Lower screens at 1024 to 1440 not opened; Snapshots with history not seeded |
+| Household settings, whole page | /household (pic 27) | no | ok | ok | ok | ok | ok | ok (layout) | two columns start on one line; Danger zone spans both. 73ax: pic 27 at all six, the first screen opened (whole page at 1920 and 2560): one column at 1024, two from 1280. Lower screens at 1024 to 1440 not opened; Snapshots with history not seeded 73bc: lower screens opened at 1024, 1280, 1440: clean. Snapshots with one in its history (pic d27f) at all six, opened: clean. Child sheet (d27g) and “Your name and colour” (27c) at all six, opened: clean. Invite not pictured (the seeded Household has both Parents). |
 | "Your name and colour" sheet | pic 27c | no | — | — | — | — | — | — |  |
 | Child sheet | Children › a Child | no | — | — | — | — | — | — |  |
 | Invite the other Parent, "Cancel the invite?" dialog | Parents | no | — | — | — | — | — | — |  |
@@ -204,8 +204,8 @@ Not built; each waits for a yes or no.
 | Snapshots, "Restore this snapshot?" sheet | Snapshots | no | — | — | — | — | — | — |  |
 | Download your data | Data | no | — | — | — | — | — | — |  |
 | Start fresh sheet | Danger zone (pic 27a) | no | ok | ok | ok | ok | ok | ok (layout) | 73ax: COMPLETE for the first step (pic 27a at all six). Second step not pictured |
-| Delete Household sheet | Danger zone (pic 27b) | no | — | — | — | — | — | — |  |
-| Glossary | /glossary | no | — | — | — | — | — | — |  |
+| Delete Household sheet | Danger zone (pic 27b) | no | ok | ok | ok | ok | ok | ok (layout) | 73bc: step 1 (27b) and step 2 (d27d, layout only: behaviour is issue 118) at all six, opened: clean. Start fresh step 2 (d27e) taken at all six, NOT opened. |
+| Glossary | /glossary | no | ok | ok | ok | ok | ok | ok (layout) | 73bc: pic 28 at all six, opened: clean (two columns of words from 1920). |
 
 127 rows; 45 looked at in every width and in dark and without an open cell (73au: Sidebar collapsed and thirteen Plan rows, sheets in `73au-shots/sheets/`; 73aw: four more Plan rows, Accounts, Goals, Can we afford it? and Scenarios, sheets in `73aw-shots/sheets/`).; 73az: fifteen sheets, dialogs and empties of Plan, Accounts, Goals, Explore and Scenarios, sheets in `73az-shots/sheets/`; one more row is not a desktop state).
 

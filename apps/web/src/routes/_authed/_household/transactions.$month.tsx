@@ -577,7 +577,7 @@ function Filters({
 					</Button>
 				) : null}
 			</div>
-			<div className="gap-3 max-lg:hidden lg:order-3 lg:grid lg:flex-[3_1_36rem] lg:auto-cols-fr lg:grid-flow-col">
+			<div className="gap-3 max-lg:hidden lg:order-3 lg:grid lg:flex-[3_1_100%] min-[90rem]:flex-[3_1_36rem] lg:auto-cols-fr lg:grid-flow-col">
 				{/* How many months the list shows (issue 99), each ending at the month in the header. */}
 				<FilterSelect
 					id="filter-range"

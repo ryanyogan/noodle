@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
@@ -103,6 +104,10 @@ type Shot = {
 	small?: boolean;
 	/** Pictured as the fourth Parent, whose months ended with nothing left and then short. */
 	carry?: boolean;
+	/** Only from 1024 up: a computer's twin of a picture a phone has under another name (issue 73). */
+	desktop?: boolean;
+	/** Pictured signed out (sign-in, sign-up): `ready` is its only wait, the page has no heading. */
+	signedOut?: boolean;
 };
 
 let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
@@ -712,6 +717,10 @@ test.beforeAll(async ({ browser }) => {
 
 	const firstBucket = bucketIds.Groceries;
 	const firstCommitment = commitmentIds.Electricity;
+	// Last month, where the toast pictures delete a row each: this month's pictures stay as seeded.
+	const [year = 0, monthNumber = 1] = month.split("-").map(Number);
+	const monthBefore =
+		monthNumber === 1 ? `${year - 1}-12` : `${year}-${String(monthNumber - 1).padStart(2, "0")}`;
 	shots = [
 		{ name: "01-this-month", path: `/month/${month}` },
 		// Part-way down on a computer: where the round Ask Noodle button sits over the page.
@@ -2144,6 +2153,152 @@ test.beforeAll(async ({ browser }) => {
 				},
 			}),
 		),
+		// A computer's twins of what only a phone had pictured (issue 73, agent 73bc): the sheets and
+		// pickers of Transactions, Review and Household settings, the signed-out pages and the toasts.
+		// Each is what's in the window. The toasts come last: each deletes a row of last month.
+		...(
+			[
+				{
+					name: "d10r-transactions-file-in",
+					path: `/transactions/${month}`,
+					ready: async (page) => {
+						const bar = await selectThree(page);
+						await bar.getByRole("button", { name: "File in…" }).click({ timeout: 15_000 });
+						await expect(page.getByPlaceholder(/^(Search or create|Find a Bucket)$/)).toBeVisible({
+							timeout: 15_000,
+						});
+					},
+				},
+				{
+					name: "d11c-transaction-split",
+					path: `/transactions/${month}/${ids.openTransaction}`,
+					ready: async (page) => {
+						await page
+							.getByRole("button", { name: "Split", exact: true })
+							.first()
+							.click({ timeout: 15_000 });
+						await page.waitForTimeout(400);
+					},
+				},
+				{
+					name: "d12q-review-picker",
+					path: "/review",
+					ready: async (page) => {
+						const card = await reviewCardOnTop(page, ":has([role=combobox])");
+						await card.getByRole("combobox").first().click({ timeout: 15_000 });
+						await expect(page.getByPlaceholder("Find a Bucket")).toBeVisible({ timeout: 15_000 });
+					},
+				},
+				{
+					name: "d12j-review-split",
+					path: "/review",
+					ready: async (page) => {
+						const card = await reviewCardOnTop(page, ":has(button:text-is('Split'))");
+						await pressFor(card.getByRole("button", { name: "Split" }), page.getByRole("dialog"));
+					},
+				},
+				{
+					name: "d12k-review-make-a-rule",
+					path: "/review",
+					ready: async (page) => {
+						const card = await reviewCardOnTop(page, ":has(button:text-is('Split'))");
+						await pressFor(
+							card.getByRole("button", { name: "Make a Rule" }),
+							page.getByRole("dialog", { name: "Make a Rule" }),
+						);
+					},
+				},
+				{
+					name: "d14b-rule-add",
+					path: "/review/rules",
+					ready: async (page) => {
+						await pressFor(
+							page.getByRole("button", { name: "Add Rule" }).first(),
+							page.getByRole("dialog"),
+						);
+					},
+				},
+				{
+					// Layout only: what the second step does is issue 118.
+					name: "d27d-delete-household-step-2",
+					path: "/household",
+					ready: async (page) => {
+						await openDangerSheet(page, "Delete Household");
+						const sheet = page.getByRole("dialog", { name: "Delete Household?" });
+						await sheet.getByRole("button", { name: "Continue" }).click();
+						await sheet.getByRole("textbox").focus();
+					},
+				},
+				{
+					name: "d27e-start-fresh-step-2",
+					path: "/household",
+					ready: async (page) => {
+						await openDangerSheet(page, "Start fresh");
+						const sheet = page.getByRole("dialog", { name: "Start fresh?" });
+						const on = sheet.getByRole("button", { name: "Continue" });
+						if (await on.isVisible()) await on.click();
+						await page.waitForTimeout(400);
+					},
+				},
+				{
+					// A snapshot taken, so Snapshots has its history: one more row at each width.
+					name: "d27f-snapshots-history",
+					path: "/household",
+					ready: async (page) => {
+						const history = page.getByRole("list", { name: "Snapshot history" });
+						await pressFor(page.getByRole("button", { name: "Take a snapshot" }), history);
+						await history.evaluate((node) => node.scrollIntoView({ block: "center" }));
+					},
+				},
+				{
+					name: "d27g-child-sheet",
+					path: "/household",
+					ready: async (page) => {
+						await pressFor(
+							page.getByRole("button", { name: /^(Edit|Rename) Maya/ }).first(),
+							page.getByRole("dialog"),
+						);
+					},
+				},
+				...(["sign-in", "sign-up"] as const).map(
+					(name, index): Shot => ({
+						name: `d6${index}-${name}`,
+						path: `/${name}`,
+						signedOut: true,
+						ready: async (page) => {
+							await expect(page.locator(".cl-formButtonPrimary")).toBeVisible({ timeout: 30_000 });
+							await page.evaluate(() => document.fonts.ready);
+							await page.waitForTimeout(600);
+						},
+					}),
+				),
+				...([1, 2] as const).map(
+					(toasts): Shot => ({
+						// One toast with Undo, then two stacked: a row of last month deleted for each.
+						name: toasts === 1 ? "d62-toast-undo" : "d63-toasts-two",
+						path: `/transactions/${monthBefore}`,
+						ready: async (page) => {
+							const boxes = page
+								.getByRole("grid", { name: /^Transactions in / })
+								.locator("[data-slot=data-table-body]")
+								.getByRole("checkbox");
+							for (let made = 0; made < toasts; made++) {
+								await boxes.first().click({ timeout: 15_000 });
+								await page
+									.getByRole("region", { name: "Selecting Transactions" })
+									.getByRole("button", { name: "Delete" })
+									.click({ timeout: 15_000 });
+								const sheet = page.getByRole("dialog", { name: /^Delete \d+ Transactions?\?$/ });
+								await sheet.getByRole("button", { name: /^Delete/ }).click({ timeout: 15_000 });
+								await expect(page.locator("[data-sonner-toast]")).toHaveCount(made + 1, {
+									timeout: 15_000,
+								});
+							}
+						},
+					}),
+				),
+			] satisfies Shot[]
+		).map((shot): Shot => ({ ...shot, desktop: true, window: true })),
 		{ name: "50-bank-return", path: "/bank/return", window: true },
 		{ name: "52-joined", path: "/joined", window: true },
 		{
@@ -2239,9 +2394,20 @@ for (const viewport of viewports) {
 		const failures: string[] = [];
 		for (const shot of shots) {
 			if ((shot.phoneSheet || shot.phone) && !phone && !shot.desk) continue;
+			if (shot.desktop && phone) continue;
 			if (only.length > 0 && !only.some((name) => shot.name.startsWith(name))) continue;
 			let page = main;
 			try {
+				if (shot.signedOut) {
+					const context = await browser.newContext({ ...device, isMobile: false, hasTouch: false });
+					const out = await context.newPage();
+					await setupClerkTestingToken({ page: out });
+					await out.goto(shot.path);
+					await shot.ready?.(out);
+					await out.screenshot({ path: join(dir, `${shot.name}.png`), animations: "disabled" });
+					await context.close();
+					continue;
+				}
 				if (shot.fresh) {
 					if (!freshParent) throw new Error("No second Household");
 					freshPage ??= await signedInPage(browser, freshParent.email, device);

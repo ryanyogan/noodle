@@ -73,7 +73,9 @@ function InsightsPage() {
 		</Button>
 	);
 	return (
-		<SplitLayout>
+		// Under 1280 the page is one column: beside the Sidebar a rail left each Insight a phone's
+		// width (340px at 1024), its yearly figure and its actions wrapped (issue 73).
+		<SplitLayout className="lg:max-xl:grid-cols-[minmax(0,1fr)]">
 			<SplitMain>
 				{/* Insights two across once their column is wide enough (1920 px windows), so it is used (#73). */}
 				<div className="@container min-w-0">
@@ -119,7 +121,7 @@ function InsightsPage() {
 					</div>
 				</div>
 			</SplitMain>
-			<SplitRail className="max-lg:hidden">
+			<SplitRail className="max-xl:hidden">
 				<InsightsSide insights={insights} />
 			</SplitRail>
 		</SplitLayout>
