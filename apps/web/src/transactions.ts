@@ -593,6 +593,8 @@ export function useTransactionChange() {
 	const change = useMutation({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,
+		// Written down until answered, and sent again if the page goes first (ADR-0056).
+		meta: { outbox: "change" },
 		mutationFn: saveTransactionChange,
 		onMutate: async (variables) => ({
 			rollback: await applyTransactionChange(queryClient, variables),
