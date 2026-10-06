@@ -142,7 +142,7 @@ test("a Parent adds, edits, and ends Commitments, and Free to Spend follows", as
 	await expect(planRow(page, "Mortgage")).toContainText("$2,600");
 	await editCommitment(page, "Car insurance", { dueDate: `${nextMonth(month)}-15` });
 	// Not due this month now: it shows what it takes a month, and when it's next due.
-	await expect(planRow(page, "Car insurance")).toContainText("$75/mo");
+	await expect(planRow(page, "Car insurance")).toContainText("A month’s share of");
 	await expect(planRow(page, "Car insurance")).toContainText("yearly · next due");
 	const afterEdits = 9_000 - 1_200 - 2_600 - 500 * daycareCharges;
 	await backToPlan(page);

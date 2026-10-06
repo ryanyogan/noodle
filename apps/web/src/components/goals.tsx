@@ -124,6 +124,7 @@ export function LinkRow({
 	below,
 	trailingOnTitle,
 	trailingClassName,
+	className,
 }: {
 	link: (props: { className: string; children: ReactNode; "aria-label": string }) => ReactNode;
 	label: string;
@@ -136,6 +137,8 @@ export function LinkRow({
 	trailingOnTitle?: boolean;
 	/** Where the trailing amount goes from a width up, e.g. on its own line on a card. */
 	trailingClassName?: string;
+	/** For the link, which is the row's grid: e.g. how its parts sit when the row is a card. */
+	className?: string;
 }) {
 	// On a phone the text's parts become cells of the row's grid: title and trailing share the
 	// first line, the meta spans the line under them.
@@ -150,6 +153,7 @@ export function LinkRow({
 					"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
 					"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
 					phone && "max-sm:gap-y-0.5",
+					className,
 				),
 				children: (
 					<>

@@ -193,6 +193,39 @@ export function formatCell(
 	return value.toLocaleString("en-US");
 }
 
+/**
+ * How column `i` of a table writes its cells: one format down the whole column (issue 73). If any
+ * amount in it has cents, every amount shows them ("$5,971.00" over "$6,341.56"), and if any share
+ * is under 10%, every share has one decimal ("38.0%" over "4.5%"), so the figures line up on
+ * their decimal point. A day key is written as a date.
+ */
+export function columnFormatter(table: ReportTable, i: number) {
+	const kind = table.columns[i]?.kind ?? "text";
+	const numbers = table.rows.map((row) => row[i]).filter((v) => typeof v === "number");
+	const cents = kind === "money" && numbers.some((v) => v % 100 !== 0);
+	// A share of nothing is "0%" either way: it doesn't ask for the decimal on its own.
+	const tenths = numbers.some((v) => v !== 0 && Math.abs(v) < 0.1);
+	return (value: string | number | null) => {
+		if (value === null) return "—";
+		if (typeof value === "string") {
+			// A day reads as on the rest of the page ("Oct 5, 2026"); the CSV keeps the day key.
+			return /^\d{4}-\d{2}-\d{2}$/.test(value)
+				? new Date(`${value}T00:00:00Z`).toLocaleDateString("en-US", {
+						month: "short",
+						day: "numeric",
+						year: "numeric",
+						timeZone: "UTC",
+					})
+				: value;
+		}
+		if (kind === "money")
+			return cents && value % 100 === 0 ? `${formatMoney(value)}.00` : formatMoney(value);
+		if (kind === "percent")
+			return `${tenths ? (value * 100).toFixed(1) : Math.round(value * 100)}%`;
+		return formatCell(kind, value);
+	};
+}
+
 /** Every table of a view as one CSV: each under its title, a blank line between. */
 export function tablesCsv(tables: readonly ReportTable[]): string {
 	const rows = tables.flatMap((table, i) => [

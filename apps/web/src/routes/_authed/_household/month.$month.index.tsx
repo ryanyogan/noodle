@@ -483,7 +483,8 @@ function Chips({ month, counts }: { month: MonthKey; counts: ChipCounts }) {
 	const { waiting, changes, insights, health } = counts;
 	if (!chipsShow(counts)) return null;
 	return (
-		<div className="flex flex-wrap gap-2">
+		// From lg the chips start on the To do card's 20px edge, under "To look at" (issue 73).
+		<div className="flex flex-wrap gap-2 lg:px-1">
 			{waiting > 0 ? (
 				<Chip to="/review" icon={ListChecks}>
 					{waiting} to review
@@ -701,9 +702,12 @@ function FreeToSpend({
 							</>
 						) : ended && carry.handedOn !== null ? (
 							<span data-slot="free-handed-on">
-								{carry.handedOn < 0
-									? `Ended ${formatMoney(-carry.handedOn)} short, carried over into `
-									: `Ended with ${formatMoney(carry.handedOn)}, carried over into `}
+								{carry.handedOn === 0
+									? // Nothing to carry: "Ended with $0, carried over into October" read as a mistake (issue 73).
+										`Ended with nothing left, so nothing was carried over into `
+									: carry.handedOn < 0
+										? `Ended ${formatMoney(-carry.handedOn)} short, carried over into `
+										: `Ended with ${formatMoney(carry.handedOn)}, carried over into `}
 								{monthName(addMonths(state.month, 1))}
 							</span>
 						) : ended ? (
@@ -1073,7 +1077,10 @@ function useGetStartedSteps(state: MonthState) {
 			),
 			link: (
 				<Link to="/accounts">
-					Add<span className="max-[359px]:sr-only"> an Account</span>
+					{/* One piece of text: as two, the button's gap opened a hole after "Add" (issue 73). */}
+					<span>
+						Add<span className="max-[359px]:sr-only"> an Account</span>
+					</span>
 				</Link>
 			),
 		},

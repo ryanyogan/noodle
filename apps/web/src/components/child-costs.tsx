@@ -16,7 +16,7 @@ import {
 import { Tile } from "@noodle/ui/components/tile";
 import { getRouteApi } from "@tanstack/react-router";
 import { asBucketColor, monogram } from "../buckets";
-import { formatMoney, monthName } from "../format";
+import { formatMoney, formatWholeMoney, monthName } from "../format";
 import { useForTotals } from "../members";
 
 // What each Child cost this month and the year so far, by Bucket: Reports › People shows it under
@@ -56,8 +56,8 @@ export function ChildCosts({ of: children }: { of: CostChild[] }) {
 			))}
 			<p className="text-[13px] text-muted-foreground">
 				Spending For Everyone counts once, for the whole Household:{" "}
-				{formatMoney(totals.month.household.total)} this month,{" "}
-				{formatMoney(totals.yearToDate.household.total)} this year.
+				{formatWholeMoney(totals.month.household.total)} this month,{" "}
+				{formatWholeMoney(totals.yearToDate.household.total)} this year.
 			</p>
 		</Section>
 	);
@@ -133,20 +133,20 @@ function ChildCost({
 				<Table className="border-t text-sm max-sm:hidden sm:table-fixed">
 					<TableCaption className="sr-only">What {child.name} cost, by Bucket</TableCaption>
 					<TableHeader>
-						<TableRow className="border-0">
+						<TableRow>
 							<TableHead
 								scope="col"
-								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-2.5 pb-1.5"
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad)"
 							>
 								Bucket
 							</TableHead>
-							<TableHead scope="col" numeric className="h-auto px-2 pt-2.5 pb-1.5 sm:w-28">
+							<TableHead scope="col" numeric className="sm:w-28">
 								This month
 							</TableHead>
 							<TableHead
 								scope="col"
 								numeric
-								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-2.5 pb-1.5 sm:w-28"
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) sm:w-28"
 							>
 								This year
 							</TableHead>
@@ -155,7 +155,7 @@ function ChildCost({
 					<TableBody>
 						{rows.map((bucket) => (
 							<TableRow key={bucket.id} className="border-0">
-								<th scope="row" className="px-(--card-pad) py-1.5 text-start font-normal">
+								<th scope="row" className="px-(--card-pad) py-2 text-start font-normal">
 									<span className="flex items-center gap-2">
 										<span
 											aria-hidden="true"
@@ -165,12 +165,10 @@ function ChildCost({
 										<span className="min-w-0 break-words">{bucket.name}</span>
 									</span>
 								</th>
-								<TableCell numeric className="px-2 py-1.5">
-									{formatMoney(month.buckets[bucket.id] ?? 0)}
-								</TableCell>
+								<TableCell numeric>{formatMoney(month.buckets[bucket.id] ?? 0)}</TableCell>
 								<TableCell
 									numeric
-									className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-1.5"
+									className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad)"
 								>
 									{formatMoney(year.buckets[bucket.id] ?? 0)}
 								</TableCell>
@@ -182,7 +180,7 @@ function ChildCost({
 							<th scope="row" className="px-(--card-pad) py-2.5 text-start">
 								Total
 							</th>
-							<TableCell numeric className="px-2 py-2.5">
+							<TableCell numeric className="py-2.5">
 								{formatMoney(month.total)}
 							</TableCell>
 							<TableCell
