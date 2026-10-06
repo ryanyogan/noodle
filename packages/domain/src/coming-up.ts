@@ -21,6 +21,8 @@ export type Due = {
 	amount: Cents;
 	paid: Cents;
 	status: DueStatus;
+	/** Its amount is "about": the bill varies, so `amount` is what the Plan sets aside (issue 135). */
+	about?: true;
 };
 
 const months = (from: DayKey, to: DayKey): MonthKey[] => {
@@ -60,6 +62,7 @@ export function duesBetween(
 					amount: commitment.amount,
 					paid,
 					status: paid >= commitment.amount ? "paid" : paid > 0 ? "partly-paid" : "due",
+					...(commitment.about ? { about: true as const } : {}),
 				});
 			});
 		}

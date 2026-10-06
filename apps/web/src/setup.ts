@@ -46,6 +46,8 @@ export const setupBillSchema = z.object({
 	/** A detected Commitment's own date, which sets a biweekly or yearly schedule. */
 	dueDate: z.string().max(10).optional(),
 	ticked: z.boolean(),
+	/** Its amount is "about": the bill varies (issue 135). Unset is the same each time. */
+	about: z.boolean().optional(),
 	/** The Parent typed in this row; unset in older saves, which count as typed. */
 	touched: z.boolean().optional(),
 	/** Which plan-draft suggestion it came from, so adding it takes the suggestion away. */

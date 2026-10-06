@@ -1,4 +1,5 @@
 import {
+	type AboutAmount,
 	addDays,
 	comingUp,
 	type DayKey,
@@ -16,7 +17,8 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Info } from "lucide-react";
 import { useState } from "react";
-import { dayName, formatMoney, monthName, shortDay } from "../format";
+import { useAboutAmount } from "../commitments";
+import { dayName, formatMoney, formatWholeMoney, monthName, shortDay } from "../format";
 import { commitmentsQuery } from "../queries";
 
 /** How far ahead Coming up looks, today included. */
@@ -34,6 +36,13 @@ export function dueStatus(due: Pick<Due, "status" | "paid" | "amount">) {
 		return `${formatMoney(due.paid)} of ${formatMoney(due.amount)} paid`;
 	return null;
 }
+
+/**
+ * What a due date shows as its amount: "$2,300.00", or "About $160" for a bill that varies (the
+ * average of its charges, else what the Plan sets aside before its first).
+ */
+export const dueAmount = (due: Pick<Due, "amount" | "about">, about: AboutAmount | null) =>
+	due.about ? `About ${formatWholeMoney(about?.average ?? due.amount)}` : formatMoney(due.amount);
 
 /** What the Commitments are due from today through the next 30 days, by date. */
 export function useComingUp() {
@@ -89,9 +98,10 @@ export function ComingUpList() {
 function DueRow({ due, today }: { due: Due; today: DayKey }) {
 	const status = dueStatus(due);
 	const day = dueDay(due.date, today);
+	const amount = dueAmount(due, useAboutAmount({ id: due.commitmentId, about: due.about }));
 	return (
 		<ListRow
-			aria-label={`${due.name}, due ${day}, ${formatMoney(due.amount)}${status ? `, ${status}` : ""}`}
+			aria-label={`${due.name}, due ${day}, ${amount}${status ? `, ${status}` : ""}`}
 			leading={<DateTile date={due.date} />}
 			title={
 				<Link
@@ -112,7 +122,7 @@ function DueRow({ due, today }: { due: Due; today: DayKey }) {
 					) : null}
 				</>
 			}
-			trailing={<span className="text-sm font-medium tabular-nums">{formatMoney(due.amount)}</span>}
+			trailing={<span className="text-sm font-medium tabular-nums">{amount}</span>}
 		/>
 	);
 }

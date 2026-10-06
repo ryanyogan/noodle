@@ -41,6 +41,7 @@ export const acceptDraft = createServerFn({ method: "POST" })
 						amountCents: centsSchema,
 						cadence: z.enum(CADENCES),
 						dueDate: dayKeySchema,
+						about: z.boolean().optional(),
 					}),
 				)
 				.max(100)

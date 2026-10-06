@@ -813,6 +813,7 @@ function BillsStep({
 				amountCents: bill.amountCents,
 				cadence: bill.cadence,
 				dueDate: dueDateFor(bill, month),
+				about: bill.about === true,
 			});
 			await Promise.all([
 				...writes.add.map((bill) => addCommitment({ data: terms(bill) })),

@@ -57,6 +57,10 @@ export function describeValues(before: PlanChangeValue | null, after: PlanChange
 			parts.push(from ? `No longer pays down ${from}` : "Pays down nothing");
 		else parts.push(from ? `Pays down ${from} → ${after.paysDown}` : `Pays down ${after.paysDown}`);
 	}
+	if (after.about !== undefined) {
+		// A bill that varies (issue 135).
+		parts.push(after.about ? "Now about: it varies" : "Now the same each time");
+	}
 	if (after.target !== undefined) {
 		parts.push(`Target ${fromTo(was.target, after.target, formatMoney)}`);
 	}

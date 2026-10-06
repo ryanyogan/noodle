@@ -95,6 +95,18 @@ export function SetupBills({
 												onChange={(dueDay) => edit(row.key, { dueDay })}
 											/>
 										</label>
+										<label
+											htmlFor={`${rowId}-about`}
+											className="flex min-h-9 items-center gap-2 text-[13px] text-muted-foreground"
+										>
+											<Checkbox
+												id={`${rowId}-about`}
+												checked={row.about === true}
+												aria-label={`${label} varies`}
+												onCheckedChange={(checked) => edit(row.key, { about: checked === true })}
+											/>
+											It varies: plan for about this much
+										</label>
 									</div>
 								) : null}
 							</Card>

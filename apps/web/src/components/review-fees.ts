@@ -28,11 +28,12 @@ const whys = new Set(Object.values(WHY).flatMap((why) => [why, why + ADDS]));
 
 /**
  * The card's suggestion when it reads as a fee or interest: the Plan's "Fees and interest" Bucket,
- * or one to add (`canAdd`: not for a month that is over, whose Plan is closed). Null otherwise.
+ * or one to add (`canAdd`: not for a month that is over, whose Plan is closed). Null otherwise,
+ * and when a Commitment already has that name.
  */
 export function feesGuess(
 	item: Pick<ReviewItem, "note" | "merchant" | "merchantName" | "amountCents">,
-	plan: Pick<Plan, "buckets"> | undefined,
+	plan: (Pick<Plan, "buckets"> & { commitments?: readonly { name: string }[] }) | undefined,
 	canAdd: boolean,
 ): Guess | null {
 	const offer = feesOffer({
@@ -40,6 +41,9 @@ export function feesGuess(
 		amountCents: item.amountCents,
 	});
 	if (!offer || !plan) return null;
+	// A Commitment already called that is the Household's own place for these: no Bucket of the same
+	// name is put beside it, and the card is filed by hand (or by their Rule) as before.
+	if (feesBucketIn(plan.commitments ?? [])) return null;
 	const there = feesBucketIn(plan.buckets);
 	if (!there && !canAdd) return null;
 	return {

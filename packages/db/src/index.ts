@@ -551,6 +551,7 @@ export {
 	removeIncome,
 	undoExtraIncome,
 } from "./extra-income";
+export { addFeesBucket, type FeesBucketAdded } from "./fees-bucket";
 export {
 	loadFreeCarriedIn,
 	loadFreeCarriedInto,
