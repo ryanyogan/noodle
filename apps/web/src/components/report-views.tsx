@@ -1759,7 +1759,8 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 									)}
 									{/* As tall as a badge with or without one, so the status lines of a row of cards sit on one line. */}
 									<span className="flex min-h-5.5 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-										{status}
+										{/* A badge's height on its own too: where the badge goes under it (1024), the line stays level with its neighbours' (issue 73). */}
+										<span className="flex min-h-5.5 items-center">{status}</span>
 										{pastDue ? (
 											<Badge variant="over" dot>
 												Past its target date

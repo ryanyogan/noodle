@@ -190,6 +190,25 @@ export function ChartCard({
 
 const isDayKey = (value: unknown) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
+const longMonth =
+	/^(January|February|March|April|May|June|July|August|September|October|November|December) (\d{4})$/;
+
+/**
+ * A month in a table cell: "September 2026", or "Sep 2026" on one line where the table is under
+ * 320px wide (a two-fifths card at 1024), so every row keeps one height (issue 73). One text node
+ * run, no hidden twin: the rest of the name is what goes. The CSV keeps the whole name.
+ */
+function cellText(text: string): ReactNode {
+	const month = longMonth.exec(text);
+	if (!month?.[1]) return text;
+	return (
+		<span className="@max-xs:whitespace-nowrap">
+			{month[1].slice(0, 3)}
+			<span className="@max-xs:hidden">{month[1].slice(3)}</span> {month[2]}
+		</span>
+	);
+}
+
 /** A ReportTable as an HTML table, money right-aligned in tabular figures. */
 export function DataTable({ table, className }: { table: ReportTable; className?: string }) {
 	// 24px between columns, the card's own padding at its two edges: four columns then fit a
@@ -197,7 +216,7 @@ export function DataTable({ table, className }: { table: ReportTable; className?
 	const pad = "px-3 first:ps-(--card-pad) last:pe-(--card-pad)";
 	const formats = table.columns.map((_, i) => columnFormatter(table, i));
 	return (
-		<div className={cn("-mx-(--card-pad)", className)}>
+		<div className={cn("@container -mx-(--card-pad)", className)}>
 			{/* From lg a name may take two lines before a column goes under the card's edge (issue 73). */}
 			<Table className="min-w-max lg:min-w-0">
 				<TableCaption className="sr-only">{table.title}</TableCaption>
@@ -227,7 +246,9 @@ export function DataTable({ table, className }: { table: ReportTable; className?
 										// A day stays on one line; a name is what wraps.
 										className={cn(pad, isDayKey(value) && "whitespace-nowrap")}
 									>
-										{(formats[i] ?? ((v) => formatCell(kind, v)))(value)}
+										{kind === "text" && typeof value === "string"
+											? cellText((formats[i] ?? ((v) => formatCell(kind, v)))(value))
+											: (formats[i] ?? ((v) => formatCell(kind, v)))(value)}
 									</TableCell>
 								);
 							})}
