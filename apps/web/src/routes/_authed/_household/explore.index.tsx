@@ -567,7 +567,7 @@ function ScenarioBar({
 						value={draft.name}
 						maxLength={40}
 						onChange={(event) => onDraft({ ...draft, name: event.currentTarget.value })}
-						className="-ms-2 min-w-48 flex-1 max-sm:basis-full border-transparent bg-transparent px-2 text-lg font-semibold md:text-lg shadow-none hover:border-input focus-visible:border-ring dark:bg-transparent"
+						className="-ms-2 min-w-48 flex-1 max-sm:basis-full border-transparent bg-transparent px-2 text-lg font-semibold md:text-lg shadow-none hover:border-field-border focus-visible:border-ring dark:bg-transparent"
 					/>
 					<Select
 						value={saved ? draft.id : "new"}
