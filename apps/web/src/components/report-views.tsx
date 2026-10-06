@@ -1441,15 +1441,23 @@ function MerchantList({
 function MerchantsView({ data, nav, tables }: ViewProps<"merchants">) {
 	if (data.byAmount.length === 0) return <NothingYet />;
 	return (
+		// From lg the two headings share one row, so the two cards start on one line even when one
+		// description takes a second line (at 1024 "By spending" started 19px lower): issue 73.
 		<div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
 			<ChartCard
+				className="lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
 				title="By spending"
 				description="Grouped by merchant, from each Transaction’s note"
 				table={tables.byAmount}
 			>
 				<MerchantList merchants={data.byAmount.slice(0, 15)} nav={nav} by="amount" />
 			</ChartCard>
-			<ChartCard title="By visits" description="The places you go most" table={tables.byCount}>
+			<ChartCard
+				className="lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
+				title="By visits"
+				description="The places you go most"
+				table={tables.byCount}
+			>
 				<MerchantList merchants={data.byCount.slice(0, 15)} nav={nav} by="count" />
 			</ChartCard>
 		</div>
@@ -1489,7 +1497,7 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 	return (
 		<div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
 			<ChartCard
-				className="lg:col-span-2"
+				className="lg:col-span-2 lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
 				title="Spending for each person"
 				description="Shared spending counts evenly for each"
 				table={tables.people}
@@ -1519,7 +1527,7 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 				/>
 			</ChartCard>
 			<ChartCard
-				className="lg:col-span-3"
+				className="lg:col-span-3 lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
 				title="What each Child costs"
 				description={`By ${report.grouping}`}
 			>
@@ -1751,7 +1759,8 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 									)}
 									{/* As tall as a badge with or without one, so the status lines of a row of cards sit on one line. */}
 									<span className="flex min-h-5.5 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-										{status}
+										{/* A badge's height on its own too: where the badge goes under it (1024), the line stays level with its neighbours' (issue 73). */}
+										<span className="flex min-h-5.5 items-center">{status}</span>
 										{pastDue ? (
 											<Badge variant="over" dot>
 												Past its target date
@@ -1807,7 +1816,7 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 				</StatGrid>
 			</Card>
 			<ChartCard
-				className="lg:col-span-3"
+				className="lg:col-span-3 lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
 				title="Income by month"
 				description="Your usual take-home pay at the bottom of each bar, with Extra income stacked on top"
 				table={tables.months}
@@ -1830,7 +1839,7 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 				/>
 			</ChartCard>
 			<ChartCard
-				className="lg:col-span-2"
+				className="lg:col-span-2 lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
 				title="By source"
 				description="Grouped by each entry's note"
 				table={tables.sources}

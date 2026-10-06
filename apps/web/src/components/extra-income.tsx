@@ -171,13 +171,17 @@ export function IncomeSection({
 							key={entry.id}
 							title={entry.note ?? "Income"}
 							meta={
-								onBetweenUs && looksPersonToPerson(entry.note, names)
-									? `${shortDay(entry.date)} · ${
-											parentNamedIn(entry.note, names)
-												? `From ${parentNamedIn(entry.note, names)}? It’s between us`
-												: "From the other Parent? It’s between us"
-										}`
-									: shortDay(entry.date)
+								onBetweenUs && looksPersonToPerson(entry.note, names) ? (
+									// The answer stays whole: on a narrow phone it goes to the next line
+									// together, never "us" alone (issue 74).
+									<>
+										{shortDay(entry.date)} · From{" "}
+										{parentNamedIn(entry.note, names) ?? "the other Parent"}?{" "}
+										<span className="whitespace-nowrap">It’s between us</span>
+									</>
+								) : (
+									shortDay(entry.date)
+								)
 							}
 							trailing={
 								<div className="flex items-center gap-1">
