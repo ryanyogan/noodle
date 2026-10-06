@@ -34,6 +34,8 @@ async function addIncome(page: Page, amount: string, note: string) {
 test("income beyond take-home pay is Extra income, sent to the emergency Goal", async ({
 	browser,
 }) => {
+	// An Account, a Goal, three entries of income and a reload: 58 s on a busy dev server.
+	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, {
 		baseline: "5,000",
