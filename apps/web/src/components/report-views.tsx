@@ -742,7 +742,7 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 				</div>
 			</Card>
 			<ChartCard
-				className={data.commitments.length ? "lg:col-span-3" : "lg:col-span-5"}
+				className={data.commitments.length ? "lg:col-span-5 xl:col-span-3" : "lg:col-span-5"}
 				title="Largest Transactions"
 				description={
 					shown.length
@@ -794,7 +794,8 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 			</ChartCard>
 			{data.commitments.length ? (
 				<ChartCard
-					className="lg:col-span-2 lg:self-start"
+					// Under the list from 1024 to 1279: a two-fifths card there is too narrow for its five-column table (issue 73).
+					className="lg:col-span-5 lg:self-start xl:col-span-2"
 					title="Commitments, by the year"
 					description="What each costs a year, from how often it's due"
 					table={tables.commitments}

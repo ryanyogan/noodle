@@ -445,6 +445,21 @@ test.beforeAll(async ({ browser }) => {
 					await choose(page, "Where the Extra income goes", "Leave it in the account");
 				},
 			},
+			{
+				// The menu of one Income line ("It's between us", "Remove"): what's in the window.
+				name: "01k-income-line-menu",
+				path: thisMonth,
+				small: true,
+				window: true,
+				ready: async (page) => {
+					const actions = page.locator('button[aria-label^="Actions for"]:visible').first();
+					await expect(async () => {
+						if ((await page.getByRole("menu").count()) === 0)
+							await actions.click({ timeout: 2000 });
+						await expect(page.getByRole("menu")).toBeVisible({ timeout: 2000 });
+					}).toPass({ timeout: 20_000 });
+				},
+			},
 			// A Bucket's page with a Cover into it, and the Bucket the money came from (#87).
 			{
 				name: "04b-bucket-covers",
@@ -940,6 +955,64 @@ test.beforeAll(async ({ browser }) => {
 				);
 			},
 		},
+		// The Compare with and Group by menus open, and a custom range with its From calendar.
+		...(
+			[
+				["23x-reports-compare-menu", "/reports", "Compare with"],
+				["23y-reports-group-menu", "/reports?view=trends", "Group by"],
+			] as const
+		).map(
+			([name, path, label]): Shot => ({
+				name,
+				path,
+				window: true,
+				ready: async (page) => {
+					const select = page.getByRole("combobox", { name: label });
+					await expect(async () => {
+						if ((await page.getByRole("listbox").count()) === 0)
+							await select.click({ timeout: 2000 });
+						await expect(page.getByRole("listbox")).toBeVisible({ timeout: 2000 });
+					}).toPass({ timeout: 20_000 });
+				},
+			}),
+		),
+		{
+			name: "23z-reports-custom-range",
+			path: "/reports?period=custom",
+			window: true,
+			ready: async (page) => {
+				await pressFor(page.getByRole("button", { name: "From" }), page.getByRole("dialog"));
+			},
+		},
+		// Keyboard focus on a select, a tab and a table toggle of Reports; the pointer over a row.
+		{
+			name: "23s-reports-focus-and-hover",
+			path: "/reports?view=buckets",
+			window: true,
+			ready: async (page) => {
+				await page.getByRole("combobox", { name: "Period" }).focus();
+				await page.keyboard.press("Tab");
+				await page.keyboard.press("Shift+Tab");
+				await page
+					.getByRole("button", { name: /^Groceries: \$/ })
+					.first()
+					.hover();
+			},
+		},
+		{
+			// "Cover" on an overspent Bucket's row: the sheet that asks where the money comes from.
+			name: "01l-cover-a-bucket-sheet",
+			path: `/month/${month}`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.locator("button:visible", { hasText: /^Cover/ }).first(),
+					page.getByRole("dialog"),
+				);
+			},
+		},
+		// A month's own Plan page.
+		{ name: "01j-month-plan", path: `/month/${month}/plan` },
 		{ name: "24-insights", path: "/insights" },
 		{ name: "25-credit-card-perks", path: "/insights/perks" },
 		{
@@ -984,6 +1057,28 @@ test.beforeAll(async ({ browser }) => {
 				await page.waitForTimeout(400);
 			},
 		},
+		// The Check-in's later steps (Insights, Sweeps, Extra income), each reached with "Skip for now".
+		...([1, 2, 3] as const).map(
+			(skips): Shot => ({
+				name: `26${"bcd"[skips - 1]}-check-in-step-${skips + 1}`,
+				path: "/check-in",
+				ready: async (page) => {
+					const main = page.getByRole("main");
+					for (let n = 1; n <= skips; n++) {
+						await expect(async () => {
+							if ((await main.getByText(`${n} of `, { exact: false }).count()) > 0)
+								await main
+									.getByRole("button", { name: "Skip for now" })
+									.first()
+									.click({ timeout: 2000 });
+							await expect(main.getByText(new RegExp(`^${n + 1} of \\d`))).toBeVisible({
+								timeout: 2000,
+							});
+						}).toPass({ timeout: 20_000 });
+					}
+				},
+			}),
+		),
 		{ name: "27-household-settings", path: "/household" },
 		{
 			// The Start fresh sheet, open and not confirmed: what it says about snapshots, files and

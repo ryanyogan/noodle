@@ -87,8 +87,14 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 										>
 											<span className="grid min-w-0 flex-1 gap-0.5">
 												<span className="truncate text-sm font-medium">{item.label}</span>
+												{/* Open, the status may take a second line: at 1024 it was cut beside the "?" (issue 73). */}
 												{item.status ? (
-													<span className="truncate text-[13px] text-muted-foreground">
+													<span
+														className={cn(
+															"text-[13px] text-muted-foreground",
+															!shown && "truncate",
+														)}
+													>
 														{item.status}
 													</span>
 												) : null}

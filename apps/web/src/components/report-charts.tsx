@@ -188,6 +188,8 @@ export function ChartCard({
 	);
 }
 
+const isDayKey = (value: unknown) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
 /** A ReportTable as an HTML table, money right-aligned in tabular figures. */
 export function DataTable({ table, className }: { table: ReportTable; className?: string }) {
 	// 24px between columns, the card's own padding at its two edges: four columns then fit a
@@ -222,7 +224,8 @@ export function DataTable({ table, className }: { table: ReportTable; className?
 									<TableCell
 										key={table.columns[i]?.label ?? i}
 										numeric={i > 0 && kind !== "text"}
-										className={pad}
+										// A day stays on one line; a name is what wraps.
+										className={cn(pad, isDayKey(value) && "whitespace-nowrap")}
 									>
 										{(formats[i] ?? ((v) => formatCell(kind, v)))(value)}
 									</TableCell>
