@@ -306,6 +306,11 @@ export type PaidBackOffered = PaidBackLine & {
 	open: OwedBackItem[];
 	/** For what of the line isn't matched yet: oldest first that fit (offerPaidBack). */
 	offer: PaidBackOffer;
+	/**
+	 * The items the line's matches are on, oldest first, settled in full or not: what a Parent
+	 * can take a match off.
+	 */
+	settles: OwedBackItem[];
 };
 
 /**
@@ -322,7 +327,10 @@ export async function offerPaidBackFor(
 	const open = await loadOwedBack(db, viewer, { open: true });
 	const who = owedBackPersonIn(paid.line.note, [...new Set(open.map((item) => item.who))]);
 	const theirs = who ? open.filter((item) => item.who.toLowerCase() === who.toLowerCase()) : open;
-	return { ...paid, who, open, offer: offerPaidBack(paid.unmatched, theirs) };
+	const on = new Set(paid.matches.map((match) => match.owedBackId));
+	const settles =
+		on.size > 0 ? (await loadOwedBack(db, viewer)).filter((item) => on.has(item.id)) : [];
+	return { ...paid, who, open, offer: offerPaidBack(paid.unmatched, theirs), settles };
 }
 
 export type PaidBackConfirmResult =

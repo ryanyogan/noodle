@@ -296,6 +296,42 @@ describe("$700 arrives in October", () => {
 		expect(await loadUnmatchedPaidBack(db, householdId)).toEqual([]);
 	});
 
+	it("lets a Parent take one match off: it is owed again and the money waits to be matched", async () => {
+		expect((await offerPaidBackFor(db, viewer, "zelle"))?.settles).toEqual([]);
+		await confirmOffer("zelle");
+		const settled = await offerPaidBackFor(db, viewer, "zelle");
+		// What the line settles is named, settled in full or not, so each can be taken off.
+		expect(settled?.settles.map((item) => [item.id, item.who, item.paid])).toEqual([
+			["ob-tuition", "Casey", 60_000],
+			["ob-skates", "Casey", 4_500],
+			["ob-dentist", "Casey", 5_500],
+		]);
+		const without = (settled?.matches ?? [])
+			.filter((match) => match.owedBackId !== "ob-skates")
+			.map((match, i) => ({
+				id: `again-${i}`,
+				owedBackId: match.owedBackId,
+				amount: match.amount,
+			}));
+		expect(
+			await confirmPaidBack(db, viewer, { incomeId: "zelle", matches: without, today }),
+		).toEqual({ ok: true, unmatched: 4_500, months: [october] });
+		const open = await loadOwedBack(db, viewer, { open: true });
+		expect(open.map((item) => [item.id, item.owed - item.paid])).toEqual([
+			["ob-skates", 4_500],
+			["ob-dentist", 2_500],
+		]);
+		expect(await bucketSpent(october)).toEqual([["health", -5_500, ["leo"]]]);
+		expect(await charged(october)).toEqual([["tuition", -60_000]]);
+		// And it is offered again, to match as before or somewhere else.
+		const again = await offerPaidBackFor(db, viewer, "zelle");
+		expect(again?.offer).toEqual({
+			matches: [{ owedBackId: "ob-skates", amount: 4_500 }],
+			unmatched: 0,
+		});
+		expect(again?.settles.map((item) => item.id)).toEqual(["ob-tuition", "ob-dentist"]);
+	});
+
 	it("gives a Bucket back what was Paid back, in what's left and in what carries over", async () => {
 		await setCarriesOver(db, {
 			householdId,

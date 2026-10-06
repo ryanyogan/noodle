@@ -182,6 +182,8 @@ export function useConfirmPaidBack() {
 		mutationFn: async (input: {
 			incomeId: string;
 			matches: { owedBackId: string; amount: Cents }[];
+			/** One match was taken off, nothing new matched: said so when it is kept. */
+			takenOff?: boolean;
 		}) => {
 			const result = await confirmPaidBackMatches({
 				data: {
@@ -205,11 +207,13 @@ export function useConfirmPaidBack() {
 				{ tone: "error" },
 			);
 		},
-		onSuccess: (result) =>
+		onSuccess: (result, input) =>
 			toast(
-				result.unmatched > 0
-					? `Matched. ${formatMoney(result.unmatched)} is Paid back, not matched yet`
-					: "Matched to what was Owed back",
+				input.takenOff
+					? `Taken off. ${formatMoney(result.unmatched)} is Paid back, not matched yet`
+					: result.unmatched > 0
+						? `Matched. ${formatMoney(result.unmatched)} is Paid back, not matched yet`
+						: "Matched to what was Owed back",
 				{ tone: "success" },
 			),
 		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),

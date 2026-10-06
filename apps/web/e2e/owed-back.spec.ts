@@ -173,6 +173,26 @@ test("$700 Paid back settles tuition and skates, leaves $25 of the dentist owed,
 	await expect(list.getByTestId("owed-back-item")).toContainText("$55 of $80 Paid back");
 	await shot(list, "list-after-1440");
 
+	// A Parent takes one match off: the skates are owed again and the $45 waits, offered as before.
+	const matched = matching.getByTestId("paid-back-match");
+	await expect(matched).toHaveCount(3);
+	await matched
+		.filter({ hasText: "Skates" })
+		.getByRole("button", { name: "Take $45 off Skates" })
+		.click();
+	await expect(toast(page, "Taken off. $45 is Paid back, not matched yet")).toBeVisible();
+	await expect(matched).toHaveCount(2);
+	await expect(list.getByTestId("owed-back-person")).toContainText("owes $70");
+	await expect(matching).toContainText("What is this $45 paying back from Casey?");
+	await expect(offered).toHaveCount(2);
+	await expect(offered.nth(0)).toContainText("Skates");
+	await expect(offered.nth(0).getByRole("textbox")).toHaveValue(/^45(\.00)?$/);
+	await shot(casey, "matching-taken-off-1440");
+	// And matches it again.
+	await matching.getByRole("button", { name: "Confirm" }).click();
+	await expect(matched).toHaveCount(3);
+	await expect(list.getByTestId("owed-back-person")).toContainText("owes $25");
+
 	// It is kept, and it counts this month, where each purchase was filed: the Buckets and the
 	// Commitment get the money back, and none of it is Income.
 	await page.goto(`/month/${now}`);
