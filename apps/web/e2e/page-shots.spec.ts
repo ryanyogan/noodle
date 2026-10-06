@@ -4,7 +4,14 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { choose, createHousehold, openMore, savedBy, signedInPage } from "./session";
+import {
+	choose,
+	createHousehold,
+	createPlannedHousehold,
+	openMore,
+	savedBy,
+	signedInPage,
+} from "./session";
 import { q, seedBetweenUs, seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
@@ -81,6 +88,8 @@ type Shot = {
 	window?: boolean;
 	/** Pictured as the third Parent, whose small Household is there for what Income brings up. */
 	small?: boolean;
+	/** Pictured as the fourth Parent, whose months ended with nothing left and then short. */
+	carry?: boolean;
 };
 
 let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
@@ -88,6 +97,8 @@ let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 let freshParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 /** The Parent of the small Household for the Income and Cover pictures (#86, #87). */
 let smallParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
+/** The Parent of the Household whose ended months carried nothing, then a shortfall (issue 73). */
+let carryParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 let shots: Shot[] = [];
 /** What the seeding couldn't do: written beside the pictures so a missing section is explained. */
 const seedNotes: string[] = [];
@@ -481,6 +492,49 @@ test.beforeAll(async ({ browser }) => {
 		];
 	});
 
+	// The fourth Household: two months back ended with nothing left, last month ended $230 short.
+	let carried: Shot[] = [];
+	await attempt("A Household whose months ended with nothing left and short", async () => {
+		carryParent = await createTestParent();
+		const carryPage = await signedInPage(browser, carryParent.email, {
+			viewport: { width: 1440, height: 900 },
+			colorScheme,
+		});
+		await createPlannedHousehold(carryPage, {
+			baseline: "5,000",
+			buckets: [
+				["Groceries", "1,200"],
+				["Fun", "300"],
+			],
+		});
+		const now = /\/month\/(\d{4}-\d{2})/.exec(carryPage.url())?.[1];
+		await carryPage.context().close();
+		if (!now) throw new Error("No month in the new Household's address");
+		const back = (count: number) => {
+			const [year = 0, m = 0] = now.split("-").map(Number);
+			return new Date(Date.UTC(year, m - 1 - count, 1)).toISOString().slice(0, 7);
+		};
+		const userId = q(carryParent.userId);
+		const h = `(select household_id from members where clerk_user_id = ${userId})`;
+		const m = `(select id from members where clerk_user_id = ${userId})`;
+		const ended = (month: string, income: number, spent: number) => [
+			`insert into income (id, household_id, date, amount_cents, note, created_by_member_id) values (${q(ulid())}, ${h}, ${q(`${month}-03`)}, ${income * 100}, 'Paycheck', ${m});`,
+			`insert into transactions (id, household_id, source, date, amount_cents, note, created_by_member_id) values (${q(ulid())}, ${h}, 'quick-add', ${q(`${month}-12`)}, ${spent * 100}, 'Everything that month', ${m});`,
+		];
+		await seedSql([
+			`insert into baselines (household_id, month, amount_cents) values (${h}, ${q(back(2))}, 500000);`,
+			...ended(back(2), 5000, 5000),
+			...ended(back(1), 3000, 3230),
+		]);
+		carried = [
+			// An ended month with $0 left: "Ended with nothing left, so nothing was carried over".
+			{ name: "01f-ended-month-nothing-left", path: `/month/${back(2)}`, carry: true },
+			// An ended month that ended short, and the month after it with the shortfall carried in.
+			{ name: "01g-ended-month-short", path: `/month/${back(1)}`, carry: true },
+			{ name: "01h-this-month-short-carried-over", path: `/month/${now}`, carry: true },
+		];
+	});
+
 	const fresh: Shot[] = freshParent
 		? [
 				// Nothing planned: the get-started list on its own, and the way back into the wizard.
@@ -513,6 +567,11 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "01-this-month", path: `/month/${month}` },
 		// Part-way down on a computer: where the round Ask Noodle button sits over the page.
 		{ name: "01e-this-month-scrolled", path: `/month/${month}`, scrolledTo: 500 },
+		// Last month on the full Household: "How <Month> ended" and what it carried over.
+		{
+			name: "01i-ended-month",
+			path: `/month/${new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)) - 2, 1)).toISOString().slice(0, 7)}`,
+		},
 		{
 			name: "02-this-month-to-do-open",
 			path: `/month/${month}`,
@@ -812,6 +871,75 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "23g-reports-people", path: "/reports?view=people" },
 		{ name: "23h-reports-goals", path: "/reports?view=goals" },
 		{ name: "23i-reports-income", path: "/reports?view=income" },
+		// Every chart of every view as its table (issue 73): the toggles beside the headings, pressed.
+		...(
+			[
+				["23", "/reports"],
+				["23a", "/reports?view=cash-flow"],
+				["23b", "/reports?view=big"],
+				["23c", "/reports?view=buckets"],
+				["23d", "/reports?view=plan"],
+				["23e", "/reports?view=trends"],
+				["23f", "/reports?view=merchants"],
+				["23g", "/reports?view=people"],
+				["23h", "/reports?view=goals"],
+				["23i", "/reports?view=income"],
+			] as const
+		).map(
+			([pic, path]): Shot => ({
+				name: `23t-reports-tables-${pic}`,
+				path,
+				ready: async (page) => {
+					const toggles = page.getByRole("button", { name: /^Show .* as a table$/ });
+					const count = await toggles.count();
+					for (let i = 0; i < count; i++) {
+						const toggle = toggles.nth(i);
+						await expect(async () => {
+							if ((await toggle.getAttribute("aria-pressed")) !== "true")
+								await toggle.click({ timeout: 2000 });
+							await expect(toggle).toHaveAttribute("aria-pressed", "true", { timeout: 2000 });
+						}).toPass({ timeout: 20_000 });
+					}
+				},
+			}),
+		),
+		// Drilled into one Bucket from Reports › Buckets: the breadcrumb and the area's own page.
+		{
+			name: "23u-reports-drilled-into-a-bucket",
+			path: "/reports?view=buckets",
+			ready: async (page) => {
+				const row = page.getByRole("button", { name: /^Groceries: \$/ }).first();
+				await expect(async () => {
+					await row.click({ timeout: 2000 });
+					await expect(page).toHaveURL(/area=/, { timeout: 2000 });
+				}).toPass({ timeout: 20_000 });
+			},
+		},
+		// The Period menu open, and the Filters sheet: only what's in the window.
+		{
+			name: "23v-reports-period-menu",
+			path: "/reports",
+			window: true,
+			ready: async (page) => {
+				const period = page.getByRole("combobox", { name: "Period" });
+				await expect(async () => {
+					if ((await page.getByRole("listbox").count()) === 0)
+						await period.click({ timeout: 2000 });
+					await expect(page.getByRole("listbox")).toBeVisible({ timeout: 2000 });
+				}).toPass({ timeout: 20_000 });
+			},
+		},
+		{
+			name: "23w-reports-filters-sheet",
+			path: "/reports",
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Filters/ }),
+					page.getByRole("dialog", { name: "Filters" }),
+				);
+			},
+		},
 		{ name: "24-insights", path: "/insights" },
 		{ name: "25-credit-card-perks", path: "/insights/perks" },
 		{
@@ -907,6 +1035,7 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		...small,
+		...carried,
 		...fresh,
 		// Money between the two Parents, last: marking it changes the month's Income for good.
 		{
@@ -946,6 +1075,7 @@ test.afterAll(async () => {
 	await parent?.remove();
 	await freshParent?.remove();
 	await smallParent?.remove();
+	await carryParent?.remove();
 });
 
 for (const viewport of viewports) {
@@ -968,6 +1098,7 @@ for (const viewport of viewports) {
 		// Signed in only when there is something to picture as the second Parent.
 		let freshPage: Page | undefined;
 		let smallPage: Page | undefined;
+		let carryPage: Page | undefined;
 		const dir = join(OUT, String(viewport.width));
 		mkdirSync(dir, { recursive: true });
 		const failures: string[] = [];
@@ -985,6 +1116,11 @@ for (const viewport of viewports) {
 					if (!smallParent) throw new Error("No small Household");
 					smallPage ??= await signedInPage(browser, smallParent.email, device);
 					page = smallPage;
+				}
+				if (shot.carry) {
+					if (!carryParent) throw new Error("No Household with ended months");
+					carryPage ??= await signedInPage(browser, carryParent.email, device);
+					page = carryPage;
 				}
 				await page.goto(shot.path);
 				await settled(page);
@@ -1027,6 +1163,7 @@ for (const viewport of viewports) {
 		await main.context().close();
 		await freshPage?.context().close();
 		await smallPage?.context().close();
+		await carryPage?.context().close();
 		if (failures.length > 0) writeFileSync(join(dir, "failures.txt"), `${failures.join("\n")}\n`);
 		expect(failures, "pages that couldn't be pictured").toEqual([]);
 		expect(seedNotes, "data that couldn't be seeded").toEqual([]);
