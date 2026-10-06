@@ -28,7 +28,13 @@ export default defineConfig({
 	// PORT lets several checkouts (git worktrees) run the app and its E2E side by side.
 	server: { port: Number(process.env.PORT ?? 5173), strictPort: true },
 	// `vite preview` serves the built Worker locally; CI's E2E runs against it (E2E_SERVER=build).
-	preview: { port: Number(process.env.PORT ?? 5173), strictPort: true },
+	// While a build renders the Docs it listens on 127.0.0.1, where the build then asks for them:
+	// "localhost" was IPv6 alone in CI's Playwright image, and the build's requests were refused.
+	preview: {
+		port: Number(process.env.PORT ?? 5173),
+		strictPort: true,
+		host: prerendering ? "127.0.0.1" : undefined,
+	},
 	define: { __AI_STUB__: JSON.stringify(aiStub) },
 	plugins: [
 		cloudflare({
