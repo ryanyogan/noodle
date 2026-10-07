@@ -688,6 +688,18 @@ export async function rememberAccountPair(
 		intoAccountId: line.accountId,
 		otherAccountId: other.id,
 	};
+	const keptTheOldWay = and(
+		eq(moneyInRules.householdId, householdId),
+		eq(moneyInRules.pattern, pattern),
+		eq(moneyInRules.intoAccountId, pair.intoAccountId),
+	);
+	// A pair for this wording and Account kept the old way (on the money-in Rule: a snapshot from
+	// before pairs were carried, restored, leaves one, issue 142) is this one now, so it keeps the
+	// day it was made and who made it. The Log reads both from the pair's row.
+	const [old] = await db
+		.select({ memberId: moneyInRules.createdByMemberId, at: moneyInRules.createdAt })
+		.from(moneyInRules)
+		.where(keptTheOldWay);
 	await db.batch([
 		db
 			.update(transfers)
@@ -708,23 +720,15 @@ export async function rememberAccountPair(
 				id: input.ruleId,
 				householdId,
 				pattern,
-				createdByMemberId: viewer.memberId,
+				createdByMemberId: old ? old.memberId : viewer.memberId,
+				...(old ? { createdAt: old.at } : {}),
 				...pair,
 			})
 			.onConflictDoUpdate({
 				target: [moneyInPairs.householdId, moneyInPairs.pattern, moneyInPairs.intoAccountId],
 				set: { otherAccountId: pair.otherAccountId },
 			}),
-		// A pair for this wording and Account kept the old way is this one now.
-		db
-			.delete(moneyInRules)
-			.where(
-				and(
-					eq(moneyInRules.householdId, householdId),
-					eq(moneyInRules.pattern, pattern),
-					eq(moneyInRules.intoAccountId, pair.intoAccountId),
-				),
-			),
+		db.delete(moneyInRules).where(keptTheOldWay),
 	]);
 	const after = await loadMoneyInLine(db, householdId, input.incomeId);
 	return after ? { ok: true, pattern, line: after } : { ok: false, reason: "refused" };
