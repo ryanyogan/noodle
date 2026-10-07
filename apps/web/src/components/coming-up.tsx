@@ -29,8 +29,12 @@ export function dueDay(date: DayKey, today: DayKey) {
 	return date === addDays(today, 1) ? "Tomorrow" : dayName(date, today);
 }
 
-/** "Paid", "$200 of $600 paid", or nothing while none of it is. */
-export function dueStatus(due: Pick<Due, "status" | "paid" | "amount">) {
+/**
+ * "Paid", "$200 of $600 paid", or nothing while none of it is. A bill that varies is paid by its
+ * charge whatever that came to, and says it beside its "About" amount: "Paid · $125.00".
+ */
+export function dueStatus(due: Pick<Due, "status" | "paid" | "amount" | "about">) {
+	if (due.about) return due.status === "due" ? null : `Paid · ${formatMoney(due.paid)}`;
 	if (due.status === "paid") return "Paid";
 	if (due.status === "partly-paid")
 		return `${formatMoney(due.paid)} of ${formatMoney(due.amount)} paid`;

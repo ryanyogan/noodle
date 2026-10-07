@@ -7,8 +7,9 @@ import { commitmentsIn, type Plan, type PlanRecords } from "./plan";
 type CommitmentRecords = Pick<PlanRecords, "commitments" | "commitmentTerms">;
 
 /**
- * `paid`: what's been charged in its month covers this due date.
- * `partly-paid`: some of it is covered.
+ * `paid`: what's been charged in its month covers this due date. A bill that varies ("about") is
+ * paid by its charge, whatever that came to.
+ * `partly-paid`: some of it is covered. Never a bill that varies.
  * `due`: none of it is, yet.
  */
 export type DueStatus = "paid" | "partly-paid" | "due";
@@ -19,6 +20,7 @@ export type Due = {
 	name: string;
 	date: DayKey;
 	amount: Cents;
+	/** What was charged towards it; for a bill that varies, what its charge came to (over or under). */
 	paid: Cents;
 	status: DueStatus;
 	/** Its amount is "about": the bill varies, so `amount` is what the Plan sets aside (issue 135). */
@@ -34,7 +36,8 @@ const months = (from: DayKey, to: DayKey): MonthKey[] => {
 /**
  * Every day from `from` to `to` (inclusive) a Commitment in the Plan is due, on the terms in force
  * in its month, by date. Charges pay a month's due dates in order, as This Month counts them: the
- * month's charges cover its first due date, then its second.
+ * month's charges cover its first due date, then its second. A bill that varies has no amount to
+ * cover: each of its charges pays one due date, in order, and the last due date takes the rest.
  */
 export function duesBetween(
 	records: CommitmentRecords,
@@ -44,24 +47,31 @@ export function duesBetween(
 ): Due[] {
 	const dues: Due[] = [];
 	for (const month of months(from, to)) {
-		const charged = new Map<string, Cents>();
 		// Money Paid back isn't a payment of a due date (ADR-0058).
-		for (const charge of paymentsOf(charges)) {
-			if (monthOfDay(charge.date) !== month) continue;
-			charged.set(charge.commitmentId, (charged.get(charge.commitmentId) ?? 0) + charge.amount);
-		}
+		const payments = paymentsOf(charges)
+			.filter((charge) => monthOfDay(charge.date) === month)
+			.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 		for (const commitment of commitmentsIn(records, month)) {
-			const total = charged.get(commitment.id) ?? 0;
-			dueDatesIn(commitment, month).forEach((date, i) => {
+			const own = payments.filter((charge) => charge.commitmentId === commitment.id);
+			const total = own.reduce((sum, charge) => sum + charge.amount, 0);
+			const dates = dueDatesIn(commitment, month);
+			dates.forEach((date, i) => {
 				if (date < from || date > to) return;
-				const paid = Math.min(commitment.amount, Math.max(0, total - commitment.amount * i));
+				const mine = i < dates.length - 1 ? own.slice(i, i + 1) : own.slice(i);
+				const paid = commitment.about
+					? Math.max(
+							0,
+							mine.reduce((sum, charge) => sum + charge.amount, 0),
+						)
+					: Math.min(commitment.amount, Math.max(0, total - commitment.amount * i));
+				const covered = commitment.about ? paid > 0 : paid >= commitment.amount;
 				dues.push({
 					commitmentId: commitment.id,
 					name: commitment.name,
 					date,
 					amount: commitment.amount,
-					paid,
-					status: paid >= commitment.amount ? "paid" : paid > 0 ? "partly-paid" : "due",
+					paid: paid as Cents,
+					status: covered ? "paid" : paid > 0 ? "partly-paid" : "due",
 					...(commitment.about ? { about: true as const } : {}),
 				});
 			});

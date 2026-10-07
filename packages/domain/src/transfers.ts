@@ -160,12 +160,22 @@ export function looksLikeCardPayment(text: string | null | undefined): boolean {
 // Transfer whether or not the paying Account's side is in Noodle; anything else stays money back.
 
 /** A payment, as a card's own statement words it. */
-const RECEIVED_PAYMENT_WORDS = /\b(e-?payments?|payments?|pymts?|pmts?|autopay|directpay)\b/i;
-/** What says the payment is the cardholder's: thanks, how it was made, or where it came from. */
-const RECEIVED_HOW =
-	/\bthank(s| you)?\b|\b(received|autopay|auto|automatic|online|mobile|internet|electronic|web|ach|e-?payments?|directpay|pymts?|full balance)\b|\bfrom (chk|checking|sav|savings|account|acct)\b/i;
-/** A line that is nothing but the word: "Payment", "Credit Card Payment". */
-const ONLY_PAYMENT = /^\W*(credit ca?rd )?payments?\W*$/i;
+const RECEIVED_PAYMENT_WORDS =
+	/^(e?payments?|pymts?|pmts?|epay|autopay|rautopay|autopmt|directpay)$/;
+/**
+ * Every other word a card's bank puts on the line for a payment to the card itself: thanks, how
+ * it was made, where it came from, which balance it paid. A word that isn't here (or a payment
+ * word, an issuer's name or a number) is somebody's name, and the line is that somebody's credit.
+ */
+const RECEIVED_OTHER_WORDS = new Set(
+	`thank thanks you received recd auto automatic online mobile internet electronic web ach phone
+	telephone branch banking bank bill pay service services serv srvc visa mastercard full minimum statement balance from chk checking
+	sav savings account acct ending in credit card crd cardmember deposit transfer authdate conf
+	confirmation ref jan feb mar apr may jun jul aug sep oct nov dec`.split(/\s+/),
+);
+/** The issuers' own names, which their payment lines carry ("CAPITAL ONE MOBILE PYMT"). */
+const RECEIVED_ISSUERS =
+	/\b(capital one|jpmorgan chase|chase|amex|american express|citi|citibank|citicards?|discover|bank of america|bk of amer(?:ica)?|bofa|ba|wells fargo|wf|us ?bank|u\.s\. bank|apple ?card|goldman sachs|barclays|barclaycard|synchrony|syncb)\b/gi;
 /** Apple Card's wording, which never says payment. */
 const TRANSFER_FROM_ACCOUNT =
 	/\b(internet|online) transfer from (account|acct|checking|chk|savings)\b/i;
@@ -175,13 +185,28 @@ const NOT_A_PAYMENT_RECEIVED =
 
 /**
  * Whether a line arriving on a card reads as the Household paying that card ("PAYMENT THANK YOU",
- * "ONLINE PAYMENT - THANK YOU", "Payment Received"). A refund, a statement credit, a reward or
- * cashback doesn't, and neither does a merchant whose name only has the word in it.
+ * "ONLINE PAYMENT - THANK YOU", "Payment Received", "CAPITAL ONE MOBILE PYMT"). A refund, a
+ * statement credit, a reward or cashback doesn't.
+ *
+ * Neither does a merchant giving money back in words that have a payment in them ("COMCAST CABLE
+ * PYMT", "NTTA ONLINE PAYMENT"): the line must say payment and hold nothing but the words a card's
+ * bank uses for one, its own name and numbers. A wrong yes would stop a credit from going back to
+ * its Bucket without anyone seeing, so anything else stays money back.
  */
 export function readsAsPaymentReceived(text: string | null | undefined): boolean {
 	if (!text || NOT_A_PAYMENT_RECEIVED.test(text)) return false;
-	if (TRANSFER_FROM_ACCOUNT.test(text) || ONLY_PAYMENT.test(text)) return true;
-	return RECEIVED_PAYMENT_WORDS.test(text) && RECEIVED_HOW.test(text);
+	if (TRANSFER_FROM_ACCOUNT.test(text)) return true;
+	const words =
+		text
+			.toLowerCase()
+			.replace(RECEIVED_ISSUERS, " ")
+			.replace(/\be-(?=pay)|\bauto-(?=pmt)/g, (joined) => joined.slice(0, -1))
+			.match(/[a-z0-9]+/g) ?? [];
+	const named = words.filter((word) => !/\d/.test(word) && !/^x+$/.test(word));
+	return (
+		named.some((word) => RECEIVED_PAYMENT_WORDS.test(word)) &&
+		named.every((word) => RECEIVED_PAYMENT_WORDS.test(word) || RECEIVED_OTHER_WORDS.has(word))
+	);
 }
 
 /**

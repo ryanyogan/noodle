@@ -275,4 +275,14 @@ describe("whose pay by Rule", () => {
 			whosePay: null,
 		});
 	});
+
+	it("interest worded person to person waits in Review like other money from a person", async () => {
+		await importInto("import-1", [
+			line("2026-09-30", 5000, "Zelle payment from MARIA LOPEZ loan interest"),
+		]);
+		expect(await byNote("Zelle payment from MARIA LOPEZ loan interest")).toMatchObject({
+			kind: "income",
+			needsReview: true,
+		});
+	});
 });

@@ -18,7 +18,12 @@ export type PayRange = {
 	usual: { low: Cents; high: Cents } | null;
 	/** The pay moves by more than a few dollars from month to month. */
 	varies: boolean;
-	/** The lowest of the three months, 0 when one of them had none: what can be counted on. */
+	/**
+	 * What can be counted on. A Parent's: the lowest of the three months that had pay, so one who
+	 * started a month or two ago counts for what they've been paid; 0 when the pay has stopped (none
+	 * last month and none yet this month). The Household's own: the lowest of the three, 0 unless
+	 * all three had some, since one line of its own is a one-off.
+	 */
 	countOn: Cents;
 };
 
@@ -56,15 +61,24 @@ export function payRanges(lines: readonly PayLine[], month: MonthKey): PayRange[
 				soFar: who.soFar as Cents,
 				usual,
 				varies: usual !== null && high - low > EXTRA_INCOME_FROM,
-				countOn: (low > 0 ? low : 0) as Cents,
+				countOn: countOn(whosePay, totals, who.soFar),
 			};
 		});
 }
 
+/** What `totals` (the full months, newest first) and the month so far let a Household count on. */
+function countOn(whosePay: string | null, totals: readonly number[], soFar: number): Cents {
+	const paid = totals.filter((total) => total > 0);
+	if (whosePay === null) return (paid.length === totals.length ? Math.min(...paid) : 0) as Cents;
+	const stopped = (totals[0] ?? 0) <= 0 && soFar <= 0;
+	return (stopped || paid.length === 0 ? 0 : Math.min(...paid)) as Cents;
+}
+
 /**
  * "Use $X as what you can count on": the low ends added up, offered as the Take-home pay when a
- * Parent's pay varies and that sum has moved more than a few dollars away from it. Still one
- * Household figure (ADR-0040); null when there is nothing to offer.
+ * Parent's pay varies and that sum has moved more than a few dollars away from it. Somebody who
+ * started or stopped is counted as `countOn` says, and is never the reason for the offer. Still
+ * one Household figure (ADR-0040); null when there is nothing to offer.
  */
 export function countOnOffer(input: {
 	baseline: Cents | null;

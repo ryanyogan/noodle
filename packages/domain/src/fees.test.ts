@@ -212,3 +212,105 @@ describe("feesRulePattern", () => {
 		expect(ruleFor(rules, merchantKey("BLUE BOTTLE COFFEE"))).toBeUndefined();
 	});
 });
+
+// Review of issue 137 (finding C4): the product's name isn't a reversal, a fee for paying late
+// isn't a payment, and a merchant's own fee isn't the bank's.
+describe("looksLikeFeeOrInterest, the bank's own against somebody else's", () => {
+	it.each([
+		"CREDIT CARD ANNUAL FEE",
+		"CREDIT LINE INTEREST",
+		"CAPITAL ONE LATE PAYMENT FEE",
+		"LATE FEE",
+		"PAST DUE FEE",
+		"CITI LATE PAYMENT FEE",
+		"DISCOVER LATE PAYMENT FEE",
+		"AMEX LATE PAYMENT FEE",
+		"CREDIT CARD LATE FEE",
+		"CREDIT CARD INTEREST CHARGE",
+		"LATE FEE FOR PAYMENT DUE 09/14",
+		"AMEX ANNUAL MEMBERSHIP FEE",
+		"CREDIT ONE BANK ANNUAL FEE",
+		"HOME EQUITY CREDIT LINE INTEREST CHARGE",
+		"PERSONAL CREDIT LINE FINANCE CHARGE",
+		"MONTHLY SERVICE CHARGE",
+		"MONTHLY MAINTENANCE CHARGE",
+		"CITY NATIONAL BANK MONTHLY SERVICE FEE",
+		"SERVICE FEE",
+		"ACCOUNT SERVICE FEE",
+		"OVERDRAFT CHARGE",
+		"EXTENDED OVERDRAFT FEE",
+		"NSF FEE",
+		"WIRE FEE - OUTGOING",
+		"INCOMING WIRE TRANSFER FEE",
+		"OUT-OF-NETWORK ATM FEE",
+		"ATM BALANCE INQUIRY FEE",
+		"MINIMUM INTEREST CHARGE",
+		"OVERLIMIT FEE",
+		"EXPEDITED PAYMENT FEE",
+		"LOW BALANCE FEE",
+		"CARD REPLACEMENT FEE",
+		"FOREIGN TRANSACTION FEE PARIS FR",
+		"CASHIERS CHECK FEE",
+	])("takes “%s” as a fee or interest", (text) => {
+		expect(looksLikeFeeOrInterest(text)).toBe(true);
+	});
+
+	it.each([
+		"CITY WATER SERVICE CHARGE",
+		"SCHOOL LUNCH LATE FEE",
+		"PLANET FITNESS ANNUAL FEE",
+		"LA FITNESS ANNUAL FEE",
+		"GOLDS GYM ENROLLMENT FEE",
+		"COSTCO ANNUAL MEMBERSHIP FEE",
+		"SAMS CLUB MEMBERSHIP FEE",
+		"COUNTRY CLUB DUES AND FEES",
+		"LOCAL 512 UNION DUES FEE",
+		"OAK HILLS HOA LATE FEE",
+		"TICKETMASTER SERVICE FEE",
+		"UBER EATS SERVICE FEE",
+		"STUBHUB SERVICE FEE",
+		"INSTACART DELIVERY FEE",
+		"COMCAST CABLE LATE FEE",
+		"CITY OF DALLAS WATER LATE CHARGE",
+		"ELECTRIC CO LATE PAYMENT CHARGE",
+		"PUBLIC LIBRARY LATE FEE",
+		"DAYCARE LATE PICKUP FEE",
+		"SUMMER CAMP REGISTRATION FEE",
+		"COUNTY CLERK RECORDING FEE",
+		"DMV RENEWAL FEE",
+		"STATE PARK ENTRANCE FEE",
+		"PARKING METER CONVENIENCE FEE",
+		"SPIRIT AIRLINES BAG FEE",
+		"UNIVERSITY LATE REGISTRATION FEE",
+		"YOUTH SOCCER LEAGUE FEE",
+		"STORAGE UNIT LATE FEE",
+		"APARTMENT RENT LATE FEE",
+		"VET EXAM FEE",
+		// Taken back: a reversal, not the product's name.
+		"FEE REFUND",
+		"FEE REVERSAL",
+		"FEE CREDIT",
+		"INTEREST CREDIT",
+		"LATE FEE CREDIT",
+		"ANNUAL FEE CREDIT",
+		"COURTESY CREDIT LATE FEE",
+		// Paying the card is still a payment.
+		"CAPITAL ONE ONLINE PYMT",
+		"CITI CARD ONLINE PAYMENT",
+	])("leaves “%s” alone", (text) => {
+		expect(looksLikeFeeOrInterest(text)).toBe(false);
+	});
+});
+
+describe("interest earned, worded person to person (finding C5)", () => {
+	it("isn't Income without asking", () => {
+		for (const text of [
+			"Zelle payment from MARIA LOPEZ loan interest",
+			"VENMO CASHOUT INTEREST",
+			"ONLINE TRANSFER FROM J SMITH INTEREST",
+		]) {
+			expect(interestEarned({ text, amountCents: -5000 as never }), text).toBeNull();
+		}
+		expect(interestEarned({ text: "INTEREST PAID", amountCents: -412 as never })).not.toBeNull();
+	});
+});
