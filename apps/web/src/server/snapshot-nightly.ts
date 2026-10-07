@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { runCardPaymentPasses } from "@noodle/db";
+import { runCardPaymentPasses, runMoneyInPairPasses } from "@noodle/db";
 import { ulid } from "ulid";
 import { getDb } from "./db";
 import { releaseAllHeldFiles } from "./file-holds";
@@ -30,6 +30,15 @@ export async function runNightlySnapshots(now: Date) {
 		if (paid.households > 0) console.log("Card-payment pass", JSON.stringify(paid));
 	} catch (error) {
 		console.error("Couldn’t run the card-payment pass", error);
+	}
+	// Once per Household, ever (issue 142): pairs of Accounts remembered before pairs had a table
+	// of their own are carried there as they were made, so the Log keeps their day. Only Rules
+	// move, and the nightly snapshot just taken holds them as they were.
+	try {
+		const carried = await runMoneyInPairPasses(deps.db, ulid);
+		if (carried.households > 0) console.log("Remembered-pair pass", JSON.stringify(carried));
+	} catch (error) {
+		console.error("Couldn’t run the remembered-pair pass", error);
 	}
 	// After pruning: statement and Receipt files a clear left for snapshots go once no kept
 	// snapshot needs them, and deleted Households' last snapshots (with the files left for them)

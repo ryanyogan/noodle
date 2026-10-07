@@ -694,6 +694,13 @@ export {
 	stateWhosePay,
 } from "./money-in";
 export {
+	householdsAwaitingMoneyInPairPass,
+	MONEY_IN_PAIR_PASS,
+	type MoneyInPairPassResult,
+	runMoneyInPairPass,
+	runMoneyInPairPasses,
+} from "./money-in-pair-pass";
+export {
 	householdsAwaitingMoneyInPass,
 	MONEY_IN_PASS,
 	type MoneyInPassResult,

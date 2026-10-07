@@ -1104,8 +1104,9 @@ export const moneyInRules = sqliteTable(
 // `into_account_id` came from `other_account_id` and is always a Transfer. One per Household,
 // wording and Account it arrives in, so the same wording into two Accounts keeps two pairs
 // ("money from Gusto into Chase" and "…into Ally"); `money_in_rules` holds one Rule a wording.
-// Pairs remembered before this table are still read from `money_in_rules` (its
-// `into_account_id` set) until a Parent states them again or removes them.
+// Pairs remembered before this table were kept on `money_in_rules` (its `into_account_id` set);
+// a one-time pass carries them here as they were made (money-in-pair-pass.ts, issue 142), and
+// one still there (a snapshot from before the pass, restored) is read from there.
 export const moneyInPairs = sqliteTable(
 	"money_in_pairs",
 	{
