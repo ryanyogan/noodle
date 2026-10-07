@@ -11,7 +11,7 @@ import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
-import { BANK_TOOK_BACK_WORD, bankTookBackText } from "../bank-took-back";
+import { BANK_TOOK_BACK_WORD } from "../bank-took-back";
 import { dayName, formatMoney } from "../format";
 import {
 	type MoneyInLine,
@@ -24,6 +24,7 @@ import {
 	useMoneyInKindChange,
 } from "../money-in";
 import { moneyInShown, type TransactionShow } from "../transaction-summary";
+import { BankTookBackNote } from "./bank-took-back-note";
 import { AccountPairOffer } from "./money-in-rules";
 import { PaidBackMatching } from "./owed-back";
 import { RefundLinking } from "./refund-link";
@@ -215,11 +216,7 @@ export function MoneyInSection({
 									{moneyInKindText(line)}
 								</Badge>
 								{line.bankTookBackOn ? (
-									<Badge
-										data-testid="bank-took-back"
-										className="h-4.5 px-1.5 text-[11px]"
-										title={bankTookBackText(line, today) ?? undefined}
-									>
+									<Badge data-testid="bank-took-back" className="h-4.5 px-1.5 text-[11px]">
 										{BANK_TOOK_BACK_WORD}
 									</Badge>
 								) : null}
@@ -243,11 +240,7 @@ export function MoneyInSection({
 						below={
 							open === line.id ? (
 								<div className="grid gap-4">
-									{line.bankTookBackOn ? (
-										<p className="text-sm text-muted-foreground" data-testid="bank-took-back-note">
-											{bankTookBackText(line, today)}
-										</p>
-									) : null}
+									<BankTookBackNote row={{ incomeId: line.id }} line={line} today={today} />
 									{/* Closed at once when nothing more is asked; else by the follow-up's "Done". */}
 									<MoneyInKindChoice line={line} onDone={() => setOpen(null)} />
 									<MoneyInFollowUpAsk line={line} today={today} onDone={() => setOpen(null)} />

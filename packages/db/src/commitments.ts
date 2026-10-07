@@ -132,14 +132,25 @@ export const commitmentAdd = (
 		/** Its amount is "about" (it varies); the same each time when left out. */
 		about?: boolean | undefined;
 	} & Terms,
-) =>
-	[
+	/** Given, it is added only while this holds: what else in the batch needs, so all land or none. */
+	onlyIf?: SQL,
+) => {
+	const row = {
+		id: input.commitmentId,
+		householdId: input.householdId,
+		name: input.name,
+		fromMonth: input.month,
+		endedFromMonth: input.endedFromMonth ?? null,
+		about: input.about ?? false,
+	};
+	return [
 		logChange(
 			db,
 			households,
 			and(
 				eq(households.id, input.householdId),
 				sql`not exists (select 1 from ${commitments} where ${commitments.id} = ${input.commitmentId})`,
+				onlyIf,
 			),
 			{
 				...input,
@@ -156,21 +167,33 @@ export const commitmentAdd = (
 				},
 			},
 		),
-		db
-			.insert(commitments)
-			.values({
-				id: input.commitmentId,
-				householdId: input.householdId,
-				name: input.name,
-				fromMonth: input.month,
-				endedFromMonth: input.endedFromMonth ?? null,
-				about: input.about ?? false,
-			})
-			.onConflictDoNothing({ target: commitments.id }),
+		onlyIf === undefined
+			? db.insert(commitments).values(row).onConflictDoNothing({ target: commitments.id })
+			: db
+					.insert(commitments)
+					.select(
+						db
+							.select({
+								// Selected in the table's column order: insert … select is positional.
+								id: sql<string>`${row.id}`.as("id"),
+								householdId: sql<string>`${row.householdId}`.as("household_id"),
+								name: sql<string>`${row.name}`.as("name"),
+								fromMonth: sql<string>`${row.fromMonth}`.as("from_month"),
+								endedFromMonth: sql<string | null>`${row.endedFromMonth}`.as("ended_from_month"),
+								createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+								accountId: sql<string | null>`null`.as("account_id"),
+								carriedBalance: sql<boolean>`0`.as("carried_balance"),
+								about: sql<boolean>`${row.about ? 1 : 0}`.as("about"),
+							})
+							.from(households)
+							.where(and(eq(households.id, input.householdId), onlyIf)),
+					)
+					.onConflictDoNothing({ target: commitments.id }),
 		termsFor(db, input).onConflictDoNothing({
 			target: [commitmentTerms.commitmentId, commitmentTerms.month],
 		}),
 	] as const;
+};
 
 /**
  * Renames a Commitment (in every month) and sets its terms from `month` onward, or for `scope`
@@ -421,6 +444,26 @@ export type CommitmentLinkResult =
 	| { ok: false; reason: "not-found" | "wrong-kind" | "archived" | "followed" };
 
 /**
+ * A Commitment may pay `accountId` down: it is the Household's credit card or loan and isn't
+ * archived, and, for a card Noodle follows, only with `carriedBalance`.
+ */
+export const mayPayDown = (input: {
+	householdId: string;
+	accountId: string;
+	carriedBalance: boolean;
+	today: DayKey;
+}) =>
+	sql`exists (select 1 from ${accounts} where ${and(
+		eq(accounts.id, input.accountId),
+		eq(accounts.householdId, input.householdId),
+		inArray(accounts.kind, ["credit-card", "loan"]),
+		isNull(accounts.archivedAt),
+		input.carriedBalance
+			? undefined
+			: sql`(${accounts.kind} = 'loan' or not ${followedSql(input.today)})`,
+	)})`;
+
+/**
  * linkCommitment as statements (its Plan change, then itself), for a batch with others. The
  * write lands only while the Account is the Household's credit card or loan and isn't archived,
  * and, for a card Noodle follows, only with `carriedBalance`: paying such a card is a Transfer,
@@ -442,15 +485,7 @@ export const commitmentLink = (db: Db, input: CommitmentLinkInput) => {
 			db.update(commitments).set({ accountId: null, carriedBalance: false }).where(own),
 		] as const;
 	}
-	const allowed = sql`exists (select 1 from ${accounts} where ${and(
-		eq(accounts.id, input.accountId),
-		eq(accounts.householdId, input.householdId),
-		inArray(accounts.kind, ["credit-card", "loan"]),
-		isNull(accounts.archivedAt),
-		input.carriedBalance
-			? undefined
-			: sql`(${accounts.kind} = 'loan' or not ${followedSql(input.today)})`,
-	)})`;
+	const allowed = mayPayDown({ ...input, accountId: input.accountId });
 	return [
 		logChange(
 			db,

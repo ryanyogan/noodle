@@ -1,5 +1,6 @@
 import {
 	CARD_PAYMENT_DAYS,
+	type Cents,
 	type DayKey,
 	daysBetween,
 	likelyCardPayment,
@@ -8,18 +9,20 @@ import {
 	readsAsPaymentReceived,
 	TRANSFER_WINDOW_DAYS,
 } from "@noodle/domain";
-import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import { commitmentAdd, commitmentLink, mayPayDown, ownCommitment } from "./commitments";
 import { purchaseMayMove } from "./ended-months";
 import type { Db } from "./index";
 import { cardPaymentForgottenEvents } from "./log-events";
 import { changeableBy, type Viewer, visibleTo } from "./privacy";
 import { returnToReview } from "./review";
-import { deleteRule, saveRule } from "./rules";
+import { deleteRule, ruleSaving, saveRule } from "./rules";
 import {
 	accounts,
 	cardPaymentRules,
 	categorizations,
+	commitments,
 	monthCloses,
 	ruleFor,
 	rules,
@@ -27,7 +30,12 @@ import {
 	transactions,
 	transfers,
 } from "./schema";
-import { type FiledBefore, fileTransactions, unfileTransactions } from "./transactions";
+import {
+	commitmentFiling,
+	type FiledBefore,
+	fileTransactions,
+	unfileTransactions,
+} from "./transactions";
 import {
 	commitmentPayments,
 	type MoneyResult,
@@ -778,6 +786,8 @@ export type CardPaymentFiling =
 			lineMonth: string;
 			/** The lines filed that waited in Review until then: Undo makes them wait there again. */
 			waited: CardPaymentWaited[];
+			/** The first month of the Commitment the answer made (`create`): Undo ends it from there. */
+			madeIn?: MonthKey;
 	  }
 	/**
 	 * "not-in-plan": the Commitment isn't in the Plan of the line's month (`lineMonth`).
@@ -785,6 +795,17 @@ export type CardPaymentFiling =
 	 * it is (ADR-0058).
 	 */
 	| { ok: false; reason?: "not-in-plan" | "month-ended"; lineMonth?: string };
+
+/** The Commitment a "count it as spending" answer makes for the payment: monthly, on these terms. */
+export type CardPaymentCommitment = {
+	name: string;
+	/** Its first month: the payment's own, or the running month when that one has ended. */
+	month: MonthKey;
+	amountCents: number;
+	dueDate: DayKey;
+	/** The card it pays down: an Account here that Noodle doesn't follow. Left out: none. */
+	paysDown?: string | undefined;
+};
 
 /** A line that waited in Review when an answer filed it, with the guess it had there. */
 export type CardPaymentWaited = {
@@ -803,6 +824,9 @@ export type CardPaymentWaited = {
  * isn't in is left alone). Only lines from the payment's own month on, and never one in a month
  * that has ended (Month-close): what an earlier month came to is not changed by an answer about
  * this one. `filed` says how many went in. A Rule for the wording files later ones. Safe to retry.
+ *
+ * With `create` the Commitment is made by the answer, and it, what it pays down, the filing and
+ * the Rule are one write: all of it lands or none does (fileInNewCommitment).
  */
 export async function fileCardPayment(
 	db: Db,
@@ -817,12 +841,22 @@ export async function fileCardPayment(
 		 */
 		leaveBefore?: MonthKey;
 		/** The Household's day; UTC's when left out. */
-		today?: DayKey;
+		today?: DayKey | undefined;
+		/** The answer makes the Commitment `commitmentId` too. */
+		create?: CardPaymentCommitment | undefined;
 	},
 ): Promise<CardPaymentFiling> {
 	const { householdId, memberId } = viewer;
+	const read = {
+		id: transactions.id,
+		date: transactions.date,
+		note: transactions.note,
+		version: transactions.version,
+		bucketId: transactions.bucketId,
+		commitmentId: transactions.commitmentId,
+	};
 	const [line] = await db
-		.select({ id: transactions.id, date: transactions.date, note: transactions.note })
+		.select(read)
 		.from(transactions)
 		.where(
 			and(
@@ -838,7 +872,7 @@ export async function fileCardPayment(
 		? await everyRow(
 				(limit, offset) =>
 					db
-						.select({ id: transactions.id, date: transactions.date, note: transactions.note })
+						.select(read)
 						.from(transactions)
 						.where(
 							and(
@@ -886,6 +920,44 @@ export async function fileCardPayment(
 				sql`${categorizations.transactionId} in (select value from json_each(${mayWait}))`,
 			),
 		);
+	// The Rule the Household shares for this wording, if one is stated: saveRule changes that row.
+	const [earlier] = pattern
+		? await db
+				.select({ id: rules.id, bucketId: rules.bucketId, commitmentId: rules.commitmentId })
+				.from(rules)
+				.where(
+					and(
+						eq(rules.householdId, householdId),
+						eq(rules.pattern, pattern),
+						isNull(rules.ownerMemberId),
+					),
+				)
+		: [];
+	// One that files here already is this answer sent again: nothing to put back.
+	const before =
+		earlier && earlier.id !== input.ruleId && earlier.commitmentId !== input.commitmentId
+			? {
+					bucketId: earlier.bucketId,
+					commitmentId: earlier.commitmentId,
+					for: (
+						await db
+							.select({ memberId: ruleFor.memberId })
+							.from(ruleFor)
+							.where(eq(ruleFor.ruleId, earlier.id))
+					).map((row) => row.memberId),
+				}
+			: null;
+	if (input.create) {
+		return fileInNewCommitment(db, viewer, {
+			...input,
+			create: input.create,
+			line,
+			alike,
+			pattern,
+			before,
+			waiting,
+		});
+	}
 	const undo: FiledBefore[] = [];
 	const months: string[] = [];
 	let filed = 0;
@@ -923,33 +995,6 @@ export async function fileCardPayment(
 		filed += result.filed;
 		undo.push(...result.undo);
 	}
-	// The Rule the Household shares for this wording, if one is stated: saveRule changes that row.
-	const [earlier] = pattern
-		? await db
-				.select({ id: rules.id, bucketId: rules.bucketId, commitmentId: rules.commitmentId })
-				.from(rules)
-				.where(
-					and(
-						eq(rules.householdId, householdId),
-						eq(rules.pattern, pattern),
-						isNull(rules.ownerMemberId),
-					),
-				)
-		: [];
-	// One that files here already is this answer sent again: nothing to put back.
-	const before =
-		earlier && earlier.id !== input.ruleId && earlier.commitmentId !== input.commitmentId
-			? {
-					bucketId: earlier.bucketId,
-					commitmentId: earlier.commitmentId,
-					for: (
-						await db
-							.select({ memberId: ruleFor.memberId })
-							.from(ruleFor)
-							.where(eq(ruleFor.ruleId, earlier.id))
-					).map((row) => row.memberId),
-				}
-			: null;
 	// Only a line this answer filed from nowhere is put back in Review by its Undo.
 	const wasUnassigned = new Set(
 		undo
@@ -976,6 +1021,159 @@ export async function fileCardPayment(
 		stays: left(lineMonth),
 		lineMonth,
 		waited: waiting.filter((row) => wasUnassigned.has(row.id)),
+	};
+}
+
+/** How many lines one statement of fileInNewCommitment files. */
+const NEW_COMMITMENT_CHUNK = 500;
+
+type PaymentLine = {
+	id: string;
+	date: string;
+	version: number;
+	bucketId: string | null;
+	commitmentId: string | null;
+};
+
+/**
+ * fileCardPayment where the answer makes the Commitment (issue 141): the Commitment, what it pays
+ * down, the filing of the line and those worded like it, and the Rule go in ONE batch, each
+ * statement waiting on the same test, so nothing is half-made. The Commitment is made only while
+ * the line answered can still go in it (at the version read here, this Parent's to change, whole,
+ * free to move) and, with `paysDown`, while it may pay that Account down; the Rule only once the
+ * line is in. When the line's month is before `leaveBefore` the line stays as it is, so only
+ * `paysDown` is waited on. Sent again with the same ids it writes nothing and answers the same.
+ */
+async function fileInNewCommitment(
+	db: Db,
+	viewer: Viewer,
+	input: {
+		commitmentId: string;
+		ruleId: string;
+		leaveBefore?: MonthKey | undefined;
+		today?: DayKey | undefined;
+		create: CardPaymentCommitment;
+		line: PaymentLine;
+		alike: PaymentLine[];
+		pattern: string;
+		before: RuleBefore | null;
+		waiting: CardPaymentWaited[];
+	},
+): Promise<CardPaymentFiling> {
+	const { householdId, memberId } = viewer;
+	const { commitmentId, create, line } = input;
+	const today = input.today ?? (new Date().toISOString().slice(0, 10) as DayKey);
+	const lineMonth = line.date.slice(0, 7);
+	const left = (month: string) => input.leaveBefore !== undefined && month < input.leaveBefore;
+	const stays = left(lineMonth);
+	const rows = [line, ...input.alike].filter((row) => !left(row.date.slice(0, 7)));
+	const filing = (lines: PaymentLine[]) =>
+		commitmentFiling(db, viewer, {
+			commitmentId,
+			pairs: JSON.stringify(lines.map((row) => [row.id, row.version])),
+			today: input.today,
+		});
+	const lineGoesIn = sql`exists (select 1 from ${transactions} where ${filing([line]).fileable})`;
+	const mayLink = create.paysDown
+		? mayPayDown({ householdId, accountId: create.paysDown, carriedBalance: false, today })
+		: undefined;
+	const lineIsIn = sql`exists (select 1 from ${transactions} where ${and(
+		eq(transactions.id, line.id),
+		eq(transactions.householdId, householdId),
+		eq(transactions.commitmentId, commitmentId),
+	)})`;
+	const chunks: ReturnType<typeof filing>[] = [];
+	for (let start = 0; start < rows.length; start += NEW_COMMITMENT_CHUNK) {
+		chunks.push(filing(rows.slice(start, start + NEW_COMMITMENT_CHUNK)));
+	}
+	// The Rule can only file into a Commitment that is there, so with `stays` it waits on that alone.
+	const saving = input.pattern
+		? ruleSaving(
+				db,
+				{
+					id: input.ruleId,
+					householdId,
+					memberId,
+					pattern: input.pattern,
+					bucketId: null,
+					commitmentId,
+				},
+				stays ? undefined : lineIsIn,
+			)
+		: null;
+	const statements: BatchItem<"sqlite">[] = [
+		...commitmentAdd(
+			db,
+			{
+				householdId,
+				memberId,
+				commitmentId,
+				name: create.name,
+				month: create.month,
+				amountCents: create.amountCents as Cents,
+				cadence: "monthly",
+				dueDate: create.dueDate,
+			},
+			and(stays ? undefined : lineGoesIn, mayLink) as SQL | undefined,
+		),
+		...(create.paysDown
+			? commitmentLink(db, {
+					householdId,
+					memberId,
+					commitmentId,
+					accountId: create.paysDown,
+					carriedBalance: false,
+					month: create.month,
+					today,
+				})
+			: []),
+		...chunks.flatMap((chunk) => [...chunk.statements]),
+		...(saving ? [...saving.statements] : []),
+	];
+	await db.batch(statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+
+	// What happened, read back.
+	const [made] = await db
+		.select({ id: commitments.id })
+		.from(commitments)
+		.where(ownCommitment(householdId, commitmentId));
+	const [now] = await db
+		.select({
+			commitmentId: transactions.commitmentId,
+			ended: sql<boolean>`(not ${purchaseMayMove(input.today)})`.mapWith(Boolean),
+		})
+		.from(transactions)
+		.where(and(eq(transactions.id, line.id), eq(transactions.householdId, householdId)));
+	if (!made || (!stays && now?.commitmentId !== commitmentId)) {
+		return !stays && now?.ended ? { ok: false, reason: "month-ended" } : { ok: false };
+	}
+	const landed = new Set<string>();
+	for (const chunk of chunks) {
+		const done = await db.select({ id: transactions.id }).from(transactions).where(chunk.landed);
+		for (const row of done) landed.add(row.id);
+	}
+	const filed = rows.filter((row) => landed.has(row.id));
+	const undo: FiledBefore[] = filed.map((row) => ({
+		id: row.id,
+		bucketId: row.bucketId,
+		commitmentId: row.commitmentId,
+		version: row.version + 1,
+	}));
+	const wasUnassigned = new Set(
+		filed.filter((row) => row.bucketId === null && row.commitmentId === null).map((row) => row.id),
+	);
+	const rule = saving ? await saving.saved() : null;
+	return {
+		ok: true,
+		filed: filed.length,
+		months: [...new Set(filed.map((row) => row.date.slice(0, 7)))].sort(),
+		undo,
+		ruleId: rule?.ok ? rule.ruleId : null,
+		ruleBefore: rule?.ok ? input.before : null,
+		stays,
+		lineMonth,
+		waited: input.waiting.filter((row) => wasUnassigned.has(row.id)),
+		madeIn: create.month,
 	};
 }
 

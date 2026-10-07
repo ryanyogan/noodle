@@ -1,5 +1,4 @@
 import {
-	addCommitment as addCommitmentInDb,
 	type CardPaymentFiling,
 	endCommitment as endCommitmentInDb,
 	fileCardPayment as fileCardPaymentInDb,
@@ -55,7 +54,7 @@ export function commitmentStart(
 }
 
 /** What fileCardPayment answers: with `madeIn`, the first month of the Commitment it made. */
-export type CardPaymentFiled = CardPaymentFiling & { madeIn?: MonthKey };
+export type CardPaymentFiled = CardPaymentFiling;
 
 /**
  * Files a card payment in the Commitment that is its spending, with the lines already here that
@@ -86,7 +85,6 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data, context }): Promise<CardPaymentFiled> => {
 		const db = getDb();
-		const author = { householdId: context.household.id, memberId: context.parent.id };
 		const running = monthKeyAt(new Date(), context.household.timeZone);
 		const start =
 			data.create &&
@@ -95,65 +93,37 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 				running,
 			);
 		const made = data.create && start && { ...data.create, ...start };
-		// What the Commitment made here pays down, set and taken off as its form does (linkCommitment).
-		const paysDown = (accountId: string | null) =>
-			linkCommitment(db, {
-				...author,
-				commitmentId: data.commitmentId,
-				accountId,
-				carriedBalance: false,
-				month: running,
-				today: dayKeyAt(new Date(), context.household.timeZone),
-			});
-		if (made) {
-			assertEditable(context.household, made.month);
-			await addCommitmentInDb(db, {
-				...author,
-				commitmentId: data.commitmentId,
-				name: made.name,
-				month: made.month,
-				amountCents: made.amountCents,
-				cadence: "monthly",
-				dueDate: made.dueDate,
-			});
-			// Refused (the Account isn't a card or loan in use, or Noodle follows it): nothing is made.
-			const link = made.paysDown ? await paysDown(made.paysDown) : null;
-			if (link && !link.ok) {
-				await endCommitmentInDb(db, {
-					...author,
-					commitmentId: data.commitmentId,
-					month: made.month,
-				});
-				return { ok: false };
-			}
-		}
+		if (made) assertEditable(context.household, made.month);
+		// With `create` the Commitment, what it pays down, the filing and the Rule are one write in
+		// the database: all of it lands or none does, so nothing is put right here afterwards.
 		const result = await fileCardPaymentInDb(db, viewerOf(context), {
 			transactionId: data.transactionId,
 			commitmentId: data.commitmentId,
 			ruleId: data.ruleId,
 			leaveBefore: made?.moved ? running : undefined,
 			today: dayKeyAt(new Date(), context.household.timeZone),
+			create: made && {
+				name: made.name,
+				month: made.month,
+				amountCents: made.amountCents,
+				dueDate: made.dueDate,
+				paysDown: made.paysDown,
+			},
 		});
-		if (!result.ok) {
-			// Nothing half-made is left: a Commitment made for a line that couldn't go in leaves again.
-			if (made) {
-				if (made.paysDown) await paysDown(null);
-				await endCommitmentInDb(db, {
-					...author,
-					commitmentId: data.commitmentId,
-					month: made.month,
-				});
-			}
-			return result;
-		}
+		if (!result.ok) return result;
 		await notifyHousehold(
 			context.household.id,
 			filingChanges(result.months, made?.paysDown !== undefined),
 		);
 		if (made) {
-			await queueAi({ ...author, kind: "commitment-changed", ids: [data.commitmentId] });
+			await queueAi({
+				householdId: context.household.id,
+				memberId: context.parent.id,
+				kind: "commitment-changed",
+				ids: [data.commitmentId],
+			});
 		}
-		return made ? { ...result, madeIn: made.month } : result;
+		return result;
 	});
 
 /**

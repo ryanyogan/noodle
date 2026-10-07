@@ -1,4 +1,4 @@
-import type { Cents, DayKey } from "@noodle/domain";
+import type { Cents, DayKey, MonthKey } from "@noodle/domain";
 import { describe, expect, it } from "vitest";
 import { BANK_TOOK_BACK_WORD, bankTookBackText } from "./bank-took-back";
 
@@ -52,6 +52,35 @@ describe("a line the bank took back", () => {
 			),
 		).toBe(
 			"The bank changed this to $12.50 on Oct 3. It stays as it was so September doesn’t change.",
+		);
+	});
+
+	const taken = line({ bankTookBackOn: "2026-10-03" as DayKey });
+	const months = (...restored: string[]) =>
+		bankTookBackText(taken, "2026-10-07", restored as MonthKey[])?.split(". ")[1];
+
+	it("names its own month alone when its money back counted there, or nowhere", () => {
+		expect(months()).toBe("It stays here so September doesn’t change.");
+		expect(months("2026-09")).toBe("It stays here so September doesn’t change.");
+	});
+
+	it("names both months when its money back counted in a later one", () => {
+		expect(months("2026-10")).toBe("It stays here so September and October don’t change.");
+		expect(
+			bankTookBackText({ ...taken, bankAmount: 2_000 as Cents }, "2026-10-07", [
+				"2026-10" as MonthKey,
+			]),
+		).toBe(
+			"The bank changed this to $20 on Sat, Oct 3. It stays as it was so September and October don’t change.",
+		);
+	});
+
+	it("names three months each once and oldest first, whatever order they come in", () => {
+		expect(months("2026-11", "2026-10", "2026-11", "2026-09")).toBe(
+			"It stays here so September, October and November don’t change.",
+		);
+		expect(months("2026-08", "2026-10")).toBe(
+			"It stays here so August, September and October don’t change.",
 		);
 	});
 

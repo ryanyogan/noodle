@@ -24,7 +24,6 @@ import { useHydrated } from "@tanstack/react-router";
 import { Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import { ulid } from "ulid";
-import { bankTookBackText } from "../bank-took-back";
 import { cantSaveSentence, isUnassigned, noSplitSentence, nothingToFileIn } from "../before-plan";
 import { dayName, formatMoney, formatMoneyInput } from "../format";
 import { forLabel, type MemberSummary } from "../members";
@@ -36,6 +35,7 @@ import type {
 	TransactionRow,
 } from "../transactions";
 import { monthOfTransaction, nameOf, useEditFormKey } from "../transactions";
+import { BankTookBackNote } from "./bank-took-back-note";
 import { ForPicker } from "./for-picker";
 import { AmountInput } from "./goals";
 import { MatchSection } from "./match-section";
@@ -192,7 +192,12 @@ export function TransactionBody({
 		return (
 			<>
 				{heading(transaction.transfer ? "Transfer" : "Money back", day)}
-				<BankTookBackNote transaction={transaction} today={today} />
+				<BankTookBackNote
+					row={{ transactionId: transaction.id }}
+					line={transaction}
+					today={today}
+					className="mb-4"
+				/>
 				<MoneyDetail key={transaction.id} transaction={transaction} onDone={onClose} />
 			</>
 		);
@@ -200,7 +205,12 @@ export function TransactionBody({
 	return (
 		<>
 			{heading("Edit Transaction", day)}
-			<BankTookBackNote transaction={transaction} today={today} />
+			<BankTookBackNote
+				row={{ transactionId: transaction.id }}
+				line={transaction}
+				today={today}
+				className="mb-4"
+			/>
 			<EditForm
 				// A fresh form for each Transaction opened.
 				key={formKey}
@@ -215,20 +225,6 @@ export function TransactionBody({
 				splitting={splitting}
 			/>
 		</>
-	);
-}
-
-/**
- * "The bank took this back on Tue, Oct 6. It stays here so September doesn't change.", on a line
- * kept after the bank withdrew or changed it (issue 141). Nothing on any other line.
- */
-function BankTookBackNote({ transaction, today }: { transaction: TransactionRow; today: DayKey }) {
-	const text = bankTookBackText(transaction, today);
-	if (!text) return null;
-	return (
-		<p className="mb-4 text-sm text-muted-foreground" data-testid="bank-took-back-note">
-			{text}
-		</p>
 	);
 }
 
