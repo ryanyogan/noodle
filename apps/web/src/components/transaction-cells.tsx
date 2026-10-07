@@ -89,6 +89,8 @@ export function RowMenu({ title, onCardPayment }: { title: string; onCardPayment
 					variant="ghost"
 					size="icon-sm"
 					aria-label={`More for ${title}`}
+					// An in-row control, like the cells: not the button that opens the row.
+					data-cell="menu"
 					className={`hidden shrink-0 text-subtle-foreground @2xl/dt:inline-flex ${quiet} data-[state=open]:opacity-100`}
 				>
 					<Ellipsis aria-hidden="true" className="size-3.5" />
