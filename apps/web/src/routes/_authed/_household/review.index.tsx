@@ -1923,7 +1923,8 @@ function ReviewCard({
 							<p className="text-xl font-semibold tracking-tight tabular-nums squat:leading-6">
 								{formatMoney(item.amountCents)}
 							</p>
-							{choices ?? (
+							{/* Why it is here, beside the menu of what it is: said on every card. */}
+							<div className="flex max-w-full flex-wrap items-center justify-end gap-1 @max-[15rem]/card:justify-between">
 								<Badge className="@max-[15rem]/card:h-auto @max-[15rem]/card:max-w-full @max-[15rem]/card:rounded-xl @max-[15rem]/card:whitespace-normal">
 									{payment?.kind === "commitment"
 										? "Payment"
@@ -1939,7 +1940,8 @@ function ReviewCard({
 															? "We weren’t sure"
 															: "New merchant"}
 								</Badge>
-							)}
+								{choices}
+							</div>
 						</div>
 					</div>
 				)}
@@ -1947,7 +1949,7 @@ function ReviewCard({
 				onModeChange={onTreatmentChange}
 				onDone={() => onTreatmentChange?.(false)}
 			>
-				<div className="grid gap-3 compact:gap-1.5 squat:gap-1 sm:gap-4">
+				<div className="grid min-w-0 gap-3 *:min-w-0 compact:gap-1.5 squat:gap-1 sm:gap-4">
 					{/* At large text the tile goes and the words have the whole row; what follows them wraps under. */}
 					<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 compact:py-1.5 @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-y-1 @max-[15rem]/card:*:first:hidden @max-[15rem]/card:*:nth-2:basis-full">
 						{payment?.kind === "commitment" ? (

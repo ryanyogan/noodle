@@ -88,7 +88,8 @@ export function TransactionTreatment({
 		);
 	return (
 		<div
-			className="grid gap-3 compact:gap-1.5 squat:gap-1 sm:gap-4"
+			// Its rows shrink with the card: a long button wraps rather than widening it.
+			className="grid min-w-0 gap-3 *:min-w-0 compact:gap-1.5 squat:gap-1 sm:gap-4"
 			data-payment-mode={payment || undefined}
 		>
 			{renderHeader ? (
@@ -101,7 +102,7 @@ export function TransactionTreatment({
 								size="sm"
 								disabled={busy}
 								aria-label={`Transaction type: ${mode === "default" ? "Suggested" : mode === "payment" ? "Card payment" : mode === "transfer" ? "Transfer" : "Between us"}`}
-								className="h-8 gap-1 px-2 text-xs max-lg:min-h-11"
+								className="gap-1 px-2 text-xs"
 							>
 								<span>
 									{mode === "default"
