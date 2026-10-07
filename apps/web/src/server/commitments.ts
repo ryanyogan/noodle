@@ -63,7 +63,7 @@ const commitmentSchema = z.object({
 export type CommitmentSaved = { paysDown: CommitmentLinkResult | null };
 
 /** Sets what a Commitment pays down, through linkCommitment's guard and its Plan change. */
-export async function setPaysDown(
+async function setPaysDown(
 	context: { household: { id: string; timeZone: string }; parent: { id: string } },
 	commitmentId: string,
 	paysDown: { accountId: string | null; carriedBalance: boolean } | undefined,

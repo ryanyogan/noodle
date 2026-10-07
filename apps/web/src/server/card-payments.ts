@@ -3,16 +3,17 @@ import {
 	type CardPaymentFiling,
 	endCommitment as endCommitmentInDb,
 	fileCardPayment as fileCardPaymentInDb,
+	linkCommitment,
 	undoCardPaymentMarks,
 	undoCardPaymentRemembered,
 	undoCardPaymentFiling as undoFilingInDb,
 } from "@noodle/db";
-import { type DayKey, type MonthKey, monthKeyAt } from "@noodle/domain";
+import { type DayKey, dayKeyAt, type MonthKey, monthKeyAt } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { HouseholdChange } from "../household-changes";
 import { queueAi } from "./ai-queue";
-import { commitmentNameSchema, setPaysDown } from "./commitments";
+import { commitmentNameSchema } from "./commitments";
 import { getDb } from "./db";
 import { householdMiddleware, viewerOf } from "./household";
 import { notifyHousehold } from "./notify";
@@ -52,9 +53,6 @@ export function commitmentStart(
 	const dueDate = `${running}-${String(day).padStart(2, "0")}` as DayKey;
 	return { month: running, dueDate, moved: true };
 }
-
-/** Pays nothing down: what a Commitment made for a card goes back to before it leaves the Plan. */
-const UNLINKED = { accountId: null, carriedBalance: false };
 
 /** What fileCardPayment answers: with `madeIn`, the first month of the Commitment it made. */
 export type CardPaymentFiled = CardPaymentFiling & { madeIn?: MonthKey };
@@ -97,6 +95,16 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 				running,
 			);
 		const made = data.create && start && { ...data.create, ...start };
+		// What the Commitment made here pays down, set and taken off as its form does (linkCommitment).
+		const paysDown = (accountId: string | null) =>
+			linkCommitment(db, {
+				...author,
+				commitmentId: data.commitmentId,
+				accountId,
+				carriedBalance: false,
+				month: running,
+				today: dayKeyAt(new Date(), context.household.timeZone),
+			});
 		if (made) {
 			assertEditable(context.household, made.month);
 			await addCommitmentInDb(db, {
@@ -109,12 +117,7 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 				dueDate: made.dueDate,
 			});
 			// Refused (the Account isn't a card or loan in use, or Noodle follows it): nothing is made.
-			const link = made.paysDown
-				? await setPaysDown(context, data.commitmentId, {
-						accountId: made.paysDown,
-						carriedBalance: false,
-					})
-				: null;
+			const link = made.paysDown ? await paysDown(made.paysDown) : null;
 			if (link && !link.ok) {
 				await endCommitmentInDb(db, {
 					...author,
@@ -133,7 +136,7 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 		if (!result.ok) {
 			// Nothing half-made is left: a Commitment made for a line that couldn't go in leaves again.
 			if (made) {
-				if (made.paysDown) await setPaysDown(context, data.commitmentId, UNLINKED);
+				if (made.paysDown) await paysDown(null);
 				await endCommitmentInDb(db, {
 					...author,
 					commitmentId: data.commitmentId,
@@ -231,7 +234,19 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 			waited: data.waited,
 		});
 		if (data.created) {
-			if (data.created.paysDown) await setPaysDown(context, data.created.commitmentId, UNLINKED);
+			if (data.created.paysDown) {
+				// It pays nothing down again before it leaves the Plan.
+				const now = new Date();
+				await linkCommitment(db, {
+					householdId: context.household.id,
+					memberId: context.parent.id,
+					commitmentId: data.created.commitmentId,
+					accountId: null,
+					carriedBalance: false,
+					month: monthKeyAt(now, context.household.timeZone),
+					today: dayKeyAt(now, context.household.timeZone),
+				});
+			}
 			await endCommitmentInDb(db, {
 				householdId: context.household.id,
 				memberId: context.parent.id,
