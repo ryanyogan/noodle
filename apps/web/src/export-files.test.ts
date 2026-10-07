@@ -188,13 +188,62 @@ describe("exportFiles", () => {
 		expect(rows[2]?.at(-1)).toBe("");
 	});
 
+	it("lists what each Paid back line settled and each Refund with its purchase", () => {
+		const files = exportFiles(
+			data({
+				transactions: [
+					row({ id: "skates", date: "2026-09-14", amountCents: 4500, note: "=Skates" }),
+				],
+				owedBack: [
+					{
+						id: "owed",
+						transactionId: "dinner",
+						splitId: null,
+						date: "2026-09-18",
+						purchase: "Dinner out",
+						who: "Casey",
+						owedCents: 6000,
+						paidBackCents: 2550,
+					},
+				],
+				paidBackMatches: [
+					{ incomeId: "venmo", owedBackId: "owed", amountCents: 2550, countsOn: "2026-10-02" },
+				],
+				refundLinks: [
+					{ incomeId: "back", transactionId: "skates", amountCents: 2000, countsOn: "2026-10-05" },
+					{ incomeId: "hidden", transactionId: "unseen", amountCents: 100, countsOn: "2026-10-06" },
+				],
+			}),
+		);
+		expect(parseCsv(files["paid-back.csv"] as string)).toEqual([
+			["Counts on", "Paid back", "Who", "Purchase date", "Purchase", "Owed back"],
+			["2026-10-02", "25.5", "Casey", "2026-09-18", "Dinner out", "60"],
+		]);
+		expect(parseCsv(files["refund-links.csv"] as string)).toEqual([
+			[
+				"Counts on",
+				"Refund",
+				"Purchase date",
+				"Purchase",
+				"Purchase amount",
+				"Bucket",
+				"Commitment",
+			],
+			// A purchase that starts like a formula keeps its apostrophe.
+			["2026-10-05", "20", "2026-09-14", "'=Skates", "45", "Groceries", ""],
+			["2026-10-06", "1", "", "", "", "", ""],
+		]);
+	});
+
 	it("writes every file the ZIP holds", () => {
 		expect(Object.keys(exportFiles(data())).sort()).toEqual([
 			"accounts.csv",
 			"household.json",
 			"owed-back.csv",
+			"paid-back.csv",
 			"plan-changes.csv",
 			"plan.csv",
+			"refund-links.csv",
 			"rules.csv",
 			"transactions.csv",
 		]);

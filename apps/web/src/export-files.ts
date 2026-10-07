@@ -186,6 +186,41 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		]);
 	}
 
+	// What each Paid back money-in line settled (ADR-0058), and each Refund in checking with the
+	// purchase it gives money back to (ADR-0057). A purchase the viewer can't see is left blank.
+	const owedItem = new Map(data.owedBack.map((o) => [o.id, o]));
+	const paidBack: (string | number | null)[][] = [
+		["Counts on", "Paid back", "Who", "Purchase date", "Purchase", "Owed back"],
+	];
+	for (const m of data.paidBackMatches) {
+		const item = owedItem.get(m.owedBackId);
+		paidBack.push([
+			m.countsOn,
+			dollars(m.amountCents),
+			item?.who ?? "",
+			item?.date ?? "",
+			item?.purchase ?? "",
+			dollars(item?.owedCents),
+		]);
+	}
+
+	const purchaseOf = new Map(data.transactions.map((t) => [t.id, t]));
+	const refundLinks: (string | number | null)[][] = [
+		["Counts on", "Refund", "Purchase date", "Purchase", "Purchase amount", "Bucket", "Commitment"],
+	];
+	for (const link of data.refundLinks) {
+		const purchase = purchaseOf.get(link.transactionId);
+		refundLinks.push([
+			link.countsOn,
+			dollars(link.amountCents),
+			purchase?.date ?? "",
+			purchase?.note ?? purchase?.merchantName ?? "",
+			dollars(purchase?.amountCents),
+			bucket(purchase?.bucketId ?? null),
+			commitment(purchase?.commitmentId ?? null),
+		]);
+	}
+
 	return {
 		"transactions.csv": toCsv(transactions),
 		"accounts.csv": toCsv(accounts),
@@ -193,6 +228,8 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		"plan-changes.csv": toCsv(changes),
 		"rules.csv": toCsv(rules),
 		"owed-back.csv": toCsv(owedBack),
+		"paid-back.csv": toCsv(paidBack),
+		"refund-links.csv": toCsv(refundLinks),
 		"household.json": `${JSON.stringify({ ...data, files: data.files.map((f) => f.path) }, null, 2)}\n`,
 	};
 }

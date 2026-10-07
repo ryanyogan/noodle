@@ -73,6 +73,8 @@ test("prepare, download and open the ZIP; another Household's link is refused", 
 			"plan-changes.csv",
 			"rules.csv",
 			"owed-back.csv",
+			"paid-back.csv",
+			"refund-links.csv",
 			"household.json",
 		]),
 	);
