@@ -143,6 +143,11 @@ function NameField({
 	onCancel: () => void;
 }) {
 	const field = useRef<HTMLInputElement>(null);
+	// The name the field opened with. Left as it was, there is nothing to save, even when the row
+	// has been given another name meanwhile (the app naming it in the background): what was not
+	// typed is not a Parent's name for it.
+	const opened = useRef(value);
+	const typedOr = (typed: string) => (typed.trim() === opened.current.trim() ? value : typed);
 	// Enter and Esc take the field away, which may or may not blur it first: one ending only.
 	const over = useRef(false);
 	const end = (run: () => void) => {
@@ -167,7 +172,7 @@ function NameField({
 				const typed = event.currentTarget.value;
 				if (event.key === "Enter") {
 					event.preventDefault();
-					end(() => onSave(typed, true));
+					end(() => onSave(typedOr(typed), true));
 				} else if (event.key === "Escape") {
 					event.preventDefault();
 					event.stopPropagation();
@@ -176,7 +181,7 @@ function NameField({
 			}}
 			onBlur={(event) => {
 				const typed = event.currentTarget.value;
-				end(() => onSave(typed, false));
+				end(() => onSave(typedOr(typed), false));
 			}}
 		/>
 	);
