@@ -22,6 +22,7 @@ import {
 	type CardKept,
 	cardKept,
 	cardPaymentIsSpending,
+	type DayKey,
 	dayKeyAt,
 	monthOfDay,
 	planForMonth,
@@ -100,17 +101,29 @@ export type CardPaymentCard = {
 /** The Household's cards, for "It's a card payment" to ask which one. */
 export const getCardPaymentCards = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
-	.handler(async ({ context }): Promise<CardPaymentCard[]> => {
-		const db = getDb();
-		const today = dayKeyAt(new Date(), context.household.timeZone);
-		const month = monthOfDay(today);
-		const [cards, followed, records] = await Promise.all([
-			loadCreditCards(db, context.household.id),
-			followedCards(db, context.household.id, today),
-			loadPlanRecords(db, context.household.id, month),
-		]);
-		return cardPaymentCardsOf(cards, followed, planForMonth(records, month).commitments);
-	});
+	.handler(
+		({ context }): Promise<CardPaymentCard[]> =>
+			loadCardPaymentCards(
+				getDb(),
+				context.household.id,
+				dayKeyAt(new Date(), context.household.timeZone),
+			),
+	);
+
+/** getCardPaymentCards for a Household on its day `today`: its cards, read and offered. */
+export async function loadCardPaymentCards(
+	db: ReturnType<typeof getDb>,
+	householdId: string,
+	today: DayKey,
+): Promise<CardPaymentCard[]> {
+	const month = monthOfDay(today);
+	const [cards, followed, records] = await Promise.all([
+		loadCreditCards(db, householdId),
+		followedCards(db, householdId, today),
+		loadPlanRecords(db, householdId, month),
+	]);
+	return cardPaymentCardsOf(cards, followed, planForMonth(records, month).commitments);
+}
 
 /**
  * Each of the Household's cards as "It's a card payment" offers it: how its purchases get in, and
