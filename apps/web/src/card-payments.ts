@@ -1,8 +1,9 @@
-import type { PaymentCase } from "@noodle/domain";
+import type { MonthKey, PaymentCase } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { monthsKey, rulesQuery } from "./queries";
-import { saveRule } from "./server/review";
+import { fileCardPayment, undoCardPaymentFiling } from "./server/card-payments";
 import { forgetCardPayment, getCardPaymentCards, getCardPaymentRules } from "./server/transfers";
 
 // "It's a card payment" (issue 136): one named choice that asks which card. A card Noodle follows
@@ -40,41 +41,92 @@ export function useForgetCardPayment() {
 	});
 }
 
+/** An answer where the payment is the spending: the Commitment it's filed in, made here or not. */
+export type CardPaymentFilingInput = {
+	transactionId: string;
+	ruleId: string;
+	label: string;
+	commitment: { id: string; name: string };
+	/** Set when the Commitment is made by this answer: its first month, amount and due day. */
+	create?: { month: MonthKey; amountCents: number; dueDate: string };
+	/** After the Undo has put everything back (Review puts its card back). */
+	onUndo?: () => void;
+	/** When it couldn't be filed. */
+	onFail?: () => void;
+};
+
 /**
- * A payment to a card kept by hand: filed in the Commitment that pays the card down, by a Rule for
- * its wording, so later payments are filed there too.
+ * A payment that is the card's spending: filed in the Commitment (made first, for a card that
+ * isn't in Noodle), with the lines already here that say the same, by a Rule for its wording, so
+ * later payments are filed there too. One Undo takes all of it back.
  */
-export function useCardPaymentCommitment() {
+export function useCardPaymentFiling() {
 	const queryClient = useQueryClient();
+	const navigate = useNavigate();
+	const refetch = () =>
+		Promise.all([
+			queryClient.invalidateQueries({ queryKey: monthsKey }),
+			queryClient.invalidateQueries({ queryKey: rulesQuery().queryKey }),
+		]);
+	const couldnt = (input: CardPaymentFilingInput) => {
+		toast(`Couldn’t file ${input.label} in ${input.commitment.name}.`, { tone: "error" });
+		input.onFail?.();
+	};
 	return useMutation({
-		mutationFn: (input: {
-			ruleId: string;
-			pattern: string;
-			label: string;
-			commitment: { id: string; name: string };
-		}) =>
-			saveRule({
+		mutationFn: (input: CardPaymentFilingInput) =>
+			fileCardPayment({
 				data: {
-					ruleId: input.ruleId,
-					pattern: input.pattern,
-					bucketId: null,
+					transactionId: input.transactionId,
 					commitmentId: input.commitment.id,
-					forMemberIds: [],
-					apply: true,
+					ruleId: input.ruleId,
+					create: input.create && { ...input.create, name: input.commitment.name },
 				},
 			}),
-		onError: (_error, input) =>
-			toast(`Couldn’t file ${input.label} in ${input.commitment.name}.`, { tone: "error" }),
-		onSuccess: (_result, input) =>
+		onError: (_error, input) => couldnt(input),
+		onSuccess: (result, input) => {
+			if (!result.ok) return couldnt(input);
+			const more = result.filed > 1 ? `, with ${result.filed - 1} more worded like it` : "";
+			const later = result.ruleId ? " Payments worded like it will be too." : "";
+			const created = input.create && {
+				commitmentId: input.commitment.id,
+				month: input.create.month,
+			};
 			toast(
-				`${input.label} filed in ${input.commitment.name}. Payments worded like it will be too.`,
-				{ tone: "success" },
-			),
-		onSettled: () =>
-			Promise.all([
-				queryClient.invalidateQueries({ queryKey: monthsKey }),
-				queryClient.invalidateQueries({ queryKey: rulesQuery().queryKey }),
-			]),
+				input.create
+					? `${input.commitment.name} is now a Commitment, and this payment is filed in it${more}.${later}`
+					: `${input.label} filed in ${input.commitment.name}${more}.${later}`,
+				{
+					tone: "success",
+					undo: () => {
+						dropEdit?.();
+						void undoCardPaymentFiling({
+							data: { undo: result.undo, ruleId: result.ruleId, months: result.months, created },
+						})
+							.then(() => input.onUndo?.())
+							.catch(() => toast("Couldn’t undo that.", { tone: "error" }))
+							.finally(refetch);
+					},
+				},
+			);
+			// A toast has one button, and that one is Undo: the way to its form is a second toast.
+			const dropEdit = input.create
+				? toast("It’s planned monthly, at this payment’s amount.", {
+						tone: "success",
+						action: {
+							label: "Edit",
+							onClick: () =>
+								void navigate({
+									to: "/plan/$month/commitments/$id",
+									params: {
+										month: (input.create as { month: MonthKey }).month,
+										id: input.commitment.id,
+									},
+								}),
+						},
+					})
+				: undefined;
+		},
+		onSettled: refetch,
 	});
 }
 
@@ -97,4 +149,35 @@ export function cardNamedBy(
 			? cards.find((account) => account.id === payment.accountId)
 			: cards.find((account) => account.name === payment.card);
 	return card ? { id: card.id, name: card.name } : undefined;
+}
+
+// The Transactions row's own "It's a card payment" opens the row with the question already asked.
+// Which line was asked about waits here until its detail is drawn; one already open hears the event.
+let asked: string | null = null;
+const ASKED = "noodle:card-payment";
+
+/** Asks "Which card does it pay?" for a line, wherever its choice is (or is about to be) drawn. */
+export function askCardPayment(transactionId: string) {
+	asked = transactionId;
+	window.dispatchEvent(new CustomEvent(ASKED, { detail: transactionId }));
+}
+
+/** Whether `transactionId` was just asked about; asking is used up by the answer "yes". */
+export function takeAskedCardPayment(transactionId: string) {
+	if (asked !== transactionId) return false;
+	asked = null;
+	return true;
+}
+
+/** Calls `open` when `transactionId` is asked about while its choice is on screen. */
+export function onCardPaymentAsked(transactionId: string, open: () => void) {
+	const heard = (event: Event) => {
+		if (
+			(event as CustomEvent<string>).detail === transactionId &&
+			takeAskedCardPayment(transactionId)
+		)
+			open();
+	};
+	window.addEventListener(ASKED, heard);
+	return () => window.removeEventListener(ASKED, heard);
 }

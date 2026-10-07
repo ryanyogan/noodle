@@ -3,13 +3,19 @@ import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addAccount,
+	addCommitment,
+	applyRule,
 	createHouseholdForParent,
 	type Db,
+	fileCardPayment,
 	importStatement,
+	listRules,
 	loadCardPaymentRules,
 	loadTransactionsPage,
 	markCardPayment,
 	markCardPayments,
+	undoCardPaymentFiling,
+	undoCardPaymentMarks,
 	unmarkTransfer,
 } from "./index";
 import { transactions, transfers } from "./schema";
@@ -296,5 +302,128 @@ describe("It's a card payment, remembered for the card's wording", () => {
 		}
 		expect(await count(transfers)).toBe(0);
 		expect(await loadCardPaymentRules(db, householdId)).toEqual([]);
+	});
+});
+
+describe("An answer covers the lines already here that say the same", () => {
+	const idOf = async (note: string, amount: number) => {
+		const page = await loadTransactionsPage(db, viewer, { month, limit: 50 });
+		return page.transactions.find((row) => row.note === note && row.amountCents === amount)
+			?.id as string;
+	};
+	const live = async () =>
+		(await db.select().from(transfers)).filter((row) => row.removedAt === null);
+
+	it("marks them as Transfers to the card in the same answer, and its Undo takes them back", async () => {
+		await importInto("checking", "i-1", [
+			line("2026-09-03", -9_900, "CARDMEMBER SERV WEB PYMT"),
+			line("2026-09-12", -4_400, "CARDMEMBER SERV WEB PYMT"),
+			line("2026-09-13", -4_000, "COSTCO WHSE #1042"),
+		]);
+		const answer = {
+			transferId: "t-1",
+			transactionId: await idOf("CARDMEMBER SERV WEB PYMT", 9_900),
+			cardAccountId: "card",
+			ruleId: "r-1",
+			newId,
+		};
+		const answered = await markCardPayment(db, viewer, answer);
+		expect(answered.ok && answered.also).toHaveLength(1);
+		expect(await live()).toHaveLength(2);
+		expect((await listed()).get("COSTCO WHSE #1042")).toBeNull();
+
+		// Undo: the line answered is unmarked, the others' marks go, so answering again marks them.
+		await unmarkTransfer(db, viewer, "t-1");
+		await undoCardPaymentMarks(db, householdId, (answered.ok && answered.also) || []);
+		expect(await live()).toHaveLength(0);
+		const again = await markCardPayment(db, viewer, { ...answer, transferId: "t-2" });
+		expect(again.ok && again.also).toHaveLength(1);
+		expect(await live()).toHaveLength(2);
+	});
+});
+
+describe("A payment to a card whose payment is the spending", () => {
+	const rowOf = async (amount: number) => {
+		const page = await loadTransactionsPage(db, viewer, { month, limit: 50 });
+		return page.transactions.find((row) => row.amountCents === amount);
+	};
+	const WORDING = "APPLECARD GSBANK PAYMENT 8841";
+
+	beforeEach(async () => {
+		await addCommitment(db, {
+			householdId,
+			memberId: parentId,
+			commitmentId: "apple",
+			name: "Apple Card",
+			month,
+			amountCents: 30_000,
+			cadence: "monthly",
+			dueDate: "2026-09-05",
+		});
+	});
+
+	it("is filed in the Commitment with the lines worded like it, and the Rule files later ones", async () => {
+		await importInto("checking", "i-1", [
+			line("2026-09-05", -30_000, WORDING),
+			line("2026-09-19", -5_000, WORDING),
+			line("2026-09-20", -4_000, "COSTCO WHSE #1042"),
+		]);
+		const opened = (await rowOf(30_000))?.id as string;
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: opened,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		expect(filing).toMatchObject({ ok: true, filed: 2, months: [month], ruleId: "rule-1" });
+		expect((await rowOf(30_000))?.commitmentId).toBe("apple");
+		expect((await rowOf(5_000))?.commitmentId).toBe("apple");
+		expect((await rowOf(4_000))?.commitmentId).toBeNull();
+		expect(await listRules(db, viewer)).toMatchObject([{ id: "rule-1" }]);
+
+		// A payment that comes in later says the same: the Rule stated for the wording takes it.
+		await importInto("checking", "i-2", [line("2026-09-27", -6_100, WORDING)]);
+		expect(await applyRule(db, viewer, "rule-1")).toMatchObject({ filed: 1 });
+		expect((await rowOf(6_100))?.commitmentId).toBe("apple");
+	});
+
+	it("is undone whole: the lines go back and the wording is forgotten", async () => {
+		await importInto("checking", "i-1", [
+			line("2026-09-05", -30_000, WORDING),
+			line("2026-09-19", -5_000, WORDING),
+		]);
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: (await rowOf(30_000))?.id as string,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		if (!filing.ok) throw new Error("not filed");
+		expect(await undoCardPaymentFiling(db, viewer, filing)).toEqual({ restored: 2 });
+		expect((await rowOf(30_000))?.commitmentId).toBeNull();
+		expect((await rowOf(5_000))?.commitmentId).toBeNull();
+		expect(await listRules(db, viewer)).toEqual([]);
+	});
+
+	it("refuses money back, and a Commitment that isn't in the line's month", async () => {
+		await importInto("checking", "i-1", [
+			line("2026-09-05", 2_000, "REFUND"),
+			line("2026-08-05", -30_000, WORDING),
+		]);
+		const refund = (await rowOf(-2_000))?.id as string;
+		expect(
+			await fileCardPayment(db, viewer, {
+				transactionId: refund,
+				commitmentId: "apple",
+				ruleId: "rule-1",
+			}),
+		).toEqual({ ok: false });
+		const august = await loadTransactionsPage(db, viewer, { month: "2026-08", limit: 50 });
+		expect(
+			await fileCardPayment(db, viewer, {
+				transactionId: august.transactions[0]?.id as string,
+				commitmentId: "apple",
+				ruleId: "rule-1",
+			}),
+		).toEqual({ ok: false });
+		expect(await listRules(db, viewer)).toEqual([]);
 	});
 });

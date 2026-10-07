@@ -3,8 +3,8 @@ import { toast } from "@noodle/ui/components/toast";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { monthChangeKey } from "./plan-changes";
 import { bucketUsesQuery, monthQuery, monthsKey, rulesQuery } from "./queries";
+import { undoCardPaymentAnswer } from "./server/card-payments";
 import {
-	forgetCardPayment,
 	getTransactionMoney,
 	linkRefund,
 	type MoneyResult,
@@ -56,7 +56,9 @@ export type MoneyChange =
 	  }
 	| { kind: "unlink"; refundId: string; label: string };
 
-const send = (change: MoneyChange): Promise<MoneyResult & { remembered?: string }> => {
+const send = (
+	change: MoneyChange,
+): Promise<MoneyResult & { remembered?: string; also?: string[] }> => {
 	switch (change.kind) {
 		case "mark":
 			if (change.card) {
@@ -145,14 +147,20 @@ export function useMoneyChange() {
 				// Said with its card, and that its wording is remembered; Undo takes both back.
 				const to = variables.card.name ? ` to ${variables.card.name}` : "";
 				const remembered = result.remembered;
+				// The lines already here that say the same were marked with it, and go back with it.
+				const also = result.also ?? [];
+				const more = also.length > 0 ? `, with ${also.length} more worded like it` : "";
 				toast(
-					`${variables.label} marked as a Transfer${to}${remembered ? ". Payments worded like it will be too." : ""}`,
+					`${variables.label} marked as a Transfer${to}${more}${remembered ? ". Payments worded like it will be too." : ""}`,
 					{
 						tone: "success",
 						undo: () => {
 							if (remembered) {
-								void forgetCardPayment({ data: { pattern: remembered } }).finally(() =>
-									queryClient.invalidateQueries({ queryKey: rulesQuery().queryKey }),
+								void undoCardPaymentAnswer({ data: { pattern: remembered, also } }).finally(() =>
+									Promise.all([
+										queryClient.invalidateQueries({ queryKey: rulesQuery().queryKey }),
+										also.length > 0 && queryClient.invalidateQueries({ queryKey: monthsKey }),
+									]),
 								);
 							}
 							if (variables.onUndo) return variables.onUndo();

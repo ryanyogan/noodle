@@ -67,6 +67,7 @@ import { pastPlanSentence } from "../../../before-plan";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
 import { cardNamedBy } from "../../../card-payments";
 import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
+import { CardPaymentQuestion } from "../../../components/card-payment";
 import { ReviewMatchOffer } from "../../../components/match-section";
 import { MoneyInReview } from "../../../components/money-in";
 import {
@@ -309,6 +310,8 @@ function ReviewPage() {
 		place: string;
 	} | null>(null);
 	const money = useMoneyChange();
+	/** The card "It’s a card payment" is asking about: which card it pays (issue 136). */
+	const [asking, setAsking] = useState<ReviewItem | null>(null);
 	/** The Transfers marked from cards here, by Transaction: what their Undo unmarks. */
 	const marked = useRef(new Map<string, string>());
 	const months = byMonth(items);
@@ -527,10 +530,16 @@ function ReviewPage() {
 	}
 
 	/** "It's a card payment": marks it as a Transfer, which counts nowhere and leaves Review. */
-	function markPayment(item: ReviewItem, reason?: "between-us") {
-		const transferId = ulid();
+	function markPayment(
+		item: ReviewItem,
+		reason?: "between-us",
+		chosen?: { id: string | null; name: string | null },
+	) {
 		// The card its wording names is said and remembered with it (issue 136).
-		const card = reason ? undefined : cardNamedBy(paymentOf(item), accounts ?? []);
+		const card = reason ? undefined : (chosen ?? cardNamedBy(paymentOf(item), accounts ?? []));
+		// A payment to a card Noodle follows whose wording doesn't say which: it asks.
+		if (!reason && !card && paymentOf(item)?.kind === "followed") return setAsking(item);
+		const transferId = ulid();
 		const back = () => {
 			marked.current.delete(item.id);
 			dispatch({ type: "returned", items: [item] });
@@ -1395,6 +1404,39 @@ function ReviewPage() {
 					/>
 				</Suspense>
 			) : null}
+			<Sheet open={asking !== null} onOpenChange={(open) => (open ? undefined : setAsking(null))}>
+				<SheetContent>
+					<SheetHeader
+						title="It’s a card payment"
+						description={asking ? labelOf(asking) : undefined}
+					/>
+					{asking ? (
+						<>
+							<CardPaymentQuestion
+								transaction={{
+									id: asking.id,
+									date: asking.date,
+									note: asking.note ?? "",
+									merchantName: labelOf(asking),
+									amountCents: asking.amountCents,
+								}}
+								label={labelOf(asking)}
+								onCancel={() => setAsking(null)}
+								onTransfer={(card) => markPayment(asking, undefined, card)}
+								onUndo={() => putBack([asking])}
+								onFail={() => dispatch({ type: "returned", items: [asking] })}
+								onDone={(answer) => {
+									setAsking(null);
+									if (answer === "transfer") return;
+									// Filed in the card's Commitment: the card leaves as any filed one does.
+									moveOn(asking);
+									decided([asking], `${labelOf(asking)} is filed in the card’s Commitment.`);
+								}}
+							/>
+						</>
+					) : null}
+				</SheetContent>
+			</Sheet>
 			<Sheet open={ruling !== null} onOpenChange={(open) => (open ? undefined : setRuling(null))}>
 				<SheetContent>
 					<SheetHeader

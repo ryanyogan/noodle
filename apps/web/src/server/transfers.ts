@@ -20,6 +20,7 @@ import {
 } from "@noodle/db";
 import { type CardKept, cardKept, dayKeyAt, monthOfDay, planForMonth } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
+import { ulid } from "ulid";
 import { z } from "zod";
 import type { HouseholdChange } from "../household-changes";
 import { getDb } from "./db";
@@ -131,11 +132,14 @@ export const markCardPayment = createServerFn({ method: "POST" })
 			ruleId: ulidSchema,
 		}),
 	)
-	.handler(async ({ data, context }): Promise<MoneyResult & { remembered?: string }> => {
-		const result = await markCard(getDb(), viewerOf(context), data);
-		if (result.ok) await notifyHousehold(context.household.id, moneyChanges(result.months));
-		return result;
-	});
+	.handler(
+		async ({ data, context }): Promise<MoneyResult & { remembered?: string; also?: string[] }> => {
+			// The lines already here that say the same are marked with it (`also`, for its Undo).
+			const result = await markCard(getDb(), viewerOf(context), { ...data, newId: ulid });
+			if (result.ok) await notifyHousehold(context.household.id, moneyChanges(result.months));
+			return result;
+		},
+	);
 
 /** A remembered card-payment wording and the card it names (null: one that isn't in Noodle). */
 export type CardPaymentRule = { id: string; pattern: string; card: string | null };

@@ -1,9 +1,15 @@
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@noodle/ui/components/dropdown-menu";
 import { Input } from "@noodle/ui/components/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@noodle/ui/components/popover";
 import type { ChoiceGroup } from "@noodle/ui/components/select";
-import { ChevronDown, Pencil } from "lucide-react";
+import { ChevronDown, Ellipsis, Pencil } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { MemberSummary } from "../members";
 import { assignedValue, cellName, NAME_MAX } from "../transaction-cells";
@@ -67,6 +73,31 @@ export function RenameButton({ title, onClick }: { title: string; onClick: () =>
 		>
 			<Pencil aria-hidden="true" className="size-3.5" />
 		</Button>
+	);
+}
+
+/**
+ * The row's own actions, at the end of its Name cell: "It's a card payment" (issue 136), which
+ * opens the row at the question. Not on stacked rows, where opening the row is one tap.
+ */
+export function RowMenu({ title, onCardPayment }: { title: string; onCardPayment: () => void }) {
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-sm"
+					aria-label={`More for ${title}`}
+					className={`hidden shrink-0 text-subtle-foreground @2xl/dt:inline-flex ${quiet} data-[state=open]:opacity-100`}
+				>
+					<Ellipsis aria-hidden="true" className="size-3.5" />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				<DropdownMenuItem onSelect={onCardPayment}>It’s a card payment</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
 
