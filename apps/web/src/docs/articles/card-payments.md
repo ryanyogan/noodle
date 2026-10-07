@@ -23,7 +23,7 @@ Open **Rules**. Under **Card payments** each remembered answer is listed, like "
 
 ## A card kept by hand
 
-Some cards cannot be connected to Noodle. Add the card as an Account and keep it by hand. When you add a card, Noodle asks **How do its purchases get into Noodle?** Say whether you upload its statements, add them by hand, or they will not come in.
+Some cards cannot be connected to Noodle. Add the card as an Account and keep it by hand. When you add a card, Noodle asks **How do its purchases get into Noodle?** Pick **From its statements** if you upload them, **I add them by hand**, or **They won’t** if its purchases will not come in.
 
 For a card kept by hand, each Quick Add on it is the record of the purchase and raises what is owed. Paying the card is a Transfer.
 

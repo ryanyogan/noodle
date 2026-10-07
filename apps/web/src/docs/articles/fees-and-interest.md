@@ -11,7 +11,7 @@ A late fee, a monthly account fee, interest on a card: none of it buys anything,
 
 When a charge in Review reads as a fee or as interest, the card says "Looks like a fee from your bank or card" or "Looks like interest you were charged", and suggests the **Fees and interest** Bucket.
 
-Confirm it, and Noodle:
+Press **Confirm**, and Noodle:
 
 - adds the Bucket to your Plan if it is not there yet (the card says so),
 - files the charge in it,

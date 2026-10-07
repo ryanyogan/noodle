@@ -698,3 +698,19 @@ Light: `--field-border` is `var(--input)`, `--field-hover` is `var(--muted-foreg
 Looked at (dark, 1440 and 393 unless said), before and after: Transactions (search, the Bucket and For selects; on a phone the search field and the Sort button between Filters and Select), the Transaction editor, Quick Add, Household settings (whole page), Reports' filter selects, Plan › Income, the Add an Account form (with its real "Give the Account a name" error at 393), sign-in. States at 1440: the search field focused by the keys, the Bucket select focused by the keys, its list open under it, an invalid and a disabled field and a disabled Switch on Household settings. Light at 1440, ten pages before and after: no pixel differs.
 
 Comparison pictures redrawn from CI run 37395065440: sign-up (iphone, dark), setup-buckets (desktop and iphone, dark), shell household (desktop and iphone, dark): five. Their differences were the fields' edges and the Switches, nothing else. The other dark pictures with a field in them (sign-in ×2, sign-up desktop) passed as they were, inside the comparison's tolerance, and were not redrawn. No light picture failed.
+
+
+## Money in (#134)
+
+`--money-in` (`text-money-in`) is the green of money coming in: the "+$700" on a Transactions row, the Money in rows and the month summary's Money in figure. Money out stays plain ink; red stays for Over. Light `#146c41`, Dark `#5fd08f` (both dark blocks), exposed as `--color-money-in` in `@theme`.
+
+| `--money-in` as text on | Light | Dark |
+|---|---|---|
+| card | 6.46 | 9.21 |
+| page (`--background`) | 6.03 | 10.28 |
+| surface-2 (hover, selected row) | 5.78 | 8.55 |
+| surface-3 | 5.28 | 7.75 |
+| `--selected` | not measured | 7.96 |
+| a pressed summary tile (brand tint over card, `rgb(237 239 251)`) | 5.63 | not measured |
+
+On the same pressed tile in Light, `--muted-foreground` is 5.90 and `--subtle-foreground` 4.91. Figures were computed from the token values in `globals.css` by 134a and 134b, not measured in a browser. Looked at by eye at 1440 and 393 in Light only (look130a); Dark was not looked at.

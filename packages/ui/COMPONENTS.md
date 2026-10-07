@@ -251,3 +251,8 @@ desktop density stays as it was. One approach everywhere: `max-lg:` sizes in the
 - **Pagination**: Transactions is one list whose rows load 50 at a time as you reach the end (no virtualizer); a Goal's History shows the latest, with a "Show N older" button.
 - **Accordion**: Collapsible covers the single disclosures the app has.
 - **Drawer**: phones get the bottom Sheet today. #48 (mobile) may move some menus and selects into a Drawer. Select, DropdownMenu and Popover are plain Radix parts, so a phone variant can wrap them without changing the app's calls.
+
+
+## Money in colour
+
+`text-money-in` (token `--money-in`, Light `#146c41`, Dark `#5fd08f`) is for an amount of money coming in, written with a leading "+": Transactions rows, the Money in list and the month summary. Don't use it for "good" in general (Pace and Over have their own tokens), and don't colour money out: it stays `text-foreground`. Contrast figures are in `docs/reviews/theme.md` ("Money in").
