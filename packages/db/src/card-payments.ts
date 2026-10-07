@@ -13,7 +13,15 @@ import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
 import { type Viewer, visibleTo } from "./privacy";
 import { deleteRule, saveRule } from "./rules";
-import { accounts, cardPaymentRules, monthCloses, transactions, transfers } from "./schema";
+import {
+	accounts,
+	cardPaymentRules,
+	monthCloses,
+	ruleFor,
+	rules,
+	transactions,
+	transfers,
+} from "./schema";
 import { type FiledBefore, fileTransactions, unfileTransactions } from "./transactions";
 import {
 	commitmentPayments,
@@ -467,7 +475,14 @@ export async function markCardPayment(
 		/** Given, the other lines already here with the same wording are marked too, with these IDs. */
 		newId?: () => string;
 	},
-): Promise<MoneyResult & { remembered?: string; also?: string[] }> {
+): Promise<
+	MoneyResult & {
+		remembered?: string;
+		also?: string[];
+		/** The card the wording was remembered for before this answer, for its Undo to put back. */
+		replaced?: { accountId: string | null };
+	}
+> {
 	const { householdId } = viewer;
 	const [[line], cards] = await Promise.all([
 		db
@@ -501,6 +516,18 @@ export async function markCardPayment(
 	});
 	if (!result.ok) return result;
 	const pattern = paymentWording(line);
+	// What the wording was remembered as until now: Undo puts that back, not nothing. A row with
+	// this answer's own id is this answer sent again.
+	const [earlier] = pattern
+		? await db
+				.select({ id: cardPaymentRules.id, accountId: cardPaymentRules.accountId })
+				.from(cardPaymentRules)
+				.where(
+					and(eq(cardPaymentRules.householdId, householdId), eq(cardPaymentRules.pattern, pattern)),
+				)
+		: [];
+	const replaced =
+		earlier && earlier.id !== input.ruleId ? { accountId: earlier.accountId } : undefined;
 	const writes: BatchItem<"sqlite">[] = [
 		db
 			.update(transfers)
@@ -545,11 +572,12 @@ export async function markCardPayment(
 		...new Set([...result.months, ...(others?.months ?? []), ...joined.months]),
 	].sort();
 	if (!pattern) return { ...result, months };
-	if (!others) return { ...result, months, remembered: pattern };
+	if (!others) return { ...result, months, remembered: pattern, replaced };
 	return {
 		...result,
 		months,
 		remembered: pattern,
+		replaced,
 		also: others.transferIds,
 	};
 }
@@ -580,6 +608,34 @@ export async function forgetCardPayment(db: Db, householdId: string, pattern: st
 		.delete(cardPaymentRules)
 		.where(
 			and(eq(cardPaymentRules.householdId, householdId), eq(cardPaymentRules.pattern, pattern)),
+		);
+}
+
+/**
+ * Undo for what an answer remembered (markCardPayment's `remembered`): the wording names the card
+ * it named before the answer (`replaced`; only ever one of the Household's credit cards, or none),
+ * and is forgotten when the answer was the first to remember it.
+ */
+export async function undoCardPaymentRemembered(
+	db: Db,
+	householdId: string,
+	pattern: string,
+	replaced?: { accountId: string | null },
+) {
+	if (!replaced) return forgetCardPayment(db, householdId, pattern);
+	const { accountId } = replaced;
+	await db
+		.update(cardPaymentRules)
+		.set({ accountId })
+		.where(
+			and(
+				eq(cardPaymentRules.householdId, householdId),
+				eq(cardPaymentRules.pattern, pattern),
+				accountId === null
+					? undefined
+					: sql`exists (select 1 from ${accounts} where ${accounts.id} = ${accountId}
+						and ${accounts.householdId} = ${householdId} and ${accounts.kind} = 'credit-card')`,
+			),
 		);
 }
 
@@ -669,6 +725,9 @@ export async function markRememberedCardPayments(
 	};
 }
 
+/** A Rule's target and who it's For, as they were before an answer changed them. */
+export type RuleBefore = { bucketId: string | null; commitmentId: string | null; for: string[] };
+
 /** What fileCardPayment did, for its Undo (undoCardPaymentFiling). */
 export type CardPaymentFiling =
 	| {
@@ -679,6 +738,15 @@ export type CardPaymentFiling =
 			undo: FiledBefore[];
 			/** The Rule that files later payments there; null when the line has no wording to go by. */
 			ruleId: string | null;
+			/**
+			 * Where that Rule filed before this answer changed it (a wording has one Rule, so stating
+			 * it again reuses the row): Undo puts this back. Null: the answer stated a new Rule.
+			 */
+			ruleBefore: RuleBefore | null;
+			/** The line answered was left as it is: its month is before `leaveBefore`. */
+			stays: boolean;
+			/** The month of the line answered. */
+			lineMonth: string;
 	  }
 	| { ok: false };
 
@@ -693,7 +761,16 @@ export type CardPaymentFiling =
 export async function fileCardPayment(
 	db: Db,
 	viewer: Viewer,
-	input: { transactionId: string; commitmentId: string; ruleId: string },
+	input: {
+		transactionId: string;
+		commitmentId: string;
+		ruleId: string;
+		/**
+		 * Lines in months before this one are left as they are, the line answered among them: for a
+		 * Commitment made by the answer, which starts in the running month when the line's has ended.
+		 */
+		leaveBefore?: MonthKey;
+	},
 ): Promise<CardPaymentFiling> {
 	const { householdId, memberId } = viewer;
 	const [line] = await db
@@ -735,7 +812,9 @@ export async function fileCardPayment(
 					other.id !== line.id && ` ${merchantKey(other.note ?? "")} `.includes(` ${pattern} `),
 			)
 		: [];
-	const byMonth = new Map<string, string[]>([[line.date.slice(0, 7), [line.id]]]);
+	const lineMonth = line.date.slice(0, 7);
+	const left = (month: string) => input.leaveBefore !== undefined && month < input.leaveBefore;
+	const byMonth = new Map<string, string[]>([[lineMonth, [line.id]]]);
 	for (const other of alike) {
 		const month = other.date.slice(0, 7);
 		byMonth.set(month, [...(byMonth.get(month) ?? []), other.id]);
@@ -744,6 +823,7 @@ export async function fileCardPayment(
 	const months: string[] = [];
 	let filed = 0;
 	for (const [month, ids] of byMonth) {
+		if (left(month)) continue;
 		const result = await fileTransactions(db, viewer, {
 			selection: { ids },
 			month: month as MonthKey,
@@ -759,6 +839,33 @@ export async function fileCardPayment(
 		filed += result.filed;
 		undo.push(...result.undo);
 	}
+	// The Rule the Household shares for this wording, if one is stated: saveRule changes that row.
+	const [earlier] = pattern
+		? await db
+				.select({ id: rules.id, bucketId: rules.bucketId, commitmentId: rules.commitmentId })
+				.from(rules)
+				.where(
+					and(
+						eq(rules.householdId, householdId),
+						eq(rules.pattern, pattern),
+						isNull(rules.ownerMemberId),
+					),
+				)
+		: [];
+	// One that files here already is this answer sent again: nothing to put back.
+	const before =
+		earlier && earlier.id !== input.ruleId && earlier.commitmentId !== input.commitmentId
+			? {
+					bucketId: earlier.bucketId,
+					commitmentId: earlier.commitmentId,
+					for: (
+						await db
+							.select({ memberId: ruleFor.memberId })
+							.from(ruleFor)
+							.where(eq(ruleFor.ruleId, earlier.id))
+					).map((row) => row.memberId),
+				}
+			: null;
 	const rule = pattern
 		? await saveRule(db, {
 				id: input.ruleId,
@@ -769,7 +876,16 @@ export async function fileCardPayment(
 				commitmentId: input.commitmentId,
 			})
 		: null;
-	return { ok: true, filed, months: months.sort(), undo, ruleId: rule?.ok ? rule.ruleId : null };
+	return {
+		ok: true,
+		filed,
+		months: months.sort(),
+		undo,
+		ruleId: rule?.ok ? rule.ruleId : null,
+		ruleBefore: rule?.ok ? before : null,
+		stays: left(lineMonth),
+		lineMonth,
+	};
 }
 
 /** The whole words of `text` that fit in `length`. */
@@ -781,14 +897,42 @@ function wordsWithin(text: string, length: number) {
 
 /**
  * Undo for fileCardPayment: each line goes back to where it was (only while nothing else has
- * changed it since), and the Rule for the wording is forgotten.
+ * changed it since), and the Rule for the wording is as it was: forgotten when the answer stated
+ * it, else filing where it did before (`ruleBefore`), For whom it was. An earlier target that has
+ * gone since can't be filed into, so the Rule is forgotten then too.
  */
 export async function undoCardPaymentFiling(
 	db: Db,
 	viewer: Viewer,
-	input: { undo: FiledBefore[]; ruleId: string | null },
+	input: { undo: FiledBefore[]; ruleId: string | null; ruleBefore?: RuleBefore | null },
 ): Promise<{ restored: number }> {
 	const { restored } = await unfileTransactions(db, viewer, input.undo);
-	if (input.ruleId) await deleteRule(db, viewer, input.ruleId);
+	if (!input.ruleId) return { restored };
+	if (input.ruleBefore) {
+		const { householdId, memberId } = viewer;
+		const [stated] = await db
+			.select({ pattern: rules.pattern })
+			.from(rules)
+			.where(
+				and(
+					eq(rules.id, input.ruleId),
+					eq(rules.householdId, householdId),
+					isNull(rules.ownerMemberId),
+				),
+			);
+		const back = stated
+			? await saveRule(db, {
+					id: input.ruleId,
+					householdId,
+					memberId,
+					pattern: stated.pattern,
+					bucketId: input.ruleBefore.bucketId,
+					commitmentId: input.ruleBefore.commitmentId,
+					forMemberIds: input.ruleBefore.for,
+				})
+			: null;
+		if (!stated || back?.ok) return { restored };
+	}
+	await deleteRule(db, viewer, input.ruleId);
 	return { restored };
 }

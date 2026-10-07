@@ -106,21 +106,34 @@ export const getCardPaymentCards = createServerFn({ method: "GET" })
 			followedCards(db, context.household.id, today),
 			loadPlanRecords(db, context.household.id, month),
 		]);
-		const follows = new Set(followed);
-		const commitments = planForMonth(records, month).commitments;
-		return cards.map((card) => {
-			// The Parent's answer when the card was added, else what Noodle can see of it (issue 136).
-			const kept = cardKept({ ...card, followed: follows.has(card.id) });
-			const paysDown = commitments.find((commitment) => commitment.accountId === card.id);
-			const paying = cardPaymentIsSpending(kept, paysDown !== undefined) ? paysDown : undefined;
-			return {
-				id: card.id,
-				name: card.name,
-				kept,
-				commitment: paying ? { id: paying.id, name: paying.name } : null,
-			};
-		});
+		return cardPaymentCardsOf(cards, followed, planForMonth(records, month).commitments);
 	});
+
+/**
+ * Each of the Household's cards as "It's a card payment" offers it: how its purchases get in, and
+ * the Commitment its payment is filed in when the payment is the spending (cardPaymentIsSpending:
+ * a Commitment of this month's Plan pays the card down and its purchases don't come in from its
+ * bank or its statements). `followed`: the cards a statement's purchases came in for lately.
+ */
+export function cardPaymentCardsOf(
+	cards: (Parameters<typeof cardKept>[0] & { id: string; name: string })[],
+	followed: Iterable<string>,
+	commitments: { id: string; name: string; accountId?: string | null }[],
+): CardPaymentCard[] {
+	const follows = new Set(followed);
+	return cards.map((card) => {
+		// The Parent's answer when the card was added, else what Noodle can see of it (issue 136).
+		const kept = cardKept({ ...card, followed: follows.has(card.id) });
+		const paysDown = commitments.find((commitment) => commitment.accountId === card.id);
+		const paying = cardPaymentIsSpending(kept, paysDown !== undefined) ? paysDown : undefined;
+		return {
+			id: card.id,
+			name: card.name,
+			kept,
+			commitment: paying ? { id: paying.id, name: paying.name } : null,
+		};
+	});
+}
 
 /**
  * "It's a card payment": marks money out as a Transfer to `cardAccountId` (null: a card that

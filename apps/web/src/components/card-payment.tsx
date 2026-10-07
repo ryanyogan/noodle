@@ -1,4 +1,3 @@
-import type { MonthKey } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -8,9 +7,11 @@ import { useHydrated } from "@tanstack/react-router";
 import { useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
 import {
+	type CardPaymentFilingInput,
 	cardPaymentCardsQuery,
 	cardPaymentRulesQuery,
 	onCardPaymentAsked,
+	paymentAsSpending,
 	takeAskedCardPayment,
 	useCardPaymentFiling,
 	useForgetCardPayment,
@@ -73,8 +74,8 @@ export function CardPaymentChoice({
 
 /**
  * The question itself, already asked: "Which card does it pay?", then "Count this payment as
- * spending?" for a card that isn't in Noodle. Review gives its own `onTransfer`, `onUndo` and
- * `onFail`, so its stack follows the answer.
+ * spending?" for a card that isn't in Noodle. Review gives its own `onTransfer` and `filing`, so
+ * its stack follows the answer.
  */
 export function CardPaymentQuestion({
 	transaction,
@@ -82,8 +83,7 @@ export function CardPaymentQuestion({
 	onDone,
 	onCancel,
 	onTransfer,
-	onUndo,
-	onFail,
+	filing,
 }: {
 	transaction: CardPaymentLine;
 	label: string;
@@ -91,9 +91,8 @@ export function CardPaymentQuestion({
 	onCancel: () => void;
 	/** Marks the Transfer instead of this (Review's own mark); `id` null: a card not in Noodle. */
 	onTransfer?: (card: { id: string | null; name: string | null }) => void;
-	/** After an answer filed in a Commitment is undone, and when it couldn't be filed. */
-	onUndo?: () => void;
-	onFail?: () => void;
+	/** What follows an answer filed in a Commitment: its Undo, a failure, a line that stays. */
+	filing?: Pick<CardPaymentFilingInput, "onFiled" | "undoBy" | "onUndo" | "onFail" | "onStays">;
 }) {
 	const id = useId();
 	const [step, setStep] = useState<"which" | "spending">("which");
@@ -114,19 +113,12 @@ export function CardPaymentQuestion({
 		}
 		onDone("transfer");
 	};
-	const fileIn = (
-		commitment: { id: string; name: string },
-		create?: { month: MonthKey; amountCents: number; dueDate: string },
-	) => {
-		file.mutate({
-			transactionId: transaction.id,
-			ruleId: ulid(),
-			label,
-			commitment,
-			create,
-			onUndo,
-			onFail,
-		});
+	const fileIn = (commitment: { id: string; name: string }) => {
+		file.mutate({ transactionId: transaction.id, ruleId: ulid(), label, commitment, ...filing });
+		onDone("commitment");
+	};
+	const makeCommitment = () => {
+		file.mutate({ ...paymentAsSpending(transaction, label), ...filing });
 		onDone("commitment");
 	};
 
@@ -141,20 +133,7 @@ export function CardPaymentQuestion({
 					Commitment, so it’s the spending. No marks it as a Transfer, which counts nowhere.
 				</p>
 				<div className="flex flex-wrap gap-2">
-					<Button
-						type="button"
-						size="sm"
-						onClick={() =>
-							fileIn(
-								{ id: ulid(), name: commitmentNameFor(label) },
-								{
-									month: transaction.date.slice(0, 7) as MonthKey,
-									amountCents: transaction.amountCents,
-									dueDate: transaction.date,
-								},
-							)
-						}
-					>
+					<Button type="button" size="sm" onClick={makeCommitment}>
 						Yes, make a Commitment
 					</Button>
 					<Button
@@ -215,19 +194,6 @@ export function CardPaymentQuestion({
 			</div>
 		</div>
 	);
-}
-
-/**
- * The name of a Commitment made for a card from its payment's wording: what the line is called,
- * in ordinary capitals when the bank shouted it, at most the 40 a Commitment's name takes.
- */
-export function commitmentNameFor(label: string) {
-	const words = label.replace(/\s+/g, " ").trim();
-	const plain =
-		words === words.toUpperCase()
-			? words.toLowerCase().replace(/(^|[\s-])\p{L}/gu, (first) => first.toUpperCase())
-			: words;
-	return plain.slice(0, 40).trim() || "Card payment";
 }
 
 /** The wordings remembered as card payments, on the Rules page: each can be removed. */

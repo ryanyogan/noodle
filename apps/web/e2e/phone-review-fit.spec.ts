@@ -54,7 +54,7 @@ const WAITING = LINES.length;
 const PAYMENTS = {
 	commitment: { role: "button", name: "Confirm" },
 	followed: { role: "button", name: "It’s a card payment" },
-	"not-followed": { role: "link", name: "Make it a Commitment" },
+	"not-followed": { role: "button", name: "Make it a Commitment" },
 } as const;
 
 /** Adds an Account on the Accounts page: its form when there are none yet, else its sheet. */

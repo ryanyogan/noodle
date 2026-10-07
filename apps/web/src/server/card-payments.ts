@@ -3,11 +3,11 @@ import {
 	type CardPaymentFiling,
 	endCommitment as endCommitmentInDb,
 	fileCardPayment as fileCardPaymentInDb,
-	forgetCardPayment as forgetCardPaymentInDb,
 	undoCardPaymentMarks,
+	undoCardPaymentRemembered,
 	undoCardPaymentFiling as undoFilingInDb,
 } from "@noodle/db";
-import type { MonthKey } from "@noodle/domain";
+import { type DayKey, type MonthKey, monthKeyAt } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { HouseholdChange } from "../household-changes";
@@ -33,10 +33,32 @@ const filingChanges = (months: string[]): HouseholdChange[] => [
 ];
 
 /**
+ * Where a Commitment made for a payment starts. A past month's Plan is closed, so for a payment in
+ * a month that has ended it starts in the running month, due on the same day of it (the month's
+ * last day when it's shorter), and the payment itself stays as it is (`moved`).
+ */
+export function commitmentStart(
+	payment: { month: MonthKey; dueDate: DayKey },
+	running: MonthKey,
+): { month: MonthKey; dueDate: DayKey; moved: boolean } {
+	if (payment.month >= running) return { ...payment, moved: false };
+	const [year, month] = running.split("-").map(Number) as [number, number];
+	const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+	const day = Math.min(Number(payment.dueDate.slice(8, 10)), last);
+	const dueDate = `${running}-${String(day).padStart(2, "0")}` as DayKey;
+	return { month: running, dueDate, moved: true };
+}
+
+/** What fileCardPayment answers: with `madeIn`, the first month of the Commitment it made. */
+export type CardPaymentFiled = CardPaymentFiling & { madeIn?: MonthKey };
+
+/**
  * Files a card payment in the Commitment that is its spending, with the lines already here that
  * say the same, and states the Rule that files later ones. With `create`, the Commitment is made
  * first, in the line's month: the payment's amount, monthly, due on the payment's day, paying
- * nothing down (the card isn't in Noodle). Idempotent per `commitmentId` and `ruleId`.
+ * nothing down (the card isn't in Noodle). When the line's month has ended the Commitment starts
+ * this month instead and the line stays as it is (`stays`): later payments are filed.
+ * Idempotent per `commitmentId` and `ruleId`.
  */
 export const fileCardPayment = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -55,10 +77,17 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 				.optional(),
 		}),
 	)
-	.handler(async ({ data, context }): Promise<CardPaymentFiling> => {
+	.handler(async ({ data, context }): Promise<CardPaymentFiled> => {
 		const db = getDb();
 		const author = { householdId: context.household.id, memberId: context.parent.id };
-		const made = data.create && { ...data.create, month: data.create.month as MonthKey };
+		const running = monthKeyAt(new Date(), context.household.timeZone);
+		const start =
+			data.create &&
+			commitmentStart(
+				{ month: data.create.month as MonthKey, dueDate: data.create.dueDate as DayKey },
+				running,
+			);
+		const made = data.create && start && { ...data.create, ...start };
 		if (made) {
 			assertEditable(context.household, made.month);
 			await addCommitmentInDb(db, {
@@ -71,7 +100,12 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 				dueDate: made.dueDate,
 			});
 		}
-		const result = await fileCardPaymentInDb(db, viewerOf(context), data);
+		const result = await fileCardPaymentInDb(db, viewerOf(context), {
+			transactionId: data.transactionId,
+			commitmentId: data.commitmentId,
+			ruleId: data.ruleId,
+			leaveBefore: made?.moved ? running : undefined,
+		});
 		if (!result.ok) {
 			// Nothing half-made is left: a Commitment made for a line that couldn't go in leaves again.
 			if (made) {
@@ -87,11 +121,12 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 		if (made) {
 			await queueAi({ ...author, kind: "commitment-changed", ids: [data.commitmentId] });
 		}
-		return result;
+		return made ? { ...result, madeIn: made.month } : result;
 	});
 
 /**
- * Undo for fileCardPayment: the lines go back where they were, the Rule is forgotten, and a
+ * Undo for fileCardPayment: the lines go back where they were, the Rule is forgotten (or files
+ * where it did before the answer, `ruleBefore`), and a
  * Commitment made for the answer (`created`) leaves the Plan from the month it was made in.
  */
 export const undoCardPaymentFiling = createServerFn({ method: "POST" })
@@ -110,6 +145,13 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 				)
 				.max(2000),
 			ruleId: ulidSchema.nullable(),
+			ruleBefore: z
+				.object({
+					bucketId: ulidSchema.nullable(),
+					commitmentId: ulidSchema.nullable(),
+					for: z.array(ulidSchema).max(20),
+				})
+				.nullish(),
 			months: z.array(monthSchema).max(240),
 			created: z.object({ commitmentId: ulidSchema, month: monthSchema }).optional(),
 		}),
@@ -119,6 +161,7 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 		const { restored } = await undoFilingInDb(db, viewerOf(context), {
 			undo: data.undo.map((entry) => ({ ...entry, for: entry.for ?? undefined })),
 			ruleId: data.ruleId,
+			ruleBefore: data.ruleBefore,
 		});
 		if (data.created) {
 			await endCommitmentInDb(db, {
@@ -133,15 +176,22 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 	});
 
 /**
- * Undo for the rest of a Transfer answer: the wording is forgotten, and the other lines it marked
+ * Undo for the rest of a Transfer answer: the wording is forgotten (or names the card it named
+ * before the answer, `replaced`), and the other lines it marked
  * (`also`) are as they were. The line answered is unmarked by the screen, as any Transfer is.
  */
 export const undoCardPaymentAnswer = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ pattern: z.string().min(1).max(200), also: z.array(ulidSchema).max(2000) }))
+	.validator(
+		z.object({
+			pattern: z.string().min(1).max(200),
+			also: z.array(ulidSchema).max(2000),
+			replaced: z.object({ accountId: ulidSchema.nullable() }).optional(),
+		}),
+	)
 	.handler(async ({ data, context }) => {
 		const db = getDb();
-		await forgetCardPaymentInDb(db, context.household.id, data.pattern);
+		await undoCardPaymentRemembered(db, context.household.id, data.pattern, data.replaced);
 		await undoCardPaymentMarks(db, context.household.id, data.also);
 		if (data.also.length > 0) await notifyHousehold(context.household.id, ["months"]);
 		return { ok: true };

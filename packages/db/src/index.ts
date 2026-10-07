@@ -514,6 +514,7 @@ export {
 	markRememberedCardPayments,
 	undoCardPaymentFiling,
 	undoCardPaymentMarks,
+	undoCardPaymentRemembered,
 } from "./card-payments";
 export {
 	type CategorizableBucket,

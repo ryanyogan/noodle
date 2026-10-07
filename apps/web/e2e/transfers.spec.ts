@@ -197,11 +197,10 @@ test("a payment to a card Noodle doesn't follow is the spending: Review offers a
 	await expect(payment.getByTestId("review-payment-why")).toContainText(
 		"Noodle can’t see what was bought on this card, so the payment is the spending.",
 	);
-	// The Commitment's form would open with the line's amount, and a card to add ready.
-	const commit = payment.getByRole("link", { name: "Make it a Commitment" });
-	await expect(commit).toBeVisible();
-	await expect(commit).toHaveAttribute("href", /\/plan\/\d{4}-\d{2}\/commitments\?.*amount=40000/);
-	await expect(commit).toHaveAttribute("href", /paysDown=add/);
+	// The card isn't in Noodle, so its Commitment is made right here (card-payment-choice.spec.ts
+	// presses it); a link to the form is only for a card that is an Account.
+	await expect(payment.getByRole("button", { name: "Make it a Commitment" })).toBeVisible();
+	await expect(payment.getByRole("link", { name: "Make it a Commitment" })).toHaveCount(0);
 	await expect(payment.getByRole("link", { name: "Connect the card" })).toHaveAttribute(
 		"href",
 		"/accounts",
