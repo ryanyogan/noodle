@@ -30,6 +30,7 @@ import {
 	getTransactions,
 	nameSameMerchant,
 	renameTransaction,
+	setTransactionFor,
 	splitTransaction,
 	type TransactionsPage,
 	updateTransaction,
@@ -172,18 +173,24 @@ export type TransactionEdit = {
  */
 export type TransactionRename = { rename: string };
 
+/**
+ * Only who it is For (issue 141, the row's For chips): for a Transaction with no Bucket, which
+ * stays unassigned, and a split one, whose every Split takes it. Nothing else about it changes.
+ */
+export type TransactionFor = { for: string[] };
+
 /** A change to one Transaction: new values for what a Parent can edit, or `null` to delete it. */
 export type TransactionChange = {
 	transaction: TransactionRow;
 	/** What it's called in messages: its transactionLabel from before the change. */
 	label: string;
-	next: TransactionEdit | TransactionRename | null;
+	next: TransactionEdit | TransactionRename | TransactionFor | null;
 	/** A delete the Parent was already told about, with its Undo: nothing more is said when it lands. */
 	quiet?: boolean;
 	/** What to say once it has saved, instead of "… saved" (a cell's rename or refile). */
 	said?: string;
 	/** With `said`: the change that puts it back, offered as the message's Undo. */
-	back?: TransactionEdit | TransactionRename | null;
+	back?: TransactionEdit | TransactionRename | TransactionFor | null;
 };
 
 /** The month a Transaction is in. */
@@ -220,6 +227,9 @@ export function withTransactionChange(data: MonthData, change: TransactionChange
 	const next = change.next;
 	// A new name moves no money.
 	if (next && "rename" in next) return data;
+	// Only who it was For: an unassigned one is in no Bucket's spending, and a split one's parts
+	// come back with the month.
+	if (next && "for" in next) return data;
 	const spending = data.spending.filter((spend) => spend.id !== id);
 	const charges = data.charges.filter((charge) => charge.id !== id);
 	if (next) {
@@ -251,7 +261,16 @@ export function withTransactionChange(data: MonthData, change: TransactionChange
 }
 
 /** A Transaction's row once `next` has landed on it. */
-function editedRow(row: TransactionRow, next: TransactionEdit | TransactionRename): TransactionRow {
+function editedRow(
+	row: TransactionRow,
+	next: TransactionEdit | TransactionRename | TransactionFor,
+): TransactionRow {
+	// Only who it is For: a split one's Splits each take it; its assignment and Review stay.
+	if ("for" in next) {
+		return row.splits.length > 0
+			? { ...row, splits: row.splits.map((split) => ({ ...split, for: next.for })) }
+			: { ...row, for: next.for };
+	}
 	// A bank row takes the name beside its note (the bank's wording); a by-hand row's name is its note.
 	if ("rename" in next) {
 		return row.importedFrom !== null
@@ -269,6 +288,8 @@ function editedRow(row: TransactionRow, next: TransactionEdit | TransactionRenam
 			commitmentId: null,
 			for: [],
 			autoFiled: null,
+			// Split by a Parent: it waits in Review no longer.
+			...(row.waits ? { waits: false } : {}),
 			splits: next.splits.map(
 				(split): SplitRow => ({
 					id: split.id,
@@ -293,6 +314,8 @@ function editedRow(row: TransactionRow, next: TransactionEdit | TransactionRenam
 		splits: [],
 		// A Parent has changed or confirmed it: it's no longer categorization's.
 		autoFiled: null,
+		// Filed by a Parent: it waits in Review no longer.
+		...(row.waits ? { waits: false } : {}),
 	};
 }
 
@@ -339,38 +362,48 @@ export async function saveTransactionChange({ transaction, next }: TransactionCh
 			? await renameTransaction({
 					data: { transactionId: transaction.id, month, name: next.rename, expectedVersion },
 				})
-			: next && "splits" in next
-				? await splitTransaction({
-						data: {
-							transactionId: transaction.id,
-							month,
-							amountCents: next.amountCents,
-							note: next.note ?? undefined,
-							name: next.name,
-							splits: next.splits,
-							expectedVersion,
-						},
+			: next && "for" in next
+				? await setTransactionFor({
+						data: { transactionId: transaction.id, month, forMemberIds: next.for, expectedVersion },
 					})
-				: next
-					? await updateTransaction({
+				: next && "splits" in next
+					? await splitTransaction({
 							data: {
 								transactionId: transaction.id,
 								month,
 								amountCents: next.amountCents,
-								assignment: next.assignment,
 								note: next.note ?? undefined,
 								name: next.name,
-								forMemberIds: next.forMemberIds,
+								splits: next.splits,
 								expectedVersion,
 							},
 						})
-					: await deleteTransaction({
-							data: { transactionId: transaction.id, month, expectedVersion },
-						});
+					: next
+						? await updateTransaction({
+								data: {
+									transactionId: transaction.id,
+									month,
+									amountCents: next.amountCents,
+									assignment: next.assignment,
+									note: next.note ?? undefined,
+									name: next.name,
+									forMemberIds: next.forMemberIds,
+									expectedVersion,
+								},
+							})
+						: await deleteTransaction({
+								data: { transactionId: transaction.id, month, expectedVersion },
+							});
 	if (answer.status === "month-ended") throw new MonthEnded();
 	settleWrite(transaction.id, answer);
 	// Renamed, and saved: the same name is offered for the merchant's other Transactions (#95).
-	const named = next ? ("rename" in next ? next.rename : next.name) : undefined;
+	const named = next
+		? "rename" in next
+			? next.rename
+			: "for" in next
+				? undefined
+				: next.name
+		: undefined;
 	if (named && transaction.importedFrom) void offerSameName(transaction, named);
 }
 

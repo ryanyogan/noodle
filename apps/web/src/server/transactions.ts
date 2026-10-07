@@ -16,6 +16,7 @@ import {
 	loadUnfiledReceipt,
 	nameSameMerchant as nameSameMerchantInDb,
 	renameTransaction as renameTransactionInDb,
+	setTransactionFor as setTransactionForInDb,
 	splitTransaction as splitTransactionInDb,
 	summarizeDeletion,
 	type TransactionCursor,
@@ -343,6 +344,44 @@ export const renameTransaction = createServerFn({ method: "POST" })
 		}
 		// The lists live under their month.
 		await notifyHousehold(context.household.id, ["months"]);
+		return saved(result.version);
+	});
+
+/**
+ * Changes only who a Transaction is For (issue 141: the For chips of a row with no Bucket, or a
+ * split one, where every Split takes it). Its assignment stays as it is, so one that waits in
+ * Review still does. Refused for anything in the other Parent's Personal Allowance (ADR-0003).
+ * `month` is the Transaction's own, so the right month's screens refresh. Safe to retry.
+ */
+export const setTransactionFor = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			transactionId: ulidSchema,
+			month: monthKeySchema,
+			forMemberIds: z.array(ulidSchema).max(20),
+			expectedVersion: versionSchema,
+		}),
+	)
+	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
+		const result = await setTransactionForInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			transactionId: data.transactionId,
+			forMemberIds: data.forMemberIds,
+			expectedVersion: data.expectedVersion,
+		});
+		if (!result.ok) {
+			if (result.reason === "changed-elsewhere")
+				return changedElsewhere(viewerOf(context), data.transactionId);
+			throw new Error(
+				result.reason === "for-differs"
+					? "Its Splits are For different people. Open it to change them."
+					: "Who that Transaction is For can’t be changed here.",
+			);
+		}
+		// Who spending was For is in every month's figures by person.
+		await notifyHousehold(context.household.id, ["months", "for-earlier"]);
 		return saved(result.version);
 	});
 

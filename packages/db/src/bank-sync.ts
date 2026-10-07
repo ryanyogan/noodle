@@ -15,6 +15,7 @@ import { endedBefore, lineEndedRestores, purchaseEndedRestores } from "./ended-m
 import { importStatement } from "./imports";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
+import { markMoneyInByRule } from "./money-in";
 import { owedBackOffGoneSplits } from "./owed-back";
 import { bankLinesNotHere } from "./same-lines";
 import {
@@ -163,6 +164,9 @@ export async function syncBankLines(
 		// came in before its words were read, or its wording changed as it posted) is still marked.
 		const paid = await markCardPayments(db, householdId, input.newId);
 		for (const month of paid.months) months.add(month);
+		// A line that changed as it posted may now be the money out a remembered pair of Accounts
+		// was waiting for: joined here too, as every Import does (issue 141).
+		await markMoneyInByRule(db, householdId, [], input.newId);
 	}
 	return {
 		importId,

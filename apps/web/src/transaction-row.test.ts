@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatMoney } from "./format";
-import { rowView } from "./transaction-row";
+import { FOR_DIFFERS, rowView } from "./transaction-row";
 import { dayTotals, sortsByDate, tableSortOf, transactionSortOf } from "./transaction-table";
 import type { TransactionRow, TransactionSort } from "./transactions";
 
@@ -65,6 +65,13 @@ describe("rowView", () => {
 		expect(view({ ...bank, transfer, paysCard: true, merchantName: "Online Payment" }).title).toBe(
 			"Card payment",
 		);
+		// A name a Parent gave it stays: "Card payment" stands in for the bank's wording only.
+		expect(
+			view({ ...bank, transfer, paysCard: true, merchantName: "Visa autopay", named: true }),
+		).toMatchObject({
+			title: "Visa autopay",
+			label: `Visa autopay, ${money}, Transfer, Checking to Visa`,
+		});
 		// Any other Transfer keeps the bank's wording, cleaned up.
 		expect(view({ ...bank, transfer }).title).toBe("Thank You");
 	});
@@ -96,17 +103,32 @@ describe("rowView", () => {
 			bucketId: null,
 			autoFiled: "rule",
 			splits: [
-				{ bucketId: "b1", commitmentId: null },
-				{ bucketId: null, commitmentId: "c1" },
+				{ bucketId: "b1", commitmentId: null, for: [] },
+				{ bucketId: null, commitmentId: "c1", for: [] },
 			],
 		});
 		expect(v).toMatchObject({
 			kind: "split",
 			assigned: "Split · Groceries, Rent",
 			detail: "Split across 2 · Groceries, Rent",
-			label: `Costco, ${money}, Split across 2: Groceries, Rent`,
+			label: `Costco, ${money}, Split across 2: Groceries, Rent, For Everyone`,
 			autoFiled: false,
+			// Its Splits agree on who it is For, so its chips sit in its second line (issue 141).
+			aroundFor: { before: "Split across 2 · Groceries, Rent", after: "" },
+			forNames: ["Everyone"],
 		});
+	});
+
+	it("a split one whose Splits are For different people says so in words", () => {
+		const v = view({
+			bucketId: null,
+			splits: [
+				{ bucketId: "b1", commitmentId: null, for: ["m1"] },
+				{ bucketId: null, commitmentId: "c1", for: ["m2"] },
+			],
+		});
+		expect(v).toMatchObject({ who: FOR_DIFFERS, aroundFor: null });
+		expect(v.label).toContain(`For ${FOR_DIFFERS}`);
 	});
 
 	it("a side of a Transfer names its Accounts and is For no one", () => {

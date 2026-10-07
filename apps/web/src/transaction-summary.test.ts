@@ -78,6 +78,20 @@ describe("the list's figures at once after a change (issue 134)", () => {
 		expect(summaryAfterChange(summary, costco, { amountCents: 8_550 }).outCents).toBe(15_049);
 	});
 
+	it("one that waited in Review is one fewer once it is filed, split or deleted (issue 141)", () => {
+		const waiting = { ...costco, waits: true };
+		expect(summaryAfterChange(summary, waiting, { amountCents: costco.amountCents })).toEqual({
+			...summary,
+			needsReview: 0,
+		});
+		expect(summaryAfterChange(summary, waiting, null).needsReview).toBe(0);
+		// A new name, or only who it is For, leaves it waiting.
+		expect(summaryAfterChange(summary, waiting, { rename: "Costco run" })).toBe(summary);
+		expect(summaryAfterChange(summary, waiting, { for: ["m1"] })).toBe(summary);
+		// One that didn't wait changes nothing there.
+		expect(summaryAfterChange(summary, costco, null).needsReview).toBe(1);
+	});
+
 	it("a side of a Transfer was never in Money out", () => {
 		const side = { amountCents: 50_000, transfer: { from: "Checking", to: "Visa" } };
 		expect(summaryAfterChange(summary, side, null)).toBe(summary);

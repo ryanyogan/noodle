@@ -18,6 +18,7 @@ import {
 	accounts,
 	income,
 	members,
+	moneyInPairs,
 	moneyInRules,
 	paidBackMatches,
 	refundLinks,
@@ -522,22 +523,49 @@ export type StoredMoneyInRule = MoneyInRule & {
 const accountName = (id: AnyColumn) =>
 	sql<string | null>`(select a.name from accounts a where a.id = ${id})`;
 
-/** The Household's Rules for money in. */
+/**
+ * The Household's Rules for money in: one plain Rule a wording, and every remembered pair of
+ * Accounts (one a wording and Account it arrives in, issue 141). A pair remembered before pairs
+ * had their own table is still read from `money_in_rules`, unless one for the same wording and
+ * Account has been remembered since.
+ */
 export async function loadMoneyInRules(db: Db, householdId: string): Promise<StoredMoneyInRule[]> {
-	return db
-		.select({
-			id: moneyInRules.id,
-			pattern: moneyInRules.pattern,
-			kind: moneyInRules.kind,
-			intoAccountId: moneyInRules.intoAccountId,
-			otherAccountId: moneyInRules.otherAccountId,
-			intoAccountName: accountName(moneyInRules.intoAccountId),
-			otherAccountName: accountName(moneyInRules.otherAccountId),
-			payMemberId: moneyInRules.payMemberId,
-		})
-		.from(moneyInRules)
-		.where(eq(moneyInRules.householdId, householdId))
-		.orderBy(moneyInRules.pattern);
+	const [kept, pairs] = await db.batch([
+		db
+			.select({
+				id: moneyInRules.id,
+				pattern: moneyInRules.pattern,
+				kind: moneyInRules.kind,
+				intoAccountId: moneyInRules.intoAccountId,
+				otherAccountId: moneyInRules.otherAccountId,
+				intoAccountName: accountName(moneyInRules.intoAccountId),
+				otherAccountName: accountName(moneyInRules.otherAccountId),
+				payMemberId: moneyInRules.payMemberId,
+			})
+			.from(moneyInRules)
+			.where(eq(moneyInRules.householdId, householdId)),
+		db
+			.select({
+				id: moneyInPairs.id,
+				pattern: moneyInPairs.pattern,
+				intoAccountId: moneyInPairs.intoAccountId,
+				otherAccountId: moneyInPairs.otherAccountId,
+				intoAccountName: accountName(moneyInPairs.intoAccountId),
+				otherAccountName: accountName(moneyInPairs.otherAccountId),
+			})
+			.from(moneyInPairs)
+			.where(eq(moneyInPairs.householdId, householdId)),
+	]);
+	const paired = new Set(pairs.map((pair) => `${pair.pattern}\t${pair.intoAccountId}`));
+	return [
+		...kept.filter((rule) => !paired.has(`${rule.pattern}\t${rule.intoAccountId}`)),
+		...pairs.map((pair) => ({ ...pair, kind: "transfer" as const, payMemberId: null })),
+	].sort(
+		(a, b) =>
+			a.pattern.localeCompare(b.pattern) ||
+			(a.intoAccountName ?? "").localeCompare(b.intoAccountName ?? "") ||
+			a.id.localeCompare(b.id),
+	);
 }
 
 /**
@@ -560,26 +588,34 @@ export async function saveMoneyInRule(
 	const pay = input.kind === "income" ? input.payMemberId : null;
 	const pattern = input.wording.trim() ? merchantKey(input.wording) : "";
 	if (!pattern) return null;
-	await db
-		.insert(moneyInRules)
-		.values({
-			id: input.ruleId,
-			householdId: viewer.householdId,
-			pattern,
-			kind: input.kind,
-			payMemberId: pay ?? null,
-			createdByMemberId: viewer.memberId,
-		})
-		.onConflictDoUpdate({
-			target: [moneyInRules.householdId, moneyInRules.pattern],
-			// Stating it plainly again forgets a remembered pair of Accounts.
-			set: {
+	await db.batch([
+		db
+			.insert(moneyInRules)
+			.values({
+				id: input.ruleId,
+				householdId: viewer.householdId,
+				pattern,
 				kind: input.kind,
-				intoAccountId: null,
-				otherAccountId: null,
-				...(pay === undefined ? {} : { payMemberId: pay }),
-			},
-		});
+				payMemberId: pay ?? null,
+				createdByMemberId: viewer.memberId,
+			})
+			.onConflictDoUpdate({
+				target: [moneyInRules.householdId, moneyInRules.pattern],
+				// Stating it plainly again forgets a remembered pair of Accounts.
+				set: {
+					kind: input.kind,
+					intoAccountId: null,
+					otherAccountId: null,
+					...(pay === undefined ? {} : { payMemberId: pay }),
+				},
+			}),
+		// Every pair the wording had, whichever Account it was into.
+		db
+			.delete(moneyInPairs)
+			.where(
+				and(eq(moneyInPairs.householdId, viewer.householdId), eq(moneyInPairs.pattern, pattern)),
+			),
+	]);
 	return pattern;
 }
 
@@ -627,7 +663,6 @@ export async function rememberAccountPair(
 		.where(and(eq(accounts.id, input.otherAccountId), eq(accounts.householdId, householdId)));
 	if (!other) return { ok: false, reason: "refused" };
 	const pair = {
-		kind: "transfer" as const,
 		intoAccountId: line.accountId,
 		otherAccountId: other.id,
 	};
@@ -643,8 +678,10 @@ export async function rememberAccountPair(
 					isNull(transfers.outTransactionId),
 				),
 			),
+		// One pair a wording and Account it arrives in: the same wording into another Account
+		// keeps its own (issue 141). Said again for the same Account, it names the new one.
 		db
-			.insert(moneyInRules)
+			.insert(moneyInPairs)
 			.values({
 				id: input.ruleId,
 				householdId,
@@ -653,9 +690,19 @@ export async function rememberAccountPair(
 				...pair,
 			})
 			.onConflictDoUpdate({
-				target: [moneyInRules.householdId, moneyInRules.pattern],
-				set: pair,
+				target: [moneyInPairs.householdId, moneyInPairs.pattern, moneyInPairs.intoAccountId],
+				set: { otherAccountId: pair.otherAccountId },
 			}),
+		// A pair for this wording and Account kept the old way is this one now.
+		db
+			.delete(moneyInRules)
+			.where(
+				and(
+					eq(moneyInRules.householdId, householdId),
+					eq(moneyInRules.pattern, pattern),
+					eq(moneyInRules.intoAccountId, pair.intoAccountId),
+				),
+			),
 	]);
 	const after = await loadMoneyInLine(db, householdId, input.incomeId);
 	return after ? { ok: true, pattern, line: after } : { ok: false, reason: "refused" };
@@ -798,7 +845,7 @@ async function joinPairsLater(db: Db, householdId: string): Promise<void> {
 	}
 }
 
-/** Removes a Rule for money in; lines it already decided stay as they are. */
+/** Removes a Rule for money in, or one remembered pair of Accounts; lines already decided stay. */
 export async function deleteMoneyInRule(
 	db: Db,
 	householdId: string,
@@ -810,6 +857,9 @@ export async function deleteMoneyInRule(
 		db
 			.delete(moneyInRules)
 			.where(and(eq(moneyInRules.id, ruleId), eq(moneyInRules.householdId, householdId))),
+		db
+			.delete(moneyInPairs)
+			.where(and(eq(moneyInPairs.id, ruleId), eq(moneyInPairs.householdId, householdId))),
 	]);
 }
 

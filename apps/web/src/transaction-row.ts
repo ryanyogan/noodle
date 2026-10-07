@@ -2,6 +2,7 @@ import { displayMerchant, MONEY_IN_KIND_LABELS, type Plan } from "@noodle/domain
 import { asBucketColor } from "./buckets";
 import { formatMoney } from "./format";
 import { forLabel, type MemberSummary, pickableMembers } from "./members";
+import { forNow } from "./transaction-cells";
 import type { TransactionRow } from "./transactions";
 import { transferDetail } from "./transfers";
 
@@ -32,6 +33,9 @@ export function assignmentOf(
 	}
 	return { name: "Unassigned", color: null };
 }
+
+/** The For column of a split row whose Splits are For different people: said, not a chip. */
+export const FOR_DIFFERS = "Different for each Split";
 
 export type RowView = {
 	/** Goal spending opens its Goal; a Transfer and a split have their own tile. */
@@ -87,8 +91,10 @@ export function rowView(
 	// A payment to a card says so: the bank's wording for one ("PAYMENT THANK YOU - WEB") cleans up,
 	// by rule or by the background naming, to nothing a Parent would know it by ("Thank You",
 	// "Online Payment"). Its detail keeps the bank's wording.
+	// A name a Parent gave it comes first (issue 141): "Card payment" stands in for the bank's
+	// wording, never for theirs.
 	const title =
-		(transaction.paysCard ? "Card payment" : null) ||
+		(transaction.paysCard && !transaction.named ? "Card payment" : null) ||
 		transaction.merchantName ||
 		(transaction.note && displayMerchant(transaction.note)) ||
 		(transaction.goal
@@ -98,13 +104,15 @@ export function rowView(
 				: transaction.importedFrom
 					? "Imported"
 					: "Quick Add");
-	const who = forLabel(members, transaction.for);
+	// A split one is For whoever its Splits are, when they agree; else it says so in words.
+	const forIds = forNow(transaction);
+	const who = forIds === null ? FOR_DIFFERS : forLabel(members, forIds);
 	const amount =
 		transaction.amountCents < 0
 			? `+${formatMoney(-transaction.amountCents)}`
 			: formatMoney(transaction.amountCents);
-	const named = pickableMembers(members, transaction.for)
-		.filter((member) => transaction.for.includes(member.id))
+	const named = pickableMembers(members, forIds ?? [])
+		.filter((member) => (forIds ?? []).includes(member.id))
 		.map((member) => member.name);
 	// A pending charge may still change, or go, until the bank posts it (and its copy takes its place).
 	const spokenTitle = transaction.pending ? `${title} (pending)` : title;
@@ -164,7 +172,7 @@ export function rowView(
 				: moneyBack
 					? `${spokenTitle}, ${amount}, Money back${spokenFrom}`
 					: split
-						? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ": ")}`
+						? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ": ")}, For ${who}`
 						: `${spokenTitle}, ${amount}, ${assignment.name}${autoFiled ? " (filed automatically)" : ""}, For ${who}${spokenFrom}`;
 	return {
 		kind: transaction.goal ? "goal" : transfer ? "transfer" : split ? "split" : "plain",
@@ -176,12 +184,19 @@ export function rowView(
 			: refund
 				? MONEY_IN_KIND_LABELS.refund
 				: null,
-		forNames: transaction.for.length === 0 ? ["Everyone"] : named.length ? named : ["Someone"],
+		forNames: (forIds ?? []).length === 0 ? ["Everyone"] : named.length ? named : ["Someone"],
 		detail,
 		aroundFor:
-			transaction.goal || transfer || refund || moneyBack || split
+			transaction.goal || transfer || refund || moneyBack || forIds === null
 				? null
-				: { before: assignment.name, after: from.replace(/^ · /, "") },
+				: {
+						before: split
+							? `Split across ${transaction.splits.length} · ${[
+									...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name)),
+								].join(", ")}`
+							: assignment.name,
+						after: from.replace(/^ · /, ""),
+					},
 		assignment,
 		assigned,
 		who: transfer || transaction.goal || moneyBack ? "" : who,

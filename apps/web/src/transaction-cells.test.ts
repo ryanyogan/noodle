@@ -1,7 +1,16 @@
 import type { InfiniteData } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import type { TransactionsPage } from "./server/transactions";
-import { cellEdits, cellName, forOf, refileOf, renameOf, undoOf } from "./transaction-cells";
+import {
+	cellEdits,
+	cellName,
+	forEdits,
+	forOf,
+	refileOf,
+	renameOf,
+	splitsFor,
+	undoOf,
+} from "./transaction-cells";
 import { escapeStep } from "./transaction-table";
 import { type TransactionRow, withRowChange, withTransactionChange } from "./transactions";
 
@@ -37,10 +46,14 @@ const split = {
 };
 
 describe("which rows can be edited in a cell", () => {
-	it("a payment to a card isn't renamed in its cell: it is listed as Card payment", () => {
+	it("a payment to a card is renamed in its cell like any side of a Transfer (issue 141)", () => {
 		const transfer = { from: "Checking", to: "Visa", reason: null };
-		expect(cellEdits(row({ transfer, paysCard: true }))).toEqual({ name: null, refile: false });
+		expect(cellEdits(row({ transfer, paysCard: true }))).toEqual({ name: "rename", refile: false });
 		expect(cellEdits(row({ transfer })).name).toBe("rename");
+		const bank = { importedFrom: "Visa", note: "PAYMENT THANK YOU - WEB", merchantName: null };
+		expect(renameOf(row({ ...bank, transfer, paysCard: true }), "Visa autopay")).toEqual({
+			rename: "Visa autopay",
+		});
 	});
 
 	it("a Transaction assigned as a whole is renamed and refiled in its cells", () => {
@@ -213,8 +226,48 @@ describe("changing who a row is For from its chips (issue 134)", () => {
 		expect(forOf(row(), ["m1"])).toBeNull();
 	});
 
-	it("is not offered where the row has no single assignment to keep", () => {
-		expect(forOf(row({ bucketId: null }), [])).toBeNull();
+	it("an unassigned row changes only its For, and stays unassigned (issue 141)", () => {
+		const unassigned = row({ bucketId: null });
+		expect(forEdits(unassigned)).toBe(true);
+		expect(forOf(unassigned, ["m2", "m1", "m2"])).toEqual({ for: ["m1", "m2"] });
+		expect(forOf(unassigned, ["m1"])).toBeNull();
+		expect(undoOf(unassigned, { for: [] })).toEqual({ for: ["m1"] });
+	});
+
+	it("a split row sets every Split's For where they have none or the same", () => {
+		const even = row({
+			bucketId: null,
+			for: [],
+			splits: [split, { ...split, id: "s2", for: ["m2"] }],
+		});
+		expect(splitsFor(even)).toEqual(["m2"]);
+		expect(forEdits(even)).toBe(true);
+		expect(forOf(even, ["m1"])).toEqual({ for: ["m1"] });
+		// Said again as it is: the Split that had none takes it too.
+		expect(forOf(even, ["m2"])).toEqual({ for: ["m2"] });
+		// Its Splits didn't all say the same, so there is nothing one write could put back.
+		expect(undoOf(even, { for: ["m1"] })).toBeNull();
+		const all = row({ bucketId: null, for: [], splits: [split, { ...split, id: "s2" }] });
+		expect(forOf(all, [])).toBeNull();
+		expect(undoOf(all, { for: ["m1"] })).toEqual({ for: [] });
+	});
+
+	it("a split row whose Splits are For different people has no chip", () => {
+		const differs = row({
+			bucketId: null,
+			for: [],
+			splits: [
+				{ ...split, for: ["m1"] },
+				{ ...split, id: "s2", for: ["m2"] },
+			],
+		});
+		expect(splitsFor(differs)).toBeNull();
+		expect(forEdits(differs)).toBe(false);
+		expect(forOf(differs, ["m1"])).toBeNull();
+	});
+
+	it("is not offered where For doesn't apply, or the row isn't theirs to change", () => {
+		expect(forOf(row({ goal: { id: "g1", name: "Trip" }, bucketId: null }), [])).toBeNull();
 		expect(forOf(row({ amountCents: -2499 }), [])).toBeNull();
 		expect(forOf(row({ transfer: { from: "Checking", to: "Visa", reason: null } }), [])).toBeNull();
 		expect(forOf(row({ partlyPrivate: true }), [])).toBeNull();

@@ -2,13 +2,19 @@ import type { BankLine } from "@noodle/domain";
 import { asc, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+	addAccount,
 	addBankConnection,
+	changeMoneyInKind,
 	chooseBankAccounts,
 	createHouseholdForParent,
 	type Db,
+	loadMoneyIn,
+	loadTransactionsPage,
+	rememberAccountPair,
+	renameTransaction,
 	syncBankLines,
 } from "./index";
-import { transactions, transfers } from "./schema";
+import { merchantNames, transactions, transfers } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -178,5 +184,117 @@ describe("a sync that brings nothing new", () => {
 		// And nothing more the next time.
 		expect(await sync("import-3", [])).toMatchObject({ importId: null, months: [] });
 		expect(await db.select().from(transfers)).toHaveLength(1);
+	});
+});
+
+describe("a remembered pair of Accounts, from a Bank Connection", () => {
+	const viewer = { householdId, memberId: parentId };
+	const GUSTO = "GUSTO ACME CORP";
+	const into = (accountId: "chk" | "gusto", importId: string, lines: BankLine[]) =>
+		syncBankLines(db, {
+			householdId,
+			connectionId: "conn-1",
+			accountId,
+			importId,
+			lines: lines.map((one) => ({ ...one, accountExternalId: `acc-${accountId}` })),
+			removed: [],
+			createdByMemberId: parentId,
+			newId: () => `id-${++ids}`,
+		});
+	const on = async (date: string) => {
+		const found = (await loadMoneyIn(db, householdId)).find((row) => row.date === date);
+		if (!found) throw new Error(`no money in on ${date}`);
+		return found;
+	};
+
+	beforeEach(async () => {
+		await chooseBankAccounts(db, {
+			householdId,
+			connectionId: "conn-1",
+			createdByMemberId: parentId,
+			choices: (["chk", "gusto"] as const).map((accountId) => ({
+				balanceId: `${accountId}-b`,
+				account: {
+					externalId: `acc-${accountId}`,
+					name: accountId,
+					mask: null,
+					kind: "checking" as const,
+					balance: null,
+				},
+				choice: { kind: "add" as const, accountId },
+			})),
+		});
+		// The first deposit: a Parent calls it a Transfer and says it came from Gusto.
+		await into("chk", "imp-a", [line("d-1", "2026-09-03", 250_000, { description: GUSTO })]);
+		const first = await on("2026-09-03");
+		await changeMoneyInKind(db, viewer, {
+			incomeId: first.id,
+			kind: "transfer",
+			transferId: "t-1",
+		});
+		const pair = await rememberAccountPair(db, viewer, {
+			incomeId: first.id,
+			otherAccountId: "gusto",
+			ruleId: "pair-rule",
+		});
+		expect(pair).toMatchObject({ ok: true });
+	});
+
+	it("marks the next deposit the bank sends a Transfer naming the other Account", async () => {
+		await into("chk", "imp-b", [line("d-2", "2026-09-17", 261_300, { description: GUSTO })]);
+		expect(await on("2026-09-17")).toMatchObject({
+			kind: "transfer",
+			paired: false,
+			otherAccountId: "gusto",
+		});
+	});
+
+	it("joins money out the bank sends later, and money out that only changed as it posted", async () => {
+		await into("chk", "imp-b", [line("d-2", "2026-09-17", 261_300, { description: GUSTO })]);
+		// New money out of the other Account: an Import runs, and joins it.
+		await into("gusto", "imp-c", [line("o-1", "2026-08-20", -250_000, { description: "PAYOUT" })]);
+		expect(await on("2026-09-03")).toMatchObject({ kind: "transfer", paired: true });
+
+		// Money out that came in at another amount, and changed to the deposit's as it posted:
+		// nothing new came in, so no Import ran.
+		await into("gusto", "imp-d", [
+			line("o-2", "2026-09-01", -200_000, { description: "PAYOUT", pending: true }),
+		]);
+		expect(await on("2026-09-17")).toMatchObject({ paired: false });
+		const result = await into("gusto", "imp-e", [
+			line("o-2", "2026-09-01", -261_300, { description: "PAYOUT" }),
+		]);
+		expect(result).toMatchObject({ importId: null, changed: 1 });
+		expect(await on("2026-09-17")).toMatchObject({ kind: "transfer", paired: true });
+	});
+});
+
+describe("a card payment's name", () => {
+	it("is a Parent's once they give it one, and background naming's is not", async () => {
+		await addAccount(db, {
+			householdId,
+			accountId: "spare",
+			name: "Spare",
+			kind: "checking",
+			balanceCents: 0,
+			balanceId: "spare-balance",
+			createdByMemberId: parentId,
+		});
+		await sync("import-1", [
+			line("b-1", "2026-09-11", 50_000, { description: "PAYMENT THANK YOU - WEB" }),
+		]);
+		const viewer = { householdId, memberId: parentId };
+		const row = async () =>
+			(await loadTransactionsPage(db, viewer, { month: "2026-09", limit: 10 })).transactions[0];
+		expect(await row()).toMatchObject({ paysCard: true, named: false, waits: false });
+		// As background naming leaves it.
+		await db.update(transactions).set({ merchant: "Thank You" });
+		await db
+			.insert(merchantNames)
+			.values({ householdId, raw: "PAYMENT THANK YOU - WEB", name: "Thank You" });
+		expect(await row()).toMatchObject({ merchantName: "Thank You", named: false });
+		const id = (await row())?.id as string;
+		await renameTransaction(db, { ...viewer, transactionId: id, name: "Visa autopay" });
+		expect(await row()).toMatchObject({ merchantName: "Visa autopay", named: true });
 	});
 });

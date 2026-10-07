@@ -514,6 +514,13 @@
       "breakpoints": true
     },
     {
+      "idx": 79,
+      "version": "6",
+      "when": 1792800000000,
+      "tag": "0079_money_in_pairs",
+      "breakpoints": true
+    },
+    {
       "idx": 80,
       "version": "6",
       "when": 1792900000000,
