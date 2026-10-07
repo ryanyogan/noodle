@@ -259,7 +259,7 @@ test("cards dealt with stay in the week's stack as a line each, counted, with Ne
 	await expect(page.getByText("2 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Sam decided 1 Insight" })).toBeVisible();
 	// Both lines are in the week's steps, beside the card.
-	const steps = page.getByRole("list", { name: "Check-in steps" });
+	const steps = page.getByRole("navigation", { name: "Check-in steps" });
 	await expect(steps).toContainText("1 Transaction cleared from Review");
 	await expect(steps).toContainText("Sam decided 1 Insight");
 	await next.click();
@@ -310,7 +310,7 @@ test("a card that first appears mid-week joins the end of the week's stack", asy
 	// week started with, and the Parent is still on the first.
 	await expect(page.getByText("1 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 new Insight" })).toBeVisible();
-	const steps = page.getByRole("list", { name: "Check-in steps" }).getByRole("listitem");
+	const steps = page.getByRole("navigation", { name: "Check-in steps" }).getByRole("listitem");
 	await expect(steps).toHaveCount(3);
 	await expect(steps.nth(0)).toContainText("Insights");
 	await expect(steps.nth(1)).toContainText("Extra income");

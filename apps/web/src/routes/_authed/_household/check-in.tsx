@@ -84,8 +84,10 @@ function CheckInPage() {
 	// The cards already met, on a phone, where the steps aren't beside the card: every card
 	// before this one, or the whole stack once done.
 	const met = step.kind === "card" ? view.stack.slice(0, step.position - 1) : view.stack;
+	// Only a card this Parent moved past on this visit: after the week is finished, a card that
+	// waits says what waits, since it may have appeared since.
 	const isSkipped = (card: CheckInStackCard) =>
-		card.state === "waiting" && (done || past.includes(card.kind));
+		card.state === "waiting" && past.includes(card.kind);
 
 	return (
 		<>
