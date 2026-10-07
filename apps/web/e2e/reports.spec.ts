@@ -2,8 +2,8 @@ import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import {
-	accountKindLabel,
 	choose,
+	chooseKind,
 	clientRendered,
 	createPlannedHousehold,
 	openFromMore,
@@ -187,7 +187,7 @@ test("Reports › Goals says the month a Goal was completed", async ({ browser }
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill("Ally savings");
-	await choose(page, "Kind", accountKindLabel("savings"));
+	await chooseKind(page, "savings");
 	await page.getByLabel("Balance now").fill("10,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: /^Ally savings, Savings, \$10,000/ })).toBeVisible();

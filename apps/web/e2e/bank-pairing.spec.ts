@@ -4,8 +4,8 @@ import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import {
-	accountKindLabel,
 	choose,
+	chooseKind,
 	createPlannedHousehold,
 	pickQuickAddBucket,
 	signedInPage,
@@ -77,7 +77,7 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	// The Costco card, added by hand and kept with a statement that has Shell on it.
 	await accountsLink(page).click();
 	await page.getByLabel("Name").fill("Costco Anywhere Visa");
-	await choose(page, "Kind", accountKindLabel("credit-card"));
+	await chooseKind(page, "credit-card");
 	await page.getByLabel("Owed now").fill("300");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Costco Anywhere Visa, / }).click();

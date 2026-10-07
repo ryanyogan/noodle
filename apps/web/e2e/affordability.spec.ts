@@ -2,8 +2,8 @@ import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { currentTab, expectSectionHeaderKept, markSectionHeader } from "./section";
 import {
-	accountKindLabel,
 	choose,
+	chooseKind,
 	clientRendered,
 	createPlannedHousehold,
 	signedInPage,
@@ -39,7 +39,7 @@ test("a home is checked against the Plan, then made a Goal and explored as a Sce
 	// A savings Account to back a Goal.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Ally savings");
-	await choose(page, "Kind", accountKindLabel("savings"));
+	await chooseKind(page, "savings");
 	await page.getByLabel("Balance now").fill("100,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: /^Ally savings, Savings/ })).toBeVisible();

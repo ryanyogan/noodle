@@ -417,6 +417,23 @@ const accountKindLabels: Record<string, string> = {
 /** An Account kind's name in the Kind select ("credit-card" → "Credit card"). */
 export const accountKindLabel = (kind: string) => accountKindLabels[kind] ?? kind;
 
+/** The question a credit card is asked wherever one is added (issue 141): nothing is chosen for it. */
+export const PURCHASES_QUESTION = "How do its purchases get into Noodle?";
+
+/**
+ * Picks an Account's kind in a form's Kind select. A credit card must then say how its purchases
+ * get into Noodle before it can be added: `purchases` is that answer ("From its statements"
+ * unless a spec is about another one).
+ */
+export async function chooseKind(
+	scope: Page | Locator,
+	kind: string,
+	purchases: "From its statements" | "I add them by hand" | "They won’t" = "From its statements",
+) {
+	await choose(scope, "Kind", accountKindLabel(kind));
+	if (kind === "credit-card") await choose(scope, PURCHASES_QUESTION, purchases);
+}
+
 /** Uploads a card statement to the Visa Account, adding the Account first if it's new. */
 /**
  * Reloads `url` until `check` passes: the background run files, guesses and names what was just
@@ -466,7 +483,7 @@ export async function uploadStatement(
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	if (addAccount) {
 		await page.getByLabel("Name").fill("Visa");
-		await choose(page, "Kind", accountKindLabel("credit-card"));
+		await chooseKind(page, "credit-card");
 		await page.getByLabel("Owed now").fill("800");
 		await page.getByRole("button", { name: "Add Account" }).click();
 	}

@@ -3,8 +3,8 @@ import { settledAxe } from "./axe";
 import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import {
-	accountKindLabel,
 	choose,
+	chooseKind,
 	createPlannedHousehold,
 	savedBy,
 	serverFn,
@@ -267,7 +267,7 @@ test("a credit card's Account page links to its perks, under the page's own head
 
 	await page.goto("/accounts");
 	await page.getByLabel("Name").fill("Amex Platinum");
-	await choose(page, "Kind", accountKindLabel("credit-card"));
+	await chooseKind(page, "credit-card");
 	await page.getByLabel("Owed now").fill("0");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Amex Platinum, Credit card, / }).click();

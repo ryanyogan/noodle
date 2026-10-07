@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import { chooseKind, createPlannedHousehold, signedInPage } from "./session";
 
 // Money in from a bank, start to end (issues 131 and 133): what a person sent waits in Review,
 // where naming it Income asks whose pay it is and naming it a Transfer asks which Account it came
@@ -36,7 +36,7 @@ async function addAccount(page: Page, name: string, kind: "checking" | "savings"
 		}).toPass();
 	}
 	await page.getByLabel("Name").fill(name);
-	await choose(page, "Kind", accountKindLabel(kind));
+	await chooseKind(page, kind);
 	await page.getByLabel("Balance now").fill(balance);
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: new RegExp(`^${name}, `) })).toBeVisible();

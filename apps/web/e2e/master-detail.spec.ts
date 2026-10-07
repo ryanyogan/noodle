@@ -3,8 +3,8 @@ import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import {
-	accountKindLabel,
 	choose,
+	chooseKind,
 	clientRendered,
 	createPlannedHousehold,
 	signedInPage,
@@ -189,7 +189,7 @@ async function withGoals(page: Page) {
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "800"]] });
 	await page.goto("/accounts");
 	await page.getByLabel("Name").fill("Joint Savings");
-	await choose(page, "Kind", accountKindLabel("savings"));
+	await chooseKind(page, "savings");
 	await page.getByLabel("Balance now").fill("8,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: /^Joint Savings, / })).toBeVisible();

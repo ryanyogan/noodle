@@ -203,6 +203,8 @@ test("goal: a pay-off Goal can be for a card already added, without adding anoth
 	// The statement card adds the card as an Account.
 	await page.getByLabel("Which account is this from?").fill("Visa");
 	await choose(page, "Kind", "Credit card");
+	// Its statement is about to be read, so that answer is offered already chosen (issue 141).
+	await expectChosen(page, "How do its purchases get into Noodle?", "From its statements");
 	await page.getByRole("button", { name: "Choose the statement" }).click();
 	await expect(page.getByLabel("Statement file")).toBeAttached();
 	// Another, new Account starts as checking again, not as a second credit card.

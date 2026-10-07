@@ -4,6 +4,7 @@ import {
 	accountKindLabel,
 	choose,
 	createPlannedHousehold,
+	PURCHASES_QUESTION,
 	reloadUntil,
 	signedInPage,
 } from "./session";
@@ -35,7 +36,7 @@ type NewAccount = {
 	name: string;
 	kind: "checking" | "credit-card";
 	balance: string;
-	/** A card's answer to "How do its purchases get into Noodle?"; left out, it stays on statements. */
+	/** A card's answer to "How do its purchases get into Noodle?"; left out, it says statements. */
 	purchases?: "I add them by hand" | "They won’t";
 };
 
@@ -51,8 +52,9 @@ async function addAccount(page: Page, account: NewAccount) {
 	}
 	await page.getByLabel("Name").fill(account.name);
 	await choose(page, "Kind", accountKindLabel(account.kind));
-	if (account.purchases) {
-		await choose(page, "How do its purchases get into Noodle?", account.purchases);
+	// A card has to say (issue 141): nothing is chosen for it.
+	if (account.kind === "credit-card") {
+		await choose(page, PURCHASES_QUESTION, account.purchases ?? "From its statements");
 	}
 	await page
 		.getByLabel(account.kind === "credit-card" ? "Owed now" : "Balance now")

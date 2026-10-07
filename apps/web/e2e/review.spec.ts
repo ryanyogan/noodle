@@ -3,8 +3,8 @@ import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { currentTab, expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
 import {
-	accountKindLabel,
 	choose,
+	chooseKind,
 	createPlannedHousehold,
 	reloadUntil,
 	signedInPage,
@@ -41,7 +41,7 @@ async function uploadStatement(
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	if (addAccount) {
 		await page.getByLabel("Name").fill("Visa");
-		await choose(page, "Kind", accountKindLabel("credit-card"));
+		await chooseKind(page, "credit-card");
 		await page.getByLabel("Owed now").fill("800");
 		await page.getByRole("button", { name: "Add Account" }).click();
 	}

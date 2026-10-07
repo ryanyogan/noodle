@@ -6,8 +6,8 @@ import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import {
-	accountKindLabel,
 	choose,
+	chooseKind,
 	clientRendered,
 	createPlannedHousehold,
 	hydrated,
@@ -471,7 +471,7 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 	// A card whose statement has Costco's bank copy, a tipped Chipotle, and Trader Joe's.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Visa");
-	await choose(page, "Kind", accountKindLabel("credit-card"));
+	await chooseKind(page, "credit-card");
 	await page.getByLabel("Owed now").fill("800");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Visa, / }).click();
@@ -622,7 +622,7 @@ test("a Transaction from the bank is renamed, its others follow when asked, and 
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill("Everyday Checking");
-	await choose(page, "Kind", accountKindLabel("checking"));
+	await chooseKind(page, "checking");
 	await page.getByLabel("Balance now").fill("2,500");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Everyday Checking, / }).click();

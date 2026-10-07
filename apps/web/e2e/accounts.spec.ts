@@ -1,12 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import {
-	accountKindLabel,
-	choose,
-	createPlannedHousehold,
-	openFromMore,
-	signedInPage,
-} from "./session";
+import { chooseKind, createPlannedHousehold, openFromMore, signedInPage } from "./session";
 
 // Accounts have their own area: every Account and Bank Connection at /accounts, each Account's
 // page under it, and Goals keeping only Goals, each naming the Account that holds it.
@@ -49,7 +43,7 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	await expect(ways.nth(2)).toContainText("Type in a balance");
 
 	await page.getByLabel("Name").fill("Joint Savings");
-	await choose(page, "Kind", accountKindLabel("savings"));
+	await chooseKind(page, "savings");
 	await page.getByLabel("Balance now").fill("8,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	const savings = page.getByRole("link", { name: /^Joint Savings, Savings, \$8,000/ });
@@ -59,7 +53,7 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	await page.getByRole("button", { name: "Add Account" }).click();
 	const sheet = page.getByRole("dialog", { name: "Add an Account" });
 	await sheet.getByLabel("Name").fill("Visa");
-	await choose(sheet, "Kind", accountKindLabel("credit-card"));
+	await chooseKind(sheet, "credit-card");
 	await sheet.getByLabel("Owed now").fill("600");
 	await sheet.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: /^Visa, Credit card, / })).toBeVisible();

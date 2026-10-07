@@ -2,13 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { misaligned } from "./alignment";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
-import {
-	accountKindLabel,
-	choose,
-	clientRendered,
-	createPlannedHousehold,
-	signedInPage,
-} from "./session";
+import { chooseKind, clientRendered, createPlannedHousehold, signedInPage } from "./session";
 
 // Guards the desktop's one scroll per region (#67): the page scrolls, and nothing scrolls inside
 // it. A rail with its own scrollbar inside a scrolling page is what this catches. Allowed:
@@ -152,7 +146,7 @@ async function busyHousehold(page: Page) {
 	// An Account and a Goal in it, so Goals and Accounts have a list and an item to show.
 	await page.goto("/accounts");
 	await page.getByLabel("Name").fill("Joint Savings");
-	await choose(page, "Kind", accountKindLabel("savings"));
+	await chooseKind(page, "savings");
 	await page.getByLabel("Balance now").fill("8,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: /^Joint Savings, / })).toBeVisible();

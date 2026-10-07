@@ -1,13 +1,7 @@
 import { join } from "node:path";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import {
-	accountKindLabel,
-	choose,
-	createPlannedHousehold,
-	reloadUntil,
-	signedInPage,
-} from "./session";
+import { chooseKind, createPlannedHousehold, reloadUntil, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -27,7 +21,7 @@ async function addAccount(page: Page, name: string, kind: string, balance: strin
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill(name);
-	await choose(page, "Kind", accountKindLabel(kind));
+	await chooseKind(page, kind);
 	await page.getByLabel(kind === "credit-card" ? "Owed now" : "Balance now").fill(balance);
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: new RegExp(`^${name}, `) }).click();

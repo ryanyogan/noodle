@@ -7,8 +7,6 @@ import {
 	type DayKey,
 	type GoalKind,
 	type MonthKey,
-	PURCHASES_GET_IN,
-	type PurchasesGetIn,
 	parseDollars,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -33,7 +31,6 @@ import { Link, linkOptions, useHydrated } from "@tanstack/react-router";
 import { ChevronLeft, CreditCard, HandCoins, Landmark, PiggyBank, Plus } from "lucide-react";
 import { type ComponentProps, type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
-import { purchasesHint, purchasesName } from "../card-kept";
 import { formatMoney, formatMoneyInput, fullDay } from "../format";
 import {
 	type AccountView,
@@ -46,6 +43,7 @@ import {
 	useGoals,
 } from "../goals";
 import { DetailPager } from "./master-detail";
+import { PurchasesField, usePurchasesAnswer } from "./purchases-field";
 import { TermHelp } from "./term-help";
 
 /** A Goal page's way back to Goals. */
@@ -393,7 +391,9 @@ function AccountFields({
 	const hydrated = useHydrated();
 	const id = useId();
 	const [kind, setKind] = useState<AccountKind>("checking");
-	const [purchases, setPurchases] = useState<PurchasesGetIn>("statements");
+	// The name as typed, for what it suggests about a card's purchases (an Apple Card: by hand).
+	const [name, setName] = useState("");
+	const purchases = usePurchasesAnswer(name);
 	const [balance, setBalance] = useState("");
 	const balanceCents = balance.trim() === "" ? null : parseDollars(balance);
 	const balanceInvalid = balance.trim() !== "" && balanceCents === null;
@@ -404,8 +404,14 @@ function AccountFields({
 		const form = event.currentTarget;
 		const name = String(new FormData(form).get("name") ?? "").trim();
 		setNameMissing(!name);
+		// A credit card isn't added until a Parent has said how its purchases get in.
+		const answered = kind === "credit-card" ? purchases.check() : null;
 		if (!name) {
 			form.querySelector<HTMLInputElement>("[name=name]")?.focus();
+			return;
+		}
+		if (kind === "credit-card" && answered === null) {
+			document.getElementById(`${id}-purchases`)?.focus();
 			return;
 		}
 		if (balanceInvalid) return;
@@ -415,9 +421,11 @@ function AccountFields({
 			kind,
 			balanceCents,
 			balanceId: ulid(),
-			purchases: kind === "credit-card" ? purchases : null,
+			purchases: answered,
 		});
 		form.reset();
+		setName("");
+		purchases.reset();
 		setBalance("");
 	}
 
@@ -436,7 +444,10 @@ function AccountFields({
 						required
 						aria-invalid={nameMissing || undefined}
 						aria-describedby={nameMissing ? `${id}-name-error` : undefined}
-						onChange={() => setNameMissing(false)}
+						onChange={(event) => {
+							setName(event.currentTarget.value);
+							setNameMissing(false);
+						}}
 						maxLength={40}
 						autoComplete="off"
 						placeholder="e.g. Ally savings"
@@ -454,19 +465,7 @@ function AccountFields({
 				</Field>
 			</div>
 			{kind === "credit-card" ? (
-				<Field
-					label="How do its purchases get into Noodle?"
-					htmlFor={`${id}-purchases`}
-					hint={purchasesHint[purchases]}
-				>
-					<OptionSelect
-						id={`${id}-purchases`}
-						disabled={!hydrated}
-						value={purchases}
-						onValueChange={(value) => setPurchases(value as PurchasesGetIn)}
-						choices={PURCHASES_GET_IN.map((p) => ({ value: p, label: purchasesName[p] }))}
-					/>
-				</Field>
+				<PurchasesField id={`${id}-purchases`} answer={purchases} disabled={!hydrated} />
 			) : null}
 			<Field
 				label={owes ? "Owed now" : "Balance now"}

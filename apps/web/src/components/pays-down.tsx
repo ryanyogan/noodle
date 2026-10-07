@@ -15,6 +15,7 @@ import { type AddAccountVariables, useAddAccount, withAccount } from "../goals";
 import { followedCardsQuery, goalsQuery, paymentSuggestionQuery } from "../queries";
 import { AmountInput } from "./goals";
 import { SaveFailed } from "./plan-editing";
+import { PurchasesField, usePurchasesAnswer } from "./purchases-field";
 
 // What a Commitment pays down (issue 93, ADR-0050): the "Pays down" choice in the Commitment
 // sheet and the add form, and the line a linked Commitment's row carries.
@@ -57,6 +58,8 @@ export function PaysDownField({
 	const [kind, setKind] = useState<"credit-card" | "loan">("credit-card");
 	const [owed, setOwed] = useState("");
 	const [tried, setTried] = useState(false);
+	// A credit card added here is asked how its purchases get in, as on Accounts.
+	const purchases = usePurchasesAnswer(name);
 	// The card or loan added here, until it has saved: see `add`.
 	const [added, setAdded] = useState<AddAccountVariables | null>(null);
 	if (!goals) return null;
@@ -79,7 +82,9 @@ export function PaysDownField({
 
 	function add() {
 		setTried(true);
+		const answered = kind === "credit-card" ? purchases.check() : null;
 		if (name.trim() === "" || (owed.trim() !== "" && owedCents === null)) return;
+		if (kind === "credit-card" && answered === null) return;
 		const accountId = ulid();
 		const before = value;
 		const account = {
@@ -88,6 +93,7 @@ export function PaysDownField({
 			kind,
 			balanceCents: owedCents,
 			balanceId: ulid(),
+			purchases: answered,
 		};
 		addAccount.mutate(account, {
 			// Not added after all: back to what was chosen before.
@@ -105,6 +111,7 @@ export function PaysDownField({
 		setName("");
 		setOwed("");
 		setTried(false);
+		purchases.reset();
 	}
 
 	// Enter in these fields adds the card or loan; it must not save the Commitment around them.
@@ -217,6 +224,13 @@ export function PaysDownField({
 							/>
 						</Field>
 					</div>
+					{kind === "credit-card" ? (
+						<PurchasesField
+							id={`${id}-new-purchases`}
+							answer={purchases}
+							className={inCard ? "bg-card" : undefined}
+						/>
+					) : null}
 					<Field
 						label="What’s owed today (optional)"
 						htmlFor={`${id}-new-owed`}

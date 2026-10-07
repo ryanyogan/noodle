@@ -1,13 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import {
-	accountKindLabel,
-	choose,
-	createPlannedHousehold,
-	pickDate,
-	signedInPage,
-	switchTo,
-} from "./session";
+import { chooseKind, createPlannedHousehold, pickDate, signedInPage, switchTo } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -60,7 +53,7 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 	// An Account with what's in it, then a dated Goal on it with some already set aside.
 	await openAccounts(page);
 	await page.getByLabel("Name").fill("Ally savings");
-	await choose(page, "Kind", accountKindLabel("savings"));
+	await chooseKind(page, "savings");
 	await page.getByLabel("Balance now").fill("10,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: /^Ally savings, Savings, \$10,000/ })).toBeVisible();

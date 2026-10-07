@@ -1,8 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
-	accountKindLabel,
-	choose,
+	chooseKind,
 	createPlannedHousehold,
 	openPlanBuckets,
 	signedInPage,
@@ -78,7 +77,7 @@ test("a sheet focuses its first field, and gives focus back to what opened it", 
 	await page.getByRole("link", { name: "Close Bucket" }).click();
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Everyday Checking");
-	await choose(page, "Kind", accountKindLabel("checking"));
+	await chooseKind(page, "checking");
 	await page.getByLabel("Balance now").fill("2,500");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Everyday Checking, / }).click();

@@ -2,8 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import {
-	accountKindLabel,
-	choose,
+	chooseKind,
 	clientRendered,
 	createPlannedHousehold,
 	reloadUntil,
@@ -67,7 +66,7 @@ async function addAccount(page: Page, name: string, kind: string, owed?: string)
 		? page.getByRole("main")
 		: page.getByRole("dialog", { name: "Add an Account" });
 	await form.getByLabel("Name").fill(name);
-	await choose(form, "Kind", accountKindLabel(kind));
+	await chooseKind(form, kind);
 	if (owed) await form.getByLabel("Owed now").fill(owed);
 	const saved = savedBy(page, "addAccount");
 	await form.getByRole("button", { name: "Add Account" }).click();

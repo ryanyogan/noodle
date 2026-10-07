@@ -2,8 +2,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import {
-	accountKindLabel,
-	choose,
+	chooseKind,
 	clientRendered,
 	createHousehold,
 	createPlannedHousehold,
@@ -46,7 +45,7 @@ async function busy(page: Page) {
 	await seedReportHistory(parent.userId, 8);
 	await page.goto("/accounts");
 	await page.getByLabel("Name").fill("Joint Savings");
-	await choose(page, "Kind", accountKindLabel("savings"));
+	await chooseKind(page, "savings");
 	await page.getByLabel("Balance now").fill("8,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: /^Joint Savings, / })).toBeVisible();

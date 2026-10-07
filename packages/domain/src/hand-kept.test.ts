@@ -8,6 +8,7 @@ import {
 	cardPaymentIsSpending,
 	statementCheckDue,
 	statementsFollowed,
+	suggestedPurchases,
 } from "./hand-kept";
 import type { DayKey } from "./month";
 
@@ -147,5 +148,32 @@ describe("asking how a card's purchases get in", () => {
 		expect(cardKeptUnasked({ ...card, bankConnectionId: "bank" }, today)).toBe(false);
 		expect(cardKeptUnasked({ ...card, purchases: "none" }, today)).toBe(false);
 		expect(cardKeptUnasked({ ...card, kind: "loan" }, today)).toBe(false);
+	});
+});
+
+describe("What a new card's name suggests for how its purchases get in", () => {
+	it("suggests by hand for an Apple Card, however it's written", () => {
+		for (const name of [
+			"Apple Card",
+			"AppleCard",
+			"apple card",
+			"Apple Titanium",
+			"Cori’s Apple Card",
+		]) {
+			expect(suggestedPurchases(name)).toBe("hand");
+		}
+	});
+
+	it("suggests nothing for any other card, so the Parent has to choose", () => {
+		for (const name of [
+			"",
+			"Visa",
+			"Chase Freedom",
+			"Apple",
+			"Pineapple Cardigan Co",
+			"Snapple card",
+		]) {
+			expect(suggestedPurchases(name)).toBeNull();
+		}
 	});
 });

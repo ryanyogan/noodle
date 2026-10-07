@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { accountKindLabel, choose } from "./session";
+import { chooseKind } from "./session";
 
 // About three months of a checking Account's history, for the plan draft (onboarding-draft) and
 // the Add Buckets sheet's suggestions from spending (add-buckets). With AI_MODEL=stub the draft
@@ -39,7 +39,7 @@ export async function uploadHistory(page: Page) {
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill("Checking");
-	await choose(page, "Kind", accountKindLabel("checking"));
+	await chooseKind(page, "checking");
 	await page.getByLabel("Balance now").fill("3,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Checking, / }).click();

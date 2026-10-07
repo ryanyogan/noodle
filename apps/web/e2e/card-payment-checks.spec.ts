@@ -1,8 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
-	accountKindLabel,
-	choose,
+	chooseKind,
 	createPlannedHousehold,
 	hydrated,
 	reloadUntil,
@@ -55,7 +54,7 @@ async function addAccount(page: Page, name: string, kind: string, balance: strin
 		: page.getByRole("dialog", { name: "Add an Account" });
 	await hydrated(form.getByLabel("Name"));
 	await form.getByLabel("Name").fill(name);
-	await choose(form, "Kind", accountKindLabel(kind));
+	await chooseKind(form, kind);
 	await form.getByLabel(kind === "credit-card" ? "Owed now" : "Balance now").fill(balance);
 	const saved = savedBy(page, "addAccount");
 	await form.getByRole("button", { name: "Add Account" }).click();
