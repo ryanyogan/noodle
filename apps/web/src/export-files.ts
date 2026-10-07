@@ -1,5 +1,5 @@
 import type { ExportData } from "@noodle/db";
-import { owedBackPartText, toCsv } from "@noodle/domain";
+import { MONEY_IN_KIND_LABELS, owedBackPartText, toCsv } from "@noodle/domain";
 
 // The files a Household's "Download your data" ZIP holds (ADR-0028), built from what the Parent
 // may see. CSVs are escaped by toCsv: quoted where needed, and a cell a spreadsheet would read as
@@ -55,6 +55,10 @@ export function exportFiles(data: ExportData): Record<string, string> {
 			"Goal",
 			"Splits",
 			"For",
+			// Kept as it was after its month ended (issue 141): the day the bank took it back or
+			// lowered it, and what the bank says it is now when it only lowered it.
+			"Bank took it back on",
+			"Bank lowered it to",
 		],
 	];
 	for (const t of data.transactions) {
@@ -77,6 +81,8 @@ export function exportFiles(data: ExportData): Record<string, string> {
 				)
 				.join("; "),
 			t.splits.length > 0 ? "" : forNames(t.for),
+			t.bankTookBackOn ?? "",
+			dollars(t.bankAmount),
 		]);
 	}
 	for (const total of data.privateTotals) {
@@ -91,6 +97,8 @@ export function exportFiles(data: ExportData): Record<string, string> {
 			"",
 			"",
 			"Everyone",
+			"",
+			null,
 		]);
 	}
 
@@ -185,6 +193,60 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		]);
 	}
 
+	// Money in, every line with its kind (ADR-0057), and what the Household's Rules for it
+	// remember. They are the Household's, so both Parents get the same.
+	const whosePay = (id: string | null) => (id ? (memberName.get(id) ?? "") : "");
+	const moneyIn: (string | number | null)[][] = [
+		[
+			"Date",
+			"Account",
+			"Note",
+			"Amount",
+			"Kind",
+			"From Account",
+			"Whose pay",
+			"Bank took it back on",
+			"Bank changed it to",
+		],
+	];
+	for (const line of data.moneyIn) {
+		moneyIn.push([
+			line.date,
+			line.account ?? "",
+			line.note ?? "",
+			dollars(line.amountCents),
+			line.needsReview ? "Needs review" : MONEY_IN_KIND_LABELS[line.kind],
+			line.otherAccount ?? "",
+			whosePay(line.payMemberId),
+			line.bankTookBackOn ?? "",
+			dollars(line.bankAmountCents),
+		]);
+	}
+	const moneyInRules: (string | number | null)[][] = [
+		["Statement words", "Always", "Into Account", "From Account", "Whose pay", "Set by", "Made on"],
+	];
+	for (const r of data.moneyInRules) {
+		moneyInRules.push([
+			r.pattern,
+			MONEY_IN_KIND_LABELS[r.kind],
+			r.intoAccount ?? "",
+			r.otherAccount ?? "",
+			whosePay(r.payMemberId),
+			r.createdBy ?? "",
+			day(r.createdAt),
+		]);
+	}
+	const cardPaymentRules: (string | number | null)[][] = [
+		["Statement words", "Card", "Set by", "Made on"],
+	];
+	for (const r of data.cardPaymentRules) {
+		cardPaymentRules.push([
+			r.pattern,
+			r.card ?? "A card that isn’t in Noodle",
+			r.createdBy ?? "",
+			day(r.createdAt),
+		]);
+	}
 	const owedBack: (string | number | null)[][] = [
 		["Date", "Purchase", "Who", "Owed back", "Paid back", "Still owed"],
 	];
@@ -241,6 +303,9 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		"plan-changes.csv": toCsv(changes),
 		"log-removed.csv": toCsv(removed),
 		"rules.csv": toCsv(rules),
+		"money-in.csv": toCsv(moneyIn),
+		"money-in-rules.csv": toCsv(moneyInRules),
+		"card-payment-rules.csv": toCsv(cardPaymentRules),
 		"owed-back.csv": toCsv(owedBack),
 		"paid-back.csv": toCsv(paidBack),
 		"refund-links.csv": toCsv(refundLinks),

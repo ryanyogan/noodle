@@ -1,5 +1,6 @@
 import {
 	type DayKey,
+	type MoneyInKind,
 	type MonthKey,
 	monthOfDay,
 	type Plan,
@@ -11,6 +12,7 @@ import { owedNow } from "./goals";
 import type { Db } from "./index";
 import { type LogEventRow, listLogEvents } from "./log-events";
 import { listMembers, type MemberSummary } from "./members";
+import { loadMoneyIn } from "./money-in";
 import { loadOwedBack, loadPaidBackSpending } from "./owed-back";
 import { loadPlanRecords } from "./plan";
 import { loadPlanChanges } from "./plan-log";
@@ -21,9 +23,13 @@ import { listRules, type RuleRow } from "./rules";
 import {
 	accountBalances,
 	accounts,
+	cardPaymentRules,
 	goals,
 	households,
 	imports,
+	members as memberRows,
+	moneyInPairs,
+	moneyInRules,
 	paidBackMatches,
 	receipts,
 } from "./schema";
@@ -71,6 +77,51 @@ export type ExportData = {
 	/** The Log's own record of what was removed (issue 141), oldest first. */
 	removed: LogEventRow[];
 	rules: RuleRow[];
+	/**
+	 * Money in, oldest first: every line with its kind (ADR-0057). Money in is the Household's, so
+	 * both Parents get all of it.
+	 */
+	moneyIn: {
+		id: string;
+		date: string;
+		note: string | null;
+		amountCents: number;
+		kind: MoneyInKind;
+		/** Waiting in Review: `kind` is then only what it would be. */
+		needsReview: boolean;
+		/** The Account it came into, and the one a Transfer said it came from, by name. */
+		account: string | null;
+		otherAccount: string | null;
+		/** Whose pay it is; null for the Household's. */
+		payMemberId: string | null;
+		/** The day the bank took it back or changed it after its month ended (issue 141)… */
+		bankTookBackOn: string | null;
+		/** …and what the bank says it is now; null when it took the whole line back. */
+		bankAmountCents: number | null;
+	}[];
+	/**
+	 * What the Household's Rules for money in remember, by wording: a kind, or (a remembered pair
+	 * of Accounts, from either of its homes) the Account it arrives in and the one it comes from.
+	 * They are the Household's, never private (ADR-0057).
+	 */
+	moneyInRules: {
+		pattern: string;
+		kind: MoneyInKind;
+		intoAccount: string | null;
+		otherAccount: string | null;
+		/** Whose pay Income with this wording is; null for the Household's. */
+		payMemberId: string | null;
+		createdBy: string | null;
+		/** ms since the epoch. */
+		createdAt: number;
+	}[];
+	/** Wordings remembered as card payments; `card` is null for a card that isn't in Noodle. */
+	cardPaymentRules: {
+		pattern: string;
+		card: string | null;
+		createdBy: string | null;
+		createdAt: number;
+	}[];
 	/**
 	 * What someone said they'd pay back, oldest purchase first, with how much of it is Paid back
 	 * (ADR-0058): on the purchases the viewer may see.
@@ -254,6 +305,44 @@ export async function loadExportData(
 			listRules(db, viewer),
 		]);
 
+	const [moneyInLines, moneyInRuleRows, pairRows, cardPaymentRows] = await Promise.all([
+		loadMoneyIn(db, viewer.householdId),
+		db
+			.select({
+				pattern: moneyInRules.pattern,
+				kind: moneyInRules.kind,
+				intoAccountId: moneyInRules.intoAccountId,
+				otherAccountId: moneyInRules.otherAccountId,
+				payMemberId: moneyInRules.payMemberId,
+				createdBy: memberRows.name,
+				createdAt: moneyInRules.createdAt,
+			})
+			.from(moneyInRules)
+			.leftJoin(memberRows, eq(memberRows.id, moneyInRules.createdByMemberId))
+			.where(eq(moneyInRules.householdId, viewer.householdId)),
+		db
+			.select({
+				pattern: moneyInPairs.pattern,
+				intoAccountId: moneyInPairs.intoAccountId,
+				otherAccountId: moneyInPairs.otherAccountId,
+				createdBy: memberRows.name,
+				createdAt: moneyInPairs.createdAt,
+			})
+			.from(moneyInPairs)
+			.leftJoin(memberRows, eq(memberRows.id, moneyInPairs.createdByMemberId))
+			.where(eq(moneyInPairs.householdId, viewer.householdId)),
+		db
+			.select({
+				pattern: cardPaymentRules.pattern,
+				accountId: cardPaymentRules.accountId,
+				createdBy: memberRows.name,
+				createdAt: cardPaymentRules.createdAt,
+			})
+			.from(cardPaymentRules)
+			.leftJoin(memberRows, eq(memberRows.id, cardPaymentRules.createdByMemberId))
+			.where(eq(cardPaymentRules.householdId, viewer.householdId))
+			.orderBy(cardPaymentRules.pattern),
+	]);
 	const latestBalance = new Map<string, { amountCents: number; at: Date }>();
 	for (const row of balanceRows) {
 		if (!latestBalance.has(row.accountId)) latestBalance.set(row.accountId, row);
@@ -267,6 +356,38 @@ export async function loadExportData(
 		);
 	}
 	const accountName = new Map(accountRows.map((a) => [a.id, a.name]));
+	const nameOf = (accountId: string | null) =>
+		accountId === null ? null : (accountName.get(accountId) ?? null);
+	// A pair in its own table speaks for its wording and Account; one kept the old way for the
+	// same two is left out, as the Rules page leaves it out (loadMoneyInRules).
+	const paired = new Set(pairRows.map((pair) => `${pair.pattern}\t${pair.intoAccountId}`));
+	const moneyInRuleList: ExportData["moneyInRules"] = [
+		...moneyInRuleRows
+			.filter((rule) => !paired.has(`${rule.pattern}\t${rule.intoAccountId}`))
+			.map((rule) => ({
+				pattern: rule.pattern,
+				kind: rule.kind,
+				intoAccount: nameOf(rule.intoAccountId),
+				otherAccount: nameOf(rule.otherAccountId),
+				payMemberId: rule.payMemberId,
+				createdBy: rule.createdBy,
+				createdAt: rule.createdAt.getTime(),
+			})),
+		...pairRows.map((pair) => ({
+			pattern: pair.pattern,
+			kind: "transfer" as const,
+			intoAccount: nameOf(pair.intoAccountId),
+			otherAccount: nameOf(pair.otherAccountId),
+			payMemberId: null,
+			createdBy: pair.createdBy,
+			createdAt: pair.createdAt.getTime(),
+		})),
+	].sort(
+		(a, b) =>
+			a.pattern.localeCompare(b.pattern) ||
+			(a.intoAccount ?? "").localeCompare(b.intoAccount ?? "") ||
+			a.createdAt - b.createdAt,
+	);
 	const visible = new Set(transactions.map((t) => t.id));
 	const files: ExportFile[] = [
 		...importRows.map((row) => ({
@@ -312,6 +433,28 @@ export async function loadExportData(
 		planChanges: planChanges.changes,
 		removed: await listLogEvents(db, viewer),
 		rules,
+		moneyIn: moneyInLines
+			.map((line) => ({
+				id: line.id,
+				date: line.date,
+				note: line.note,
+				amountCents: line.amount,
+				kind: line.kind,
+				needsReview: line.needsReview,
+				account: nameOf(line.accountId),
+				otherAccount: nameOf(line.otherAccountId),
+				payMemberId: line.whosePay,
+				bankTookBackOn: line.bankTookBackOn,
+				bankAmountCents: line.bankAmount,
+			}))
+			.reverse(),
+		moneyInRules: moneyInRuleList,
+		cardPaymentRules: cardPaymentRows.map((rule) => ({
+			pattern: rule.pattern,
+			card: nameOf(rule.accountId),
+			createdBy: rule.createdBy,
+			createdAt: rule.createdAt.getTime(),
+		})),
 		owedBack: owedBackItems.map((item) => ({
 			id: item.id,
 			transactionId: item.transactionId,

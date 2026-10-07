@@ -46,6 +46,9 @@ const data = (over: Partial<ExportData> = {}): ExportData => ({
 	planChanges: [],
 	removed: [],
 	rules: [],
+	moneyIn: [],
+	moneyInRules: [],
+	cardPaymentRules: [],
 	owedBack: [],
 	paidBackMatches: [],
 	refundLinks: [],
@@ -105,6 +108,8 @@ describe("exportFiles", () => {
 			"Goal",
 			"Splits",
 			"For",
+			"Bank took it back on",
+			"Bank lowered it to",
 		]);
 		expect(rows[1]?.[3]).toBe('Dinner, "the good place"\nwith Robin');
 		expect(rows[1]?.[9]).toBe("Robin");
@@ -113,7 +118,7 @@ describe("exportFiles", () => {
 		expect(rows[3]?.[3]).toBe("'+1 refund");
 		// Money stays a number, so a refund's minus sign isn't guarded.
 		expect(rows[3]?.[4]).toBe("-2.5");
-		expect(rows.every((r) => r.length === 10)).toBe(true);
+		expect(rows.every((r) => r.length === 12)).toBe(true);
 	});
 
 	it("re-totals each Bucket's month, with the other Parent's Personal Allowance only as its total", () => {
@@ -236,11 +241,174 @@ describe("exportFiles", () => {
 		]);
 	});
 
+	it("says what each Rule for money in, remembered pair and card payment remembers", () => {
+		const made = Date.UTC(2026, 8, 3, 12);
+		const files = exportFiles(
+			data({
+				moneyInRules: [
+					{
+						pattern: "acme payroll",
+						kind: "income",
+						intoAccount: null,
+						otherAccount: null,
+						payMemberId: "sam",
+						createdBy: "Alex",
+						createdAt: made,
+					},
+					{
+						pattern: "venmo",
+						kind: "paid-back",
+						intoAccount: null,
+						otherAccount: null,
+						payMemberId: null,
+						createdBy: null,
+						createdAt: made,
+					},
+					{
+						pattern: "online transfer",
+						kind: "transfer",
+						intoAccount: "Checking",
+						otherAccount: "Savings",
+						payMemberId: null,
+						createdBy: "Sam",
+						createdAt: made,
+					},
+				],
+				cardPaymentRules: [
+					{ pattern: "visa payment", card: "Visa", createdBy: "Sam", createdAt: made },
+					{ pattern: "store card", card: null, createdBy: null, createdAt: made },
+				],
+			}),
+		);
+		expect(parseCsv(files["money-in-rules.csv"] as string)).toEqual([
+			[
+				"Statement words",
+				"Always",
+				"Into Account",
+				"From Account",
+				"Whose pay",
+				"Set by",
+				"Made on",
+			],
+			["acme payroll", "Income", "", "", "Sam", "Alex", "2026-09-03"],
+			["venmo", "Paid back", "", "", "", "", "2026-09-03"],
+			["online transfer", "Transfer", "Checking", "Savings", "", "Sam", "2026-09-03"],
+		]);
+		expect(parseCsv(files["card-payment-rules.csv"] as string)).toEqual([
+			["Statement words", "Card", "Set by", "Made on"],
+			["visa payment", "Visa", "Sam", "2026-09-03"],
+			["store card", "A card that isn’t in Noodle", "", "2026-09-03"],
+		]);
+	});
+
+	it("lists money in with its kind, and what the bank took back or lowered on either list", () => {
+		const files = exportFiles(
+			data({
+				transactions: [
+					row({ id: "kept", bankTookBackOn: "2026-10-03", bankAmount: null }),
+					row({ id: "lowered", bankTookBackOn: "2026-10-04", bankAmount: 250 }),
+					row({ id: "plain" }),
+				] as ExportData["transactions"],
+				moneyIn: [
+					{
+						id: "pay",
+						date: "2026-09-15",
+						note: "ACME PAYROLL",
+						amountCents: 250_000,
+						kind: "income",
+						needsReview: false,
+						account: "Checking",
+						otherAccount: null,
+						payMemberId: "sam",
+						bankTookBackOn: null,
+						bankAmountCents: null,
+					},
+					{
+						id: "back",
+						date: "2026-09-20",
+						note: "STORE",
+						amountCents: 4_000,
+						kind: "refund",
+						needsReview: false,
+						account: "Checking",
+						otherAccount: null,
+						payMemberId: null,
+						bankTookBackOn: "2026-10-03",
+						bankAmountCents: 1_500,
+					},
+					{
+						id: "moved",
+						date: "2026-09-21",
+						note: "ONLINE TRANSFER",
+						amountCents: 10_000,
+						kind: "transfer",
+						needsReview: false,
+						account: "Checking",
+						otherAccount: "Savings",
+						payMemberId: null,
+						bankTookBackOn: "2026-10-05",
+						bankAmountCents: null,
+					},
+					{
+						id: "new",
+						date: "2026-09-22",
+						note: "ZELLE",
+						amountCents: 500,
+						kind: "income",
+						needsReview: true,
+						account: null,
+						otherAccount: null,
+						payMemberId: null,
+						bankTookBackOn: null,
+						bankAmountCents: null,
+					},
+				],
+			}),
+		);
+		const lines = parseCsv(files["transactions.csv"] as string);
+		expect(lines[0]?.slice(-2)).toEqual(["Bank took it back on", "Bank lowered it to"]);
+		expect(lines.slice(1).map((r) => r.slice(-2))).toEqual([
+			["2026-10-03", ""],
+			["2026-10-04", "2.5"],
+			["", ""],
+		]);
+		expect(parseCsv(files["money-in.csv"] as string)).toEqual([
+			[
+				"Date",
+				"Account",
+				"Note",
+				"Amount",
+				"Kind",
+				"From Account",
+				"Whose pay",
+				"Bank took it back on",
+				"Bank changed it to",
+			],
+			["2026-09-15", "Checking", "ACME PAYROLL", "2500", "Income", "", "Sam", "", ""],
+			["2026-09-20", "Checking", "STORE", "40", "Refund", "", "", "2026-10-03", "15"],
+			[
+				"2026-09-21",
+				"Checking",
+				"ONLINE TRANSFER",
+				"100",
+				"Transfer",
+				"Savings",
+				"",
+				"2026-10-05",
+				"",
+			],
+			["2026-09-22", "", "ZELLE", "5", "Needs review", "", "", "", ""],
+		]);
+	});
+
 	it("writes every file the ZIP holds", () => {
 		expect(Object.keys(exportFiles(data())).sort()).toEqual([
 			"accounts.csv",
+			"card-payment-rules.csv",
 			"household.json",
 			"log-removed.csv",
+			"money-in-rules.csv",
+			"money-in.csv",
 			"owed-back.csv",
 			"paid-back.csv",
 			"plan-changes.csv",
