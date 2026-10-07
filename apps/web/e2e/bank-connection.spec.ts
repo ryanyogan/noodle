@@ -154,6 +154,16 @@ test("Plaid's webhooks sync the bank, and a lapsed login is reconnected", async 
 	await nav(page).getByRole("link", { name: "Transactions" }).click();
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Transactions");
 	await expect(page.getByRole("button", { name: /^Netflix \(pending\), \$9\.99, / })).toBeVisible();
+	// Open, it says so in words (a phone has no hover for the row's clock): under the Amount.
+	await page.getByRole("button", { name: /^Netflix \(pending\), \$9\.99, / }).click();
+	const netflix = page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
+	await expect(netflix.getByTestId("pending-hint")).toHaveText(
+		"Pending: the bank hasn’t posted it yet, so it may still change or go.",
+	);
+	await page.keyboard.press("Escape");
+	await expect(netflix).toHaveCount(0);
 
 	// A webhook nobody signed does nothing.
 	const unsigned = await plaidWebhook(

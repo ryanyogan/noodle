@@ -26,7 +26,7 @@ import { monogram } from "../buckets";
 import { askCardPayment } from "../card-payments";
 import { shortDay } from "../format";
 import { cellEdits, forEdits } from "../transaction-cells";
-import { FOR_DIFFERS, type RowView } from "../transaction-row";
+import { FOR_DIFFERS, PENDING_MEANS, type RowView } from "../transaction-row";
 import { editsInCell } from "../transaction-table";
 import type { TransactionRow } from "../transactions";
 import {
@@ -83,8 +83,7 @@ export const AUTO_MARK = "Filed automatically";
 export const AUTO_MARK_MEANS =
 	"Filed automatically, as a best guess. Open it to check or change it.";
 export const PENDING_MARK = "Pending";
-export const PENDING_MARK_MEANS =
-	"Pending: the bank hasn’t posted it yet, so it may still change or go.";
+export const PENDING_MARK_MEANS = PENDING_MEANS;
 
 /**
  * A small mark after a row's name (issue 147): an icon with its name for a screen reader and what

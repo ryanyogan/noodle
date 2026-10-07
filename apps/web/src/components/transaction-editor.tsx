@@ -21,13 +21,14 @@ import {
 } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
-import { Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
+import { Clock, Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { cantSaveSentence, isUnassigned, noSplitSentence, nothingToFileIn } from "../before-plan";
 import { dayName, formatMoney, formatMoneyInput } from "../format";
 import { forLabel, type MemberSummary } from "../members";
 import type { ReviewItem } from "../review";
+import { PENDING_MEANS } from "../transaction-row";
 import type {
 	Assignment,
 	SplitEdit,
@@ -573,7 +574,21 @@ function EditForm({
 					// the label or the box of the field beside it (issue 147).
 					className="grid items-start gap-4 sm:grid-cols-2"
 				>
-					<Field label="Amount" htmlFor="transaction-amount">
+					<Field
+						label="Amount"
+						htmlFor="transaction-amount"
+						// A pending Transaction says so in words here: the row's clock explains itself only
+						// on hover, which a phone doesn't have. Under the Amount, since that is what may
+						// still change (issue 147).
+						hint={
+							transaction.pending ? (
+								<span className="inline-flex items-center gap-1" data-testid="pending-hint">
+									<Clock aria-hidden="true" className="size-3 shrink-0" />
+									{PENDING_MEANS}
+								</span>
+							) : undefined
+						}
+					>
 						<AmountInput
 							id="transaction-amount"
 							name="amount"

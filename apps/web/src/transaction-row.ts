@@ -37,6 +37,13 @@ export function assignmentOf(
 /** The For column of a split row whose Splits are For different people: said, not a chip. */
 export const FOR_DIFFERS = "Different for each Split";
 
+/**
+ * What Pending means, in words: the row's clock says it on hover, the open row and the phone's
+ * sheet say it under the Amount (issue 147).
+ */
+export const PENDING_MEANS =
+	"Pending: the bank hasn’t posted it yet, so it may still change or go.";
+
 export type RowView = {
 	/** Goal spending opens its Goal; a Transfer and a split have their own tile. */
 	kind: "goal" | "transfer" | "split" | "plain";
