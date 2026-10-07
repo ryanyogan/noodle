@@ -26,6 +26,17 @@ export function cardKept(account: {
 	return account.purchases ?? (account.followed ? "statements" : null);
 }
 
+/**
+ * Whether a payment to a card is itself the spending, so "It's a card payment" files it in the
+ * Commitment that pays the card down. It is when there is such a Commitment and the card's
+ * purchases aren't in Noodle one by one from its bank or its statements: a card kept by hand, one
+ * whose purchases never come in, and one not asked yet (a Household from before the question).
+ * Otherwise the payment is a Transfer naming the card: the purchases are the spending.
+ */
+export function cardPaymentIsSpending(kept: CardKept | null, paidDownByCommitment: boolean) {
+	return paidDownByCommitment && kept !== "bank" && kept !== "statements";
+}
+
 /** Lower case, letters and digits only, single spaces: how two card names are compared. */
 const cardWords = (name: string) =>
 	name

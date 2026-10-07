@@ -31,7 +31,13 @@ const today = (page: Page) =>
 		new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }),
 	);
 
-type NewAccount = { name: string; kind: "checking" | "credit-card"; balance: string };
+type NewAccount = {
+	name: string;
+	kind: "checking" | "credit-card";
+	balance: string;
+	/** A card's answer to "How do its purchases get into Noodle?"; left out, it stays on statements. */
+	purchases?: "I add them by hand";
+};
 
 /** Adds an Account on the Accounts page. */
 async function addAccount(page: Page, account: NewAccount) {
@@ -45,6 +51,9 @@ async function addAccount(page: Page, account: NewAccount) {
 	}
 	await page.getByLabel("Name").fill(account.name);
 	await choose(page, "Kind", accountKindLabel(account.kind));
+	if (account.purchases) {
+		await choose(page, "How do its purchases get into Noodle?", account.purchases);
+	}
 	await page
 		.getByLabel(account.kind === "credit-card" ? "Owed now" : "Balance now")
 		.fill(account.balance);
@@ -250,8 +259,13 @@ test("a payment to a card kept by hand is filed in the Commitment that pays it d
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 	const thisMonth = page.url();
 	const day = await today(page);
-	// Apple Card has no statements and no bank connection: it's kept by hand.
-	await addAccount(page, { name: "Apple Card", kind: "credit-card", balance: "900" });
+	// Apple Card has no statements and no bank connection: the Parent says it's kept by hand.
+	await addAccount(page, {
+		name: "Apple Card",
+		kind: "credit-card",
+		balance: "900",
+		purchases: "I add them by hand",
+	});
 	await uploadStatement(
 		page,
 		{ name: "Checking", kind: "checking", balance: "2,500" },

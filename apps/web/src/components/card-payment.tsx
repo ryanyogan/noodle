@@ -186,8 +186,9 @@ export function CardPaymentQuestion({
 			</p>
 			{byHand.map((card) => (
 				<p key={card.id} className="text-[13px] text-muted-foreground">
-					{card.name} is kept by hand, so its payment is the spending: it’s filed in{" "}
-					{card.commitment?.name}.
+					{card.name}
+					{card.kept === "none" ? "’s purchases don’t come into Noodle" : " is kept by hand"}, so
+					its payment is the spending: it’s filed in {card.commitment?.name}.
 				</p>
 			))}
 			<div className="flex flex-wrap gap-2">

@@ -18,7 +18,14 @@ import {
 	unlinkRefund as unlink,
 	unmarkTransfer as unmark,
 } from "@noodle/db";
-import { type CardKept, cardKept, dayKeyAt, monthOfDay, planForMonth } from "@noodle/domain";
+import {
+	type CardKept,
+	cardKept,
+	cardPaymentIsSpending,
+	dayKeyAt,
+	monthOfDay,
+	planForMonth,
+} from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { ulid } from "ulid";
 import { z } from "zod";
@@ -104,10 +111,8 @@ export const getCardPaymentCards = createServerFn({ method: "GET" })
 		return cards.map((card) => {
 			// The Parent's answer when the card was added, else what Noodle can see of it (issue 136).
 			const kept = cardKept({ ...card, followed: follows.has(card.id) });
-			const paying =
-				kept === "bank" || kept === "statements"
-					? undefined
-					: commitments.find((commitment) => commitment.accountId === card.id);
+			const paysDown = commitments.find((commitment) => commitment.accountId === card.id);
+			const paying = cardPaymentIsSpending(kept, paysDown !== undefined) ? paysDown : undefined;
 			return {
 				id: card.id,
 				name: card.name,
