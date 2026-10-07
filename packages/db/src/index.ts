@@ -530,10 +530,14 @@ export {
 } from "./categorize";
 export {
 	type CheckInParent,
+	type CheckInStackRow,
 	completeCheckIn,
 	listCheckInHouseholds,
+	loadCheckInDoers,
+	loadCheckInStack,
 	loadCheckIns,
 	setCheckInDay,
+	startCheckInStack,
 } from "./check-ins";
 export {
 	addCommitment,

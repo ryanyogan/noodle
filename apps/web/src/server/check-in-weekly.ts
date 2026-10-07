@@ -17,7 +17,7 @@ import {
 	isCheckInDay,
 	type Weekday,
 } from "@noodle/domain";
-import { loadCheckInWaiting } from "./check-in";
+import { loadCheckInWaiting, startCheckInStackFor } from "./check-in";
 import { type CheckInEmail, checkInEmail } from "./check-in-email";
 import { getDb } from "./db";
 import { sendEmail } from "./email/send";
@@ -57,7 +57,11 @@ async function startCheckIn(
 	// Read for each Parent, so each Nudge and email has only what they may see (ADR-0003).
 	const cards = new Map<string, CheckInCard[]>();
 	for (const parent of waiting) {
-		cards.set(parent.id, checkInCards(await loadCheckInWaiting(db, household, parent.id, now)));
+		const theirs = checkInCards(await loadCheckInWaiting(db, household, parent.id, now));
+		cards.set(parent.id, theirs);
+		// The week's stack starts with what the Nudge and the email name, so a card dealt with
+		// before the Parent opens the Check-in still has its line there. A retried run adds nothing.
+		await startCheckInStackFor(db, household, parent.id, week, now, theirs);
 	}
 	const scheduled = scheduleCheckInNudges(
 		nudges?.recipients ?? [],

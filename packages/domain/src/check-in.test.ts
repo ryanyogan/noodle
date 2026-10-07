@@ -5,7 +5,10 @@ import {
 	checkInCards,
 	checkInCount,
 	checkInNudgeTime,
+	checkInStack,
+	checkInStarted,
 	checkInStep,
+	checkInUnstarted,
 	checkInWeek,
 	type DayKey,
 	defaultNudgePreferences,
@@ -124,10 +127,12 @@ describe("stepping through the Check-in", () => {
 		{ kind: "windfalls", windfalls: [{ month: month("2026-09"), amount: 100 }], total: 100 },
 	];
 
+	const stack = checkInStack([], cards);
+
 	it("starts on the first card", () => {
-		expect(checkInStep(cards, [])).toEqual({
+		expect(checkInStep(stack, [])).toEqual({
 			kind: "card",
-			card: cards[0],
+			card: { state: "waiting", kind: "review", card: cards[0] },
 			position: 1,
 			of: 3,
 			last: false,
@@ -135,24 +140,73 @@ describe("stepping through the Check-in", () => {
 	});
 
 	it("moves past cards by kind, and ends on the last", () => {
-		expect(checkInStep(cards, ["review", "insights"])).toMatchObject({
+		expect(checkInStep(stack, ["review", "insights"])).toMatchObject({
 			card: { kind: "windfalls" },
 			position: 3,
 			last: true,
 		});
 	});
 
-	it("keeps its place when a card empties meanwhile", () => {
-		// Past Review; then the other Parent clears it, so the stack loses its first card.
-		expect(checkInStep(cards.slice(1), ["review"])).toMatchObject({
+	it("keeps a card that was dealt with in its place, counted, as what it started as", () => {
+		// The week started with all three; Review has been cleared since.
+		const started = cards.map(checkInStarted);
+		const sam = { memberId: "sam", name: "Sam" };
+		const kept = checkInStack(started, cards.slice(1), { review: [sam] });
+		expect(kept.map((card) => [card.kind, card.state])).toEqual([
+			["review", "dealt"],
+			["insights", "waiting"],
+			["windfalls", "waiting"],
+		]);
+		expect(kept[0]).toEqual({
+			state: "dealt",
+			kind: "review",
+			started: { kind: "review", count: 2 },
+			by: [sam],
+		});
+		// The dealt-with card is still met, and still counted.
+		expect(checkInStep(kept, [])).toMatchObject({ card: { state: "dealt" }, position: 1, of: 3 });
+		expect(checkInStep(kept, ["review"])).toMatchObject({
 			card: { kind: "insights" },
-			position: 1,
-			of: 2,
+			position: 2,
+			of: 3,
 		});
 	});
 
+	it("ends on a dealt-with card when that is the last", () => {
+		const kept = checkInStack(cards.map(checkInStarted), cards.slice(0, 2));
+		expect(checkInStep(kept, ["review", "insights"])).toMatchObject({
+			card: { state: "dealt", kind: "windfalls", by: [] },
+			position: 3,
+			last: true,
+		});
+	});
+
+	it("puts a card that first appears mid-week at the end", () => {
+		// The week started with Insights and Extra income; a Transaction reached Review later.
+		const started = cards.slice(1).map(checkInStarted);
+		expect(checkInStack(started, cards).map((card) => card.kind)).toEqual([
+			"insights",
+			"windfalls",
+			"review",
+		]);
+		expect(checkInUnstarted(started, cards).map((card) => card.kind)).toEqual(["review"]);
+		// Once it has joined, it keeps the place it joined at.
+		const joined = [...started, checkInStarted(cards[0] as (typeof cards)[number])];
+		expect(checkInStack(joined, cards).map((card) => card.kind)).toEqual([
+			"insights",
+			"windfalls",
+			"review",
+		]);
+		expect(checkInUnstarted(joined, cards)).toEqual([]);
+	});
+
+	it("shows a dealt-with card as waiting again when something new waits on it", () => {
+		const started = cards.map(checkInStarted);
+		expect(checkInStack(started, cards).every((card) => card.state === "waiting")).toBe(true);
+	});
+
 	it("is done once every card is past", () => {
-		expect(checkInStep(cards, ["review", "insights", "windfalls"])).toEqual({ kind: "done" });
+		expect(checkInStep(stack, ["review", "insights", "windfalls"])).toEqual({ kind: "done" });
 	});
 
 	it("is done straight away when nothing waits", () => {

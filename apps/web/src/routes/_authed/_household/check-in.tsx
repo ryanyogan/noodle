@@ -1,6 +1,7 @@
 import {
 	type CheckInCard,
 	type CheckInCardKind,
+	type CheckInStackCard,
 	checkInStep,
 	displayMerchant,
 } from "@noodle/domain";
@@ -17,12 +18,18 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
 import { useEffect } from "react";
 import { z } from "zod";
-import { checkInCardTitle, checkInLine, checkInSummary } from "../../../check-in";
+import {
+	checkInCardTitle,
+	checkInDealtLine,
+	checkInLine,
+	checkInStackLine,
+	checkInSummary,
+} from "../../../check-in";
 import { PerkResetLine } from "../../../components/perk-reset";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, fullDay, monthName, shortDay } from "../../../format";
 import { checkInQuery, insightsQuery, reviewQuery } from "../../../queries";
-import { type CheckInView, completeCheckIn } from "../../../server/check-in";
+import { type CheckInView, completeCheckIn, startCheckInStack } from "../../../server/check-in";
 
 export const Route = createFileRoute("/_authed/_household/check-in")({
 	// `past`: the cards already passed, comma-separated, so leaving for Review or Insights and
@@ -35,23 +42,25 @@ export const Route = createFileRoute("/_authed/_household/check-in")({
 });
 
 /**
- * The weekly Check-in: a short stack of what waits for this Parent (Review, Insights, Sweeps,
- * Extra income, skipping any with nothing in it), one card at a time, ending on a done state that
- * also says whether the other Parent has done theirs. Reaching the end finishes the week's
- * Check-in; nothing on the cards changes until the Parent acts on the page each one links to.
+ * The weekly Check-in: the week's stack of what has waited for this Parent (Review, Insights,
+ * Sweeps, Extra income, leaving out any that never had anything in it), one card at a time, ending
+ * on a done state that also says whether the other Parent has done theirs. A card dealt with stays
+ * in the stack as one line saying what was done, and is counted; one that first appears mid-week
+ * joins the end. Reaching the end finishes the week's Check-in; nothing on the cards changes until
+ * the Parent acts on the page each one links to.
  */
 function CheckInPage() {
 	const view = useSuspenseQuery(checkInQuery()).data;
 	const search = Route.useSearch();
 	const navigate = Route.useNavigate();
-	const kinds = new Set(view.cards.map((c) => c.kind));
+	const kinds = new Set(view.stack.map((c) => c.kind));
 	const past = (search.past?.split(",") ?? []).filter((k): k is CheckInCardKind =>
 		kinds.has(k as CheckInCardKind),
 	);
 	const setPast = (next: CheckInCardKind[]) =>
 		navigate({ search: { past: next.length > 0 ? next.join(",") : undefined } });
 	const step =
-		view.completedAt === null ? checkInStep(view.cards, past) : ({ kind: "done" } as const);
+		view.completedAt === null ? checkInStep(view.stack, past) : ({ kind: "done" } as const);
 	const complete = useCompleteCheckIn();
 	// Finishing is recorded once, when the stack runs out (straight away when it was empty).
 	const done = step.kind === "done";
@@ -60,6 +69,23 @@ function CheckInPage() {
 	useEffect(() => {
 		if (unrecorded) finish();
 	}, [unrecorded, finish]);
+	// The week's stack is kept by the server, and reading it never writes: when the read says a
+	// waiting card hasn't joined yet (the week's first look, or a card that appeared since), ask
+	// once for it to be added. If that fails the page still shows the card; only its place and its
+	// line once it's dealt with depend on it.
+	const queryClient = useQueryClient();
+	const unstarted = view.unstarted;
+	useEffect(() => {
+		if (!unstarted) return;
+		startCheckInStack()
+			.then(() => queryClient.invalidateQueries({ queryKey: checkInQuery().queryKey }))
+			.catch(() => {});
+	}, [unstarted, queryClient]);
+	// The cards already met, on a phone, where the steps aren't beside the card: every card
+	// before this one, or the whole stack once done.
+	const met = step.kind === "card" ? view.stack.slice(0, step.position - 1) : view.stack;
+	const isSkipped = (card: CheckInStackCard) =>
+		card.state === "waiting" && (done || past.includes(card.kind));
 
 	return (
 		<>
@@ -69,7 +95,7 @@ function CheckInPage() {
 					"grid gap-4",
 					// The steps beside the card, which takes the rest of the page's width, as a list does on
 					// any other page: nothing is left empty beside it on the widest screens (#73).
-					view.cards.length > 0 &&
+					view.stack.length > 0 &&
 						"lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-(--layout-gap)",
 				)}
 			>
@@ -77,14 +103,14 @@ function CheckInPage() {
 				<div className="empty:hidden lg:col-span-full">
 					<PerkResetLine />
 				</div>
-				{view.cards.length > 0 ? (
+				{view.stack.length > 0 ? (
 					<div className="hidden gap-3 lg:grid">
 						{/* A line over the steps, as "1 of 4" is over the card: both columns start alike. */}
 						{step.kind === "card" ? (
 							<p className="text-sm text-muted-foreground">This week</p>
 						) : null}
 						<StepList aria-label="Check-in steps">
-							{view.cards.map((card) => (
+							{view.stack.map((card) => (
 								<StepListItem
 									key={card.kind}
 									// The control radius, and room for the step's own line under its name.
@@ -92,17 +118,18 @@ function CheckInPage() {
 									state={
 										step.kind === "card" && step.card.kind === card.kind
 											? "current"
-											: done || past.includes(card.kind)
+											: done || past.includes(card.kind) || card.state === "dealt"
 												? "done"
 												: "todo"
 									}
 								>
 									<span className="grid min-w-0">
 										<span>{checkInCardTitle[card.kind]}</span>
-										{/* What waits in the step, in the Household's own figures: whole, on a second
-										    line when it's long ("$944.47 to Sweep from September"). */}
+										{/* What waits in the step, in the Household's own figures, or what was done
+										    about it: whole, on a second line when it's long ("$944.47 to Sweep from
+										    September"). */}
 										<span className="text-pretty text-[13px] font-normal text-muted-foreground">
-											{checkInLine(card)}
+											{checkInStackLine(card, view.me, isSkipped(card))}
 										</span>
 									</span>
 								</StepListItem>
@@ -117,15 +144,43 @@ function CheckInPage() {
 							{step.position} of {step.of}
 						</p>
 					) : null}
+					{met.length > 0 ? (
+						<ul
+							aria-label="So far this week"
+							className="grid gap-1.5 text-sm text-muted-foreground lg:hidden"
+						>
+							{met.map((card) => (
+								<li key={card.kind} className="flex items-start gap-2">
+									<Check aria-hidden className="mt-0.5 size-4 shrink-0" />
+									<span className="min-w-0 text-pretty">
+										<span className="font-medium text-foreground">
+											{checkInCardTitle[card.kind]}
+										</span>{" "}
+										{checkInStackLine(card, view.me, isSkipped(card))}
+									</span>
+								</li>
+							))}
+						</ul>
+					) : null}
 					{step.kind === "card" ? (
-						<CheckInCardView
-							key={step.card.kind}
-							card={step.card}
-							last={step.last}
-							onNext={() => setPast([...past, step.card.kind])}
-						/>
+						step.card.state === "waiting" ? (
+							<CheckInCardView
+								key={step.card.kind}
+								card={step.card.card}
+								last={step.last}
+								onNext={() => setPast([...past, step.card.kind])}
+							/>
+						) : (
+							<DealtCardView
+								key={step.card.kind}
+								card={step.card}
+								me={view.me}
+								last={step.last}
+								onNext={() => setPast([...past, step.card.kind])}
+							/>
+						)
 					) : (
-						<Done view={view} empty={view.cards.length === 0 && past.length === 0} />
+						<Done view={view} empty={view.stack.length === 0 && past.length === 0} />
 					)}
 				</div>
 			</div>
@@ -140,6 +195,40 @@ function useCompleteCheckIn() {
 		onError: () => toast("Couldn’t save your Check-in. Try again later.", { tone: "error" }),
 		onSettled: () => queryClient.invalidateQueries({ queryKey: checkInQuery().queryKey }),
 	});
+}
+
+/**
+ * A card nothing waits on any more: its one line saying what was done, and the way on. "Next",
+ * not "Skip": there is nothing left on it to skip.
+ */
+function DealtCardView({
+	card,
+	me,
+	last,
+	onNext,
+}: {
+	card: Extract<CheckInStackCard, { state: "dealt" }>;
+	me: string;
+	last: boolean;
+	onNext: () => void;
+}) {
+	return (
+		<Card>
+			<CardContent className="grid gap-1">
+				<p className="text-[13px] font-medium text-muted-foreground">
+					{checkInCardTitle[card.kind]}
+				</p>
+				<h2 className="flex items-start gap-2 text-lg font-semibold tracking-[-0.01em]">
+					<Check aria-hidden className="mt-1 size-5 shrink-0 text-muted-foreground" />
+					<span className="min-w-0 text-pretty">{checkInDealtLine(card, me)}</span>
+				</h2>
+				<p className="text-sm text-muted-foreground">Nothing here waits for you now.</p>
+			</CardContent>
+			<CardFooter className="justify-end">
+				<Button onClick={onNext}>{last ? "Finish" : "Next"}</Button>
+			</CardFooter>
+		</Card>
+	);
 }
 
 function CheckInCardView({
@@ -344,7 +433,8 @@ function CardLink({ card }: { card: CheckInCard }) {
 function Done({ view, empty }: { view: CheckInView; empty: boolean }) {
 	const other = view.otherParent;
 	// The week is done, but what was skipped still waits: say so, rather than "all done".
-	const waiting = view.cards.length > 0 ? checkInSummary(view.cards) : null;
+	const cards = view.stack.flatMap((card) => (card.state === "waiting" ? [card.card] : []));
+	const waiting = cards.length > 0 ? checkInSummary(cards) : null;
 	return (
 		<EmptyState
 			icon={<Check />}
