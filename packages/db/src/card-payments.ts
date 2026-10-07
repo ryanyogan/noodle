@@ -11,6 +11,7 @@ import {
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
+import { cardPaymentForgottenEvents } from "./log-events";
 import { type Viewer, visibleTo } from "./privacy";
 import { returnToReview } from "./review";
 import { deleteRule, saveRule } from "./rules";
@@ -604,12 +605,20 @@ export async function undoCardPaymentMarks(db: Db, householdId: string, transfer
 }
 
 /** A wording stops being remembered as a card payment. Transfers already marked stay as they are. */
-export async function forgetCardPayment(db: Db, householdId: string, pattern: string) {
-	await db
-		.delete(cardPaymentRules)
-		.where(
-			and(eq(cardPaymentRules.householdId, householdId), eq(cardPaymentRules.pattern, pattern)),
-		);
+export async function forgetCardPayment(
+	db: Db,
+	householdId: string,
+	pattern: string,
+	memberId?: string,
+) {
+	await db.batch([
+		...cardPaymentForgottenEvents(db, householdId, pattern, memberId),
+		db
+			.delete(cardPaymentRules)
+			.where(
+				and(eq(cardPaymentRules.householdId, householdId), eq(cardPaymentRules.pattern, pattern)),
+			),
+	]);
 }
 
 /**

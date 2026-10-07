@@ -6,9 +6,23 @@ import {
 	holdsMoney,
 	type PairableAccount,
 } from "@noodle/domain";
-import { and, asc, eq, inArray, isNotNull, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
+import {
+	and,
+	asc,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	lt,
+	ne,
+	notInArray,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
+import { bankConnectionEvent } from "./log-events";
 import {
 	accountBalances,
 	accounts,
@@ -760,17 +774,19 @@ export async function markBankConnectionDisconnected(
 	householdId: string,
 	connectionId: string,
 ): Promise<boolean> {
-	const written = await db
-		.update(bankConnections)
-		.set({ status: "disconnected", notice: null, newAccounts: false })
-		.where(
-			and(
-				eq(bankConnections.id, connectionId),
-				eq(bankConnections.householdId, householdId),
-				ne(bankConnections.status, "disconnected"),
-			),
-		)
-		.returning({ id: bankConnections.id });
+	const theConnection = and(
+		eq(bankConnections.id, connectionId),
+		eq(bankConnections.householdId, householdId),
+		ne(bankConnections.status, "disconnected"),
+	) as SQL;
+	const [, written] = await db.batch([
+		bankConnectionEvent(db, theConnection, "bank-connection-disconnected"),
+		db
+			.update(bankConnections)
+			.set({ status: "disconnected", notice: null, newAccounts: false })
+			.where(theConnection)
+			.returning({ id: bankConnections.id }),
+	]);
 	return written.length > 0;
 }
 
@@ -794,18 +810,20 @@ export async function removeBankConnection(
 	db: Db,
 	householdId: string,
 	connectionId: string,
+	memberId?: string,
 ): Promise<boolean> {
 	const theConnection = and(
 		eq(bankConnections.id, connectionId),
 		eq(bankConnections.householdId, householdId),
 		ne(bankConnections.credential, REMOVED_CREDENTIAL),
-	);
+	) as SQL;
 	const [found] = await db
 		.select({ id: bankConnections.id })
 		.from(bankConnections)
 		.where(theConnection);
 	if (!found) return false;
 	await db.batch([
+		bankConnectionEvent(db, theConnection, "bank-connection-removed", memberId),
 		db
 			.update(accounts)
 			.set({ bankConnectionId: null, externalId: null })

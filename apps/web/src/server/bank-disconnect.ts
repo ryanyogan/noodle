@@ -20,7 +20,8 @@ export async function disconnectBankConnection(
 		providerFor: (provider: "plaid") => BankConnectionProvider | null;
 		openCredential: (connection: { id: string; credential: string }) => Promise<string>;
 	},
-	input: { householdId: string; connectionId: string },
+	// `memberId`: the Parent who asked, for the Log; left out when nobody did (a Fresh start).
+	input: { householdId: string; connectionId: string; memberId?: string },
 ): Promise<DisconnectBankResult> {
 	const { db } = deps;
 	const { householdId, connectionId } = input;
@@ -50,6 +51,6 @@ export async function disconnectBankConnection(
 			return { ok: false, reason: "bank" };
 		}
 	}
-	await removeBankConnection(db, householdId, connectionId);
+	await removeBankConnection(db, householdId, connectionId, input.memberId);
 	return { ok: true };
 }

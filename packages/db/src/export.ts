@@ -9,6 +9,7 @@ import {
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { owedNow } from "./goals";
 import type { Db } from "./index";
+import { type LogEventRow, listLogEvents } from "./log-events";
 import { listMembers, type MemberSummary } from "./members";
 import { loadOwedBack, loadPaidBackSpending } from "./owed-back";
 import { loadPlanRecords } from "./plan";
@@ -67,6 +68,8 @@ export type ExportData = {
 	bucketNames: Record<string, string>;
 	commitmentNames: Record<string, string>;
 	planChanges: PlanChange[];
+	/** The Log's own record of what was removed (issue 141), oldest first. */
+	removed: LogEventRow[];
 	rules: RuleRow[];
 	/**
 	 * What someone said they'd pay back, oldest purchase first, with how much of it is Paid back
@@ -307,6 +310,7 @@ export async function loadExportData(
 		bucketNames: Object.fromEntries(latestRecords.buckets.map((b) => [b.id, b.name])),
 		commitmentNames: Object.fromEntries(latestRecords.commitments.map((c) => [c.id, c.name])),
 		planChanges: planChanges.changes,
+		removed: await listLogEvents(db, viewer),
 		rules,
 		owedBack: owedBackItems.map((item) => ({
 			id: item.id,

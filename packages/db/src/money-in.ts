@@ -13,6 +13,7 @@ import { incomeCounts } from "./counting";
 import { endedBefore, lineEndedRestores } from "./ended-months";
 import { decidedSql, extraIncomeSql } from "./extra-income";
 import type { Db } from "./index";
+import { moneyInRuleRemovedEvents } from "./log-events";
 import {
 	accounts,
 	income,
@@ -753,10 +754,18 @@ async function joinPairsLater(db: Db, householdId: string): Promise<void> {
 }
 
 /** Removes a Rule for money in; lines it already decided stay as they are. */
-export async function deleteMoneyInRule(db: Db, householdId: string, ruleId: string) {
-	await db
-		.delete(moneyInRules)
-		.where(and(eq(moneyInRules.id, ruleId), eq(moneyInRules.householdId, householdId)));
+export async function deleteMoneyInRule(
+	db: Db,
+	householdId: string,
+	ruleId: string,
+	memberId?: string,
+) {
+	await db.batch([
+		...moneyInRuleRemovedEvents(db, householdId, ruleId, memberId),
+		db
+			.delete(moneyInRules)
+			.where(and(eq(moneyInRules.id, ruleId), eq(moneyInRules.householdId, householdId))),
+	]);
 }
 
 /**

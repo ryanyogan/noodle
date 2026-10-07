@@ -179,7 +179,7 @@ export const forgetCardPayment = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ pattern: z.string().min(1).max(200) }))
 	.handler(async ({ data, context }) => {
-		await forgetCard(getDb(), context.household.id, data.pattern);
+		await forgetCard(getDb(), context.household.id, data.pattern, context.parent.id);
 		return { ok: true };
 	});
 

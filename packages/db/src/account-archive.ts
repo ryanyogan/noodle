@@ -1,6 +1,7 @@
 import type { AccountKind } from "@noodle/domain";
 import { and, asc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "./index";
+import { accountArchivedEvent } from "./log-events";
 import { accounts, commitments, goals } from "./schema";
 
 // Archiving an Account (ADR-0046): a Parent puts an Account they no longer use out of the way.
@@ -118,25 +119,28 @@ export type ArchiveAccountResult =
  */
 export async function archiveAccount(
 	db: Db,
-	input: { householdId: string; accountId: string; now?: Date },
+	input: { householdId: string; accountId: string; now?: Date; memberId?: string },
 ): Promise<ArchiveAccountResult> {
 	const now = input.now ?? new Date();
-	const written = await db
-		.update(accounts)
-		.set({ archivedAt: now })
-		.where(
-			and(
-				ownAccount(input.householdId, input.accountId),
-				isNull(accounts.archivedAt),
-				isNull(accounts.bankConnectionId),
-				sql`not exists ${goalsOn(db, input.accountId)}`,
-				sql`not exists ${db
-					.select({ id: commitments.id })
-					.from(commitments)
-					.where(paysItDown(input.accountId, monthOf(now)))}`,
-			),
-		)
-		.returning({ id: accounts.id });
+	const [written] = await db.batch([
+		db
+			.update(accounts)
+			.set({ archivedAt: now })
+			.where(
+				and(
+					ownAccount(input.householdId, input.accountId),
+					isNull(accounts.archivedAt),
+					isNull(accounts.bankConnectionId),
+					sql`not exists ${goalsOn(db, input.accountId)}`,
+					sql`not exists ${db
+						.select({ id: commitments.id })
+						.from(commitments)
+						.where(paysItDown(input.accountId, monthOf(now)))}`,
+				),
+			)
+			.returning({ id: accounts.id }),
+		accountArchivedEvent(db, { ...input, now }),
+	]);
 	if (written.length > 0) return { ok: true };
 	const account = await loadAccountToArchive(db, input.householdId, input.accountId, now);
 	if (!account || account.archived) return { ok: false, reason: "not-found" };

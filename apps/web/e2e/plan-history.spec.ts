@@ -1,5 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
+import { ulid } from "ulid";
 import { createTestParent } from "./parents";
+import { seedSql } from "./seed-sql";
 import {
 	createPlannedHousehold,
 	enterJoinedHousehold,
@@ -199,6 +201,109 @@ test("the Log sorts by when and by who from the server, and shows a snapshot as 
 		await snapshots.getByRole("button", { name: "Take a snapshot" }).click();
 		await expect(rows(page, "Snapshot")).toContainText("Before the holidays", { timeout: 40_000 });
 		await expect(rows(page, "Snapshot")).toContainText("Right away");
+	} finally {
+		await parent.remove();
+	}
+});
+
+const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
+
+test("a Rule made then removed is in the Log twice, as made and as removed, each with its time of day", async ({
+	browser,
+}) => {
+	test.slow();
+	const parent = await createTestParent();
+	try {
+		const page = await signedInPage(browser, parent.email);
+		await page.setViewportSize({ width: 1440, height: 900 });
+		const made = await createPlannedHousehold(page, {
+			baseline: "9,000",
+			buckets: [["Groceries", "1,200"]],
+		});
+		if (!made) throw new Error("The Household wasn't made directly");
+		const household = `(select household_id from members where clerk_user_id = ${q(parent.userId)})`;
+		const member = `(select id from members where clerk_user_id = ${q(parent.userId)})`;
+		const ruleId = ulid();
+		// Made yesterday, so "made" and "removed" are on different days as well as times.
+		await seedSql([
+			`insert into rules (id, household_id, pattern, bucket_id, created_by_member_id, created_at) values (${q(ruleId)}, ${household}, 'costco', (select id from buckets where household_id = ${household} and name = 'Groceries'), ${member}, (unixepoch() - 86400) * 1000);`,
+		]);
+
+		// While it stands, the Log has it once, as made.
+		await page.goto("/household?kind=rule#log");
+		await expect(rows(page, "“costco”")).toHaveCount(1, { timeout: 30_000 });
+		await expect(rows(page, "“costco”")).toContainText("Rule made · files into Groceries");
+
+		await page.goto(`/review/rules/${ruleId}`);
+		const remove = page.getByRole("button", { name: "Delete Rule" });
+		await hydrated(remove);
+		await remove.click();
+		await page.getByRole("button", { name: "Delete Rule" }).click();
+		await expect
+			.poll(
+				async () => {
+					const [found = []] = await seedSql([
+						`select kind from log_events where household_id = ${household} order by kind;`,
+					]);
+					return found.map((row) => row.kind);
+				},
+				{ timeout: 30_000 },
+			)
+			.toEqual(["rule-made", "rule-removed"]);
+
+		// Removed: both rows, newest first, each with a time of day.
+		await page.goto("/household?kind=rule#log");
+		const both = rows(page, "“costco”");
+		await expect(both).toHaveCount(2, { timeout: 30_000 });
+		await expect(both.nth(0)).toContainText("Rule removed · it filed into Groceries");
+		await expect(both.nth(1)).toContainText("Rule made · files into Groceries");
+		for (const row of [both.nth(0), both.nth(1)]) {
+			await expect(row).toContainText(/[A-Z][a-z]{2} \d{1,2}, \d{1,2}:\d{2} (AM|PM)/);
+		}
+		expect(await both.nth(0).textContent()).not.toBe(await both.nth(1).textContent());
+	} finally {
+		await parent.remove();
+	}
+});
+
+test("on a phone the Log has a Sort control: Newest, Oldest, Who", async ({ browser }) => {
+	test.slow();
+	const parent = await createTestParent();
+	try {
+		const page = await signedInPage(browser, parent.email);
+		await createPlannedHousehold(page, {
+			baseline: "9,000",
+			buckets: [
+				["Groceries", "1,200"],
+				["Fuel", "300"],
+			],
+		});
+		await page.setViewportSize({ width: 393, height: 852 });
+		await page.goto("/household#log");
+		const all = page.getByLabel("Log", { exact: true }).locator("[data-slot=data-table-row]");
+		await expect(all.first()).toBeVisible({ timeout: 30_000 });
+		const newest = await all.allTextContents();
+		expect(newest.length).toBeGreaterThanOrEqual(3);
+
+		const sort = page.getByRole("combobox", { name: "Sort" });
+		await hydrated(sort);
+		await expect(sort).toHaveText("Newest");
+		await sort.click();
+		await page.getByRole("option", { name: "Oldest" }).click();
+		await expect(page).toHaveURL(/order=oldest/);
+		await expect.poll(() => all.allTextContents()).toEqual([...newest].reverse());
+		await sort.click();
+		await page.getByRole("option", { name: "Who" }).click();
+		await expect(page).toHaveURL(/order=who\b/);
+		await expect(all).toHaveCount(newest.length);
+		// Nothing runs off the side.
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+		).toBeLessThanOrEqual(0);
+
+		// With column headers to click, the control isn't there.
+		await page.setViewportSize({ width: 1440, height: 900 });
+		await expect(sort).toBeHidden();
 	} finally {
 		await parent.remove();
 	}

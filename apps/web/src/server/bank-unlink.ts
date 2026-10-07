@@ -63,7 +63,7 @@ export type ArchiveAccountFnResult =
 /** Archives an Account, unlinking it from its bank first when it still syncs. */
 export async function archiveAccountAndUnlink(
 	deps: Deps,
-	input: { householdId: string; accountId: string },
+	input: { householdId: string; accountId: string; memberId?: string },
 ): Promise<ArchiveAccountFnResult> {
 	const account = await loadAccountToArchive(deps.db, input.householdId, input.accountId);
 	if (!account || account.archived) return { ok: false, reason: "not-found" };

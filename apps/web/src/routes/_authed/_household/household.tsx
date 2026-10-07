@@ -164,9 +164,10 @@ function HouseholdPage() {
 					{/* Every change made, in one table: it has the page's width (issue 139). */}
 					<SectionGroup id={LOG_HASH} title="Log" className="col-span-full scroll-mt-20">
 						<p className="text-sm text-muted-foreground">
-							Every change to the Plan, who made it and when, with Rules made, snapshots, Fresh
-							starts and Bank Connections. Newest first unless you sort it. A Fresh start clears the
-							changes before it; the Fresh start and your snapshots stay listed.
+							Every change to the Plan, who made it and when, with Rules made and removed,
+							snapshots, Fresh starts, Bank Connections connected and disconnected, and Accounts
+							archived. Newest first unless you sort it. A Fresh start clears the changes before it;
+							the Fresh start, your snapshots and what had been removed stay listed.
 						</p>
 						<HouseholdLog
 							filters={filters}

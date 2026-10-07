@@ -514,6 +514,7 @@ export const archiveAccount = createServerFn({ method: "POST" })
 		const result = await archiveAccountAndUnlink(unlinkDeps(householdId), {
 			householdId,
 			accountId: data.accountId,
+			memberId: context.parent.id,
 		});
 		// Even when refused part-way (the bank said no), what the screens show may have moved.
 		await notifyHousehold(householdId, ["goals", "bank-connections"]);
@@ -556,11 +557,10 @@ export const disconnectBank = createServerFn({ method: "POST" })
 						connectionId: connection.id,
 					}),
 			},
-			{ householdId, connectionId: data.connectionId },
+			{ householdId, connectionId: data.connectionId, memberId: context.parent.id },
 		);
 		if (!result.ok) return result;
-		// No activity history to record it in: the Plan's history holds Plan changes only. The
-		// Worker's log says who, by ID.
+		// The Log in Household settings has it, with who; the Worker's log says who, by ID.
 		console.log(
 			JSON.stringify({
 				log: "bank-disconnected",

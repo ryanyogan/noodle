@@ -9,6 +9,7 @@ import { and, asc, eq, gt, isNull, lt, ne, or, type SQL, sql } from "drizzle-orm
 import { type CategorizationDecision, fileCategorizations } from "./categorize";
 import { counts } from "./counting";
 import type { Db } from "./index";
+import { ruleRemovedEvents } from "./log-events";
 import { assignableBy, type Viewer, visibleTo } from "./privacy";
 import {
 	buckets,
@@ -463,6 +464,7 @@ export async function editRule(
 export async function deleteRule(db: Db, viewer: Viewer, ruleId: string): Promise<void> {
 	const theirs = sql`exists (select 1 from ${rules} where ${and(eq(rules.id, ruleId), visibleRule(viewer))})`;
 	await db.batch([
+		...ruleRemovedEvents(db, and(eq(rules.id, ruleId), visibleRule(viewer)) as SQL, viewer),
 		db.delete(ruleFor).where(and(eq(ruleFor.ruleId, ruleId), theirs)),
 		db.delete(rules).where(and(eq(rules.id, ruleId), visibleRule(viewer))),
 	]);

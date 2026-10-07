@@ -128,7 +128,7 @@ export const removeMoneyInRule = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ ruleId: ulidSchema }))
 	.handler(async ({ data, context }) => {
-		await deleteMoneyInRule(getDb(), context.household.id, data.ruleId);
+		await deleteMoneyInRule(getDb(), context.household.id, data.ruleId, context.parent.id);
 		await notifyHousehold(context.household.id, ["rules"]);
 	});
 
