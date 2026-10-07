@@ -103,7 +103,7 @@ export function exportFiles(data: ExportData): Record<string, string> {
 	}
 
 	const accounts: (string | number | null)[][] = [
-		["Account", "Kind", "Balance", "Balance as of", "Owed now"],
+		["Account", "Kind", "Balance", "Balance as of", "Owed now", "Whose"],
 	];
 	for (const a of data.accounts) {
 		// "Balance" is what was last entered; "Owed now" is that less the payments filed since.
@@ -113,6 +113,8 @@ export function exportFiles(data: ExportData): Record<string, string> {
 			dollars(a.balanceCents),
 			day(a.balanceAt),
 			a.owedCents === null ? null : dollars(a.owedCents),
+			// A Parent's name; empty for the Household's (ADR-0059).
+			a.whoseMemberId ? (memberName.get(a.whoseMemberId) ?? "") : "",
 		]);
 	}
 

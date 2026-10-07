@@ -10,7 +10,7 @@ import {
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Money } from "@noodle/ui/components/money";
 import { PageHeader } from "@noodle/ui/components/page-header";
-import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { Section, SectionGroup, SectionHeader } from "@noodle/ui/components/section";
 import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
@@ -27,6 +27,8 @@ import {
 import { ChevronRight, Landmark, Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { accountSource, accountSourceText } from "../../../account-source";
+import { type WhoseGroup, whoseGroups } from "../../../account-whose";
+import { useViewerId } from "../../../components/account-whose";
 import {
 	BankConnections,
 	CONNECT_EXPLAINED,
@@ -48,6 +50,7 @@ import {
 	sectionHeaderOverItem,
 } from "../../../components/master-detail";
 import { SaveFailed } from "../../../components/plan-editing";
+import { useParents } from "../../../components/whose-pay";
 import { formatMoney, shortDay } from "../../../format";
 import {
 	type AccountView,
@@ -56,7 +59,7 @@ import {
 	useAddAccount,
 	useGoals,
 } from "../../../goals";
-import { bankConnectionsQuery, goalsQuery } from "../../../queries";
+import { bankConnectionsQuery, goalsQuery, membersQuery } from "../../../queries";
 import { restoreAccount } from "../../../server/bank-connections";
 
 export const Route = createFileRoute("/_authed/_household/accounts")({
@@ -64,6 +67,8 @@ export const Route = createFileRoute("/_authed/_household/accounts")({
 		Promise.all([
 			context.queryClient.ensureQueryData(goalsQuery()),
 			context.queryClient.ensureQueryData(bankConnectionsQuery()),
+			// Whose each Account is: the Parents' names, there before the groups are drawn.
+			context.queryClient.ensureQueryData(membersQuery()),
 		]),
 	component: AccountsPage,
 });
@@ -75,8 +80,8 @@ function AccountsPage() {
 	const picked = useParams({ strict: false, select: (params) => params.accountId });
 	const addAccount = useAddAccount();
 	const bank = useConnectBank();
-	const cash = accounts.filter((a) => a.holdsMoney);
-	const owing = accounts.filter((a) => !a.holdsMoney);
+	// By whose they are (issue 144): the viewer's, the other Parent's, then the Household's.
+	const groups = whoseGroups(accounts, useParents(), useViewerId());
 
 	if (accounts.length === 0) {
 		return (
@@ -124,8 +129,14 @@ function AccountsPage() {
 					<>
 						<SaveFailed change={addAccount} />
 						<CardNudges />
-						<AccountGroup id="accounts-cash" title="Cash" accounts={cash} />
-						<AccountGroup id="accounts-owed" title="Cards and loans" accounts={owing} />
+						{groups.map((group) => (
+							<WhoseAccounts
+								key={group.key}
+								group={group}
+								// Nobody has said whose any is yet: say where that is done.
+								unsaid={groups.length === 1 && group.key === "household"}
+							/>
+						))}
 						<BankConnections bank={bank} />
 						<ArchivedAccounts accounts={archivedAccounts} />
 					</>
@@ -148,6 +159,36 @@ function AccountsPage() {
 				}}
 			/>
 		</>
+	);
+}
+
+/**
+ * One Parent's Accounts, or the Household's (ADR-0059): what they add up to, then Cash and Cards
+ * and loans as before, each a heading lower.
+ */
+function WhoseAccounts({ group, unsaid }: { group: WhoseGroup<AccountView>; unsaid: boolean }) {
+	const sum = (values: (number | null)[]) => values.reduce<number>((t, v) => t + (v ?? 0), 0);
+	const cash = group.accounts.filter((a) => a.holdsMoney);
+	const owing = group.accounts.filter((a) => !a.holdsMoney);
+	const id = `accounts-${group.key}`;
+	return (
+		<SectionGroup id={id} title={group.title} className="gap-3">
+			<p data-slot="whose-total" className="text-[13px] text-muted-foreground tabular-nums">
+				{[
+					cash.length > 0 ? `Cash ${formatMoney(sum(cash.map((a) => a.balance)))}` : null,
+					owing.length > 0 ? `Owed ${formatMoney(sum(owing.map((a) => a.balance)))}` : null,
+				]
+					.filter(Boolean)
+					.join(" · ")}
+				{unsaid ? (
+					<span className="block">
+						Nobody has said whose these are. Open an Account to say it’s yours.
+					</span>
+				) : null}
+			</p>
+			<AccountGroup id={`${id}-cash`} title="Cash" accounts={cash} />
+			<AccountGroup id={`${id}-owed`} title="Cards and loans" accounts={owing} />
+		</SectionGroup>
 	);
 }
 

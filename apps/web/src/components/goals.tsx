@@ -31,6 +31,7 @@ import { Link, linkOptions, useHydrated } from "@tanstack/react-router";
 import { ChevronLeft, CreditCard, HandCoins, Landmark, PiggyBank, Plus } from "lucide-react";
 import { type ComponentProps, type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
+import { byKindOrder, WHOSE_HOUSEHOLD, whoseGroups } from "../account-whose";
 import { formatMoney, formatMoneyInput, fullDay } from "../format";
 import {
 	type AccountView,
@@ -42,9 +43,11 @@ import {
 	statusNameOf,
 	useGoals,
 } from "../goals";
+import { useViewerId, WhoseAccountField } from "./account-whose";
 import { DetailPager } from "./master-detail";
 import { PurchasesField, usePurchasesAnswer } from "./purchases-field";
 import { TermHelp } from "./term-help";
+import { useParents } from "./whose-pay";
 
 /** A Goal page's way back to Goals. */
 export function BackToGoals() {
@@ -92,10 +95,15 @@ export function GoalPager({ id }: { id: string }) {
 	);
 }
 
-/** Previous and next Account, in the list's order: cash, then cards and loans. */
+/**
+ * Previous and next Account, in the list's order: by whose they are, then cash before cards and
+ * loans.
+ */
 export function AccountPager({ id }: { id: string }) {
 	const { accounts } = useGoals();
-	const ids = [...accounts.filter((a) => a.holdsMoney), ...accounts.filter((a) => !a.holdsMoney)];
+	const ids = whoseGroups(accounts, useParents(), useViewerId()).flatMap((group) =>
+		byKindOrder(group.accounts),
+	);
 	return (
 		<DetailPager
 			ids={ids.map((a) => a.id)}
@@ -398,6 +406,9 @@ function AccountFields({
 	const balanceCents = balance.trim() === "" ? null : parseDollars(balance);
 	const balanceInvalid = balance.trim() !== "" && balanceCents === null;
 	const [nameMissing, setNameMissing] = useState(false);
+	// Whose it is: the Parent adding it, unless they say the other Parent or the Household.
+	const viewerId = useViewerId();
+	const [whose, setWhose] = useState(viewerId);
 
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -422,9 +433,11 @@ function AccountFields({
 			balanceCents,
 			balanceId: ulid(),
 			purchases: answered,
+			whoseMemberId: whose === WHOSE_HOUSEHOLD ? null : whose,
 		});
 		form.reset();
 		setName("");
+		setWhose(viewerId);
 		purchases.reset();
 		setBalance("");
 	}
@@ -464,6 +477,12 @@ function AccountFields({
 					/>
 				</Field>
 			</div>
+			<WhoseAccountField
+				id={`${id}-whose`}
+				disabled={!hydrated}
+				value={whose}
+				onValueChange={setWhose}
+			/>
 			{kind === "credit-card" ? (
 				<PurchasesField id={`${id}-purchases`} answer={purchases} disabled={!hydrated} />
 			) : null}

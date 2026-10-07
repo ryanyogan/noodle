@@ -207,6 +207,10 @@ export async function chooseBankAccounts(
 								purchases: sql<null>`null`.as("purchases"),
 								walletName: sql<string | null>`null`.as("wallet_name"),
 								statementDay: sql<number | null>`null`.as("statement_day"),
+								// The Parent who connected it, until a Parent says otherwise (ADR-0059).
+								whoseMemberId: sql<string | null>`(select m.id from members m
+									where m.id = ${input.createdByMemberId} and m.household_id = ${householdId}
+									and m.kind = 'parent')`.as("whose_member_id"),
 							})
 							.from(bankConnections)
 							.where(and(theConnection, notYetPaired)),

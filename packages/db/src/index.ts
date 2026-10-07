@@ -607,6 +607,7 @@ export {
 	owedSql,
 	renameAccount,
 	restartPayoffGoal,
+	setAccountWhose,
 	setCardKept,
 	setEmergencyGoal,
 	spendGoal,

@@ -142,6 +142,8 @@ export async function addAccount(
 		asOf?: DayKey | null;
 		/** For a credit card: how its purchases get into Noodle, as the Parent answered. */
 		purchases?: PurchasesGetIn | null;
+		/** Whose it is: a Parent of the Household, else the Household's (ADR-0059). */
+		whoseMemberId?: string | null;
 	},
 ): Promise<void> {
 	const insertAccount = db
@@ -152,6 +154,7 @@ export async function addAccount(
 			name: input.name,
 			kind: input.kind,
 			purchases: input.kind === "credit-card" ? (input.purchases ?? null) : null,
+			whoseMemberId: input.whoseMemberId ? parentOf(input.householdId, input.whoseMemberId) : null,
 		})
 		.onConflictDoNothing({ target: accounts.id });
 	if (input.balanceCents === null) {
@@ -187,6 +190,35 @@ export async function setCardKept(
 				ownAccount(input.householdId, input.accountId),
 				eq(accounts.kind, "credit-card"),
 				isNull(accounts.archivedAt),
+			),
+		)
+		.returning({ id: accounts.id });
+	return { ok: changed.length > 0 };
+}
+
+/** `memberId` when it is a Parent of the Household, else null: whose an Account may be. */
+const parentOf = (householdId: string, memberId: string) =>
+	sql<string | null>`(select m.id from members m where m.id = ${memberId}
+		and m.household_id = ${householdId} and m.kind = 'parent')`;
+
+/**
+ * Says whose an Account is (ADR-0059): one of the Household's Parents, or null for the
+ * Household's. Refused unless the Account is the Household's and the Member is one of its Parents.
+ */
+export async function setAccountWhose(
+	db: Db,
+	input: { householdId: string; accountId: string; whoseMemberId: string | null },
+): Promise<{ ok: boolean }> {
+	const { householdId, whoseMemberId } = input;
+	const changed = await db
+		.update(accounts)
+		.set({ whoseMemberId })
+		.where(
+			and(
+				ownAccount(householdId, input.accountId),
+				whoseMemberId === null
+					? undefined
+					: sql`${parentOf(householdId, whoseMemberId)} is not null`,
 			),
 		)
 		.returning({ id: accounts.id });
@@ -1119,6 +1151,8 @@ export type AccountRecord = {
 	walletName: string | null;
 	/** The day of the month its statement closes, for the monthly balance check; null until set. */
 	statementDay: number | null;
+	/** Whose it is: a Parent's Member id, or null for the Household's (ADR-0059). */
+	whose: string | null;
 };
 
 export type GoalRecord = {
@@ -1215,6 +1249,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 				purchases: accounts.purchases,
 				walletName: accounts.walletName,
 				statementDay: accounts.statementDay,
+				whose: accounts.whoseMemberId,
 				// Spelled out: inside a select's fields Drizzle leaves column names unqualified.
 				lastStatementDate: sql<string | null>`(select max(i.last_date) from imports i
 					where i.account_id = "accounts"."id" and i.source <> 'bank')`,

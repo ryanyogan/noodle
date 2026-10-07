@@ -41,6 +41,7 @@ import { Archive, Ellipsis, Pencil, Unplug } from "lucide-react";
 import { type FormEvent, Fragment, useId, useState } from "react";
 import { ulid } from "ulid";
 import { accountSource, accountSourceText } from "../../../account-source";
+import { AccountWhose } from "../../../components/account-whose";
 import { DisconnectBankDialog } from "../../../components/bank-connections";
 import { CardKeptSection } from "../../../components/card-kept";
 import {
@@ -416,6 +417,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 							) : null}
 						</Card>
 					</Section>
+					<AccountWhose account={account} />
 					{account.kind === "credit-card" && account.bankConnectionId === null ? (
 						<CardKeptSection account={account} />
 					) : null}

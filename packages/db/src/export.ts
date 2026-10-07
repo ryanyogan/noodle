@@ -42,6 +42,8 @@ export type ExportAccount = {
 	id: string;
 	name: string;
 	kind: string;
+	/** Whose it is: a Parent's Member id, or null for the Household's. */
+	whoseMemberId: string | null;
 	balanceCents: number | null;
 	/** When the balance was last set, in ms since the epoch. */
 	balanceAt: number | null;
@@ -261,7 +263,12 @@ export async function loadExportData(
 	const [accountRows, balanceRows, goalRows, importRows, receiptRows, planChanges, rules] =
 		await Promise.all([
 			db
-				.select({ id: accounts.id, name: accounts.name, kind: accounts.kind })
+				.select({
+					id: accounts.id,
+					name: accounts.name,
+					kind: accounts.kind,
+					whoseMemberId: accounts.whoseMemberId,
+				})
 				.from(accounts)
 				.where(eq(accounts.householdId, viewer.householdId))
 				.orderBy(accounts.name),

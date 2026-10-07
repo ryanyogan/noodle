@@ -38,6 +38,7 @@ import {
 	type GoalsData,
 	renameAccount,
 	restartPayoffGoal,
+	setAccountWhose,
 	setEmergencyGoal,
 	spendGoal,
 	undoGoalFunding,
@@ -324,6 +325,8 @@ export type AddAccountVariables = {
 	balanceId: string;
 	/** For a credit card: how its purchases get into Noodle. */
 	purchases?: PurchasesGetIn | null;
+	/** Whose it is: a Parent, or null for the Household's. Left out: the Parent adding it. */
+	whoseMemberId?: string | null;
 };
 
 export const withAccount = (data: GoalsData, v: AddAccountVariables): GoalsData =>
@@ -343,6 +346,7 @@ export const withAccount = (data: GoalsData, v: AddAccountVariables): GoalsData 
 						purchases: v.kind === "credit-card" ? (v.purchases ?? null) : null,
 						walletName: null,
 						statementDay: null,
+						whose: v.whoseMemberId ?? null,
 						latestBalance:
 							v.balanceCents === null
 								? null
@@ -543,6 +547,22 @@ export const useRenameAccount = () =>
 	useGoalChange({
 		save: (data: { accountId: string; name: string }) => renameAccount({ data }),
 		apply: withAccountName,
+	});
+
+export const withAccountWhose = (
+	data: GoalsData,
+	{ accountId, whoseMemberId }: { accountId: string; whoseMemberId: string | null },
+): GoalsData => ({
+	...data,
+	accounts: data.accounts.map((a) => (a.id === accountId ? { ...a, whose: whoseMemberId } : a)),
+});
+
+/** Says whose an Account is: a Parent's, or the Household's (null). */
+export const useSetAccountWhose = () =>
+	useGoalChange({
+		save: (data: { accountId: string; whoseMemberId: string | null }) =>
+			refuseUnlessOk(setAccountWhose({ data })),
+		apply: withAccountWhose,
 	});
 
 export const useUpdateAccountBalance = () =>

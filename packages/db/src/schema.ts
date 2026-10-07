@@ -372,6 +372,11 @@ export const accounts = sqliteTable(
 		walletName: text("wallet_name"),
 		/** The day of the month its statement closes (1 to 31), for the monthly balance check. */
 		statementDay: integer("statement_day"),
+		/**
+		 * Whose it is (issue 144, ADR-0059): a Parent, or null for the Household's, which is also
+		 * what one is until a Parent says. Only how Accounts are grouped; it hides nothing.
+		 */
+		whoseMemberId: text("whose_member_id").references(() => members.id),
 	},
 	(t) => [
 		index("accounts_household_idx").on(t.householdId),

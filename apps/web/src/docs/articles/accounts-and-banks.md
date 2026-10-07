@@ -11,7 +11,7 @@ An Account is a real place your money lives or is owed: checking, savings, a cre
 
 On a computer, Accounts is in the sidebar under Day to day. On a phone, open **More** and choose Accounts.
 
-The page groups your Accounts as **Cash** and **Cards and loans**. **Totals** shows what they add up to, and how much of your cash is Set aside for [Goals](/docs/goals) or Not set aside.
+The page lists your Accounts by whose they are: yours first, then the other Parent's, then the Household's. Each group says what it adds up to, with its Accounts as **Cash** and **Cards and loans**. An Account you add or connect is yours unless you choose otherwise under **Whose Account**; open an Account to change it. It only decides where the Account is listed: both of you see every Account. **Totals** shows what all of them add up to, and how much of your cash is Set aside for [Goals](/docs/goals) or Not set aside.
 
 ## Three ways to add an Account
 

@@ -13,6 +13,7 @@ import {
 	owedNow,
 	renameAccount as renameAccountInDb,
 	restartPayoffGoal as restartPayoffGoalInDb,
+	setAccountWhose as setAccountWhoseInDb,
 	setEmergencyGoal as setEmergencyGoalInDb,
 	spendGoal as spendGoalInDb,
 	undoGoalFunding as undoGoalFundingInDb,
@@ -98,6 +99,8 @@ export const addAccount = createServerFn({ method: "POST" })
 			balanceId: ulidSchema,
 			/** For a credit card: how its purchases get into Noodle. */
 			purchases: z.enum(PURCHASES_GET_IN).nullish(),
+			/** Whose it is: a Parent, or null for the Household's. Not said: the Parent adding it. */
+			whoseMemberId: ulidSchema.nullable().optional(),
 		}),
 	)
 	.handler(async ({ data, context }) => {
@@ -105,6 +108,7 @@ export const addAccount = createServerFn({ method: "POST" })
 			householdId: context.household.id,
 			createdByMemberId: context.parent.id,
 			...data,
+			whoseMemberId: data.whoseMemberId === undefined ? context.parent.id : data.whoseMemberId,
 			asOf: today(context.household),
 		});
 		await notifyHousehold(context.household.id, ["goals"]);
@@ -116,6 +120,20 @@ export const renameAccount = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		await renameAccountInDb(getDb(), { householdId: context.household.id, ...data });
 		await notifyHousehold(context.household.id, ["goals"]);
+	});
+
+/** Says whose an Account is: one of the Parents, or the Household's (null). ADR-0059. */
+export const setAccountWhose = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ accountId: ulidSchema, whoseMemberId: ulidSchema.nullable() }))
+	.handler(async ({ data, context }): Promise<GoalWriteResult> => {
+		const result = await setAccountWhoseInDb(getDb(), {
+			householdId: context.household.id,
+			...data,
+		});
+		if (!result.ok) return { ok: false, reason: "refused" };
+		await notifyHousehold(context.household.id, ["goals"]);
+		return { ok: true };
 	});
 
 /**
