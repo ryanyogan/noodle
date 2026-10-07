@@ -12,6 +12,7 @@ import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
 import { type Viewer, visibleTo } from "./privacy";
+import { returnToReview } from "./review";
 import { deleteRule, saveRule } from "./rules";
 import {
 	accounts,
@@ -904,10 +905,23 @@ function wordsWithin(text: string, length: number) {
 export async function undoCardPaymentFiling(
 	db: Db,
 	viewer: Viewer,
-	input: { undo: FiledBefore[]; ruleId: string | null; ruleBefore?: RuleBefore | null },
-): Promise<{ restored: number }> {
+	input: {
+		undo: FiledBefore[];
+		ruleId: string | null;
+		ruleBefore?: RuleBefore | null;
+		/**
+		 * The line answered, when it was answered from its card in Review: once unfiled it waits
+		 * there again, with the guess it had and For who it was For.
+		 */
+		review?: CardPaymentReview;
+	},
+): Promise<{ restored: number; reviewVersion?: number | null }> {
 	const { restored } = await unfileTransactions(db, viewer, input.undo);
-	if (!input.ruleId) return { restored };
+	const done =
+		input.review === undefined
+			? { restored }
+			: { restored, reviewVersion: await waitInReviewAgain(db, viewer, input.undo, input.review) };
+	if (!input.ruleId) return done;
 	if (input.ruleBefore) {
 		const { householdId, memberId } = viewer;
 		const [stated] = await db
@@ -931,8 +945,51 @@ export async function undoCardPaymentFiling(
 					forMemberIds: input.ruleBefore.for,
 				})
 			: null;
-		if (!stated || back?.ok) return { restored };
+		if (!stated || back?.ok) return done;
 	}
 	await deleteRule(db, viewer, input.ruleId);
-	return { restored };
+	return done;
+}
+
+/** The Review card a card payment was answered from: what puts it back there. */
+export type CardPaymentReview = {
+	transactionId: string;
+	merchant: string;
+	guess: Parameters<typeof returnToReview>[2]["guess"];
+	for: string[];
+};
+
+/**
+ * Filing took the line out of Review (a Parent had decided it), and unfiling alone leaves it
+ * assigned nowhere and waiting nowhere. This puts it back in Review, only when the Undo is what
+ * unfiled it: it was unassigned before the answer, is unassigned again, and is one version on
+ * from where the filing left it (ADR-0041), now or on an earlier try. Its version afterwards; null when it was left.
+ */
+async function waitInReviewAgain(
+	db: Db,
+	viewer: Viewer,
+	undo: FiledBefore[],
+	review: CardPaymentReview,
+): Promise<number | null> {
+	const filed = undo.find((entry) => entry.id === review.transactionId);
+	if (!filed || filed.bucketId !== null || filed.commitmentId !== null) return null;
+	// Another screen's change leaves it at that same version: only an unassigned line is the Undo's.
+	const [now] = await db
+		.select({ bucketId: transactions.bucketId, commitmentId: transactions.commitmentId })
+		.from(transactions)
+		.where(
+			and(
+				eq(transactions.id, review.transactionId),
+				eq(transactions.householdId, viewer.householdId),
+			),
+		);
+	if (!now || now.bucketId !== null || now.commitmentId !== null) return null;
+	const back = await returnToReview(db, viewer, {
+		transactionId: review.transactionId,
+		merchant: review.merchant,
+		guess: review.guess,
+		forMemberIds: review.for,
+		expectedVersion: filed.version + 1,
+	});
+	return back.ok ? back.version : null;
 }

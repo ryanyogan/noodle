@@ -92,7 +92,10 @@ export function CardPaymentQuestion({
 	/** Marks the Transfer instead of this (Review's own mark); `id` null: a card not in Noodle. */
 	onTransfer?: (card: { id: string | null; name: string | null }) => void;
 	/** What follows an answer filed in a Commitment: its Undo, a failure, a line that stays. */
-	filing?: Pick<CardPaymentFilingInput, "onFiled" | "undoBy" | "onUndo" | "onFail" | "onStays">;
+	filing?: Pick<
+		CardPaymentFilingInput,
+		"onFiled" | "undoBy" | "onUndo" | "onFail" | "onStays" | "review"
+	>;
 }) {
 	const id = useId();
 	const [step, setStep] = useState<"which" | "spending">("which");

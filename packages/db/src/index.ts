@@ -505,6 +505,7 @@ export {
 } from "./card-payment-pass";
 export {
 	type CardPaymentFiling,
+	type CardPaymentReview,
 	fileCardPayment,
 	forgetCardPayment,
 	loadCardPaymentRules,

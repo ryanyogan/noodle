@@ -154,14 +154,31 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 				.nullish(),
 			months: z.array(monthSchema).max(240),
 			created: z.object({ commitmentId: ulidSchema, month: monthSchema }).optional(),
+			// Answered from its card in Review: the line waits there again (as returnToReview's).
+			review: z
+				.object({
+					transactionId: ulidSchema,
+					merchant: z.string().trim().min(1).max(64),
+					guess: z
+						.object({
+							bucketId: ulidSchema,
+							confidence: z.number().min(0).max(1).nullable(),
+							method: z.enum(["rule", "similar", "model", "none"]).nullable().optional(),
+							reason: z.string().max(80).nullable().optional(),
+						})
+						.nullable(),
+					for: z.array(ulidSchema).max(20),
+				})
+				.optional(),
 		}),
 	)
 	.handler(async ({ data, context }) => {
 		const db = getDb();
-		const { restored } = await undoFilingInDb(db, viewerOf(context), {
+		const { restored, reviewVersion } = await undoFilingInDb(db, viewerOf(context), {
 			undo: data.undo.map((entry) => ({ ...entry, for: entry.for ?? undefined })),
 			ruleId: data.ruleId,
 			ruleBefore: data.ruleBefore,
+			review: data.review,
 		});
 		if (data.created) {
 			await endCommitmentInDb(db, {
@@ -172,7 +189,8 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 			});
 		}
 		await notifyHousehold(context.household.id, filingChanges(data.months));
-		return { restored };
+		// The line's version once it waits in Review again; null when it wasn't put back there.
+		return { restored, reviewVersion: reviewVersion ?? null };
 	});
 
 /**

@@ -20,8 +20,9 @@ import {
 	undoCardPaymentRemembered,
 	unmarkTransfer,
 } from "./index";
+import { loadReview } from "./review";
 import { saveRule } from "./rules";
-import { ruleFor, rules, transactions, transfers } from "./schema";
+import { categorizations, ruleFor, rules, transactions, transfers } from "./schema";
 import { testDb } from "./test-db";
 
 // The card's side of a payment (issue 136): statements go in through importStatement, as an
@@ -479,6 +480,75 @@ describe("A payment to a card whose payment is the spending", () => {
 		expect((await rowOf(30_000))?.commitmentId).toBeNull();
 		expect((await rowOf(5_000))?.commitmentId).toBeNull();
 		expect(await listRules(db, viewer)).toEqual([]);
+	});
+
+	it("answered from Review and undone, waits in Review again with its guess", async () => {
+		await importInto("checking", "i-1", [
+			line("2026-09-05", -30_000, WORDING),
+			line("2026-09-19", -5_000, WORDING),
+		]);
+		const opened = (await rowOf(30_000))?.id as string;
+		const other = (await rowOf(5_000))?.id as string;
+		// Both wait in Review, as lines nothing could file do.
+		await db.insert(categorizations).values(
+			[opened, other].map((transactionId) => ({
+				transactionId,
+				householdId,
+				outcome: "review" as const,
+				method: "none" as const,
+				merchant: merchantKey(WORDING),
+			})),
+		);
+		const waiting = async () => (await loadReview(db, viewer, 50)).items.map((item) => item.id);
+		expect(await waiting()).toEqual(expect.arrayContaining([opened, other]));
+
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: opened,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		if (!filing.ok) throw new Error("not filed");
+		expect(await waiting()).toEqual([]);
+
+		const review = { transactionId: opened, merchant: merchantKey(WORDING), guess: null, for: [] };
+		const filedAt = filing.undo.find((entry) => entry.id === opened)?.version as number;
+		// Unfiled is one version on from filed, and waiting again is one on from that.
+		expect(await undoCardPaymentFiling(db, viewer, { ...filing, review })).toEqual({
+			restored: 2,
+			reviewVersion: filedAt + 2,
+		});
+		expect((await rowOf(30_000))?.commitmentId).toBeNull();
+		expect(await waiting()).toEqual([opened]);
+		expect(await listRules(db, viewer)).toEqual([]);
+
+		// Sent again (the answer was lost on the way): nothing moves, and it says the same.
+		expect(await undoCardPaymentFiling(db, viewer, { ...filing, review })).toEqual({
+			restored: 0,
+			reviewVersion: filedAt + 2,
+		});
+		expect(await waiting()).toEqual([opened]);
+	});
+
+	it("undone from Review after another screen filed it elsewhere, is left where that put it", async () => {
+		await importInto("checking", "i-1", [line("2026-09-05", -30_000, WORDING)]);
+		const opened = (await rowOf(30_000))?.id as string;
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: opened,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		if (!filing.ok) throw new Error("not filed");
+		await db
+			.update(transactions)
+			.set({ version: sql`${transactions.version} + 1` })
+			.where(sql`${transactions.id} = ${opened}`);
+		const review = { transactionId: opened, merchant: merchantKey(WORDING), guess: null, for: [] };
+		expect(await undoCardPaymentFiling(db, viewer, { ...filing, review })).toEqual({
+			restored: 0,
+			reviewVersion: null,
+		});
+		expect((await rowOf(30_000))?.commitmentId).toBe("apple");
+		expect((await loadReview(db, viewer, 50)).items).toEqual([]);
 	});
 
 	it("files well over a hundred lines that say the same, and undoes them", async () => {
