@@ -21,7 +21,12 @@ import { counts, incomeInTransfer } from "./counting";
 import type { Db } from "./index";
 import { loadMoneyInLine, type MoneyInLine } from "./money-in";
 import { changeableBy, othersAllowance, privateTotalId, type Viewer, visibleTo } from "./privacy";
-import { refundChargeRows, refundRowsByMonth, refundSpendingRows } from "./refund-links";
+import {
+	refundChargeRows,
+	refundRowsByMonth,
+	refundSpendingRows,
+	runningFrom,
+} from "./refund-links";
 import {
 	income,
 	members,
@@ -183,8 +188,10 @@ export async function sayOwedBack(
 	const [purchase] = await db
 		.select({
 			amount: splitId
-				? sql<number | null>`(select q.amount_cents from splits q where q.id = ${splitId}
-						and q.transaction_id = ${transactions.id} and q.household_id = ${householdId})`
+				? // The purchase by its ID: a column of the one table selected from is written without its
+					// table's name, and `"id"` in here would be the Split's own.
+					sql<number | null>`(select q.amount_cents from splits q where q.id = ${splitId}
+						and q.transaction_id = ${input.transactionId} and q.household_id = ${householdId})`
 				: transactions.amountCents,
 		})
 		.from(transactions)
@@ -225,8 +232,35 @@ export async function sayOwedBack(
 	return item ? { ok: true, item } : { ok: false, reason: "refused" };
 }
 
-/** The first day of the month `today` is in: a match counting before it is in an ended month. */
-const runningFrom = (today: DayKey) => `${monthOfDay(today)}-01` as DayKey;
+/**
+ * The write that moves an Owed back item off a Split that is gone (the purchase was split again,
+ * filed whole, or put back in Review) onto the whole purchase: who, how much and what was Paid
+ * back on it stay, so what is owed never changes by itself (ADR-0058). Run it after the Splits
+ * are rewritten, in the same batch: an item whose Split was written again under its ID stays.
+ * One item a purchase can be on the whole of it (`owed_back_one_per_purchase`), so with several
+ * the first moves and the rest keep naming their gone Split, which reads as the whole purchase.
+ */
+export function owedBackOffGoneSplits(db: Db, householdId: string, transactionId: string) {
+	return db
+		.update(owedBack)
+		.set({
+			splitId: null,
+			amountCents: sql`min(amount_cents, (select t.amount_cents from transactions t
+				where t.id = ${transactionId}))`,
+		})
+		.where(
+			and(
+				eq(owedBack.householdId, householdId),
+				eq(owedBack.transactionId, transactionId),
+				sql`not exists (select 1 from owed_back w where w.transaction_id = ${transactionId}
+					and w.split_id is null)`,
+				sql`${owedBack.id} = (select min(g.id) from owed_back g
+					where g.transaction_id = ${transactionId} and g.split_id is not null
+					and not exists (select 1 from splits q where q.id = g.split_id
+						and q.transaction_id = ${transactionId}))`,
+			),
+		);
+}
 
 export type OwedBackRemoveResult =
 	| { ok: true }

@@ -4,9 +4,12 @@ import {
 	addAccount,
 	addBucket,
 	addCapture,
+	clearHouseholdRows,
 	createCaptureToken,
 	createHouseholdForParent,
 	type Db,
+	deleteTransaction,
+	deleteTransactions,
 	findCaptureToken,
 	importStatement,
 	loadCaptureToken,
@@ -15,7 +18,7 @@ import {
 	revokeCaptureToken,
 	setTakeHomePay,
 } from "./index";
-import { members } from "./schema";
+import { captureCards, members, transactions } from "./schema";
 import { testDb } from "./test-db";
 
 // The ingest seam for tap to capture: a capture goes in through addCapture, as the ingest Queue's
@@ -192,5 +195,46 @@ describe("tap to capture", () => {
 			tokenHash: "x",
 		});
 		expect(await findCaptureToken(db, "x")).toBeNull();
+	});
+});
+
+describe("deleting a capture that named a Wallet card", () => {
+	const captureWithCard = (id: string) =>
+		addCapture(db, {
+			tokenId: "token",
+			householdId,
+			memberId: parentId,
+			transactionId: id,
+			date: "2026-09-12",
+			amountCents: 1_840,
+			merchant: "Taqueria",
+			card: "Sapphire",
+			newId,
+		});
+	const left = async () => ({
+		transactions: (await db.select({ id: transactions.id }).from(transactions)).length,
+		cards: (await db.select({ id: captureCards.transactionId }).from(captureCards)).length,
+	});
+
+	it("deletes one, and the card it named goes with it", async () => {
+		await captureWithCard("tap-1");
+		expect(await left()).toEqual({ transactions: 1, cards: 1 });
+		await deleteTransaction(db, { householdId, memberId: parentId, transactionId: "tap-1" });
+		expect(await left()).toEqual({ transactions: 0, cards: 0 });
+	});
+
+	it("deletes many, and the cards they named go with them", async () => {
+		await captureWithCard("tap-1");
+		await captureWithCard("tap-2");
+		expect(await deleteTransactions(db, viewer, { ids: ["tap-1", "tap-2"] })).toEqual({
+			deleted: 2,
+		});
+		expect(await left()).toEqual({ transactions: 0, cards: 0 });
+	});
+
+	it("clears them in a Fresh start", async () => {
+		await captureWithCard("tap-1");
+		await clearHouseholdRows(db, householdId, "fresh-start");
+		expect(await left()).toEqual({ transactions: 0, cards: 0 });
 	});
 });
