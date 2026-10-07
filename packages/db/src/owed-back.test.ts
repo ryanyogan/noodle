@@ -1088,6 +1088,25 @@ describe("what counted in a month that has ended stays as it was", () => {
 			(await db.select().from(paidBackMatches)).map((row) => [row.id, row.amountCents]),
 		);
 
+	it("says the bank took it back when a line it had lowered, and that was kept, is withdrawn later", async () => {
+		const { sync, arrived, bought } = await bankSetup();
+		// Lowered earlier, and kept as it was: "The bank changed this to $60".
+		const lowered = { bankTookBackOn: "2026-11-01", bankAmountCents: 6_000 };
+		await db.update(transactions).set(lowered).where(sql`${transactions.id} = ${bought.id}`);
+		await db.update(income).set(lowered).where(sql`${income.id} = ${arrived.id}`);
+
+		await sync("imp-2", [], ["in-1", "out-1"], november);
+		// The withdrawal is what happened last, so it is what the line says, with its own day.
+		expect(await purchaseNow(bought.id)).toMatchObject({
+			bankTookBackOn: november,
+			bankAmountCents: null,
+		});
+		expect(await lineNow(arrived.id)).toMatchObject({
+			bankTookBackOn: november,
+			bankAmountCents: null,
+		});
+	});
+
 	it("keeps a line the bank withdraws, and a purchase it withdraws, once they counted in an ended month", async () => {
 		const { sync, arrived, bought } = await bankSetup();
 		const spentBefore = await bucketSpent(october);
