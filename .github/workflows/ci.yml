@@ -265,14 +265,58 @@ jobs:
           name: playwright-traces-${{ matrix.project }}-${{ matrix.shard }}
           path: apps/web/test-results
 
+  # React says "two children with the same key" only in a development build, so the E2E guard for
+  # it (noDuplicateKeys in e2e/session.ts) is silent against the built Worker the jobs above serve
+  # (issue 142). This one runner starts the Vite dev server instead (no E2E_SERVER) and runs the
+  # few specs that open the pages that are mostly lists: Transactions, Review, Rules, the Plan,
+  # the Log and Accounts. One worker: the dev server compiles pages as they are asked for, and a
+  # second worker starves on it. E2E_DUPLICATE_KEYS makes list-keys.spec.ts fail if the app it
+  # is given isn't the development build, so this job can't pass by saying nothing.
+  e2e-dev:
+    needs: gate
+    if: needs.gate.outputs.tested != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Keep the tag equal to @playwright/test in apps/web/package.json (as above).
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    env:
+      CI: "true"
+      E2E_DUPLICATE_KEYS: required
+      # Shard 1's pool of reused test Parents (e2e/parents.ts), its first worker's: a pool of its
+      # own would add users to a Clerk instance that holds 100. Two runners may use one Parent at
+      # once: each has its own session and its own local D1.
+      E2E_POOL: s1
+    steps:
+      - uses: actions/checkout@v5
+      # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
+      - run: npm install -g "$(node -p 'require("./package.json").packageManager')"
+      - run: bun install --frozen-lockfile
+      - name: Write dev keys for the local Worker
+        working-directory: apps/web
+        run: |
+          printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
+            "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
+          bun scripts/vapid-keys.ts >> .dev.vars
+      # Playwright starts `vite dev` itself, with the stub AI (playwright.config.ts).
+      - run: bun run e2e e2e/list-keys.spec.ts e2e/household-log.spec.ts e2e/card-unasked.spec.ts --project=chromium --workers=1
+        working-directory: apps/web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces-dev
+          path: apps/web/test-results
+
   deploy:
     # Runs when the tests passed here, or were skipped because this commit already passed elsewhere.
     if: >-
       always() && github.ref == 'refs/heads/main' && github.event_name == 'push' &&
       needs.gate.result == 'success' && needs.check.result == 'success' &&
       contains(fromJSON('["success","skipped"]'), needs.e2e.result) &&
-      contains(fromJSON('["success","skipped"]'), needs.e2e-phone.result)
-    needs: [gate, check, e2e, e2e-phone]
+      contains(fromJSON('["success","skipped"]'), needs.e2e-phone.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.e2e-dev.result)
+    needs: [gate, check, e2e, e2e-phone, e2e-dev]
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
