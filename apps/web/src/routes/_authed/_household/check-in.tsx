@@ -2,6 +2,8 @@ import {
 	type CheckInCard,
 	type CheckInCardKind,
 	type CheckInStackCard,
+	checkInDealtBefore,
+	checkInPast,
 	checkInStep,
 	displayMerchant,
 } from "@noodle/domain";
@@ -20,6 +22,7 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import {
 	checkInCardTitle,
+	checkInClearedHeading,
 	checkInDealtLine,
 	checkInLine,
 	checkInStackLine,
@@ -29,7 +32,12 @@ import { PerkResetLine } from "../../../components/perk-reset";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, fullDay, monthName, shortDay } from "../../../format";
 import { checkInQuery, insightsQuery, reviewQuery } from "../../../queries";
-import { type CheckInView, completeCheckIn, startCheckInStack } from "../../../server/check-in";
+import {
+	type CheckInView,
+	completeCheckIn,
+	skipCheckInCard,
+	startCheckInStack,
+} from "../../../server/check-in";
 
 export const Route = createFileRoute("/_authed/_household/check-in")({
 	// `past`: the cards already passed, comma-separated, so leaving for Review or Insights and
@@ -47,20 +55,25 @@ export const Route = createFileRoute("/_authed/_household/check-in")({
  * on a done state that also says whether the other Parent has done theirs. A card dealt with stays
  * in the stack as one line saying what was done, and is counted; one that first appears mid-week
  * joins the end. Reaching the end finishes the week's Check-in; nothing on the cards changes until
- * the Parent acts on the page each one links to.
+ * the Parent acts on the page each one links to. A card skipped is kept as skipped for the week
+ * (issue 142), and a stack that was all dealt with before this visit is one summary with Finish.
  */
 function CheckInPage() {
 	const view = useSuspenseQuery(checkInQuery()).data;
 	const search = Route.useSearch();
 	const navigate = Route.useNavigate();
 	const kinds = new Set(view.stack.map((c) => c.kind));
-	const past = (search.past?.split(",") ?? []).filter((k): k is CheckInCardKind =>
+	const passed = (search.past?.split(",") ?? []).filter((k): k is CheckInCardKind =>
 		kinds.has(k as CheckInCardKind),
 	);
+	// With what was skipped earlier this week and still waits: the Parent isn't asked again.
+	const past = checkInPast(view.stack, passed);
 	const setPast = (next: CheckInCardKind[]) =>
 		navigate({ search: { past: next.length > 0 ? next.join(",") : undefined } });
 	const step =
 		view.completedAt === null ? checkInStep(view.stack, past) : ({ kind: "done" } as const);
+	// Everything was dealt with before this visit: its lines together, and one Finish.
+	const dealtBefore = view.completedAt === null ? checkInDealtBefore(view.stack, past) : null;
 	const complete = useCompleteCheckIn();
 	// Finishing is recorded once, when the stack runs out (straight away when it was empty).
 	const done = step.kind === "done";
@@ -89,11 +102,19 @@ function CheckInPage() {
 	}, [unstarted, queryClient, startTries]);
 	// The cards already met, on a phone, where the steps aren't beside the card: every card
 	// before this one, or the whole stack once done.
-	const met = step.kind === "card" ? view.stack.slice(0, step.position - 1) : view.stack;
-	// Only a card this Parent moved past on this visit: after the week is finished, a card that
-	// waits says what waits, since it may have appeared since.
+	const met =
+		step.kind === "card" ? (dealtBefore ? [] : view.stack.slice(0, step.position - 1)) : view.stack;
+	// A card this Parent moved past while it waited, on this visit or earlier this week. One that
+	// appeared after the week was finished was never skipped, and says what waits.
 	const isSkipped = (card: CheckInStackCard) =>
 		card.state === "waiting" && past.includes(card.kind);
+	// Skipping is kept for the week. If the save fails the card is still past for this visit.
+	const skip = (kind: CheckInCardKind) => {
+		setPast([...passed, kind]);
+		skipCheckInCard({ data: { kind } })
+			.then(() => queryClient.invalidateQueries({ queryKey: checkInQuery().queryKey }))
+			.catch(() => {});
+	};
 
 	return (
 		<>
@@ -114,7 +135,7 @@ function CheckInPage() {
 				{view.stack.length > 0 ? (
 					<div className="hidden gap-3 lg:grid">
 						{/* A line over the steps, as "1 of 4" is over the card: both columns start alike. */}
-						{step.kind === "card" ? (
+						{step.kind === "card" && !dealtBefore ? (
 							<p className="text-sm text-muted-foreground">This week</p>
 						) : null}
 						<StepList aria-label="Check-in steps">
@@ -124,7 +145,7 @@ function CheckInPage() {
 									// The control radius, and room for the step's own line under its name.
 									className="items-start rounded-(--radius-control) py-2.5 [&>span[aria-hidden]]:mt-1.5 [&>svg]:mt-0.5"
 									state={
-										step.kind === "card" && step.card.kind === card.kind
+										!dealtBefore && step.kind === "card" && step.card.kind === card.kind
 											? "current"
 											: done || past.includes(card.kind) || card.state === "dealt"
 												? "done"
@@ -147,7 +168,7 @@ function CheckInPage() {
 				) : null}
 				{/* From lg the card takes the page's column with or without steps beside it (issue 73). */}
 				<div className="grid max-w-3xl gap-3 lg:max-w-none">
-					{step.kind === "card" ? (
+					{step.kind === "card" && !dealtBefore ? (
 						<p className="text-sm text-muted-foreground tabular-nums">
 							{step.position} of {step.of}
 						</p>
@@ -170,13 +191,19 @@ function CheckInPage() {
 							))}
 						</ul>
 					) : null}
-					{step.kind === "card" ? (
+					{dealtBefore ? (
+						<DealtBeforeView
+							cards={dealtBefore}
+							me={view.me}
+							onFinish={() => setPast(dealtBefore.map((card) => card.kind))}
+						/>
+					) : step.kind === "card" ? (
 						step.card.state === "waiting" ? (
 							<CheckInCardView
 								key={step.card.kind}
 								card={step.card.card}
 								last={step.last}
-								onNext={() => setPast([...past, step.card.kind])}
+								onNext={() => skip(step.card.kind)}
 							/>
 						) : (
 							<DealtCardView
@@ -184,7 +211,7 @@ function CheckInPage() {
 								card={step.card}
 								me={view.me}
 								last={step.last}
-								onNext={() => setPast([...past, step.card.kind])}
+								onNext={() => setPast([...passed, step.card.kind])}
 							/>
 						)
 					) : (
@@ -234,6 +261,44 @@ function DealtCardView({
 			</CardContent>
 			<CardFooter className="justify-end">
 				<Button onClick={onNext}>{last ? "Finish" : "Next"}</Button>
+			</CardFooter>
+		</Card>
+	);
+}
+
+/**
+ * The whole stack, for a Parent who arrives after every card of it was dealt with (issue 142):
+ * who cleared it, each card's line, and Finish. Nothing here needs a Next of its own.
+ */
+function DealtBeforeView({
+	cards,
+	me,
+	onFinish,
+}: {
+	cards: Extract<CheckInStackCard, { state: "dealt" }>[];
+	me: string;
+	onFinish: () => void;
+}) {
+	return (
+		<Card>
+			<CardContent className="grid gap-1">
+				<h2 className="flex items-start gap-2 text-lg font-semibold tracking-[-0.01em]">
+					<Check aria-hidden className="mt-1 size-5 shrink-0 text-muted-foreground" />
+					<span className="min-w-0 text-pretty">{checkInClearedHeading(cards, me)}</span>
+				</h2>
+				<p className="text-sm text-muted-foreground">Nothing here waits for you now.</p>
+			</CardContent>
+			<ul aria-label="Dealt with this week" className="border-t [&>li+li]:border-t">
+				{cards.map((card) => (
+					<ListRow
+						key={card.kind}
+						title={checkInDealtLine(card, me)}
+						meta={checkInCardTitle[card.kind]}
+					/>
+				))}
+			</ul>
+			<CardFooter className="justify-end">
+				<Button onClick={onFinish}>Finish</Button>
 			</CardFooter>
 		</Card>
 	);

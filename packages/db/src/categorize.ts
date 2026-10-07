@@ -6,6 +6,7 @@ import { purchaseMayMove } from "./ended-months";
 import type { Db } from "./index";
 import { applyOwedBackRules } from "./owed-back-rules";
 import { assignableBy, changeableBy, type Viewer } from "./privacy";
+import { reviewCleared } from "./review-cleared";
 import {
 	buckets,
 	categorizations,
@@ -374,13 +375,18 @@ export async function loadCorrection(
 	return merchant ? { merchant, bucketId: row.bucketId } : null;
 }
 
-/** A Parent has decided a Transaction's assignment: it's no longer categorization's, nor in Review. */
+/**
+ * A Parent has decided a Transaction's assignment: it's no longer categorization's, nor in Review.
+ * `clearedBy` is that Parent: when it waited in Review, they are noted as who cleared it (issue
+ * 142), in the same write.
+ */
 export async function settleCategorization(
 	db: Db,
 	householdId: string,
 	transactionId: string,
+	clearedBy?: string,
 ): Promise<void> {
-	await db
+	const settle = db
 		.delete(categorizations)
 		.where(
 			and(
@@ -388,4 +394,11 @@ export async function settleCategorization(
 				eq(categorizations.householdId, householdId),
 			),
 		);
+	if (clearedBy === undefined) await settle;
+	else {
+		await db.batch([
+			reviewCleared(db, householdId, clearedBy, eq(transactions.id, transactionId)),
+			settle,
+		]);
+	}
 }

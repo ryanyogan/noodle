@@ -660,6 +660,11 @@ export const transactions = sqliteTable(
 		// lowered it; null when it took the whole line back. Last, as inserts here go by position.
 		bankTookBackOn: text("bank_took_back_on"),
 		bankAmountCents: integer("bank_amount_cents"),
+		// The Parent who took it out of Review, and when (issue 142): set as they file one that
+		// waits there, so the Check-in can say who cleared Review. Null for anything filed before
+		// this was kept, and for what nobody filed by hand. Last, as inserts here go by position.
+		reviewClearedByMemberId: text("review_cleared_by_member_id").references(() => members.id),
+		reviewClearedAt: integer("review_cleared_at", { mode: "timestamp_ms" }),
 	},
 	(t) => [
 		index("transactions_household_date_idx").on(t.householdId, t.date),
@@ -1303,6 +1308,9 @@ export const checkInCards = sqliteTable(
 		kind: text("kind", { enum: ["review", "insights", "sweeps", "windfalls"] }).notNull(),
 		started: text("started", { mode: "json" }).$type<CheckInStarted>().notNull(),
 		startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+		// When this Parent skipped the card this week (issue 142); null until they do. Last, as the
+		// insert here goes by position.
+		skippedAt: integer("skipped_at", { mode: "timestamp_ms" }),
 	},
 	(t) => [
 		primaryKey({ columns: [t.memberId, t.week, t.kind] }),

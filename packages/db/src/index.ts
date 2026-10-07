@@ -535,9 +535,12 @@ export {
 	completeCheckIn,
 	listCheckInHouseholds,
 	loadCheckInDoers,
+	loadCheckInSkipped,
 	loadCheckInStack,
 	loadCheckIns,
+	loadReviewCleared,
 	setCheckInDay,
+	skipCheckInCard,
 	startCheckInStack,
 } from "./check-ins";
 export {

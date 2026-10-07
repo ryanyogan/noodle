@@ -201,6 +201,6 @@ async function applyOnItsOwn(
 				});
 	if (!result.ok) return false;
 	// Decided now: out of categorization and Review.
-	await settleCategorization(db, viewer.householdId, transaction.id);
+	await settleCategorization(db, viewer.householdId, transaction.id, viewer.memberId);
 	return true;
 }
