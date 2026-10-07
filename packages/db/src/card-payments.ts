@@ -26,7 +26,6 @@ import {
 	monthCloses,
 	ruleFor,
 	rules,
-	splits,
 	transactions,
 	transfers,
 } from "./schema";
