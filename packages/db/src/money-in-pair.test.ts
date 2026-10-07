@@ -13,7 +13,7 @@ import {
 	rememberAccountPair,
 	saveMoneyInRule,
 } from "./index";
-import { income, moneyInRules, transactions, transfers } from "./schema";
+import { income, moneyInPairs, moneyInRules, transactions, transfers } from "./schema";
 import { testDb } from "./test-db";
 
 // A remembered pair of Accounts (issue 131, ADR-0057): "money from Gusto into Chase is always a
@@ -366,5 +366,56 @@ describe("the same wording into two Accounts", () => {
 		await old("old-savings", "savings");
 		await deleteMoneyInRule(db, householdId, "old-savings");
 		expect(await loadMoneyInRules(db, householdId)).toEqual([]);
+	});
+
+	it("said again, a pair from before pairs had their own table keeps the day it was made and who made it", async () => {
+		// As a snapshot from before the pairs were carried, restored, leaves one (issue 142).
+		const made = new Date(Date.UTC(2026, 7, 21, 14));
+		await db.insert(moneyInRules).values({
+			id: "old-pair",
+			householdId,
+			pattern: merchantKey(GUSTO),
+			kind: "transfer",
+			intoAccountId: "chase",
+			otherAccountId: "gusto",
+			createdByMemberId: null,
+			createdAt: made,
+		});
+		await importInto("chase", [line("2026-09-17", 261_300, GUSTO)]);
+		const marked = await on("2026-09-17");
+		await rememberAccountPair(db, viewer, {
+			incomeId: marked.id,
+			otherAccountId: "savings",
+			ruleId: "pair-rule",
+		});
+		expect(await db.select().from(moneyInRules)).toEqual([]);
+		expect(await db.select().from(moneyInPairs)).toMatchObject([
+			{
+				id: "pair-rule",
+				intoAccountId: "chase",
+				otherAccountId: "savings",
+				createdByMemberId: null,
+				createdAt: made,
+			},
+		]);
+	});
+
+	it("remembered for the first time, a pair is made now by the Parent who said it", async () => {
+		const before = Date.now();
+		await importInto("chase", [line("2026-09-03", 250_000, GUSTO)]);
+		const first = await on("2026-09-03");
+		await changeMoneyInKind(db, viewer, {
+			incomeId: first.id,
+			kind: "transfer",
+			transferId: newId(),
+		});
+		await rememberAccountPair(db, viewer, {
+			incomeId: first.id,
+			otherAccountId: "gusto",
+			ruleId: "pair-rule",
+		});
+		const [pair] = await db.select().from(moneyInPairs);
+		expect(pair?.createdByMemberId).toBe(parentId);
+		expect(pair?.createdAt.getTime()).toBeGreaterThanOrEqual(before - 1000);
 	});
 });
