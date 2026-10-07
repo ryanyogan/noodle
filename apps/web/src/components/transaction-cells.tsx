@@ -272,23 +272,34 @@ export function ForCell({
 	who,
 	names,
 	cells,
+	stacked = false,
 }: {
 	transaction: TransactionRow;
 	title: string;
 	who: string;
 	names: string[];
 	cells: CellEdits;
+	/** In a stacked row's second line (a phone): as small as its chips, on a 24px target. */
+	stacked?: boolean;
 }) {
 	const editing = cells.editing?.id === transaction.id && cells.editing.column === "for";
+	// A row draws its chips twice (the For column, and the stacked row's line; one is hidden): the
+	// picker opens from the one that was pressed.
+	const [mine, setMine] = useState(false);
+	useEffect(() => {
+		if (!editing) setMine(false);
+	}, [editing]);
 	const [value, setValue] = useState(transaction.for);
 	return (
 		<Popover
-			open={editing}
+			open={editing && mine}
 			onOpenChange={(open) => {
 				if (open) {
 					setValue(transaction.for);
+					setMine(true);
 					cells.start(transaction, "for");
 				} else {
+					setMine(false);
 					cells.stop(true);
 					cells.refor(transaction, value);
 				}
@@ -298,16 +309,23 @@ export function ForCell({
 				<Button
 					type="button"
 					variant="ghost"
-					size="sm"
+					// Stacked: the chip size, 28px, so the row's second line keeps its height.
+					size={stacked ? "chip" : "sm"}
 					data-cell="for"
 					aria-label={`Change who ${title} is For, now ${who}`}
-					className="-mx-2 max-w-full min-w-0 justify-start px-2 font-normal max-lg:min-w-0"
+					className={
+						stacked
+							? "-my-1 max-w-[50%] min-w-0 shrink-0 justify-start rounded-lg px-0.5 font-normal"
+							: "-mx-2 max-w-full min-w-0 justify-start px-2 font-normal max-lg:min-w-0"
+					}
 				>
 					<ForChips names={names} />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
 				align="start"
+				// Kept a gutter inside the screen: on a phone it opens from the middle of the row.
+				collisionPadding={16}
 				className="w-80 max-w-[calc(100vw-2rem)]"
 				data-cell-editor=""
 				// Drawn outside the row, but its clicks still come up through it: not a click on the row.

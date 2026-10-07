@@ -23,7 +23,6 @@ import {
 	AssignedCell,
 	type CellEdits,
 	ForCell,
-	ForChips,
 	NameEditor,
 	RenameButton,
 	RowMenu,
@@ -206,17 +205,41 @@ function NameCell({
 						<WaitingForBankBadge />
 					) : null}
 				</span>
-				{/* The columns say this line's parts apart once the table is wide enough for them. */}
+				{/* The columns say this line's parts apart once the table is wide enough for them. Until
+				    then the row's For chips are here, a control as they are in their column (issue 134). */}
 				<span
-					aria-hidden="true"
 					className={cn(
-						"col-start-2 row-start-2 truncate text-[13px] font-normal text-muted-foreground sm:col-span-2 sm:col-start-1 @2xl/dt:hidden",
+						"col-start-2 row-start-2 flex min-w-0 items-center gap-1 text-[13px] font-normal text-muted-foreground sm:col-span-2 sm:col-start-1 @2xl/dt:hidden",
 						// On the narrowest phones the marks get the second line and the detail a third.
 						"max-[389px]:peer-[:not(:empty)]/badges:col-span-2 max-[389px]:peer-[:not(:empty)]/badges:col-start-1 max-[389px]:peer-[:not(:empty)]/badges:row-start-3",
 					)}
 				>
-					{dated ? `${shortDay(transaction.date)} · ` : ""}
-					{view.detail}
+					{cells && checked === undefined && view.aroundFor && forEdits(transaction) ? (
+						<>
+							<span aria-hidden="true" className="min-w-0 truncate">
+								{dated ? `${shortDay(transaction.date)} · ` : ""}
+								{view.aroundFor.before} ·
+							</span>
+							<ForCell
+								stacked
+								transaction={transaction}
+								title={view.title}
+								who={view.who}
+								names={view.forNames}
+								cells={cells}
+							/>
+							{view.aroundFor.after ? (
+								<span aria-hidden="true" className="min-w-0 shrink-[3] truncate">
+									· {view.aroundFor.after}
+								</span>
+							) : null}
+						</>
+					) : (
+						<span aria-hidden="true" className="truncate">
+							{dated ? `${shortDay(transaction.date)} · ` : ""}
+							{view.detail}
+						</span>
+					)}
 				</span>
 			</span>
 			{renames && !renaming ? (
@@ -312,8 +335,11 @@ export function transactionColumns({
 			priority: 3,
 			stacked: "hidden",
 			className: "text-muted-foreground",
-			// Chips, a name each (issue 134): pressed, they change who it was For, where the row has one
-			// assignment to keep. Empty where For doesn't apply (a Transfer, Goal spending, money back).
+			// Chips, a name each (issue 134): pressed, they change who it was For. A chip is always that
+			// control: a row whose For can't be written from here (unassigned or split: the write needs
+			// one Bucket or Commitment to keep; partly the other Parent's; the open row, whose editor is
+			// under it) says it in plain words, so nothing that looks pressable opens the row instead.
+			// Empty where For doesn't apply (a Transfer, Goal spending, money back).
 			cell: ({ transaction, view }) =>
 				view.who === "" ? null : cells &&
 					editsInCell(transaction.id, open) &&
@@ -326,7 +352,7 @@ export function transactionColumns({
 						cells={cells}
 					/>
 				) : (
-					<ForChips names={view.forNames} />
+					<span className="truncate">{view.who}</span>
 				),
 		},
 		{

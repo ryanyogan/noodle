@@ -25,7 +25,8 @@ type Row = Pick<
 	| "for"
 	| "splits"
 	| "partlyPrivate"
->;
+> &
+	Partial<Pick<TransactionRow, "paysCard">>;
 
 /**
  * What a row's cells offer. Its name: "edit" where the whole Transaction is assigned to one
@@ -39,6 +40,8 @@ type Row = Pick<
  */
 export function cellEdits(row: Row): { name: "edit" | "rename" | null; refile: boolean } {
 	if (row.goal || row.partlyPrivate) return { name: null, refile: false };
+	// A payment to a card is listed as "Card payment": a name typed in its cell would not show.
+	if (row.paysCard) return { name: null, refile: false };
 	const special =
 		row.splits.length > 0 || row.transfer !== null || row.refundOf !== null || row.amountCents < 1;
 	if (special) return { name: "rename", refile: false };

@@ -487,6 +487,8 @@ export type TransactionRow = {
 	 * each null when that side isn't imported.
 	 */
 	transfer: { from: string | null; to: string | null; reason: "between-us" | null } | null;
+	/** A side of a Transfer whose money went to a credit card: a card payment. Only list rows say. */
+	paysCard?: boolean;
 	/** For money back linked as a Refund: the purchase's note, or "" when it has none. */
 	refundOf: string | null;
 	for: string[];
@@ -580,17 +582,29 @@ const splitHasForRows = (memberId?: string) =>
 
 const isSplit = sql`exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`;
 
+/** A list row's Transfer as it was read (JSON), and apart from it whether its money went to a card. */
+function transferOf(json: string | null): Pick<TransactionRow, "transfer" | "paysCard"> {
+	if (!json) return { transfer: null };
+	const { card, ...transfer } = JSON.parse(json);
+	return card === 1 ? { transfer, paysCard: true } : { transfer };
+}
+
 /**
- * The enclosing query's Transaction is spending that waits to be filed (issue 134): in no Bucket,
- * Commitment or Goal, not split, not a side of a Transfer or a matched copy, and not money back.
- * The rows the Transactions list calls "Unassigned", and what its "Needs review" filter keeps.
+ * The enclosing query's Transaction waits in Review (issue 134), by Review's own test (`waiting`
+ * in review.ts): categorization left it for a Parent, and it is in no Bucket, Commitment or Goal,
+ * not split, not a side of a Transfer or a matched copy. What the Transactions list's "Needs
+ * review" figure counts and its filter keeps. One a Parent filed without a Bucket (ADR-0037) is
+ * still "Unassigned", but waits for nobody.
  */
 const needsReview = () =>
 	and(
 		isNull(transactions.bucketId),
 		isNull(transactions.commitmentId),
 		isNull(transactions.goalId),
-		sql`${transactions.amountCents} > 0`,
+		// Review's own test: categorization left it for a Parent. One a Parent filed without a
+		// Bucket (ADR-0037) has left Review, and waits for nobody.
+		sql`exists (select 1 from ${categorizations} where ${categorizations.transactionId} = ${transactions.id}
+			and ${categorizations.householdId} = ${transactions.householdId} and ${categorizations.outcome} = 'review')`,
 		counts(),
 		sql`not ${isSplit}`,
 	) as SQL;
@@ -796,7 +810,9 @@ export async function loadTransactionsPage(
 					'from', coalesce(ao.name, case when x.out_transaction_id is null then oa.name end),
 					'to', coalesce(ai.name, ic.name,
 						case when x.in_transaction_id is null and x.in_income_id is null then oa.name end),
-					'reason', x.reason)
+					'reason', x.reason,
+					'card', coalesce(ai.kind, ic.kind,
+						case when x.in_transaction_id is null and x.in_income_id is null then oa.kind end) = 'credit-card')
 				from transfers x
 				left join accounts oa on oa.id = x.other_account_id
 				left join transactions o on o.id = x.out_transaction_id left join accounts ao on ao.id = o.account_id
@@ -838,6 +854,8 @@ export async function loadTransactionsPage(
 	const total = totalRows ? (totalRows[0]?.total ?? 0) : null;
 	const page = rows.slice(0, query.limit);
 	const ids = page.map((row) => row.id);
+	// One parameter however long the page: D1 takes 100 a statement, and a page may be longer.
+	const onPage = sql`(select value from json_each(${JSON.stringify(ids)}))`;
 	const [forRows, splitRows, splitForRows] =
 		page.length === 0
 			? [[], [], []]
@@ -851,7 +869,7 @@ export async function loadTransactionsPage(
 						.where(
 							and(
 								eq(transactionFor.householdId, householdId),
-								inArray(transactionFor.transactionId, ids),
+								sql`${transactionFor.transactionId} in ${onPage}`,
 							),
 						),
 					db
@@ -866,7 +884,7 @@ export async function loadTransactionsPage(
 						})
 						.from(splits)
 						.leftJoin(goals, eq(goals.id, splits.goalId))
-						.where(and(visibleSplit(viewer), inArray(splits.transactionId, ids)))
+						.where(and(visibleSplit(viewer), sql`${splits.transactionId} in ${onPage}`))
 						.orderBy(splits.transactionId, splits.position),
 					db
 						.select({ transactionId: splitFor.splitId, memberId: splitFor.memberId })
@@ -876,7 +894,7 @@ export async function loadTransactionsPage(
 							and(
 								eq(splitFor.householdId, householdId),
 								visibleSplit(viewer),
-								inArray(splits.transactionId, ids),
+								sql`${splits.transactionId} in ${onPage}`,
 							),
 						),
 				]);
@@ -900,7 +918,7 @@ export async function loadTransactionsPage(
 			({ goalId, goalName, transfer, sortKey: _sortKey, ...row }) =>
 				({
 					...row,
-					transfer: transfer ? JSON.parse(transfer) : null,
+					...transferOf(transfer),
 					goal: goalId ? { id: goalId, name: goalName ?? "A Goal" } : null,
 					for: forOf.get(row.id) ?? [],
 					splits: splitsOf.get(row.id) ?? [],

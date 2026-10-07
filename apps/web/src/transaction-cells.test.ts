@@ -37,6 +37,12 @@ const split = {
 };
 
 describe("which rows can be edited in a cell", () => {
+	it("a payment to a card isn't renamed in its cell: it is listed as Card payment", () => {
+		const transfer = { from: "Checking", to: "Visa", reason: null };
+		expect(cellEdits(row({ transfer, paysCard: true }))).toEqual({ name: null, refile: false });
+		expect(cellEdits(row({ transfer })).name).toBe("rename");
+	});
+
 	it("a Transaction assigned as a whole is renamed and refiled in its cells", () => {
 		expect(cellEdits(row())).toEqual({ name: "edit", refile: true });
 		expect(cellEdits(row({ bucketId: null, commitmentId: "c1" }))).toEqual({

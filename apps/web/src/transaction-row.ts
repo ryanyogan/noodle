@@ -48,6 +48,11 @@ export type RowView = {
 	forNames: string[];
 	/** The second line of a two-line row: what it's assigned to, who it was For, where it came from. */
 	detail: string;
+	/**
+	 * That line's words either side of who it was For, where it says For at all: a stacked row
+	 * draws its For chips between them.
+	 */
+	aroundFor: { before: string; after: string } | null;
 	assignment: ReturnType<typeof assignmentOf>;
 	/** The Assigned to column. */
 	assigned: string;
@@ -79,7 +84,11 @@ export function rowView(
 ): RowView {
 	const split = transaction.splits.length > 0;
 	const assignment = assignmentOf(transaction, plan);
+	// A payment to a card says so: the bank's wording for one ("PAYMENT THANK YOU - WEB") cleans up,
+	// by rule or by the background naming, to nothing a Parent would know it by ("Thank You",
+	// "Online Payment"). Its detail keeps the bank's wording.
 	const title =
+		(transaction.paysCard ? "Card payment" : null) ||
 		transaction.merchantName ||
 		(transaction.note && displayMerchant(transaction.note)) ||
 		(transaction.goal
@@ -169,6 +178,10 @@ export function rowView(
 				: null,
 		forNames: transaction.for.length === 0 ? ["Everyone"] : named.length ? named : ["Someone"],
 		detail,
+		aroundFor:
+			transaction.goal || transfer || refund || moneyBack || split
+				? null
+				: { before: assignment.name, after: from.replace(/^ · /, "") },
 		assignment,
 		assigned,
 		who: transfer || transaction.goal || moneyBack ? "" : who,

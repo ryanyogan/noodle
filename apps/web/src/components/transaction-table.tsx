@@ -284,11 +284,14 @@ export function TransactionTable({
 			setEditing(null);
 			// Ended from the keyboard: focus goes back to the cell's own button, once it is back.
 			if (refocus && was) {
+				// A row has its For chips twice (its column, and its line when stacked): the one showing.
 				requestAnimationFrame(() =>
-					card.current
-						?.querySelector<HTMLElement>(
+					[
+						...(card.current?.querySelectorAll<HTMLElement>(
 							`[data-transaction="${was.id}"] [data-cell="${was.column}"]`,
-						)
+						) ?? []),
+					]
+						.find((cell) => cell.offsetParent !== null)
 						?.focus(),
 				);
 			}

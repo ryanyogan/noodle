@@ -47,6 +47,22 @@ export const monthIncome = (moneyIn: Line[]): number =>
 		0,
 	);
 
+/**
+ * The list's figures at once after a change to one of its Transactions, before the server's own
+ * come back: Money out loses what the Transaction was and gains what it is now (nothing, deleted).
+ * A new name moves no money; a side of a Transfer was never in Money out; one partly in the other
+ * Parent's Personal Allowance isn't this Parent's to change. Needs review is the server's to say.
+ */
+export function summaryAfterChange<T extends { outCents: number }>(
+	summary: T,
+	was: { amountCents: number; transfer: unknown; partlyPrivate?: boolean },
+	next: { amountCents: number } | { rename: string } | null,
+): T {
+	if (was.transfer !== null || was.partlyPrivate) return summary;
+	if (next && "rename" in next) return summary;
+	return { ...summary, outCents: summary.outCents - was.amountCents + (next?.amountCents ?? 0) };
+}
+
 /** The money-in lines the page lists under a filter: none for money out, those waiting for review. */
 export function moneyInShown<T extends Line>(lines: T[], show: TransactionShow | undefined): T[] {
 	if (show === "out") return [];
