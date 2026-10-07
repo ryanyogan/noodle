@@ -5,7 +5,6 @@ import {
 	type MonthKey,
 	monthOfDay,
 	parseDollars,
-	whatChanged,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -23,15 +22,10 @@ import { AddPersonalAllowance } from "../../../components/bucket-editor";
 import { BucketTable, bucketsHaveHandles } from "../../../components/bucket-table";
 import { LumpCallout } from "../../../components/coming-up";
 import { AmountInput } from "../../../components/goals";
+import { SeeWhatChanged } from "../../../components/household-log";
 import { PlanDraftSection } from "../../../components/plan-draft";
 import { SaveFailed } from "../../../components/plan-editing";
 import { PlanHealth } from "../../../components/plan-health";
-import {
-	describeGroup,
-	groupMeta,
-	groupTitle,
-	HistoryStart,
-} from "../../../components/plan-history";
 import { PlanMasterDetail } from "../../../components/plan-page";
 import { PlanSplit } from "../../../components/plan-split";
 import { SectionPending } from "../../../components/section-layout";
@@ -47,7 +41,6 @@ import {
 	membersQuery,
 	planDraftQuery,
 	planHealthQuery,
-	planHistoryQuery,
 	suggestionsQuery,
 	useAllowancesStillToSet,
 	useMonthState,
@@ -68,7 +61,6 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/_home")({
 	loader: ({ context }) =>
 		Promise.all([
 			context.queryClient.ensureQueryData(goalsQuery()),
-			context.queryClient.ensureQueryData(planHistoryQuery(context.month)),
 			context.queryClient.ensureQueryData(planHealthQuery()),
 			context.queryClient.ensureQueryData(membersQuery()),
 			context.queryClient.ensureQueryData(suggestionsQuery()),
@@ -131,20 +123,16 @@ function PlanHome() {
 		<PlanMasterDetail
 			noun="Bucket"
 			listLabel="The Plan"
-			railLabel="What changed in the Plan"
 			// A Bucket opens in a panel from the right; the page keeps its width and the table every
-			// column. The page has the whole width up to 1440, with what changed under it; from there
-			// that is beside it and the panel covers it. Closing leaves the page where it is scrolled,
-			// so the address has no hash.
+			// column. There is no rail: the Plan's figures are the split's, the Buckets' totals are
+			// the table's last row, and what changed is the Log in Household settings (issue 139).
+			// Closing leaves the page where it is scrolled, so the address has no hash.
 			panel={{
 				size: "wide",
 				besideFrom: "late",
 				close: linkOptions({ to: "/plan/$month", params: { month } }),
 			}}
 			editable={state.editable}
-			// The rail is what changed, and nothing else: the Plan's figures are the split's, and the
-			// Buckets' totals are the table's last row.
-			aside={unpaid ? undefined : <WhatChanged month={month} first={state.firstMonth} />}
 		>
 			{state.editable && month === current ? (
 				<PlanDraftSection planned={state.buckets.map((b) => b.name)} />
@@ -280,6 +268,8 @@ function PlanHome() {
 						) : null}
 					</Section>
 				) : null}
+				{/* Where the Plan's changes used to be listed: they are in the Log (issue 139). */}
+				{unpaid ? null : <SeeWhatChanged month={month} className="-ms-2 justify-self-start" />}
 			</div>
 		</PlanMasterDetail>
 	);
@@ -516,75 +506,5 @@ function TakeHomePayForm({ month }: { month: MonthKey }) {
 			</div>
 			<SaveFailed change={change} />
 		</form>
-	);
-}
-
-/** How many changes What changed shows before "Show all". */
-const CHANGES_FOLDED = 3;
-/** How many the rail shows at lg, where the Plan beside it is taller (#73). */
-const CHANGES_FOLDED_WIDE = 6;
-
-/**
- * What changed in this month's Plan since the month before, item by item, and who changed it.
- * This Month's first week links here.
- */
-function WhatChanged({ month, first }: { month: MonthKey; first: MonthKey | null }) {
-	const { data } = useSuspenseQuery(planHistoryQuery(month));
-	const groups = whatChanged(data.changes, month);
-	// Folded to the first few (#73), so the rail stays about as tall as the Plan beside it.
-	const [all, setAll] = useState(false);
-	const shown = all ? groups : groups.slice(0, CHANGES_FOLDED_WIDE);
-	// Nothing to compare with yet: the Household's first month, or no Plan changes at all.
-	const fresh = data.historyStart === null || first === null || month <= first;
-	return (
-		<Section aria-labelledby="what-changed">
-			<SectionHeader id="what-changed" title="What changed" count={groups.length || undefined} />
-			{groups.length === 0 ? (
-				<p className="rounded-xl border border-dashed px-(--card-pad) py-4 text-[13px] text-muted-foreground">
-					{fresh
-						? "Changes to the Plan will show here."
-						: `No Plan changes since ${monthName(addMonths(month, -1))}.`}
-				</p>
-			) : (
-				<List>
-					{shown.map((group, index) => (
-						<li
-							key={group.key}
-							className={cn(
-								"grid gap-0.5 px-(--card-pad) py-3",
-								// A phone folds to the first three; the rail has room for six.
-								!all && index >= CHANGES_FOLDED && "max-lg:hidden",
-							)}
-						>
-							<p className="text-sm font-medium">{groupTitle(group)}</p>
-							{group.kind === "personal-allowance" ? null : (
-								<p className="text-sm">{describeGroup(group)}</p>
-							)}
-							<p className="text-[13px] text-muted-foreground">{groupMeta(group)}</p>
-						</li>
-					))}
-				</List>
-			)}
-			{groups.length > CHANGES_FOLDED ? (
-				<Button
-					variant="ghost"
-					size="sm"
-					className={cn(
-						"self-start justify-self-start",
-						groups.length <= CHANGES_FOLDED_WIDE && "lg:hidden",
-					)}
-					aria-expanded={all}
-					onClick={() => setAll(!all)}
-				>
-					{all ? "Show fewer" : `Show all ${groups.length}`}
-				</Button>
-			) : null}
-			{/* Only where the log's start cuts this month's comparison short. */}
-			{data.historyStart === null ||
-			fresh ||
-			monthOfDay(data.historyStart) < addMonths(month, -1) ? null : (
-				<HistoryStart day={data.historyStart} />
-			)}
-		</Section>
 	);
 }

@@ -625,6 +625,7 @@ export {
 	RESEND_WAIT_MS,
 	type SendCheck,
 } from "./invite-token";
+export { LOG_PAGE, type LogFilter, type LogPage, loadLog } from "./log";
 export {
 	loadMatch,
 	type MatchPeer,

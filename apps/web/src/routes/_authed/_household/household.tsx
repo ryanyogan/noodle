@@ -1,4 +1,5 @@
 import { UserButton } from "@clerk/tanstack-react-start";
+import { LOG_ITEM_KINDS } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
@@ -14,6 +15,7 @@ import { createFileRoute, Link, useHydrated, useRouter } from "@tanstack/react-r
 import { Pencil, Plus, UserRoundMinus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
+import { z } from "zod";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
 import { CaptureSettings } from "../../../components/capture-settings";
 import { CheckInSettings } from "../../../components/check-in-settings";
@@ -21,6 +23,7 @@ import { ColourPicker } from "../../../components/colour-picker";
 import { DataDownload } from "../../../components/data-download";
 import { DangerZone } from "../../../components/fresh-start";
 import { HouseholdDetails } from "../../../components/household-details";
+import { HouseholdLog, LOG_HASH, logQuery } from "../../../components/household-log";
 import { HouseholdSnapshots, snapshotsQuery } from "../../../components/household-snapshots";
 import { InviteOtherParent } from "../../../components/invite-other-parent";
 import { NudgeSettings } from "../../../components/nudge-settings";
@@ -45,11 +48,22 @@ import {
 	setupQuery,
 } from "../../../queries";
 import { addChild, removeChild, updateChild, updateParent } from "../../../server/members";
+import { monthKeySchema } from "../../../server/month";
 import { restartSetup } from "../../../server/setup";
 
 export const Route = createFileRoute("/_authed/_household/household")({
-	loader: async ({ context }) => {
+	// The Log's filters are the address, so "See what changed" on a page opens it narrowed to that
+	// page's month. One that isn't understood is dropped, never an error.
+	validateSearch: z.object({
+		month: monthKeySchema.optional().catch(undefined),
+		who: z.string().min(1).max(64).optional().catch(undefined),
+		kind: z.enum(LOG_ITEM_KINDS).optional().catch(undefined),
+	}),
+	loaderDeps: ({ search }) => ({ month: search.month, who: search.who, kind: search.kind }),
+	loader: async ({ context, deps }) => {
 		await Promise.all([
+			// The Log's first page comes with the page, so a link to it lands on its rows.
+			context.queryClient.prefetchInfiniteQuery(logQuery(deps)),
 			context.queryClient.ensureQueryData(householdParentsQuery()),
 			context.queryClient.ensureQueryData(membersQuery()),
 			context.queryClient.ensureQueryData(nudgeSettingsQuery()),
@@ -65,6 +79,8 @@ export const Route = createFileRoute("/_authed/_household/household")({
 
 function HouseholdPage() {
 	const { household, parentId } = Route.useRouteContext();
+	const filters = Route.useSearch();
+	const navigate = Route.useNavigate();
 	const { data } = useSuspenseQuery(householdParentsQuery());
 	const members = useSuspenseQuery(membersQuery()).data;
 	const children = childrenOf(members);
@@ -144,6 +160,19 @@ function HouseholdPage() {
 							<HouseholdSnapshots householdName={household.name} />
 						</SectionGroup>
 					</div>
+					{/* Every change made, in one table: it has the page's width (issue 139). */}
+					<SectionGroup id={LOG_HASH} title="Log" className="col-span-full scroll-mt-20">
+						<p className="text-sm text-muted-foreground">
+							Every change to the Plan, who made it and when, with Rules made, snapshots, Fresh
+							starts and Bank Connections. Newest first.
+						</p>
+						<HouseholdLog
+							filters={filters}
+							onFilter={(next) =>
+								navigate({ search: next, hash: LOG_HASH, replace: true, resetScroll: false })
+							}
+						/>
+					</SectionGroup>
 					<SectionGroup id="danger-zone" title="Danger zone" className="col-span-full">
 						<DangerZone householdName={household.name} />
 					</SectionGroup>

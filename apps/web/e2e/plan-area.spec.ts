@@ -336,13 +336,17 @@ test("the take-home split and the Buckets table are one page, and the old Bucket
 	expect(allowances.y, "Personal Allowances under the table").toBeGreaterThan(
 		buckets.y + buckets.height - 1,
 	);
-	// From 1440 what changed is beside that column, not under it, and it is all the rail holds.
-	const rail = await page.locator("[data-slot=master-detail-aside]").boundingBox();
-	expect(rail?.x ?? 0, "the rail is beside the page").toBeGreaterThan(split.x + split.width - 1);
-	await expect(page.locator("section[aria-labelledby=what-changed]")).toBeVisible();
-	await expect(page.locator("[data-slot=master-detail-aside]").getByRole("heading")).toHaveText([
-		/^What changed/,
-	]);
+	// No rail (issue 139): what changed is the Log in Household settings, one link away, under
+	// the Plan's column and narrowed to this month.
+	await expect(page.locator("[data-slot=master-detail-aside]")).toHaveCount(0);
+	await expect(page.locator("section[aria-labelledby=what-changed]")).toHaveCount(0);
+	const seeChanges = page.getByRole("link", { name: "See what changed" });
+	await expect(seeChanges).toHaveCount(1);
+	await expect(seeChanges).toHaveAttribute("href", `/household?month=${month}#log`);
+	const seeBox = await seeChanges.boundingBox();
+	expect(seeBox?.y ?? 0, "the link is under Personal Allowances").toBeGreaterThan(
+		allowances.y + allowances.height - 1,
+	);
 	// The first Bucket is on the first screen, under the split.
 	expect(await page.evaluate(() => window.scrollY)).toBe(0);
 	await expect(table.locator("[data-slot=data-table-row]").first()).toBeInViewport({ ratio: 1 });
@@ -359,7 +363,7 @@ test("the take-home split and the Buckets table are one page, and the old Bucket
 	await expect(waterfall(page)).toBeAttached();
 	await expect(current).toHaveText("Overview");
 	// The anchors This Month links to are all on this page.
-	for (const id of ["plan-waterfall", "what-changed", "buckets", "personal-allowances"]) {
+	for (const id of ["plan-waterfall", "buckets", "personal-allowances"]) {
 		await expect(page.locator(`#${id}`), `#${id}`).toHaveCount(1);
 	}
 
@@ -465,19 +469,20 @@ test("the Plan's first page is short: the Buckets start on the first screen, the
 	}
 
 	// What went (issue 109): the bar stuck over the list with its second name for Free to Spend,
-	// and the card of totals. One Add Buckets; the rail is what changed, under the page here.
+	// and the card of totals. One Add Buckets; no rail, and one link to what changed (issue 139).
 	await expect(page.locator("[data-slot=left-to-plan]")).toHaveCount(0);
 	await expect(page.getByText("Left to plan")).toHaveCount(0);
 	await expect(page.getByText("Left in Buckets")).toHaveCount(0);
 	await expect(page.getByRole("group", { name: /totals$/ })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toHaveCount(1);
 	await expect(page.getByRole("button", { name: "Add another Bucket" })).toHaveCount(1);
-	const rail = page.locator("[data-slot=master-detail-aside]");
-	await expect(rail.getByRole("heading")).toHaveText([/^What changed/]);
-	const railBox = await rail.boundingBox();
+	await expect(page.locator("[data-slot=master-detail-aside]")).toHaveCount(0);
+	const seeChanges = page.getByRole("link", { name: "See what changed" });
+	await expect(seeChanges).toHaveCount(1);
+	const seeBox = await seeChanges.boundingBox();
 	const tableBox = await table.boundingBox();
-	if (!railBox || !tableBox) throw new Error("no rail or no table");
-	expect(railBox.y, "below 1440 the rail is under the page").toBeGreaterThan(
+	if (!seeBox || !tableBox) throw new Error("no link or no table");
+	expect(seeBox.y, "the link to the Log is under the Buckets").toBeGreaterThan(
 		tableBox.y + tableBox.height - 1,
 	);
 

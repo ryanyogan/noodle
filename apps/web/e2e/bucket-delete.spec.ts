@@ -116,9 +116,16 @@ async function deleteOne(page: Page, phone: boolean) {
 	await page.reload();
 	await expect(row(page, "Groceries")).toHaveCount(1);
 	await expect(row(page, "Fun")).toHaveCount(0);
-	// Its Plan changes went with it: What changed has nothing of Fun's.
 	await expect(page.getByRole("link", { name: "Fun", exact: true })).toHaveCount(0);
 	await shot(page, "gone");
+	// Its Plan changes went with it: the Log has Groceries' and nothing of Fun's.
+	await page.getByRole("link", { name: "See what changed" }).click();
+	const log = page.getByRole("table", { name: "Log" });
+	await expect(
+		log.locator("[data-slot=data-table-row]").filter({ hasText: "Groceries" }),
+	).not.toHaveCount(0);
+	await expect(log).not.toContainText("Fun");
+	await page.goBack();
 }
 
 test("a Bucket nothing was filed in is deleted; one with spending can only be archived", async ({

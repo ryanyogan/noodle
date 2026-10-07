@@ -93,78 +93,95 @@ export type PlanHistory = {
 	historyStart: number | null;
 };
 
+/** A Plan change's row as it was read, before its values are parsed. */
+type PlanChangeRow = Omit<PlanChange, "at" | "month" | "before" | "after"> & {
+	at: Date;
+	month: string;
+	before: string | null;
+	after: string | null;
+};
+
+const parseValue = (value: string | null) =>
+	value === null ? null : (JSON.parse(value) as PlanChangeValue);
+
+/** A Plan change from its row. */
+export const planChangeOf = (row: PlanChangeRow): PlanChange => ({
+	...row,
+	at: row.at.getTime(),
+	month: row.month as MonthKey,
+	before: parseValue(row.before),
+	after: parseValue(row.after),
+});
+
+/**
+ * The Household's Plan changes matching `where`, as `viewer` may see them: the other Parent's
+ * Personal Allowance reads as "personal-allowance", with no values and no name (ADR-0003). The
+ * values never leave the database for them. Every read of Plan changes for a Viewer is this one.
+ */
+export const selectPlanChanges = (db: Db, viewer: Viewer, where?: SQL) => {
+	const hidden = sql`(${planChanges.ownerMemberId} is not null and ${planChanges.ownerMemberId} <> ${viewer.memberId})`;
+	const ownTarget = (table: typeof buckets | typeof commitments | typeof goals) =>
+		and(eq(table.id, planChanges.targetId), eq(table.householdId, planChanges.householdId));
+	return db
+		.select({
+			id: planChanges.id,
+			at: planChanges.createdAt,
+			memberId: planChanges.memberId,
+			memberName: members.name,
+			kind: sql<
+				PlanChange["kind"]
+			>`case when ${hidden} then 'personal-allowance' else ${planChanges.kind} end`,
+			targetId: planChanges.targetId,
+			targetName: sql<
+				string | null
+			>`case when ${hidden} then null else coalesce(${buckets.name}, ${commitments.name}, ${goals.name}) end`,
+			month: planChanges.month,
+			scope: planChanges.scope,
+			source: planChanges.source,
+			scenarioId: planChanges.scenarioId,
+			// Aliased: D1 keys batch rows by column name, and a second bare `name` would collide with
+			// members.name and shift the columns after it.
+			scenarioName: sql<string | null>`${scenarios.name}`.as("scenario_name"),
+			before: sql<string | null>`case when ${hidden} then null else ${planChanges.before} end`,
+			after: sql<string | null>`case when ${hidden} then null else ${planChanges.after} end`,
+		})
+		.from(planChanges)
+		.innerJoin(members, eq(members.id, planChanges.memberId))
+		.leftJoin(buckets, ownTarget(buckets))
+		.leftJoin(commitments, ownTarget(commitments))
+		.leftJoin(goals, ownTarget(goals))
+		.leftJoin(
+			scenarios,
+			and(
+				eq(scenarios.id, planChanges.scenarioId),
+				eq(scenarios.householdId, planChanges.householdId),
+			),
+		)
+		.where(and(eq(planChanges.householdId, viewer.householdId), where));
+};
+
 /**
  * The Household's Plan changes that take effect in `month`, or that changed `targetId`, as
- * `viewer` may see them: the other Parent's Personal Allowance reads as "personal-allowance",
- * with no values and no name (ADR-0003). The values never leave the database for them.
+ * `viewer` may see them (ADR-0003), newest first.
  */
 export async function loadPlanChanges(
 	db: Db,
 	viewer: Viewer,
 	filter: { month?: MonthKey; targetId?: string },
 ): Promise<PlanHistory> {
-	const hidden = sql`(${planChanges.ownerMemberId} is not null and ${planChanges.ownerMemberId} <> ${viewer.memberId})`;
-	const ownTarget = (table: typeof buckets | typeof commitments | typeof goals) =>
-		and(eq(table.id, planChanges.targetId), eq(table.householdId, planChanges.householdId));
 	const [rows, [start]] = await db.batch([
-		db
-			.select({
-				id: planChanges.id,
-				at: planChanges.createdAt,
-				memberId: planChanges.memberId,
-				memberName: members.name,
-				kind: sql<
-					PlanChange["kind"]
-				>`case when ${hidden} then 'personal-allowance' else ${planChanges.kind} end`,
-				targetId: planChanges.targetId,
-				targetName: sql<
-					string | null
-				>`case when ${hidden} then null else coalesce(${buckets.name}, ${commitments.name}, ${goals.name}) end`,
-				month: planChanges.month,
-				scope: planChanges.scope,
-				source: planChanges.source,
-				scenarioId: planChanges.scenarioId,
-				// Aliased: D1 keys batch rows by column name, and a second bare `name` would collide with
-				// members.name and shift the columns after it.
-				scenarioName: sql<string | null>`${scenarios.name}`.as("scenario_name"),
-				before: sql<string | null>`case when ${hidden} then null else ${planChanges.before} end`,
-				after: sql<string | null>`case when ${hidden} then null else ${planChanges.after} end`,
-			})
-			.from(planChanges)
-			.innerJoin(members, eq(members.id, planChanges.memberId))
-			.leftJoin(buckets, ownTarget(buckets))
-			.leftJoin(commitments, ownTarget(commitments))
-			.leftJoin(goals, ownTarget(goals))
-			.leftJoin(
-				scenarios,
-				and(
-					eq(scenarios.id, planChanges.scenarioId),
-					eq(scenarios.householdId, planChanges.householdId),
-				),
-			)
-			.where(
-				and(
-					eq(planChanges.householdId, viewer.householdId),
-					filter.month === undefined ? undefined : eq(planChanges.month, filter.month),
-					filter.targetId === undefined ? undefined : eq(planChanges.targetId, filter.targetId),
-				),
-			)
-			.orderBy(desc(planChanges.id)),
+		selectPlanChanges(
+			db,
+			viewer,
+			and(
+				filter.month === undefined ? undefined : eq(planChanges.month, filter.month),
+				filter.targetId === undefined ? undefined : eq(planChanges.targetId, filter.targetId),
+			),
+		).orderBy(desc(planChanges.id)),
 		db
 			.select({ at: sql<number | null>`min(${planChanges.createdAt})` })
 			.from(planChanges)
 			.where(eq(planChanges.householdId, viewer.householdId)),
 	]);
-	const parse = (value: string | null) =>
-		value === null ? null : (JSON.parse(value) as PlanChangeValue);
-	return {
-		changes: rows.map((row) => ({
-			...row,
-			at: row.at.getTime(),
-			month: row.month as MonthKey,
-			before: parse(row.before),
-			after: parse(row.after),
-		})),
-		historyStart: start?.at ?? null,
-	};
+	return { changes: rows.map(planChangeOf), historyStart: start?.at ?? null };
 }

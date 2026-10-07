@@ -828,7 +828,7 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		// The Plan's first page, whole: the take-home split, the Buckets table under it, Personal
-		// Allowances and what changed. Then what the window shows of it on arriving.
+		// Allowances and the link to what changed. Then what the window shows of it on arriving.
 		// The Sidebar collapsed to its icon rail. Only when asked for by name (PAGE_SHOTS_ONLY=00): the
 		// Sidebar stays collapsed for every picture after it.
 		...(only.includes("00")
@@ -849,7 +849,7 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "03-plan-overview", path: `/plan/${month}` },
 		{ name: "03w-plan-overview-window", path: `/plan/${month}`, window: true },
 		{
-			// Every fold on the Plan's first page opened: "Things to check" and "What changed" (issue 73).
+			// Every fold on the Plan's first page opened: "Things to check" (issue 73).
 			name: "03b-plan-overview-folds-open",
 			path: `/plan/${month}`,
 			ready: async (page) => {
@@ -1951,6 +1951,17 @@ test.beforeAll(async ({ browser }) => {
 				]
 			: []),
 		{ name: "27-household-settings", path: "/household" },
+		{
+			// The Log (issue 139): every change in one table, what the window shows of it.
+			name: "27l-household-log",
+			path: "/household#log",
+			window: true,
+			ready: async (page) => {
+				const log = page.getByRole("table", { name: "Log" });
+				await expect(log.locator("[data-slot=data-table-row]").first()).toBeVisible();
+				await page.locator("#log").scrollIntoViewIfNeeded();
+			},
+		},
 		{
 			// The Start fresh sheet, open and not confirmed: what it says about snapshots, files and
 			// a prepared download (#78). What's in the window: the sheet is over the page.

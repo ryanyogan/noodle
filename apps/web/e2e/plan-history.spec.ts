@@ -9,11 +9,22 @@ import {
 } from "./session";
 
 const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-home pay goes" });
-const whatChanged = (page: Page) => page.locator("section[aria-labelledby=what-changed]");
-const item = (page: Page, title: string) =>
-	whatChanged(page)
-		.getByRole("listitem")
-		.filter({ has: page.getByText(title, { exact: true }) });
+/** The Log in Household settings, and its rows about one item. */
+const log = (page: Page) => page.getByRole("table", { name: "Log" });
+const rows = (page: Page, what: string) =>
+	log(page)
+		.locator("[data-slot=data-table-row]")
+		.filter({ has: page.getByText(what, { exact: true }) });
+
+/** From the Plan to the Log by the Plan's one link, narrowed to the Plan's month. */
+async function seeWhatChanged(page: Page) {
+	const link = page.getByRole("link", { name: "See what changed" });
+	await expect(link).toHaveCount(1);
+	await link.click();
+	await expect(page).toHaveURL(/\/household\?month=\d{4}-\d{2}#log$/);
+	await expect(page.getByRole("button", { name: /^Takes effect in / })).toBeVisible();
+	await expect(log(page).locator("[data-slot=data-table-row]").first()).toBeVisible();
+}
 
 async function openPart(page: Page, part: "Overview" | "Commitments") {
 	await page
@@ -29,12 +40,9 @@ async function backToPlan(page: Page) {
 		.getByRole("link", { name: "Overview" })
 		.click();
 	await expect(waterfall(page)).toBeVisible();
-	// What changed shows its first three; the tests read all of them.
-	const more = whatChanged(page).getByRole("button", { name: /^Show all/ });
-	if (await more.isVisible()) await more.click();
 }
 
-test("What changed shows each Plan change and who made it; the other Parent's Personal Allowance only as changed", async ({
+test("the Log shows each Plan change, who made it and when; the other Parent's Personal Allowance only as changed", async ({
 	browser,
 }) => {
 	// Two Parents sign in and change the Plan throughout: close to 30 s even run alone.
@@ -97,23 +105,52 @@ test("What changed shows each Plan change and who made it; the other Parent's Pe
 		await termsSaved;
 		await backToPlan(page);
 
-		// Items added this month read as added, with what they are now.
-		await expect(item(page, "Groceries")).toContainText("Added · $1,500");
-		await expect(item(page, "Daycare")).toContainText("Added · $1,450");
-		await expect(item(page, "Daycare")).toContainText(/Alex · \w{3} \d{1,2}/);
-		await expect(item(page, "Alex’s Personal Allowance")).toContainText("Added · $150");
-		// The Plan began this month: nothing is cut short, so no "History starts" (#51).
-		await expect(whatChanged(page)).not.toContainText(/History starts/);
+		// The Plan no longer lists its changes: one link opens the Log at this month.
+		await expect(page.locator("section[aria-labelledby=what-changed]")).toHaveCount(0);
+		await expect(page.getByText("What changed", { exact: true })).toHaveCount(0);
+		await seeWhatChanged(page);
+
+		// Every change is a row: what it was and what it became, who made it and when.
+		await expect(rows(page, "Groceries").filter({ hasText: "Added · $1,200" })).toHaveCount(1);
+		const raised = rows(page, "Groceries").filter({ hasText: "$1,200 → $1,500" });
+		await expect(raised).toHaveCount(1);
+		await expect(raised).toContainText("Alex");
+		await expect(raised).toContainText(/\w{3} \d{1,2}, \d{4}/);
+		await expect(raised).toContainText(/From \w+ on/);
+		await expect(rows(page, "Daycare").filter({ hasText: "Added · $1,400" })).toHaveCount(1);
+		await expect(rows(page, "Daycare").filter({ hasText: "$1,400 → $1,450" })).toHaveCount(1);
+		await expect(rows(page, "Alex’s Personal Allowance")).toContainText("Added · $150");
+		// Newest first: the last change made is the first row.
+		await expect(log(page).locator("[data-slot=data-table-row]").first()).toContainText(
+			"$1,400 → $1,450",
+		);
+		// Narrowed to a kind of item, from the server.
+		await page.getByRole("combobox", { name: "Kind of item" }).click();
+		await page.getByRole("option", { name: "Bills", exact: true }).click();
+		await expect(page).toHaveURL(/kind=commitment/);
+		await expect(rows(page, "Daycare")).toHaveCount(2);
+		await expect(rows(page, "Groceries")).toHaveCount(0);
 
 		// Sam sees what Alex changed, but Alex's Personal Allowance only as changed.
 		await samPage.goto("/month");
 		await switchTo(samPage, "Plan");
-		await expect(item(samPage, "Daycare")).toContainText("Added · $1,450");
-		await expect(item(samPage, "Daycare")).toContainText("Alex");
-		const hidden = item(samPage, "Personal Allowance changed");
+		await seeWhatChanged(samPage);
+		await expect(rows(samPage, "Daycare").filter({ hasText: "$1,400 → $1,450" })).toContainText(
+			"Alex",
+		);
+		const hidden = log(samPage)
+			.locator("[data-slot=data-table-row]")
+			.filter({ hasText: "Personal Allowance changed" });
+		await expect(hidden).toHaveCount(1);
 		await expect(hidden).toContainText("Alex");
-		await expect(hidden).not.toContainText("$150");
-		await expect(whatChanged(samPage)).not.toContainText("Alex’s Personal Allowance");
+		await expect(log(samPage)).not.toContainText("$150");
+		await expect(log(samPage)).not.toContainText("Alex’s Personal Allowance");
+		// Narrowed to Alex's changes, it is still only that.
+		await samPage.getByRole("combobox", { name: "Who made the change" }).click();
+		await samPage.getByRole("option", { name: "Alex", exact: true }).click();
+		await expect(samPage).toHaveURL(/who=/);
+		await expect(hidden).toHaveCount(1);
+		await expect(log(samPage)).not.toContainText("$150");
 	} finally {
 		await Promise.all([first.remove(), second.remove()]);
 	}
