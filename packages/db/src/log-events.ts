@@ -266,6 +266,25 @@ export function accountArchivedEvent(
 	});
 }
 
+/** An archived Account is about to be brought back (to run BEFORE the write, in its batch). */
+export function accountRestoredEvent(
+	db: Db,
+	input: { householdId: string; accountId: string; memberId?: string | null; now: Date },
+) {
+	const archived = and(
+		eq(accounts.id, input.accountId),
+		eq(accounts.householdId, input.householdId),
+		isNotNull(accounts.archivedAt),
+	) as SQL;
+	return eventFrom(db, accounts, sql`${accounts.householdId}`, archived, {
+		id: idOf(sql`${accounts.id}`, `:restored:${input.now.getTime()}`),
+		kind: "account-restored",
+		name: sql`${accounts.name}`,
+		memberId: by(input.memberId),
+		at: at(input.now),
+	});
+}
+
 /** The Log's own record as `viewer` may read it: never the other Parent's private Rules. */
 export const visibleLogEvent = (viewer: Viewer): SQL =>
 	and(

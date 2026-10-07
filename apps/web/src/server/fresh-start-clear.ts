@@ -70,15 +70,16 @@ const PAGE = 1000;
 /** Vectorize deletes at most this many IDs at once ("max id count is 100"). */
 export const VECTOR_PAGE = 100;
 
-async function removeBanks(deps: ClearDeps, householdId: string) {
+/** `memberId`: the Parent who asked for the clear, when known; the Log says who disconnected. */
+async function removeBanks(deps: ClearDeps, householdId: string, memberId?: string) {
 	for (const connectionId of await linkedBankConnectionIds(deps.db, householdId)) {
 		if (!deps.bank) {
-			await removeBankConnection(deps.db, householdId, connectionId);
+			await removeBankConnection(deps.db, householdId, connectionId, memberId);
 			continue;
 		}
 		const result = await disconnectBankConnection(
 			{ db: deps.db, ...deps.bank },
-			{ householdId, connectionId },
+			{ householdId, connectionId, memberId },
 		);
 		// The bank didn't answer: retried, and nothing is cleared until every link is removed.
 		if (!result.ok && result.reason === "bank") throw new Error("Couldn’t disconnect a bank");
@@ -151,8 +152,10 @@ export async function runClearStep(
 	level: ClearLevel,
 	/** Files only: keep what was uploaded at or after this. */
 	before?: Date,
+	/** Banks only: the Parent who asked for the clear, for the Log; left out, it says "Noodle". */
+	memberId?: string,
 ): Promise<void> {
-	if (step === "banks") await removeBanks(deps, householdId);
+	if (step === "banks") await removeBanks(deps, householdId, memberId);
 	else if (step === "background") await deps.agent(householdId).clearHousehold();
 	else if (step === "merchants") await forgetMerchants(deps, householdId);
 	else if (step === "files") {
@@ -162,8 +165,14 @@ export async function runClearStep(
 }
 
 /** Every step: what the Workflow does, without its waits, progress and sweep. */
-export async function clearHousehold(deps: ClearDeps, householdId: string, level: ClearLevel) {
-	for (const { key } of CLEAR_STEPS) await runClearStep(deps, key, householdId, level);
+export async function clearHousehold(
+	deps: ClearDeps,
+	householdId: string,
+	level: ClearLevel,
+	memberId?: string,
+) {
+	for (const { key } of CLEAR_STEPS)
+		await runClearStep(deps, key, householdId, level, undefined, memberId);
 }
 
 /** The Agent's part: its held Nudges, background AI, model budget and alarm all go. */

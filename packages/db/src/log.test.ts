@@ -16,6 +16,7 @@ import {
 	loadLog,
 	markBankConnectionDisconnected,
 	removeBankConnection,
+	restoreAccount,
 	saveMoneyInRule,
 	setAllowance,
 	setTakeHomePay,
@@ -608,6 +609,54 @@ describe("The Log", () => {
 			expect(archived.map(said)).toEqual(["account-archived:Old card→null"]);
 			expect(archived[0]).toMatchObject({ memberName: "Sam", item: "account", at: now.getTime() });
 			expect(await whole(alex, { item: "account", month: "2026-10" })).toEqual([]);
+
+			// Brought back: on record too, once.
+			const back = new Date(now.getTime() + 1000);
+			expect(
+				await restoreAccount(db, { householdId: "elsewhere", accountId: "old-card", now: back }),
+			).toBe(false);
+			expect(
+				await restoreAccount(db, {
+					householdId,
+					accountId: "old-card",
+					memberId: "alex",
+					now: back,
+				}),
+			).toBe(true);
+			expect(
+				await restoreAccount(db, { householdId, accountId: "old-card", memberId: "alex" }),
+			).toBe(false);
+			const account = await whole(alex, { item: "account" });
+			expect(account.map((r) => `${said(r)} by ${r.memberName}`)).toEqual([
+				"account-restored:Old card→null by Alex",
+				"account-archived:Old card→null by Sam",
+			]);
+			expect(account[0]).toMatchObject({ item: "account", at: back.getTime() });
+		});
+
+		it("says a Bank Connection was disconnected since only when no record of it says so", async () => {
+			const connected = async () =>
+				(await whole(alex, { item: "bank-connection" })).find(
+					(r) => r.source === "bank-connection",
+				);
+			expect(await connected()).toMatchObject({ disconnected: false });
+			// Disconnected before the Log kept its own record: only the row says so.
+			await db
+				.update(bankConnections)
+				.set({ status: "disconnected" })
+				.where(eq(bankConnections.id, "bank"));
+			expect(await connected()).toMatchObject({ disconnected: true });
+			await db
+				.update(bankConnections)
+				.set({ status: "ready" })
+				.where(eq(bankConnections.id, "bank"));
+			// Disconnected since: its own row says it, so "Connected" doesn't say it again.
+			expect(await removeBankConnection(db, householdId, "bank", "alex")).toBe(true);
+			expect(await connected()).toMatchObject({ disconnected: false });
+			expect((await whole(alex, { item: "bank-connection" })).map(said).sort()).toEqual([
+				"bank-connection-removed:First Bank→null",
+				"bank:First Bank",
+			]);
 		});
 
 		it("pages every order whole with removed things in it", async () => {

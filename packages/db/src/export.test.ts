@@ -255,14 +255,12 @@ describe("loadExportData", () => {
 	});
 
 	it("carries money in, and what the bank took back or lowered after a month ended", async () => {
-		await db
-			.insert(accounts)
-			.values({
-				id: "checking",
-				householdId,
-				name: "Checking",
-				kind: "checking",
-			} as typeof accounts.$inferInsert);
+		await db.insert(accounts).values({
+			id: "checking",
+			householdId,
+			name: "Checking",
+			kind: "checking",
+		} as typeof accounts.$inferInsert);
 		await addIncome(db, {
 			householdId,
 			incomeId: "pay",

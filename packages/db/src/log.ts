@@ -50,7 +50,7 @@ import {
 // Rules for money in and card payments remembered (each as made), Household snapshots other than
 // the nightly ones, Fresh starts and Bank Connections; and its own record (`log_events`, issue
 // 141) of what leaves no row behind: a Rule removed, with the Rule as it was made, a Bank
-// Connection disconnected, an Account archived. Changes to single Transactions are not in it.
+// Connection disconnected, an Account archived or brought back. Changes to single Transactions are not in it.
 //
 // The order is when (newest first), then the source in the order below, then the row's own ID
 // (newest first). Each source gives its next few rows after the cursor and the page is the
@@ -288,6 +288,13 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 				memberName: sql<string | null>`${members.name}`.as("member_name"),
 				institution: bankConnections.institution,
 				status: bankConnections.status,
+				// Its disconnecting has a row of its own in the Log (since issue 141).
+				recorded:
+					sql<number>`exists (select 1 from log_events le where le.household_id = ${bankConnections.householdId}
+						and le.kind in ('bank-connection-removed', 'bank-connection-disconnected')
+						and substr(le.id, 1, length(${bankConnections.id}) + 1) = ${bankConnections.id} || ':')`.as(
+						"recorded",
+					),
 			})
 			.from(bankConnections)
 			.leftJoin(members, who(bankConnections.createdByMemberId))
@@ -464,7 +471,8 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 				month: null,
 				source: "bank-connection",
 				institution: row.institution,
-				disconnected: row.status === "disconnected",
+				// One disconnected before the Log kept such rows says so here, or nothing would.
+				disconnected: row.status === "disconnected" && !row.recorded,
 			}),
 		),
 		...moneyInRows.map((row) =>

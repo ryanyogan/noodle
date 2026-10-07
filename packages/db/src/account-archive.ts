@@ -1,7 +1,7 @@
 import type { AccountKind } from "@noodle/domain";
 import { and, asc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "./index";
-import { accountArchivedEvent } from "./log-events";
+import { accountArchivedEvent, accountRestoredEvent } from "./log-events";
 import { accounts, commitments, goals } from "./schema";
 
 // Archiving an Account (ADR-0046): a Parent puts an Account they no longer use out of the way.
@@ -151,16 +151,22 @@ export async function archiveAccount(
 	return { ok: false, reason: account.bankConnectionId ? "connected" : "not-found" };
 }
 
-/** Brings an archived Account back, kept by hand. False when it isn't the Household's, or isn't archived. */
+/**
+ * Brings an archived Account back, kept by hand, and says so in the Log (`memberId`: the Parent
+ * who did). False when it isn't the Household's, or isn't archived.
+ */
 export async function restoreAccount(
 	db: Db,
-	input: { householdId: string; accountId: string },
+	input: { householdId: string; accountId: string; memberId?: string | null; now?: Date },
 ): Promise<boolean> {
-	const written = await db
-		.update(accounts)
-		.set({ archivedAt: null })
-		.where(and(ownAccount(input.householdId, input.accountId), isNotNull(accounts.archivedAt)))
-		.returning({ id: accounts.id });
+	const [, written] = await db.batch([
+		accountRestoredEvent(db, { ...input, now: input.now ?? new Date() }),
+		db
+			.update(accounts)
+			.set({ archivedAt: null })
+			.where(and(ownAccount(input.householdId, input.accountId), isNotNull(accounts.archivedAt)))
+			.returning({ id: accounts.id }),
+	]);
 	return written.length > 0;
 }
 
