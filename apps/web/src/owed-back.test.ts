@@ -41,6 +41,24 @@ describe("money Paid back this month", () => {
 		);
 		expect(bucketSpentText({ spent: 1_000, paidBack: 4_500 })).toBe("$10 spent");
 		expect(bucketSpentText({ spent: 12_000 })).toBe("$120 spent");
+		// A Refund linked to its purchase is "refunded": "Paid back" is what was Owed back.
+		expect(bucketSpentText({ spent: -2_000, paidBack: 2_000, refunded: 2_000 })).toBe(
+			"$20 refunded",
+		);
+		expect(bucketSpentText({ spent: -1_500, paidBack: 2_000, refunded: 2_000 })).toBe(
+			"$15 more refunded than spent",
+		);
+		expect(bucketSpentText({ spent: -6_500, paidBack: 6_500, refunded: 2_000 })).toBe(
+			"$20 refunded and $45 Paid back",
+		);
+		expect(bucketSpentText({ spent: -1_000, paidBack: 6_500, refunded: 2_000 })).toBe(
+			"$10 more refunded and Paid back than spent",
+		);
+		expect(bucketSpentText({ spent: 1_000, paidBack: 2_000, refunded: 2_000 })).toBe("$10 spent");
+		expect(paidBackIntoText({ amount: 2_000, who: [], refunded: 2_000 })).toBe("$20 refunded");
+		expect(paidBackIntoText({ amount: 62_000, who: ["Casey"], refunded: 2_000 })).toBe(
+			"$600 Paid back by Casey and $20 refunded",
+		);
 		// A Refund alone can bring a month below zero too: that stays as it was.
 		expect(bucketSpentText({ spent: -3_000 })).toBe("−$30 spent");
 		expect(bucketSpentText({ spent: -7_500, paidBack: 4_500 })).toBe("−$75 spent");

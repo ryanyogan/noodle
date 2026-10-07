@@ -560,6 +560,7 @@ export async function loadPaidBackSpending(
 				date: `${month}-01` as DayKey,
 				for: [],
 				paidBack: true,
+				...("refund" in row ? { refund: true as const } : {}),
 			};
 		}
 		return {
@@ -569,6 +570,7 @@ export async function loadPaidBackSpending(
 			date,
 			for: row.splitId ? forOf(row.splitId, partFor) : forOf(row.id, wholeFor),
 			paidBack: true,
+			...("refund" in row ? { refund: true as const } : {}),
 		};
 	});
 }

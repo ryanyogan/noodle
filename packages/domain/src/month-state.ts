@@ -16,7 +16,14 @@ import {
  * Spending in a Bucket on a day. One with `paidBack` is not a purchase: it is money Paid back into
  * the Bucket that day (ADR-0058), a negative amount.
  */
-export type Spend = { bucketId: string; amount: Cents; date: DayKey; paidBack?: true };
+export type Spend = {
+	bucketId: string;
+	amount: Cents;
+	date: DayKey;
+	paidBack?: true;
+	/** On one that is `paidBack`: it is a Refund linked to its purchase (ADR-0057), not Paid back. */
+	refund?: true;
+};
 
 /**
  * A payment recorded against a Commitment on a day (a Transaction or one of its Splits). One with
@@ -28,6 +35,8 @@ export type Charge = {
 	amount: Cents;
 	date: DayKey;
 	paidBack?: true;
+	/** On one that is `paidBack`: it is a Refund linked to its purchase (ADR-0057), not Paid back. */
+	refund?: true;
 	/** Who paid it back, on one that is `paidBack`. */
 	who?: string;
 };
@@ -78,6 +87,8 @@ export type BucketState = PlanBucket & {
 	spent: Cents;
 	/** What of `spent` is money Paid back into it this month (ADR-0058); absent when none was. */
 	paidBack?: Cents;
+	/** What of `paidBack` came from Refunds linked to their purchases (ADR-0057); absent when none. */
+	refunded?: Cents;
 	/** Negative once the Bucket is overspent. */
 	left: Cents;
 	pace: {
@@ -117,7 +128,7 @@ export type CommitmentState = PlanCommitment & {
 	 * Money Paid back into it this month (ADR-0058), which `actual` and `difference` have taken
 	 * off, and who paid it; absent when none was. See `paymentsView`.
 	 */
-	paidBack?: { amount: Cents; who: string[] };
+	paidBack?: { amount: Cents; who: string[]; refunded?: Cents };
 };
 
 const commitmentStatus = (difference: number, charges: number, due: number): CommitmentStatus =>
@@ -235,12 +246,19 @@ export function monthState({
 	const elapsed = daysElapsed(plan.month, asOf);
 	const spentByBucket = new Map<string, Cents>();
 	const paidBackByBucket = new Map<string, Cents>();
+	// What of it came from Refunds linked to their purchases: said as "refunded", not "Paid back".
+	const refundedByBucket = new Map<string, Cents>();
 	for (const spend of spending) {
 		if (monthOfDay(spend.date) !== plan.month) continue;
 		if (spend.paidBack)
 			paidBackByBucket.set(
 				spend.bucketId,
 				(paidBackByBucket.get(spend.bucketId) ?? 0) - spend.amount,
+			);
+		if (spend.paidBack && spend.refund)
+			refundedByBucket.set(
+				spend.bucketId,
+				(refundedByBucket.get(spend.bucketId) ?? 0) - spend.amount,
 			);
 		spentByBucket.set(spend.bucketId, (spentByBucket.get(spend.bucketId) ?? 0) + spend.amount);
 	}
@@ -295,6 +313,7 @@ export function monthState({
 			available,
 			spent,
 			...(paidBackByBucket.get(bucket.id) ? { paidBack: paidBackByBucket.get(bucket.id) } : {}),
+			...(refundedByBucket.get(bucket.id) ? { refunded: refundedByBucket.get(bucket.id) } : {}),
 			left,
 			pace: { spent: paceSpent, leftShare: 1 - elapsed / days },
 			status,
@@ -305,6 +324,7 @@ export function monthState({
 	const paidBackByCommitment = new Map<string, Cents>();
 	// Who paid it back, by Commitment: "casey" and "Casey" are one person, as first written.
 	const paidBackBy = new Map<string, Map<string, string>>();
+	const refundedByCommitment = new Map<string, Cents>();
 	for (const charge of charges) {
 		if (monthOfDay(charge.date) !== plan.month) continue;
 		if (charge.paidBack) {
@@ -312,6 +332,11 @@ export function monthState({
 				charge.commitmentId,
 				(paidBackByCommitment.get(charge.commitmentId) ?? 0) + charge.amount,
 			);
+			if (charge.refund)
+				refundedByCommitment.set(
+					charge.commitmentId,
+					(refundedByCommitment.get(charge.commitmentId) ?? 0) - charge.amount,
+				);
 			const who = charge.who?.trim();
 			if (who) {
 				const people = paidBackBy.get(charge.commitmentId) ?? new Map<string, string>();
@@ -347,6 +372,9 @@ export function monthState({
 							who: [...(paidBackBy.get(commitment.id)?.values() ?? [])].sort((a, b) =>
 								a.localeCompare(b),
 							),
+							...(refundedByCommitment.get(commitment.id)
+								? { refunded: refundedByCommitment.get(commitment.id) }
+								: {}),
 						},
 					}
 				: {}),

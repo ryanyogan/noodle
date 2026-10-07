@@ -1,6 +1,6 @@
 import { Button } from "@noodle/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { dayName, formatMoney } from "../format";
 import type { MoneyInLine } from "../money-in";
 import { moneyInRefundQuery, useRefundLink } from "../refund-link";
@@ -15,6 +15,8 @@ export function RefundLinking({ line, today }: { line: MoneyInLine; today: strin
 	const id = useId();
 	const refund = useQuery(moneyInRefundQuery(line.id)).data;
 	const link = useRefundLink();
+	// The five likeliest are offered; the rest of what it could be for waits behind "Show more".
+	const [all, setAll] = useState(false);
 	if (!refund) return null;
 	if (refund.link) {
 		const { purchase, countsOn, ended } = refund.link;
@@ -43,6 +45,7 @@ export function RefundLinking({ line, today }: { line: MoneyInLine; today: strin
 			</div>
 		);
 	}
+	const offered = all ? [...refund.likely, ...refund.more] : refund.likely;
 	return (
 		<div className="grid gap-2" data-testid="refund-link">
 			<p id={`${id}-q`} className="text-sm text-muted-foreground">
@@ -52,7 +55,7 @@ export function RefundLinking({ line, today }: { line: MoneyInLine; today: strin
 			</p>
 			{refund.likely.length > 0 ? (
 				<ul className="grid gap-2" aria-labelledby={`${id}-q`}>
-					{refund.likely.map((purchase) => (
+					{offered.map((purchase) => (
 						<li
 							key={purchase.id}
 							className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
@@ -78,6 +81,17 @@ export function RefundLinking({ line, today }: { line: MoneyInLine; today: strin
 						</li>
 					))}
 				</ul>
+			) : null}
+			{refund.more.length > 0 && !all ? (
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className="justify-self-start"
+					onClick={() => setAll(true)}
+				>
+					Show more ({refund.more.length})
+				</Button>
 			) : null}
 		</div>
 	);

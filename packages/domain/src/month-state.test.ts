@@ -502,6 +502,53 @@ describe("monthState: what was Paid back this month is said apart from what was 
 		expect(paymentsView(plain)).toBe(plain);
 	});
 
+	it("keeps apart what a linked Refund gave back from what was Paid back", () => {
+		const state = monthState({
+			plan,
+			spending: [
+				{ bucketId: "kids", amount: -4_500 as never, date: "2026-10-03", paidBack: true },
+				{
+					bucketId: "kids",
+					amount: -2_000 as never,
+					date: "2026-10-05",
+					paidBack: true,
+					refund: true,
+				},
+			],
+			charges: [
+				{
+					commitmentId: "tuition",
+					amount: -60_000,
+					date: "2026-10-06",
+					paidBack: true,
+					who: "Casey",
+				},
+				{
+					commitmentId: "tuition",
+					amount: -2_000,
+					date: "2026-10-07",
+					paidBack: true,
+					refund: true,
+				},
+			] as Charge[],
+			asOf: "2026-10-20",
+		});
+		expect(state.buckets[0]).toMatchObject({ spent: -6_500, paidBack: 6_500, refunded: 2_000 });
+		expect(state.commitments[0]?.paidBack).toEqual({
+			amount: 62_000,
+			who: ["Casey"],
+			refunded: 2_000,
+		});
+		// With no Refund among it, nothing says "refunded".
+		const plain = monthState({
+			plan,
+			spending: [{ bucketId: "kids", amount: -4_500 as never, date: "2026-10-03", paidBack: true }],
+			charges: [],
+			asOf: "2026-10-20",
+		});
+		expect(plain.buckets[0]?.refunded).toBeUndefined();
+	});
+
 	it("keeps how much came back into a Bucket", () => {
 		const bucketOf = (spending: Parameters<typeof monthState>[0]["spending"]) =>
 			monthState({ plan, spending, charges: [], asOf: "2026-10-20" }).buckets[0];

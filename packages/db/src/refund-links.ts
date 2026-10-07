@@ -2,8 +2,9 @@ import {
 	addDays,
 	type Cents,
 	type DayKey,
-	likelyOriginals,
+	daysBetween,
 	type MonthKey,
+	merchantSimilarity,
 	monthEnded,
 	monthOfDay,
 	REFUND_WINDOW_DAYS,
@@ -34,7 +35,43 @@ export type MoneyInRefund = {
 	link: { purchase: RefundPurchase | null; countsOn: DayKey; ended: boolean } | null;
 	/** While it isn't linked: the purchases it is most likely money back for, likeliest first. */
 	likely: RefundPurchase[];
+	/** The other purchases it could be for, in the same order, behind "Show more". */
+	more: RefundPurchase[];
 };
+
+/** How many purchases a Refund is offered at first, and at most behind "Show more". */
+export const REFUND_PURCHASES_SHOWN = 5;
+export const REFUND_PURCHASES_MORE = 45;
+
+/**
+ * The purchases a Refund might be for, likeliest first: those whose wording the Refund's names,
+ * then the nearest in amount (a $42.10 Refund is for the $45 skates before the $1,850 Mortgage),
+ * then the most recent.
+ */
+export function rankRefundPurchases(
+	refund: { date: DayKey; amount: Cents; note: string | null },
+	purchases: RefundPurchase[],
+): RefundPurchase[] {
+	return purchases
+		.map((purchase) => ({
+			purchase,
+			similarity: merchantSimilarity(purchase.note, refund.note),
+			over: purchase.amount - refund.amount,
+			days: daysBetween(purchase.date, refund.date),
+		}))
+		.sort(
+			(a, b) =>
+				b.similarity - a.similarity ||
+				a.over - b.over ||
+				a.days - b.days ||
+				a.purchase.id.localeCompare(b.purchase.id),
+		)
+		.map(({ purchase }) => purchase);
+}
+
+/** What the Refunds already linked to a purchase have given it back, together. */
+const givenBack = sql`(select coalesce(sum(oi.amount_cents), 0) from refund_links ol
+	join income oi on oi.id = ol.income_id where ol.transaction_id = ${transactions.id})`;
 
 const runningFrom = (today: DayKey) => `${monthOfDay(today)}-01` as DayKey;
 
@@ -67,8 +104,10 @@ async function loadLink(db: Db, viewer: Viewer, incomeId: string) {
 
 /**
  * A Refund money-in line with the purchase it is linked to, or the purchases to pick from: ones
- * the viewer may change that count, are filed, came at least as much, and were bought in the 90
- * days up to the day the money landed. Null when the line isn't a Refund.
+ * the viewer may change that count, are filed, were bought in the 90 days up to the day the money
+ * landed, and cost at least as much as this Refund and the Refunds already linked to them
+ * together. The five likeliest come first, the rest behind "Show more". Null when the line isn't
+ * a Refund.
  */
 export async function loadMoneyInRefund(
 	db: Db,
@@ -96,6 +135,7 @@ export async function loadMoneyInRefund(
 				ended: countsOn < runningFrom(today),
 			},
 			likely: [],
+			more: [],
 		};
 	}
 	const purchases = (await db
@@ -103,27 +143,25 @@ export async function loadMoneyInRefund(
 			id: transactions.id,
 			date: transactions.date,
 			amount: transactions.amountCents,
-			text: transactions.note,
+			note: transactions.note,
 		})
 		.from(transactions)
 		.where(
 			and(
 				changeableBy(viewer),
 				counts(),
-				gte(transactions.amountCents, line.amount),
+				sql`${transactions.amountCents} >= ${givenBack} + ${line.amount}`,
 				gte(transactions.date, addDays(line.date, -REFUND_WINDOW_DAYS)),
 				lte(transactions.date, line.date),
 				assigned(),
 			),
-		)) as { id: string; date: DayKey; amount: Cents; text: string | null }[];
-	const likely = likelyOriginals(
-		{ id: line.id, date: line.date, amount: line.amount, text: line.note },
-		purchases,
-	);
+		)) as RefundPurchase[];
+	const ranked = rankRefundPurchases(line, purchases);
 	return {
 		line,
 		link: null,
-		likely: likely.map(({ id, date, amount, text }) => ({ id, date, amount, note: text })),
+		likely: ranked.slice(0, REFUND_PURCHASES_SHOWN),
+		more: ranked.slice(REFUND_PURCHASES_SHOWN, REFUND_PURCHASES_SHOWN + REFUND_PURCHASES_MORE),
 	};
 }
 
@@ -278,13 +316,14 @@ export async function refundSpendingRows(db: Db, viewer: Viewer, from: DayKey, u
 			),
 		)
 		.orderBy(refundLinks.countsOn, refundLinks.incomeId);
-	return rows;
+	// Marked, so the month can say "refunded" and not "Paid back", which is Owed back's word.
+	return rows.map((row) => ({ ...row, refund: true as const }));
 }
 
 /** Linked Refunds into Commitments on days from `from` to `to` (inclusive), as negative charges. */
 export async function refundChargeRows(db: Db, viewer: Viewer, from: DayKey, to: DayKey) {
 	const commitment = restored("commitment_id", sql`${transactions.commitmentId}`);
-	return db
+	const rows = await db
 		.select({
 			id: refundLinks.transactionId,
 			commitmentId: commitment.as("restored_commitment_id"),
@@ -303,6 +342,7 @@ export async function refundChargeRows(db: Db, viewer: Viewer, from: DayKey, to:
 			),
 		)
 		.orderBy(refundLinks.countsOn, refundLinks.incomeId);
+	return rows.map((row) => ({ ...row, refund: true as const }));
 }
 
 /** Linked Refunds into each Bucket in each month from `since` up to, not including, `month`. */
