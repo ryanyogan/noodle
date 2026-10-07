@@ -109,13 +109,14 @@ export class SnapshotRestoreWorkflow extends WorkflowEntrypoint<Env, RestorePara
 			const deps = clearDeps(householdId);
 			for (const connectionId of await linkedBankConnectionIds(getDb(), householdId)) {
 				if (keep.has(connectionId)) continue;
+				// By the Parent who asked for the restore, as the Log says it.
 				if (!deps.bank) {
-					await removeBankConnection(getDb(), householdId, connectionId);
+					await removeBankConnection(getDb(), householdId, connectionId, parentId);
 					continue;
 				}
 				const result = await disconnectBankConnection(
 					{ db: getDb(), ...deps.bank },
-					{ householdId, connectionId },
+					{ householdId, connectionId, memberId: parentId },
 				);
 				if (!result.ok && result.reason === "bank") throw new Error("Couldn’t disconnect a bank");
 			}

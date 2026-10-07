@@ -85,6 +85,39 @@ describe("restoring a snapshot", () => {
 		expect(await exportHouseholdRows(db, theirs)).toEqual(theirsBefore);
 	});
 
+	it("brings the Log's own record back as it was when the snapshot was taken", async () => {
+		const [parent] = await db
+			.select({ id: s.members.id })
+			.from(s.members)
+			.where(eq(s.members.householdId, ours));
+		const event = (id: string, name: string) => ({
+			id,
+			householdId: ours,
+			kind: "rule-removed" as const,
+			name,
+			detail: "Groceries",
+			memberId: parent?.id ?? null,
+			createdAt: new Date(Date.UTC(2026, 8, 20)),
+		});
+		await db.insert(s.logEvents).values(event("then:removed", "costco"));
+		const before = await exportHouseholdRows(db, ours);
+		expect(before.tables.logEvents).toHaveLength(1);
+
+		// Since the snapshot: a Fresh start (which keeps the record) and one more thing removed.
+		await clearHouseholdRows(db, ours, "fresh-start");
+		await db.insert(s.logEvents).values(event("since:removed", "target"));
+		await restoreHouseholdRows(db, ours, fileOf(ours, before.tables));
+
+		const after = await exportHouseholdRows(db, ours);
+		expect(after.tables.logEvents).toEqual(before.tables.logEvents);
+		expect(
+			(await db.select().from(s.logEvents).where(eq(s.logEvents.householdId, ours))).map(
+				(row) => row.id,
+			),
+		).toEqual(["then:removed"]);
+		await db.delete(s.logEvents).where(eq(s.logEvents.householdId, ours));
+	});
+
 	it("can run again over itself (a retried Workflow step)", async () => {
 		const before = await exportHouseholdRows(db, ours);
 		await restoreHouseholdRows(db, ours, fileOf(ours, before.tables));

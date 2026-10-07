@@ -527,7 +527,11 @@ export const restoreAccount = createServerFn({ method: "POST" })
 	.validator(z.object({ accountId: ulidSchema }))
 	.handler(async ({ data, context }): Promise<{ ok: boolean }> => {
 		const householdId = context.household.id;
-		const ok = await restoreAccountInDb(getDb(), { householdId, accountId: data.accountId });
+		const ok = await restoreAccountInDb(getDb(), {
+			householdId,
+			accountId: data.accountId,
+			memberId: context.parent.id,
+		});
 		if (ok) await notifyHousehold(householdId, ["goals", "bank-connections"]);
 		return { ok };
 	});

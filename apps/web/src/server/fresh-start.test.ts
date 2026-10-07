@@ -8,6 +8,8 @@ import {
 	type HouseholdTableName,
 	learnedMerchants,
 	linkedBankConnectionIds,
+	listMembers,
+	loadLog,
 	recordLearnedMerchant,
 	scheduleFreshStart,
 	startFreshStartRun,
@@ -200,6 +202,20 @@ describe("a fresh start", () => {
 		expect(vectorsOf(b).length).toBeGreaterThan(1);
 		expect(storageFor(b).data.size).toBe(2);
 		expect(storageFor(b).alarm).not.toBeNull();
+	});
+
+	it("says in the Log who asked, on each Bank Connection it disconnected", async () => {
+		const parent = (await listMembers(db, a)).find((member) => member.kind === "parent");
+		if (!parent) throw new Error("The seed has a Parent");
+		const linked = await linkedBankConnectionIds(db, a);
+		expect(linked.length).toBeGreaterThan(0);
+		await clearHousehold(deps(), a, "fresh-start", parent.id);
+		const viewer = { householdId: a, memberId: parent.id };
+		const events = (await loadLog(db, viewer, { item: "bank-connection", limit: 100 })).rows.filter(
+			(row) => row.source === "event" && row.event === "bank-connection-removed",
+		);
+		expect(events).toHaveLength(linked.length);
+		expect(events.map((row) => row.memberId)).toEqual(linked.map(() => parent.id));
 	});
 
 	it("runs again safely, finding nothing more to clear", async () => {

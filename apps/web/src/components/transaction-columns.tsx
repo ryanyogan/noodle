@@ -17,7 +17,7 @@ import { monogram } from "../buckets";
 import { askCardPayment } from "../card-payments";
 import { shortDay } from "../format";
 import { cellEdits, forEdits } from "../transaction-cells";
-import type { RowView } from "../transaction-row";
+import { FOR_DIFFERS, type RowView } from "../transaction-row";
 import { editsInCell } from "../transaction-table";
 import type { TransactionRow } from "../transactions";
 import {
@@ -37,6 +37,9 @@ import {
 export type TransactionTableRow = { transaction: TransactionRow; view: RowView };
 
 const pill = "h-4.5 px-1.5 text-[11px]";
+
+/** What the For column says for FOR_DIFFERS: short enough to fit it at its narrowest. */
+const FOR_DIFFERS_SHORT = "Differs by Split";
 
 /**
  * A Quick Add whose bank copy hasn't come in. Where the badge sits beside the name and the window
@@ -246,10 +249,19 @@ function NameCell({
 							) : null}
 						</>
 					) : (
-						<span aria-hidden="true" className="truncate">
-							{dated ? `${shortDay(transaction.date)} · ` : ""}
-							{view.detail}
-						</span>
+						<>
+							<span aria-hidden="true" className="min-w-0 truncate">
+								{dated ? `${shortDay(transaction.date)} · ` : ""}
+								{view.detail}
+							</span>
+							{/* A split one whose Splits are For different people: said here in words, whole,
+							    as its column says it on a wide table (issue 141). */}
+							{view.who === FOR_DIFFERS ? (
+								<span aria-hidden="true" className="shrink-0 whitespace-nowrap">
+									· {FOR_DIFFERS}
+								</span>
+							) : null}
+						</>
 					)}
 				</span>
 			</span>
@@ -341,8 +353,9 @@ export function transactionColumns({
 		{
 			id: "for",
 			header: "For",
-			min: 5,
-			width: "minmax(4.5rem,0.8fr)",
+			min: 7,
+			// Wide enough for the longest thing it says in words ("Differs by Split").
+			width: "minmax(7rem,0.8fr)",
 			priority: 3,
 			stacked: "hidden",
 			className: "text-muted-foreground",
@@ -363,6 +376,11 @@ export function transactionColumns({
 						names={view.forNames}
 						cells={cells}
 					/>
+				) : view.who === FOR_DIFFERS ? (
+					// Shorter words than the row's own, so the column never cuts them.
+					<span className="truncate" title={FOR_DIFFERS}>
+						{FOR_DIFFERS_SHORT}
+					</span>
 				) : (
 					<span className="truncate">{view.who}</span>
 				),

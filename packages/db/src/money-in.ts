@@ -13,7 +13,11 @@ import { incomeCounts } from "./counting";
 import { endedBefore, lineEndedRestores } from "./ended-months";
 import { decidedSql, extraIncomeSql } from "./extra-income";
 import type { Db } from "./index";
-import { moneyInRuleRemovedEvents } from "./log-events";
+import {
+	moneyInPairRemovedEvents,
+	moneyInRulePairForgottenEvents,
+	moneyInRuleRemovedEvents,
+} from "./log-events";
 import {
 	accounts,
 	income,
@@ -603,7 +607,14 @@ export async function saveMoneyInRule(
 	const pay = input.kind === "income" ? input.payMemberId : null;
 	const pattern = input.wording.trim() ? merchantKey(input.wording) : "";
 	if (!pattern) return null;
+	const thePairs = and(
+		eq(moneyInPairs.householdId, viewer.householdId),
+		eq(moneyInPairs.pattern, pattern),
+	) as SQL;
 	await db.batch([
+		// The Log's record of the pairs this forgets, from either home, before they go.
+		...moneyInPairRemovedEvents(db, thePairs, viewer.memberId),
+		...moneyInRulePairForgottenEvents(db, viewer.householdId, pattern, viewer.memberId),
 		db
 			.insert(moneyInRules)
 			.values({
@@ -625,11 +636,7 @@ export async function saveMoneyInRule(
 				},
 			}),
 		// Every pair the wording had, whichever Account it was into.
-		db
-			.delete(moneyInPairs)
-			.where(
-				and(eq(moneyInPairs.householdId, viewer.householdId), eq(moneyInPairs.pattern, pattern)),
-			),
+		db.delete(moneyInPairs).where(thePairs),
 	]);
 	return pattern;
 }
@@ -867,14 +874,17 @@ export async function deleteMoneyInRule(
 	ruleId: string,
 	memberId?: string,
 ) {
+	const thePair = and(
+		eq(moneyInPairs.id, ruleId),
+		eq(moneyInPairs.householdId, householdId),
+	) as SQL;
 	await db.batch([
 		...moneyInRuleRemovedEvents(db, householdId, ruleId, memberId),
+		...moneyInPairRemovedEvents(db, thePair, memberId),
 		db
 			.delete(moneyInRules)
 			.where(and(eq(moneyInRules.id, ruleId), eq(moneyInRules.householdId, householdId))),
-		db
-			.delete(moneyInPairs)
-			.where(and(eq(moneyInPairs.id, ruleId), eq(moneyInPairs.householdId, householdId))),
+		db.delete(moneyInPairs).where(thePair),
 	]);
 }
 

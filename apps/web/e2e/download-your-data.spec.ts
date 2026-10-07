@@ -71,7 +71,11 @@ test("prepare, download and open the ZIP; another Household's link is refused", 
 			"accounts.csv",
 			"plan.csv",
 			"plan-changes.csv",
+			"log-removed.csv",
 			"rules.csv",
+			"money-in.csv",
+			"money-in-rules.csv",
+			"card-payment-rules.csv",
 			"owed-back.csv",
 			"paid-back.csv",
 			"refund-links.csv",
@@ -82,7 +86,7 @@ test("prepare, download and open the ZIP; another Household's link is refused", 
 		.trim()
 		.split("\r\n");
 	expect(transactions[0]).toBe(
-		"Date,Account,Merchant,Note,Amount,Bucket,Commitment,Goal,Splits,For",
+		"Date,Account,Merchant,Note,Amount,Bucket,Commitment,Goal,Splits,For,Bank took it back on,Bank lowered it to",
 	);
 	expect(transactions).toHaveLength(2);
 	expect(transactions[1]).toContain('"Farmers, ""market""",42.1,Groceries');

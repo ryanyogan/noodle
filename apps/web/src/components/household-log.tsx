@@ -139,6 +139,8 @@ function eventChange(row: Extract<DatedLogRow, { source: "event" }>): string {
 			return "Access was taken away at the bank";
 		case "account-archived":
 			return "Archived";
+		case "account-restored":
+			return "Brought back from the archive";
 	}
 }
 

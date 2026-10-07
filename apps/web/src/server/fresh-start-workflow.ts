@@ -198,7 +198,9 @@ export class FreshStartWorkflow extends WorkflowEntrypoint<Env, FreshStartParams
 					(await learnedMerchants(getDb(), householdId)).includes(merchantKey(E2E_FAILING_NOTE))
 				)
 					throw new Error("E2E: this clear was made to fail");
-				await runClearStep(clearDeps(householdId), key, householdId, level);
+				// Who asked, so the Log says who disconnected each Bank Connection.
+				const by = key === "banks" ? (await loadFreshStart(getDb(), id))?.requestedBy : undefined;
+				await runClearStep(clearDeps(householdId), key, householdId, level, undefined, by);
 			});
 			if (!went) return NOT_MINE;
 		}

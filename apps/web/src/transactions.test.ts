@@ -104,6 +104,18 @@ describe("withTransactionChange: editing reassigns spending in the month's state
 		expect(spentIn(edited)).toEqual({ groceries: 23_642, hockey: 0 });
 	});
 
+	test("changing only who it was For says so on its spending at once, and moves no money", () => {
+		const edited = withTransactionChange(month, change({ for: ["kid"] }));
+		const own = (data: MonthData) => data.spending.filter((spend) => spend.id === skates.id);
+		expect(own(month).length).toBeGreaterThan(0);
+		expect(own(edited).map((spend) => spend.for)).toEqual(own(month).map(() => ["kid"]));
+		expect(edited.spending.filter((spend) => spend.id !== skates.id)).toEqual(
+			month.spending.filter((spend) => spend.id !== skates.id),
+		);
+		expect(spentIn(edited)).toEqual(spentIn(month));
+		expect(edited.charges).toBe(month.charges);
+	});
+
 	test("deleting a Transaction takes its spending out", () => {
 		expect(spentIn(withTransactionChange(month, change(null)))).toEqual({
 			groceries: 18_642,

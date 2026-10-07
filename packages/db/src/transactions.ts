@@ -1421,6 +1421,14 @@ const sameMembers = (a: readonly string[], b: readonly string[]) =>
  * Allowance, even through one Split: ADR-0003), and still at the version it was made on
  * (ADR-0041). Members who aren't the Household's are left out. Safe to retry: a repeat of one
  * that landed finds the Transaction one version on and For as asked, and writes nothing.
+ *
+ * No ended-month guard, on purpose (`movesEndedMonth` is for what moves money): For is not part
+ * of anything a month closes with. A month's close stores only its Sweeps and Extra income as
+ * Moves, worked out from what each Bucket spent; Personal Allowance spending goes by the Bucket a
+ * Transaction is filed in, never by For; and money Paid back or refunded restores the purchase's
+ * Bucket or Commitment whoever it was For. Only Reports by Member read For, and they are read
+ * afresh each time, for past months as for this one: correcting who a purchase was For in a
+ * month that has ended is a correction a Parent may make, as `updateTransaction` lets them.
  */
 export async function setTransactionFor(
 	db: Db,

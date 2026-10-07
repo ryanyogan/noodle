@@ -1419,9 +1419,15 @@ test("For is changed from the chips of a Transaction with no Bucket and of a spl
 	// Splits For different people: said in words, and nothing there to press.
 	await expect(forChips(page, "Mixed M")).toHaveCount(0);
 	await expect(row(page, "Mixed M")).toHaveAccessibleName(/For Different for each Split$/);
-	await expect(
-		list(page).locator("[data-transaction]").filter({ hasText: "Mixed M" }),
-	).toContainText("Different for each Split");
+	// The For column says it whole: shorter words there, never cut off.
+	const mixedFor = list(page)
+		.locator("[data-transaction]")
+		.filter({ hasText: "Mixed M" })
+		.locator('[data-column="for"]')
+		.getByText("Differs by Split", { exact: true });
+	await expect(mixedFor).toBeVisible();
+	await expect(mixedFor).toHaveAttribute("title", "Different for each Split");
+	expect(await mixedFor.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 
 	// Kept by the server: there after a reload.
 	await page.reload();
@@ -1457,6 +1463,14 @@ test("on a phone the For chips of a Transaction with no Bucket and of a split on
 	}
 	// Nothing to press where the Splits are For different people.
 	await expect(forChips(page, "Mixed M")).toHaveCount(0);
+	// Its second line says so in words, whole, after what it is split across.
+	const mixedLine = list(page)
+		.locator("[data-transaction]")
+		.filter({ hasText: "Mixed M" })
+		.getByText("Different for each Split", { exact: false })
+		.locator("visible=true");
+	await expect(mixedLine).toHaveCount(1);
+	expect(await mixedLine.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 	// Nothing runs off the side of the screen.
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
 	await page.screenshot({ path: ".tmp-shots/for-chips-393.png" });

@@ -1,4 +1,5 @@
 import type { DayKey } from "@noodle/domain";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
@@ -16,7 +17,15 @@ import {
 	setTakeHomePay,
 	type Viewer,
 } from "./index";
-import { members } from "./schema";
+import {
+	accounts,
+	cardPaymentRules,
+	income,
+	members,
+	moneyInPairs,
+	moneyInRules,
+	transactions,
+} from "./schema";
 import { testDb } from "./test-db";
 
 // What a Parent's "Download your data" reads (ADR-0028): everything they see in the app, and the
@@ -145,6 +154,170 @@ describe("loadExportData", () => {
 			.filter((spend) => spend.bucketId === "alex-pa")
 			.reduce((sum, spend) => sum + spend.amount, 0);
 		expect(shown).toBe(5_000);
+	});
+
+	it("carries the Rules for money in, remembered pairs of Accounts and card payments", async () => {
+		await db.insert(accounts).values([
+			{ id: "checking", householdId, name: "Checking", kind: "checking" },
+			{ id: "savings", householdId, name: "Savings", kind: "savings" },
+			{ id: "visa", householdId, name: "Visa", kind: "credit-card" },
+		] as (typeof accounts.$inferInsert)[]);
+		const at = (n: number) => new Date(Date.UTC(2026, 8, n));
+		await db.insert(moneyInRules).values([
+			{
+				id: "pay",
+				householdId,
+				pattern: "acme payroll",
+				kind: "income",
+				payMemberId: "sam",
+				createdByMemberId: "alex",
+				createdAt: at(1),
+			},
+			// A pair kept before pairs had their own table.
+			{
+				id: "old",
+				householdId,
+				pattern: "old transfer",
+				kind: "transfer",
+				intoAccountId: "checking",
+				otherAccountId: "savings",
+				createdByMemberId: "sam",
+				createdAt: at(2),
+			},
+			// One said again since: the pair in its own table speaks for it.
+			{
+				id: "shadowed",
+				householdId,
+				pattern: "new transfer",
+				kind: "transfer",
+				intoAccountId: "checking",
+				otherAccountId: "visa",
+				createdAt: at(3),
+			},
+		]);
+		await db.insert(moneyInPairs).values({
+			id: "new",
+			householdId,
+			pattern: "new transfer",
+			intoAccountId: "checking",
+			otherAccountId: "savings",
+			createdByMemberId: "alex",
+			createdAt: at(4),
+		});
+		await db.insert(cardPaymentRules).values([
+			{
+				id: "card",
+				householdId,
+				pattern: "visa payment",
+				accountId: "visa",
+				createdByMemberId: "sam",
+				createdAt: at(5),
+			},
+			{ id: "card-2", householdId, pattern: "store card", accountId: null, createdAt: at(6) },
+		]);
+		// Rules for money in are the Household's: both Parents get the same.
+		for (const viewer of [alex, sam]) {
+			const data = await load(viewer);
+			expect(data.moneyInRules).toEqual([
+				{
+					pattern: "acme payroll",
+					kind: "income",
+					intoAccount: null,
+					otherAccount: null,
+					payMemberId: "sam",
+					createdBy: "Alex",
+					createdAt: at(1).getTime(),
+				},
+				{
+					pattern: "new transfer",
+					kind: "transfer",
+					intoAccount: "Checking",
+					otherAccount: "Savings",
+					payMemberId: null,
+					createdBy: "Alex",
+					createdAt: at(4).getTime(),
+				},
+				{
+					pattern: "old transfer",
+					kind: "transfer",
+					intoAccount: "Checking",
+					otherAccount: "Savings",
+					payMemberId: null,
+					createdBy: "Sam",
+					createdAt: at(2).getTime(),
+				},
+			]);
+			expect(data.cardPaymentRules).toEqual([
+				{ pattern: "store card", card: null, createdBy: null, createdAt: at(6).getTime() },
+				{ pattern: "visa payment", card: "Visa", createdBy: "Sam", createdAt: at(5).getTime() },
+			]);
+		}
+	});
+
+	it("carries money in, and what the bank took back or lowered after a month ended", async () => {
+		await db.insert(accounts).values({
+			id: "checking",
+			householdId,
+			name: "Checking",
+			kind: "checking",
+		} as typeof accounts.$inferInsert);
+		await addIncome(db, {
+			householdId,
+			incomeId: "pay",
+			date: "2026-09-15" as DayKey,
+			amountCents: 250_000,
+			note: "ACME PAYROLL",
+			createdByMemberId: "alex",
+		});
+		await addIncome(db, {
+			householdId,
+			incomeId: "back",
+			date: "2026-09-02" as DayKey,
+			amountCents: 4_000,
+			note: "STORE REFUND",
+			createdByMemberId: "alex",
+		});
+		await db
+			.update(income)
+			.set({ accountId: "checking", bankTookBackOn: "2026-10-03", bankAmountCents: 1_500 })
+			.where(eq(income.id, "back"));
+		await db.update(income).set({ payMemberId: "sam" }).where(eq(income.id, "pay"));
+		await db
+			.update(transactions)
+			.set({ bankTookBackOn: "2026-10-04", bankAmountCents: null })
+			.where(eq(transactions.id, "milk"));
+		const data = await load(sam);
+		expect(
+			data.moneyIn.map((line) => ({ ...line, kind: undefined, needsReview: undefined })),
+		).toEqual([
+			{
+				id: "back",
+				date: "2026-09-02",
+				note: "STORE REFUND",
+				amountCents: 4_000,
+				account: "Checking",
+				otherAccount: null,
+				payMemberId: null,
+				bankTookBackOn: "2026-10-03",
+				bankAmountCents: 1_500,
+			},
+			{
+				id: "pay",
+				date: "2026-09-15",
+				note: "ACME PAYROLL",
+				amountCents: 250_000,
+				account: null,
+				otherAccount: null,
+				payMemberId: "sam",
+				bankTookBackOn: null,
+				bankAmountCents: null,
+			},
+		]);
+		expect(data.moneyIn.map((line) => line.kind)).toEqual(["income", "income"]);
+		expect(data.transactions.find((t) => t.id === "milk")).toMatchObject({
+			bankTookBackOn: "2026-10-04",
+			bankAmount: null,
+		});
 	});
 
 	it("carries the Plan for each month and the Household's names", async () => {

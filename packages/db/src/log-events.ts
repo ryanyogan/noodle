@@ -1,5 +1,5 @@
 import { LOG_PAIR_DETAIL, type LogEventKind } from "@noodle/domain";
-import { and, asc, eq, isNull, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { Db } from "./index";
 import type { Viewer } from "./privacy";
@@ -11,6 +11,7 @@ import {
 	commitments,
 	logEvents,
 	members,
+	moneyInPairs,
 	moneyInRules,
 	rules,
 } from "./schema";
@@ -122,6 +123,74 @@ export function moneyInRuleRemovedEvents(
 	] as const;
 }
 
+/**
+ * Remembered pairs of Accounts are about to be removed from their own table: each as it was made,
+ * and its removal. `thePairs` is the removal's own condition (one pair, or every pair a wording
+ * has). They read in the Log as a money-in Rule that remembered a pair does.
+ */
+export function moneyInPairRemovedEvents(
+	db: Db,
+	thePairs: SQL,
+	memberId?: string | null,
+	now = new Date(),
+) {
+	const shared = { name: sql`${moneyInPairs.pattern}`, detail: sql`${LOG_PAIR_DETAIL}` };
+	const household = sql`${moneyInPairs.householdId}`;
+	return [
+		eventFrom(db, moneyInPairs, household, thePairs, {
+			...shared,
+			id: idOf(sql`${moneyInPairs.id}`, ":made"),
+			kind: "money-in-rule-made",
+			memberId: sql`${moneyInPairs.createdByMemberId}`,
+			at: sql`${moneyInPairs.createdAt}`,
+		}),
+		eventFrom(db, moneyInPairs, household, thePairs, {
+			...shared,
+			id: idOf(sql`${moneyInPairs.id}`, ":removed"),
+			kind: "money-in-rule-removed",
+			memberId: by(memberId),
+			at: at(now),
+		}),
+	] as const;
+}
+
+/**
+ * A wording is about to be stated plainly, which forgets a pair of Accounts kept the old way (on
+ * the money-in Rule itself): the pair as it was made, and its going. The Rule's row stays as the
+ * plain Rule, so these have IDs of their own and its later removal is still recorded.
+ */
+export function moneyInRulePairForgottenEvents(
+	db: Db,
+	householdId: string,
+	pattern: string,
+	memberId?: string | null,
+	now = new Date(),
+) {
+	const thePair = and(
+		eq(moneyInRules.householdId, householdId),
+		eq(moneyInRules.pattern, pattern),
+		isNotNull(moneyInRules.intoAccountId),
+	) as SQL;
+	const shared = { name: sql`${moneyInRules.pattern}`, detail: sql`${LOG_PAIR_DETAIL}` };
+	const household = sql`${moneyInRules.householdId}`;
+	return [
+		eventFrom(db, moneyInRules, household, thePair, {
+			...shared,
+			id: idOf(sql`${moneyInRules.id}`, ":pair-made"),
+			kind: "money-in-rule-made",
+			memberId: sql`${moneyInRules.createdByMemberId}`,
+			at: sql`${moneyInRules.createdAt}`,
+		}),
+		eventFrom(db, moneyInRules, household, thePair, {
+			...shared,
+			id: idOf(sql`${moneyInRules.id}`, `:pair-removed:${now.getTime()}`),
+			kind: "money-in-rule-removed",
+			memberId: by(memberId),
+			at: at(now),
+		}),
+	] as const;
+}
+
 /** A card payment's wording is about to be forgotten: as it was remembered, and its removal. */
 export function cardPaymentForgottenEvents(
 	db: Db,
@@ -191,6 +260,25 @@ export function accountArchivedEvent(
 	return eventFrom(db, accounts, sql`${accounts.householdId}`, archivedNow, {
 		id: idOf(sql`${accounts.id}`, `:archived:${input.now.getTime()}`),
 		kind: "account-archived",
+		name: sql`${accounts.name}`,
+		memberId: by(input.memberId),
+		at: at(input.now),
+	});
+}
+
+/** An archived Account is about to be brought back (to run BEFORE the write, in its batch). */
+export function accountRestoredEvent(
+	db: Db,
+	input: { householdId: string; accountId: string; memberId?: string | null; now: Date },
+) {
+	const archived = and(
+		eq(accounts.id, input.accountId),
+		eq(accounts.householdId, input.householdId),
+		isNotNull(accounts.archivedAt),
+	) as SQL;
+	return eventFrom(db, accounts, sql`${accounts.householdId}`, archived, {
+		id: idOf(sql`${accounts.id}`, `:restored:${input.now.getTime()}`),
+		kind: "account-restored",
 		name: sql`${accounts.name}`,
 		memberId: by(input.memberId),
 		at: at(input.now),

@@ -227,9 +227,19 @@ export function withTransactionChange(data: MonthData, change: TransactionChange
 	const next = change.next;
 	// A new name moves no money.
 	if (next && "rename" in next) return data;
-	// Only who it was For: an unassigned one is in no Bucket's spending, and a split one's parts
-	// come back with the month.
-	if (next && "for" in next) return data;
+	// Only who it was For: no money moves. What it (or each of its Splits, which all take the new
+	// For) spent in a Bucket says the new For at once, so figures by person don't wait for the
+	// month to come back. Money back on it is its own entry and stays as it is; an unassigned one
+	// is in no Bucket's spending, and Commitment charges are For nobody.
+	if (next && "for" in next) {
+		const whose = next.for;
+		return {
+			...data,
+			spending: data.spending.map((spend) =>
+				spend.id === id && !spend.paidBack ? { ...spend, for: whose } : spend,
+			),
+		};
+	}
 	const spending = data.spending.filter((spend) => spend.id !== id);
 	const charges = data.charges.filter((charge) => charge.id !== id);
 	if (next) {

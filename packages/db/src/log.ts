@@ -39,6 +39,7 @@ import {
 	householdSnapshots,
 	logEvents,
 	members,
+	moneyInPairs,
 	moneyInRules,
 	planChanges,
 	rules,
@@ -49,7 +50,7 @@ import {
 // Rules for money in and card payments remembered (each as made), Household snapshots other than
 // the nightly ones, Fresh starts and Bank Connections; and its own record (`log_events`, issue
 // 141) of what leaves no row behind: a Rule removed, with the Rule as it was made, a Bank
-// Connection disconnected, an Account archived. Changes to single Transactions are not in it.
+// Connection disconnected, an Account archived or brought back. Changes to single Transactions are not in it.
 //
 // The order is when (newest first), then the source in the order below, then the row's own ID
 // (newest first). Each source gives its next few rows after the cursor and the page is the
@@ -70,6 +71,8 @@ const SOURCES = [
 	"money-in-rule",
 	"card-payment-rule",
 	"event",
+	// Last, so a cursor made before pairs had a table of their own still names its place.
+	"money-in-pair",
 ] as const;
 type Source = (typeof SOURCES)[number];
 const rankOf = (source: Source) => SOURCES.indexOf(source);
@@ -99,7 +102,8 @@ export type LogPage = { rows: LogRow[]; next: LogCursor | null };
 
 /** The sources that hold changes to one kind of item. */
 const sourcesOf = (item: LogItemKind): readonly Source[] => {
-	if (item === "rule") return ["rule", "money-in-rule", "card-payment-rule", "event"];
+	if (item === "rule")
+		return ["rule", "money-in-rule", "money-in-pair", "card-payment-rule", "event"];
 	if (item === "bank-connection") return ["bank-connection", "event"];
 	if (item === "account") return ["event"];
 	return item === "snapshot" || item === "fresh-start" ? [item] : ["plan"];
@@ -189,6 +193,7 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 		moneyInRows,
 		cardPaymentRows,
 		eventRows,
+		pairRows,
 	] = await db.batch([
 		selectPlanChanges(
 			db,
@@ -283,6 +288,13 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 				memberName: sql<string | null>`${members.name}`.as("member_name"),
 				institution: bankConnections.institution,
 				status: bankConnections.status,
+				// Its disconnecting has a row of its own in the Log (since issue 141).
+				recorded:
+					sql<number>`exists (select 1 from log_events le where le.household_id = ${bankConnections.householdId}
+						and le.kind in ('bank-connection-removed', 'bank-connection-disconnected')
+						and substr(le.id, 1, length(${bankConnections.id}) + 1) = ${bankConnections.id} || ':')`.as(
+						"recorded",
+					),
 			})
 			.from(bankConnections)
 			.leftJoin(members, who(bankConnections.createdByMemberId))
@@ -370,6 +382,28 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 			)
 			.orderBy(...ordered(logEvents.createdAt, logEvents.id))
 			.limit(limit + 1),
+		// Remembered pairs of Accounts in their own table (issue 141); ones kept before it are
+		// money-in Rules above.
+		db
+			.select({
+				id: moneyInPairs.id,
+				at: moneyInPairs.createdAt,
+				memberId: moneyInPairs.createdByMemberId,
+				memberName: sql<string | null>`${members.name}`.as("member_name"),
+				pattern: moneyInPairs.pattern,
+			})
+			.from(moneyInPairs)
+			.leftJoin(members, who(moneyInPairs.createdByMemberId))
+			.where(
+				and(
+					eq(moneyInPairs.householdId, viewer.householdId),
+					wanted("money-in-pair"),
+					by(moneyInPairs.createdByMemberId),
+					afterCursor("money-in-pair", moneyInPairs.createdAt, moneyInPairs.id),
+				),
+			)
+			.orderBy(...ordered(moneyInPairs.createdAt, moneyInPairs.id))
+			.limit(limit + 1),
 	]);
 
 	const ranked = <S extends Source>(source: S, id: string | number, row: LogRow): Ranked => ({
@@ -437,7 +471,8 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 				month: null,
 				source: "bank-connection",
 				institution: row.institution,
-				disconnected: row.status === "disconnected",
+				// One disconnected before the Log kept such rows says so here, or nothing would.
+				disconnected: row.status === "disconnected" && !row.recorded,
 			}),
 		),
 		...moneyInRows.map((row) =>
@@ -470,6 +505,17 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 				event: row.event,
 				name: row.itemName,
 				detail: row.detail,
+			}),
+		),
+		...pairRows.map((row) =>
+			ranked("money-in-pair", row.id, {
+				...head("money-in-pair", row),
+				item: "rule",
+				month: null,
+				source: "money-in-rule",
+				pattern: row.pattern,
+				kind: "transfer",
+				pair: true,
 			}),
 		),
 	].sort(inOrder(sort));

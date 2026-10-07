@@ -180,6 +180,8 @@ export const forgetCardPayment = createServerFn({ method: "POST" })
 	.validator(z.object({ pattern: z.string().min(1).max(200) }))
 	.handler(async ({ data, context }) => {
 		await forgetCard(getDb(), context.household.id, data.pattern, context.parent.id);
+		// The other Parent's Rules page, and a Log left open, read it again.
+		await notifyHousehold(context.household.id, ["rules"]);
 		return { ok: true };
 	});
 

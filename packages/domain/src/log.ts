@@ -61,6 +61,7 @@ export type LogRow = {
 	| { source: "rule"; pattern: string; targetName: string | null }
 	| { source: "snapshot"; kind: LogSnapshotKind; note: string | null }
 	| { source: "fresh-start"; status: LogFreshStartStatus }
+	/** `disconnected`: disconnected since, with no record of its own in the Log saying so. */
 	| { source: "bank-connection"; institution: string | null; disconnected: boolean }
 	/** A Rule for money in that still stands; `pair` when it remembers a pair of Accounts. */
 	| { source: "money-in-rule"; pattern: string; kind: MoneyInKind; pair: boolean }
@@ -73,7 +74,8 @@ export type LogRow = {
 /**
  * What the Log keeps a record of itself (issue 141), because no other row survives it: a Rule
  * removed (with the Rule as it was made, written at the same moment), a Bank Connection
- * disconnected by a Parent ("removed") or at the bank ("disconnected"), an Account archived.
+ * disconnected by a Parent ("removed") or at the bank ("disconnected"), an Account archived, and
+ * an archived Account brought back.
  */
 export const LOG_EVENT_KINDS = [
 	"rule-made",
@@ -85,6 +87,7 @@ export const LOG_EVENT_KINDS = [
 	"bank-connection-removed",
 	"bank-connection-disconnected",
 	"account-archived",
+	"account-restored",
 ] as const;
 
 export type LogEventKind = (typeof LOG_EVENT_KINDS)[number];
@@ -94,7 +97,7 @@ export const LOG_PAIR_DETAIL = "pair";
 
 /** The kind of item one of the Log's own records is about. */
 export const logItemOfEvent = (kind: LogEventKind): LogItemKind => {
-	if (kind === "account-archived") return "account";
+	if (kind.startsWith("account-")) return "account";
 	return kind.startsWith("bank-connection") ? "bank-connection" : "rule";
 };
 
