@@ -1,6 +1,7 @@
 import {
 	answerWalletCard as answerWalletCardInDb,
 	checkStatementBalance as checkStatementBalanceInDb,
+	dismissWalletCard as dismissWalletCardInDb,
 	loadWalletQuestions,
 	setCardKept as setCardKeptInDb,
 	type WalletQuestion,
@@ -83,6 +84,19 @@ export const getWalletQuestions = createServerFn({ method: "GET" })
 	.handler(
 		({ context }): Promise<WalletQuestion[]> => loadWalletQuestions(getDb(), context.household.id),
 	);
+
+/** "None of these": the captures paid with that Wallet card stay on no Account, and it isn't asked again. */
+export const dismissWalletCard = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ card: z.string().trim().min(1).max(80) }))
+	.handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+		const result = await dismissWalletCardInDb(getDb(), {
+			householdId: context.household.id,
+			card: data.card,
+		});
+		if (result.ok) await notifyHousehold(context.household.id, ["months"]);
+		return result;
+	});
 
 /** "Which Account is this Wallet card?": remembered, and the captures made with it move there. */
 export const answerWalletCard = createServerFn({ method: "POST" })

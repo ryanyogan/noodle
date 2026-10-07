@@ -1,6 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	hydrated,
+	pickQuickAddBucket,
+	signedInPage,
+} from "./session";
 
 // A card kept by hand (issue 136): adding a card asks how its purchases get into Noodle; one kept
 // by hand has a statement day, a Nudge on Accounts when its statement's balance is due, and the
@@ -69,9 +76,21 @@ test("a card kept by hand is asked about when added, and has its statement balan
 	// The Nudge on Accounts, once.
 	await page.goto("/accounts");
 	const nudge = page.getByRole("status").filter({ hasText: "Apple Card’s statement closed on" });
-	await expect(nudge).toHaveCount(1);
+	// It shows once the page is live: what's been put away is this device's to know.
+	await expect(nudge).toHaveCount(1, { timeout: 30_000 });
 	await expect(nudge).toContainText("Type its balance to check nothing’s missing.");
 	await shot(page, "balance-check-nudge");
+	// "Not now" puts it away on this device until the next statement; the card's page still asks.
+	await hydrated(nudge.getByRole("button", { name: /^Not now/ }));
+	await nudge.getByRole("button", { name: /^Not now/ }).click();
+	await expect(nudge).toHaveCount(0);
+	await page.reload();
+	await expect(page.getByRole("link", { name: /^Apple Card, / })).toBeVisible();
+	await hydrated(page.getByRole("button", { name: "Add Account" }).first());
+	await expect(nudge).toHaveCount(0);
+	await page.evaluate(() => window.localStorage.removeItem("noodle:balance-check:dismissed"));
+	await page.reload();
+	await expect(nudge).toHaveCount(1, { timeout: 30_000 });
 	await expect(async () => {
 		await nudge.getByRole("link", { name: "Check its balance" }).click();
 		await expect(page.getByLabel("Statement balance")).toBeVisible({ timeout: 2000 });
@@ -93,12 +112,47 @@ test("a card kept by hand is asked about when added, and has its statement balan
 	await shot(page, "balance-check-higher");
 	// The statement's balance is the card's from then on, and the check is no longer due.
 	await expect(page.getByText("Check a statement’s balance")).toBeVisible();
-	await page.getByLabel("Statement balance").fill("84.20");
+	await expect(page.getByRole("link", { name: "import the statement" })).toHaveAttribute(
+		"href",
+		/#account-statements$/,
+	);
+
+	// "add what's missing" opens Quick Add paid with this card: the record, on top of what's owed.
+	await page.getByRole("link", { name: "add what’s missing" }).click();
+	const sheet = page.getByRole("dialog", { name: "Quick Add" });
+	await expect(sheet.getByRole("button", { name: /Paid with:\s*Apple Card/ })).toBeVisible();
+	await shot(page, "quick-add-paid-with");
+	await page.keyboard.type("12.50");
+	await pickQuickAddBucket(sheet, "Groceries");
+	await expect(sheet).toBeHidden();
+	// Dated today: after the statement's day unless today is the 1st, when it's taken as in it.
+	const owed = new Date().getDate() === 1 ? "84.20" : "96.70";
+	await expect(page.locator("[data-slot=detail-title]:visible")).toContainText("Apple Card");
+	await page.getByLabel("Statement balance").fill(owed);
 	await page.getByRole("button", { name: "Check balance" }).click();
 	await expect(page.getByText("That matches.")).toBeVisible();
+	await shot(page, "card-page");
+
+	// A choice made in the sheet is this device's default next time.
+	await page.goto("/transactions");
+	await expect(page.getByText("$12.50").first()).toBeVisible();
+	await expect(page.getByText("Waiting for bank")).toHaveCount(0);
+	await hydrated(page.getByRole("link", { name: "Quick Add" }).first());
+	await page.getByRole("link", { name: "Quick Add" }).first().click();
+	// Opened from the card's link it was a one-off: the device's own choice is what's kept.
+	await expect(sheet.getByRole("button", { name: /Paid with:\s*Something else/ })).toBeVisible();
+	await sheet.getByRole("button", { name: /Paid with:/ }).click();
+	await sheet.getByRole("radio", { name: "Apple Card" }).click();
+	await expect(sheet.getByRole("button", { name: /Paid with:\s*Apple Card/ })).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(sheet).toBeHidden();
+	await page.getByRole("link", { name: "Quick Add" }).first().click();
+	await expect(sheet.getByRole("button", { name: /Paid with:\s*Apple Card/ })).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(sheet).toBeHidden();
 
 	await page.goto("/accounts");
-	await expect(page.getByRole("link", { name: /^Apple Card, / })).toContainText("$84.20");
+	await expect(page.getByRole("link", { name: /^Apple Card, / })).toContainText(`$${owed}`);
 	await expect(
 		page.getByRole("status").filter({ hasText: "Apple Card’s statement closed on" }),
 	).toHaveCount(0);

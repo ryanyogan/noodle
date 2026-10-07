@@ -477,6 +477,13 @@
       "when": 1791700000000,
       "tag": "0068_whose_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "6",
+      "when": 1791800000000,
+      "tag": "0069_wallet_card_none",
+      "breakpoints": true
     }
   ]
 }

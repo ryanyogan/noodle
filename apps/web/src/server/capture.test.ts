@@ -7,7 +7,9 @@ import {
 	findCaptureToken,
 	importStatement,
 	loadTransactionsPage,
+	loadWalletQuestions,
 	revokeCaptureToken,
+	setCardKept,
 } from "@noodle/db";
 import { testDb } from "@noodle/db/test-db";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -89,6 +91,7 @@ async function listed() {
 		{ month: "2026-09", limit: 50 },
 	);
 	return page.transactions.map((row) => ({
+		...(row.byHand ? { byHand: true } : {}),
 		date: row.date,
 		amount: row.amountCents,
 		note: row.note,
@@ -127,6 +130,29 @@ describe("the capture endpoint", () => {
 			newId,
 		});
 		expect(await listed()).toHaveLength(1);
+	});
+
+	it("lands a capture on the Account its Wallet card names, and asks about a card it doesn't know", async () => {
+		await setCardKept(db, { householdId, accountId: "card", purchases: "hand" });
+		expect((await post({ ...payment, card: " Visa " })).status).toBe(202);
+		expect(queue[0]).toMatchObject({ card: "Visa" });
+		expect(
+			(await post({ ...payment, merchant: "Sweetgreen", amount: "18.00", card: "Titanium" }))
+				.status,
+		).toBe(202);
+		await consume();
+		expect(await listed()).toEqual(
+			expect.arrayContaining([
+				{ byHand: true, date: "2026-09-10", amount: 575, note: "Blue Bottle Coffee" },
+				{ date: "2026-09-10", amount: 1800, note: "Sweetgreen" },
+			]),
+		);
+		expect(await loadWalletQuestions(db, householdId)).toEqual([{ card: "Titanium", captures: 1 }]);
+		// A Shortcut made before the field existed, or one that sends it empty, is taken as before.
+		expect((await post({ ...payment, at: "2026-09-10T14:00:00-05:00", card: "" })).status).toBe(
+			202,
+		);
+		expect(queue[0]?.card).toBeUndefined();
 	});
 
 	it("records a capture sent twice, and so queued twice, once", async () => {

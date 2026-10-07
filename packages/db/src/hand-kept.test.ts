@@ -12,6 +12,7 @@ import {
 	createCaptureToken,
 	createHouseholdForParent,
 	type Db,
+	dismissWalletCard,
 	importStatement,
 	loadGoals,
 	loadTransactionsPage,
@@ -232,6 +233,21 @@ describe("a Wallet capture on a card kept by hand", () => {
 		expect(await accountOf("dinner")).toBe("apple");
 		expect(await loadWalletQuestions(db, householdId)).toEqual([]);
 	});
+
+	it("isn't asked again for a name answered “None of these”, and those captures stay on no Account", async () => {
+		await capture("coffee", "2026-09-03", 575, "Blue Bottle Coffee", "Debit");
+		await capture("lunch", "2026-09-04", 1_800, "Sweetgreen", "Titanium");
+		expect(await dismissWalletCard(db, { householdId: "another", card: "Debit" })).toEqual({
+			ok: false,
+		});
+		expect(await dismissWalletCard(db, { householdId, card: " debit " })).toEqual({ ok: true });
+		expect(await loadWalletQuestions(db, householdId)).toEqual([{ card: "Titanium", captures: 1 }]);
+
+		await capture("dinner", "2026-09-05", 4_000, "Zuni", "DEBIT");
+		expect(await accountOf("coffee")).toBeNull();
+		expect(await accountOf("dinner")).toBeNull();
+		expect(await loadWalletQuestions(db, householdId)).toEqual([{ card: "Titanium", captures: 1 }]);
+	});
 });
 
 describe("what's owed on a card kept by hand", () => {
@@ -282,6 +298,11 @@ describe("what's owed on a card kept by hand", () => {
 		});
 		expect(marked.ok).toBe(true);
 		await expectOwed("apple", 34_200);
+		// Listed for the card's page, under Payments.
+		const goals = await loadGoals(db, viewer);
+		expect(goals.sent).toEqual([
+			{ id: payment?.id, accountId: "apple", amount: 20_000, date: "2026-09-10" },
+		]);
 	});
 
 	it("counts a Quick Add once when the imported statement Matches it", async () => {

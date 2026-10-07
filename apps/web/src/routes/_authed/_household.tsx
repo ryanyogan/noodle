@@ -16,7 +16,11 @@ import { useWaitingWrites } from "../../waiting-writes";
 // The authenticated app layout: requires the Parent to belong to a Household.
 export const Route = createFileRoute("/_authed/_household")({
 	// `sheet` opens a sheet over whichever page is showing.
-	validateSearch: z.object({ sheet: z.enum(["quick-add"]).optional().catch(undefined) }),
+	// `paidWith` opens Quick Add on a card kept by hand (from that card's balance check).
+	validateSearch: z.object({
+		sheet: z.enum(["quick-add"]).optional().catch(undefined),
+		paidWith: z.string().max(40).optional().catch(undefined),
+	}),
 	beforeLoad: ({ context }) => {
 		if (!context.household || !context.parentId) throw redirect({ to: "/welcome" });
 		return { household: context.household, parentId: context.parentId };

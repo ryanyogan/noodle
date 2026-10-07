@@ -212,9 +212,15 @@ function SetupSteps() {
 				<Code>Bearer</Code>, a space, and then your token.
 			</Step>
 			<Step>
-				Set <b>Request Body</b> to <b>JSON</b> and add three Text fields: <Code>merchant</Code> set
+				Set <b>Request Body</b> to <b>JSON</b> and add four Text fields: <Code>merchant</Code> set
 				to <b>Shortcut Input</b>, then <b>Merchant</b>; <Code>amount</Code> set to{" "}
-				<b>Shortcut Input</b>, then <b>Amount</b>; and <Code>at</Code> set to <b>Current Date</b>.
+				<b>Shortcut Input</b>, then <b>Amount</b>; <Code>at</Code> set to <b>Current Date</b>; and{" "}
+				<Code>card</Code> set to <b>Shortcut Input</b>, then <b>Card or Pass</b>.
+			</Step>
+			<Step>
+				The <Code>card</Code> field is what puts a payment on the right Account: one made with a
+				card you keep by hand, like Apple Card, lands there and adds to what’s owed. If your
+				Shortcut was made before this step, open it and add the field.
 			</Step>
 			<Step>
 				Tap <b>Done</b>. Next time you pay with Wallet, the payment shows up in Noodle as your Quick

@@ -14,14 +14,15 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
 import { purchasesHint, purchasesName, walletQuestionsQuery } from "../card-kept";
 import { formatMoney } from "../format";
 import { type AccountView, useGoals, useSetCardKept } from "../goals";
 import { goalsQuery, monthsKey } from "../queries";
-import { answerWalletCard, checkStatementBalance } from "../server/card-kept";
+import { answerWalletCard, checkStatementBalance, dismissWalletCard } from "../server/card-kept";
 import { AmountInput } from "./goals";
+import { markQuickAddOpened, quickAddSearch } from "./quick-add";
 
 // A card says how its purchases get into Noodle (issue 136), and what follows for one kept by
 // hand, like an Apple Card: the Wallet card its captures name, and once a month a check of its
@@ -52,6 +53,56 @@ export function checkWords(check: BalanceCheck): string {
 	return check.kind === "higher"
 		? `${formatMoney(check.byCents)} higher than what’s recorded: add what’s missing, or import the statement.`
 		: `${formatMoney(check.byCents)} lower than what’s recorded: a payment or money back may be missing, or something was added twice.`;
+}
+
+const inlineLink = "font-medium text-foreground underline underline-offset-3";
+
+/**
+ * What the check found, with its two ways out as links when the statement is higher: Quick Add
+ * paid with this card, and the card's own Statements section.
+ */
+function CheckFound({ check, account }: { check: BalanceCheck; account: AccountView }) {
+	if (check.kind !== "higher") return <>{checkWords(check)}</>;
+	return (
+		<>
+			{formatMoney(check.byCents)} higher than what’s recorded:{" "}
+			<Link
+				to="."
+				search={(prev) => ({ ...prev, ...quickAddSearch, paidWith: account.id })}
+				resetScroll={false}
+				onClick={markQuickAddOpened}
+				className={inlineLink}
+			>
+				add what’s missing
+			</Link>
+			, or{" "}
+			<Link to="." hash="account-statements" className={inlineLink}>
+				import the statement
+			</Link>
+			.
+		</>
+	);
+}
+
+const DISMISSED_KEY = "noodle:balance-check:dismissed";
+
+/** The balance checks this device said "Not now" to, each as `account:statement day`. */
+function readDismissed(): string[] {
+	try {
+		const kept: unknown = JSON.parse(window.localStorage.getItem(DISMISSED_KEY) ?? "[]");
+		return Array.isArray(kept) ? kept.filter((k) => typeof k === "string") : [];
+	} catch {
+		return [];
+	}
+}
+
+function keepDismissed(keys: string[]) {
+	try {
+		// A statement's key is never asked about after its month: the last few are plenty.
+		window.localStorage.setItem(DISMISSED_KEY, JSON.stringify(keys.slice(-24)));
+	} catch {
+		// Private windows: it comes back on the next visit.
+	}
 }
 
 /**
@@ -214,7 +265,7 @@ function BalanceCheckForm({ account, today }: { account: AccountView; today: Day
 				</div>
 				{found ? (
 					<p role="status" className="text-sm">
-						{checkWords(found)}
+						<CheckFound check={found} account={account} />
 					</p>
 				) : null}
 			</form>
@@ -223,8 +274,10 @@ function BalanceCheckForm({ account, today }: { account: AccountView; today: Day
 }
 
 /**
- * On Accounts: the monthly balance check that's due on each card kept by hand, and the Wallet
- * cards captures named that no Account is known for, each asked once.
+ * On Accounts: the monthly balance check that's due on each card kept by hand (once per statement:
+ * "Not now" puts it away on this device until the next one closes; the card's own page still
+ * offers it), the cards no one has said how purchases get in for, and the Wallet cards captures
+ * named that no Account is known for, each asked once.
  */
 export function CardNudges() {
 	const hydrated = useHydrated();
@@ -247,12 +300,27 @@ export function CardNudges() {
 				queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey }),
 			]),
 	});
+	const none = useMutation({
+		mutationFn: (card: string) => dismissWalletCard({ data: { card } }),
+		onError: () => toast("Couldn’t save that. Try again.", { tone: "error" }),
+		onSuccess: (result, card) => {
+			if (result.ok) toast(`Noodle won’t ask about ${card} again.`);
+		},
+		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
+	});
+	// Read after the page is live: what's put away is this device's, which the server can't know.
+	const [dismissed, setDismissed] = useState<string[] | null>(null);
+	useEffect(() => setDismissed(readDismissed()), []);
 	const due = accounts.flatMap((account) => {
 		const day = checkDue(account, asOf);
-		return day ? [{ account, day }] : [];
+		return day && dismissed && !dismissed.includes(`${account.id}:${day}`)
+			? [{ account, day }]
+			: [];
 	});
 	const cards = accounts.filter((a) => a.kind === "credit-card" && a.bankConnectionId === null);
-	if (due.length === 0 && (questions.length === 0 || cards.length === 0)) return null;
+	const unasked = cards.filter((a) => a.purchases === null);
+	if (due.length === 0 && unasked.length === 0 && (questions.length === 0 || cards.length === 0))
+		return null;
 	return (
 		<div className="grid gap-3">
 			{due.map(({ account, day }) => (
@@ -269,9 +337,47 @@ export function CardNudges() {
 								Type its balance to check nothing’s missing.
 							</p>
 						</div>
+						<div className="flex flex-wrap gap-2">
+							<Button
+								type="button"
+								size="sm"
+								variant="ghost"
+								aria-label={`Not now: ${account.name}’s balance check`}
+								onClick={() => {
+									const next = [...(dismissed ?? []), `${account.id}:${day}`];
+									setDismissed(next);
+									keepDismissed(next);
+								}}
+							>
+								Not now
+							</Button>
+							<Button asChild size="sm" variant="outline">
+								<Link to="/accounts/$accountId" params={{ accountId: account.id }}>
+									Check its balance
+								</Link>
+							</Button>
+						</div>
+					</div>
+				</Card>
+			))}
+			{unasked.map((account) => (
+				<Card key={account.id}>
+					<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-(--card-pad)">
+						<div className="grid min-w-0 gap-1">
+							<p className="text-sm font-semibold">
+								How do purchases on {account.name} get into Noodle?
+							</p>
+							<p className="text-[13px] text-muted-foreground">
+								From its statements, by hand, or not at all. It decides how paying the card counts.
+							</p>
+						</div>
 						<Button asChild size="sm" variant="outline">
-							<Link to="/accounts/$accountId" params={{ accountId: account.id }}>
-								Check its balance
+							<Link
+								to="/accounts/$accountId"
+								params={{ accountId: account.id }}
+								aria-label={`Say how purchases on ${account.name} get in`}
+							>
+								Say how
 							</Link>
 						</Button>
 					</div>
@@ -305,6 +411,15 @@ export function CardNudges() {
 											{card.name}
 										</Button>
 									))}
+									<Button
+										type="button"
+										size="sm"
+										variant="ghost"
+										disabled={!hydrated || answer.isPending || none.isPending}
+										onClick={() => none.mutate(question.card)}
+									>
+										None of these
+									</Button>
 								</div>
 							</div>
 						</Card>

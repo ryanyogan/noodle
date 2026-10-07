@@ -678,8 +678,9 @@ const STALE_AFTER_DAYS = 35;
 const ACCOUNT_PAYMENTS = 6;
 
 /**
- * The payments filed in Commitments that pay this card or loan down (ADR-0050), newest first,
- * with the Commitments themselves: where "Pays down" is changed. Kept by hand, each says whether
+ * The payments filed in Commitments that pay this card or loan down (ADR-0050), and for a card
+ * kept by hand the payments marked as a Transfer naming it (issue 136), newest first, with the
+ * Commitments themselves: where "Pays down" is changed. Kept by hand, each says whether
  * it came off what's owed (dated after the balance) or was already in it. Nothing until a
  * Commitment pays the Account down.
  */
@@ -697,7 +698,14 @@ function PaidDown({
 	// Names only: the page doesn't wait for every Commitment's year of charges.
 	const commitments = useQuery(commitmentsQuery()).data?.commitments ?? [];
 	const [showAll, setShowAll] = useState(false);
-	const payments = data.payments.filter((p) => p.accountId === account.id).reverse();
+	const payments = [
+		...data.payments
+			.filter((p) => p.accountId === account.id)
+			.map((p) => ({ ...p, commitmentId: p.commitmentId as string | null })),
+		...(data.sent ?? [])
+			.filter((p) => p.accountId === account.id)
+			.map((p) => ({ ...p, commitmentId: null })),
+	].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
 	const paying = commitments.filter(
 		(c) =>
 			c.accountId === account.id && (c.endedFromMonth === null || c.endedFromMonth > data.month),
@@ -737,7 +745,7 @@ function PaidDown({
 					{payments.slice(0, showAll ? undefined : ACCOUNT_PAYMENTS).map((payment) => (
 						<ListRow
 							key={payment.id}
-							title={`Payment · ${nameOf(payment.commitmentId)}`}
+							title={`Payment · ${payment.commitmentId ? nameOf(payment.commitmentId) : "Transfer"}`}
 							meta={`${when(payment.date)}${
 								connected || balanceDay === null
 									? ""
