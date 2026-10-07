@@ -9,16 +9,19 @@ import { useId, useState } from "react";
 import { dayName, formatMoney } from "../format";
 import {
 	type MoneyInLine,
+	moneyInAccountsQuery,
 	moneyInKindText,
 	moneyInLabel,
 	moneyInQuery,
 	moneyInReviewQuery,
 	pairOffered,
 	useMoneyInKindChange,
+	whosePayOffered,
 } from "../money-in";
 import { moneyInShown, type TransactionShow } from "../transaction-summary";
 import { AccountPairOffer } from "./money-in-rules";
 import { PaidBackMatching } from "./owed-back";
+import { WhosePayOffer } from "./whose-pay";
 
 // Money in and its kind (issue 131, ADR-0057): listed on Transactions with its kind in plain
 // words, and asked about in Review when it was sent person to person. Money in is green with its
@@ -31,10 +34,13 @@ import { PaidBackMatching } from "./owed-back";
 export function MoneyInKindChoice({
 	line,
 	onDone,
+	onChanged,
 }: {
 	line: MoneyInLine;
-	/** Called with the line as it is once its kind is changed. */
+	/** Called with the line as it is once its kind is changed and nothing more is asked here. */
 	onDone?: (line: MoneyInLine) => void;
+	/** Called with the line as it is after every change of kind. */
+	onChanged?: (line: MoneyInLine) => void;
 }) {
 	const id = useId();
 	const change = useMoneyInKindChange();
@@ -57,13 +63,17 @@ export function MoneyInKindChoice({
 							aria-pressed={current}
 							disabled={change.isPending}
 							onClick={() =>
-								change.mutate(
-									{ line, kind, always },
-									// A Transfer stays open to ask which Account it came from.
-									{
-										onSuccess: (changed) => (pairOffered(changed) ? undefined : onDone?.(changed)),
-									},
-								)
+								// Awaited, not a callback of this call: the lists are refetched before a callback
+								// would run, and in Review the line (and this choice with it) has gone by then.
+								change
+									.mutateAsync({ line, kind, always })
+									.then((changed) => {
+										onChanged?.(changed);
+										// A Transfer stays open to ask which Account it came from, and Income whose pay.
+										if (!pairOffered(changed) && !whosePayOffered(changed)) onDone?.(changed);
+									})
+									// Said by the change itself (its toast).
+									.catch(() => undefined)
 							}
 						>
 							{MONEY_IN_KIND_LABELS[kind]}
@@ -84,6 +94,7 @@ export function MoneyInKindChoice({
 				</div>
 			) : null}
 			{pairOffered(line) ? <AccountPairOffer line={line} /> : null}
+			{whosePayOffered(line) ? <WhosePayOffer line={line} onDone={() => onDone?.(line)} /> : null}
 		</div>
 	);
 }
@@ -177,9 +188,16 @@ export function MoneyInSection({
 export function MoneyInReview({ today, className }: { today: string; className?: string }) {
 	const id = useId();
 	const lines = useQuery(moneyInReviewQuery()).data ?? [];
-	// A line said Paid back has left Review: it stays here while what it pays back is asked.
-	const [paidBack, setPaidBack] = useState<MoneyInLine[]>([]);
-	const matching = paidBack.filter((said) => !lines.some((line) => line.id === said.id));
+	const accounts = useQuery(moneyInAccountsQuery()).data ?? [];
+	// A line a Parent has named has left Review: it stays here while what follows is asked (what
+	// it pays back, which Account a Transfer came from, whose pay Income is).
+	const [named, setNamed] = useState<MoneyInLine[]>([]);
+	const asksMore = (line: MoneyInLine) =>
+		line.kind === "paid-back" ||
+		whosePayOffered(line) ||
+		(pairOffered(line) && accounts.some((account) => account.id !== line.accountId));
+	const forget = (lineId: string) => setNamed((was) => was.filter((one) => one.id !== lineId));
+	const matching = named.filter((said) => !lines.some((line) => line.id === said.id));
 	if (lines.length === 0 && matching.length === 0) return null;
 	return (
 		<Section aria-labelledby={id} data-testid="money-in-review" className={className}>
@@ -204,10 +222,11 @@ export function MoneyInReview({ today, className }: { today: string; className?:
 						below={
 							<MoneyInKindChoice
 								line={line}
-								onDone={(now) =>
-									now.kind === "paid-back"
-										? setPaidBack((was) => [...was.filter((one) => one.id !== now.id), now])
-										: undefined
+								onChanged={(now) =>
+									setNamed((was) => [
+										...was.filter((one) => one.id !== now.id),
+										...(asksMore(now) ? [now] : []),
+									])
 								}
 							/>
 						}
@@ -227,7 +246,28 @@ export function MoneyInReview({ today, className }: { today: string; className?:
 							</>
 						}
 						trailing={<span className={moneyInAmount}>+{formatMoney(line.amount)}</span>}
-						below={<PaidBackMatching line={line} today={today} />}
+						below={
+							line.kind === "paid-back" ? (
+								<PaidBackMatching line={line} today={today} />
+							) : (
+								<div className="grid justify-items-start gap-3">
+									{line.kind === "transfer" ? (
+										<AccountPairOffer line={line} onDone={() => forget(line.id)} />
+									) : (
+										<WhosePayOffer line={line} onDone={() => forget(line.id)} />
+									)}
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										aria-label={`Done with ${moneyInLabel(line)}`}
+										onClick={() => forget(line.id)}
+									>
+										Done
+									</Button>
+								</div>
+							)
+						}
 						belowFull
 					/>
 				))}

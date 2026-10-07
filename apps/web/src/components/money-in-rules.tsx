@@ -11,6 +11,7 @@ import {
 	useRememberAccountPair,
 	useRemoveMoneyInRule,
 } from "../money-in";
+import { useParents } from "./whose-pay";
 
 // Rules for money in (issue 131, ADR-0057): wording that is always one kind, and remembered pairs
 // of Accounts ("money from Gusto into Chase is always a Transfer").
@@ -19,7 +20,7 @@ import {
  * Under a Transfer seen from one side only: which of the Household's other Accounts it came from,
  * and the offer to always treat money like it that way.
  */
-export function AccountPairOffer({ line }: { line: MoneyInLine }) {
+export function AccountPairOffer({ line, onDone }: { line: MoneyInLine; onDone?: () => void }) {
 	const id = useId();
 	const accounts = useQuery(moneyInAccountsQuery()).data ?? [];
 	const remember = useRememberAccountPair();
@@ -58,11 +59,14 @@ export function AccountPairOffer({ line }: { line: MoneyInLine }) {
 						size="sm"
 						disabled={remember.isPending}
 						onClick={() =>
-							remember.mutate({
-								line,
-								otherAccountId: picked.id,
-								names: `from ${picked.name} into ${into.name}`,
-							})
+							remember.mutate(
+								{
+									line,
+									otherAccountId: picked.id,
+									names: `from ${picked.name} into ${into.name}`,
+								},
+								{ onSuccess: onDone },
+							)
 						}
 					>
 						Yes, always
@@ -81,7 +85,13 @@ export function MoneyInRules() {
 	const id = useId();
 	const rules = useQuery(moneyInRulesQuery()).data ?? [];
 	const remove = useRemoveMoneyInRule();
+	const parents = useParents();
 	if (rules.length === 0) return null;
+	// Whose pay an Income Rule sets (issue 133): a Parent's, else the Household's and not said.
+	const whose = (payMemberId: string | null) => {
+		const parent = parents.find((one) => one.id === payMemberId);
+		return parent ? `, ${parent.name}’s pay` : "";
+	};
 	return (
 		<Section aria-labelledby={id} data-testid="money-in-rules">
 			<SectionHeader id={id} title="Rules for money in" count={rules.length} />
@@ -95,7 +105,7 @@ export function MoneyInRules() {
 							<span>
 								{rule.otherAccountName && rule.intoAccountName
 									? `Always a Transfer from ${rule.otherAccountName} into ${rule.intoAccountName}`
-									: `Always ${MONEY_IN_KIND_LABELS[rule.kind]}`}
+									: `Always ${MONEY_IN_KIND_LABELS[rule.kind]}${rule.kind === "income" ? whose(rule.payMemberId) : ""}`}
 							</span>
 						}
 						trailing={

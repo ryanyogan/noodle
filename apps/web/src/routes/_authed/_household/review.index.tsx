@@ -95,6 +95,7 @@ import { TermHelp } from "../../../components/term-help";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import { dayName, formatMoney, monthName } from "../../../format";
 import { forLabel, type MemberSummary } from "../../../members";
+import { moneyInReviewQuery } from "../../../money-in";
 import { useReducedMotion } from "../../../motion";
 import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
 import {
@@ -231,6 +232,8 @@ function ReviewPage() {
 	// all" can't file it by habit.
 	const accounts = useQuery(goalsQuery()).data?.accounts;
 	const followed = useQuery(followedCardsQuery()).data;
+	// Money in a Parent hasn't named yet waits above the cards: nothing here says "all done" then.
+	const moneyInWaiting = useQuery(moneyInReviewQuery()).data?.length ?? 0;
 	const cardMonths = useMemo(
 		() => [...new Set(queue.items.map((item) => monthOfTransaction(item)))],
 		[queue.items],
@@ -1314,16 +1317,26 @@ function ReviewPage() {
 					</section>
 				) : (
 					<div id="review-finish" tabIndex={-1} className="relative rounded-2xl outline-none">
-						{stack.done > 0 && !reduced ? <Burst /> : null}
+						{stack.done > 0 && !reduced && moneyInWaiting === 0 ? <Burst /> : null}
 						<Card className="p-0">
 							<EmptyState
 								icon={<CheckCheck />}
-								title={stack.done > 0 ? "All sorted" : "Nothing to review"}
-								description={`${stack.done > 0 ? `Nothing to review now. You did ${stack.done}. ` : ""}${
-									queue.filedOnItsOwn > 0
-										? `Noodle filed ${queue.filedOnItsOwn} on its own this month.`
-										: "Noodle filed everything on its own."
-								} Anything it isn’t sure about waits here for you.`}
+								title={
+									moneyInWaiting > 0
+										? "Money in still to look at"
+										: stack.done > 0
+											? "All sorted"
+											: "Nothing to review"
+								}
+								description={
+									moneyInWaiting > 0
+										? `${stack.done > 0 ? `You did ${stack.done}. ` : ""}No Transactions wait here now. The money in above isn’t counted until you say what it is.`
+										: `${stack.done > 0 ? `Nothing to review now. You did ${stack.done}. ` : ""}${
+												queue.filedOnItsOwn > 0
+													? `Noodle filed ${queue.filedOnItsOwn} on its own this month.`
+													: "Noodle filed everything on its own."
+											} Anything it isn’t sure about waits here for you.`
+								}
 								action={
 									<div className="flex flex-wrap justify-center gap-2">
 										{stack.history.length > 0 ? (
