@@ -106,7 +106,7 @@ export function TransactionItem({
 				<Badge
 					data-testid="bank-took-back"
 					className={pill}
-					title={bankTookBackText(transaction, transaction.bankTookBackOn) ?? undefined}
+					title={bankTookBackText(transaction) ?? undefined}
 				>
 					{BANK_TOOK_BACK_WORD}
 				</Badge>

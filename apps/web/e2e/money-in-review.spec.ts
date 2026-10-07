@@ -1,6 +1,8 @@
 import { expect, type Page, test } from "@playwright/test";
+import { ulid } from "ulid";
 import { createTestParent } from "./parents";
-import { chooseKind, createPlannedHousehold, signedInPage } from "./session";
+import { seedSql } from "./seed-sql";
+import { chooseKind, createPlannedHousehold, hydrated, signedInPage } from "./session";
 
 // Money in from a bank, start to end (issues 131 and 133): what a person sent waits in Review,
 // where naming it Income asks whose pay it is and naming it a Transfer asks which Account it came
@@ -184,5 +186,111 @@ test("money in is named in Review with whose pay and its Account, and Plan › I
 		{ timeout: 30_000 },
 	);
 	await expect(totals).toContainText("$2,640 so far");
+	await page.context().close();
+});
+
+// Money into checking that reads as a refund waits in Review with Refund suggested (issue 141):
+// it is nobody's Income meanwhile, a tax refund is still Income, and naming it a Refund goes on to
+// its purchase, whose Bucket gets the money back.
+test("a refund into checking waits in Review with Refund first, and counts nowhere as Income until it is named", async ({
+	browser,
+}) => {
+	test.setTimeout(240_000);
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const made = await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [["Kids", "300"]],
+	});
+	const kids = made?.bucketIds.Kids;
+	if (!kids) throw new Error("The Household wasn't made directly");
+	const thisMonth = page.url();
+	const month = /\/month\/(\d{4}-\d{2})/.exec(thisMonth)?.[1];
+	if (!month) throw new Error(`No month in ${thisMonth}`);
+	await addAccount(page, "Everyday Checking", "checking", "4,000");
+
+	// The purchase the refund is for, earlier this month (a Quick Add, written straight in).
+	const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
+	const household = `(select household_id from members where clerk_user_id = ${q(parent.userId)})`;
+	const member = `(select id from members where clerk_user_id = ${q(parent.userId)})`;
+	await seedSql([
+		`insert into transactions (id, household_id, source, date, amount_cents, note, bucket_id, created_by_member_id) values (${q(ulid())}, ${household}, 'quick-add', ${q(`${month}-01`)}, 6000, 'Amazon order', ${q(kids)}, ${member});`,
+	]);
+
+	const today = await page.evaluate(() => {
+		const now = new Date();
+		return `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}/${now.getFullYear()}`;
+	});
+	await upload(page, "refunds.csv", [
+		[today, "AMAZON REFUND 42.10", "42.10"],
+		[today, "IRS TREAS 310 TAX REFUND", "310.00"],
+		[today, PAY, "1840.00"],
+		[today, CASEY, "300.00"],
+	]);
+
+	// Review: the refund and what a person sent wait; the tax refund and the paycheck don't.
+	await page.goto(new URL("/review", thisMonth).href);
+	const waiting = page.getByTestId("money-in-review");
+	const row = (what: string) => waiting.getByTestId("money-in-row").filter({ hasText: what });
+	await expect(row("AMAZON REFUND")).toBeVisible({ timeout: 30_000 });
+	await expect(row("CASEY LOWE")).toBeVisible();
+	await expect(waiting.getByTestId("money-in-row")).toHaveCount(2);
+	await expect(waiting).toContainText("or that reads as a refund");
+
+	// Refund is first and described as suggested, and isn't chosen: nothing is pressed.
+	const kinds = (what: string) =>
+		row(what)
+			.getByRole("group", { name: /^What is this money\?/ })
+			.getByRole("button");
+	await expect(kinds("AMAZON REFUND").first()).toHaveText("Refund");
+	await expect(kinds("AMAZON REFUND").first()).toHaveAttribute("aria-pressed", "false");
+	await expect(kinds("AMAZON REFUND").first()).toHaveAttribute("data-suggested", "");
+	await expect(kinds("AMAZON REFUND").first()).toHaveAccessibleDescription(
+		"This reads as a Refund, so it’s first. It isn’t one until you say so.",
+	);
+	await expect(row("AMAZON REFUND").getByTestId("money-in-suggested")).toBeVisible();
+	// What a person sent has nothing suggested: Income is first, as everywhere.
+	await expect(kinds("CASEY LOWE").first()).toHaveText("Income");
+	await expect(row("CASEY LOWE").getByTestId("money-in-suggested")).toHaveCount(0);
+	await page.setViewportSize({ width: 393, height: 852 });
+	await expect(row("AMAZON REFUND").getByTestId("money-in-suggested")).toBeVisible();
+	await page.setViewportSize({ width: 1440, height: 900 });
+
+	// Meanwhile it is nobody's Income: only the paycheck and the tax refund are received.
+	await page.goto(`/month/${month}`);
+	await expect(page.getByRole("region", { name: "Income" })).toContainText("$2,150 received", {
+		timeout: 30_000,
+	});
+	await page.goto(`/plan/${month}/income`);
+	const table = income(page).getByRole("table", { name: /^Income in / });
+	await expect(table).toContainText("IRS TREAS 310 TAX REFUND", { timeout: 30_000 });
+	await expect(table).toContainText("ACME CORP PAYROLL");
+	await expect(table).not.toContainText("AMAZON REFUND");
+	await expect(table).not.toContainText("CASEY LOWE");
+
+	// Pressing Refund goes on to its purchase.
+	await page.goto(new URL("/review", thisMonth).href);
+	const refund = kinds("AMAZON REFUND").first();
+	await expect(refund).toBeVisible({ timeout: 30_000 });
+	await hydrated(refund);
+	await refund.click();
+	const linking = row("AMAZON REFUND").getByTestId("refund-link");
+	await expect(linking).toContainText("Which purchase is this a Refund for?");
+	await linking.getByRole("button", { name: "Link to Amazon order, $60" }).click();
+	await expect(toast(page, "Linked.")).toBeVisible();
+	await expect(linking).toContainText("A Refund for Amazon order");
+	await row("AMAZON REFUND")
+		.getByRole("button", { name: /^Done with / })
+		.click();
+	await expect(row("AMAZON REFUND")).toHaveCount(0);
+
+	// The purchase's Bucket has the money back, and it still isn't Income.
+	await page.goto(`/month/${month}`);
+	await expect(page.getByRole("region", { name: "Income" })).toContainText("$2,150 received", {
+		timeout: 30_000,
+	});
+	await expect
+		.poll(async () => (await page.locator("main").innerText()).replace(/\s+/g, " "))
+		.toContain("Kids $17.90 spent");
 	await page.context().close();
 });

@@ -406,8 +406,22 @@ export async function editMoneyIn(
 	if (await overMatched()) return { ok: false, reason: "matched" };
 
 	// A Refund linked to its purchase gives that purchase all of itself back: never more than the
-	// purchase cost, and nothing of it changes once it counted in a month that has ended.
-	if (edit.amountCents !== undefined && edit.amountCents !== before.amount) {
+	// purchase cost, and nothing of it changes once it counted in a month that has ended. Held in
+	// the write itself (issue 141), so a link made while this change is on its way is seen too.
+	const amountChanges = edit.amountCents !== undefined && edit.amountCents !== before.amount;
+	const from = endedBefore(input.today);
+	const othersSql = sql`(select coalesce(sum(oi.amount_cents), 0) from refund_links ol
+		join income oi on oi.id = ol.income_id
+		where ol.transaction_id = gt.id and ol.income_id <> ${input.incomeId})`;
+	const linkAllows = amountChanges
+		? sql`not exists (select 1 from refund_links gl
+			join transactions gt on gt.id = gl.transaction_id
+			where gl.income_id = ${input.incomeId} and gl.household_id = ${householdId}
+				and (gl.counts_on < ${from} or ${edit.amountCents} > gt.amount_cents - ${othersSql}))`
+		: undefined;
+	/** Why the link refused the amount, read after the write didn't happen. */
+	const linkRefusal = async (): Promise<"month-ended" | "over-purchase" | null> => {
+		if (!amountChanges) return null;
 		const [link] = await db
 			.select({
 				countsOn: refundLinks.countsOn,
@@ -423,11 +437,10 @@ export async function editMoneyIn(
 			.where(
 				and(eq(refundLinks.incomeId, input.incomeId), eq(refundLinks.householdId, householdId)),
 			);
-		if (link && link.countsOn < endedBefore(input.today))
-			return { ok: false, reason: "month-ended" };
-		if (link && edit.amountCents > link.cost - link.others)
-			return { ok: false, reason: "over-purchase" };
-	}
+		if (!link) return null;
+		if (link.countsOn < from) return "month-ended";
+		return (edit.amountCents as number) > link.cost - link.others ? "over-purchase" : null;
+	};
 
 	// What its month's Income loses by this: all of it when it leaves the month.
 	const less =
@@ -453,6 +466,7 @@ export async function editMoneyIn(
 				eq(income.version, before.version),
 				covered,
 				lower ? sql`${edit.amountCents} >= ${matchedSql}` : undefined,
+				linkAllows,
 			),
 		);
 	const after = await loadMoneyInLine(db, householdId, input.incomeId);
@@ -460,7 +474,8 @@ export async function editMoneyIn(
 	if (after.version === next) return { ok: true, line: after, months };
 	if (after.version !== before.version)
 		return { ok: false, reason: "changed-elsewhere", current: after };
-	return { ok: false, reason: (await overMatched()) ? "matched" : "extra-income" };
+	if (await overMatched()) return { ok: false, reason: "matched" };
+	return { ok: false, reason: (await linkRefusal()) ?? "extra-income" };
 }
 
 /**

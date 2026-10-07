@@ -253,9 +253,11 @@ async function changedElsewhere(
 	};
 }
 
-/** Said when a change would move a month that has ended (issue 141, ADR-0058). */
-const ENDED_MONTH_EDIT =
-	"Money back on this counted in a month that has ended, so its amount and where it’s filed stay as they are. You can still change its note and who it’s For.";
+/**
+ * A change, or a delete, that would move a month that has ended (issue 141, ADR-0058): refused,
+ * and an answer rather than an error, so the screen says why in plain words.
+ */
+export type MonthEndedAnswer = { status: "month-ended" };
 
 /** The version of the Transaction the change was made on; left out by a caller that has none. */
 const versionSchema = z.number().int().min(0).optional();
@@ -284,7 +286,7 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			expectedVersion: versionSchema,
 		}),
 	)
-	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
+	.handler(async ({ data, context }): Promise<TransactionWriteAnswer | MonthEndedAnswer> => {
 		const result = await updateTransactionInDb(getDb(), {
 			today: dayKeyAt(new Date(), context.household.timeZone),
 			householdId: context.household.id,
@@ -298,7 +300,7 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			expectedVersion: data.expectedVersion,
 		});
 		if (!result.ok) {
-			if (result.reason === "month-ended") throw new Error(ENDED_MONTH_EDIT);
+			if (result.reason === "month-ended") return { status: "month-ended" };
 			if (result.reason === "changed-elsewhere")
 				return changedElsewhere(viewerOf(context), data.transactionId);
 			throw new Error("That isn’t in the Plan for this Transaction’s month.");
@@ -425,7 +427,7 @@ export const splitTransaction = createServerFn({ method: "POST" })
 				"Splits must add up to the Transaction’s amount.",
 			),
 	)
-	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
+	.handler(async ({ data, context }): Promise<TransactionWriteAnswer | MonthEndedAnswer> => {
 		const result = await splitTransactionInDb(getDb(), {
 			today: dayKeyAt(new Date(), context.household.timeZone),
 			householdId: context.household.id,
@@ -438,7 +440,7 @@ export const splitTransaction = createServerFn({ method: "POST" })
 			expectedVersion: data.expectedVersion,
 		});
 		if (!result.ok) {
-			if (result.reason === "month-ended") throw new Error(ENDED_MONTH_EDIT);
+			if (result.reason === "month-ended") return { status: "month-ended" };
 			if (result.reason === "changed-elsewhere")
 				return changedElsewhere(viewerOf(context), data.transactionId);
 			throw new Error(
@@ -468,27 +470,25 @@ export const deleteTransaction = createServerFn({ method: "POST" })
 			expectedVersion: versionSchema,
 		}),
 	)
-	.handler(
-		async ({ data, context }): Promise<TransactionWriteAnswer | { status: "month-ended" }> => {
-			const result = await deleteTransactionInDb(getDb(), {
-				householdId: context.household.id,
-				memberId: context.parent.id,
-				transactionId: data.transactionId,
-				expectedVersion: data.expectedVersion,
-				today: dayKeyAt(new Date(), context.household.timeZone),
-			});
-			// Money back on it counted in a month that has ended: it stays, and the screen says why.
-			if (!result.ok && result.reason === "month-ended") return { status: "month-ended" };
-			if (!result.ok) return changedElsewhere(viewerOf(context), data.transactionId);
-			await notifyHousehold(context.household.id, [
-				// Every month: what's left can roll into later ones.
-				"months",
-				"for-earlier",
-				"bucket-uses",
-			]);
-			return saved(null);
-		},
-	);
+	.handler(async ({ data, context }): Promise<TransactionWriteAnswer | MonthEndedAnswer> => {
+		const result = await deleteTransactionInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			transactionId: data.transactionId,
+			expectedVersion: data.expectedVersion,
+			today: dayKeyAt(new Date(), context.household.timeZone),
+		});
+		// Money back on it counted in a month that has ended: it stays, and the screen says why.
+		if (!result.ok && result.reason === "month-ended") return { status: "month-ended" };
+		if (!result.ok) return changedElsewhere(viewerOf(context), data.transactionId);
+		await notifyHousehold(context.household.id, [
+			// Every month: what's left can roll into later ones.
+			"months",
+			"for-earlier",
+			"bucket-uses",
+		]);
+		return saved(null);
+	});
 
 const sameMerchantSchema = z.object({
 	transactionId: ulidSchema,

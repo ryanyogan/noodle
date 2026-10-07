@@ -182,6 +182,7 @@ function OwedBackOn({
 	label,
 	item,
 	people,
+	canMoveToWhole = false,
 }: {
 	transactionId: string;
 	/** The Split it is said on; null for the whole purchase. */
@@ -191,8 +192,14 @@ function OwedBackOn({
 	label?: string | undefined;
 	item: OwedBackItem | undefined;
 	people: Child[];
+	/**
+	 * Its Split is gone and nothing else is said on the purchase: it can be put on the whole
+	 * purchase, as the one item it was (issue 141).
+	 */
+	canMoveToWhole?: boolean;
 }) {
 	const clear = useClearOwedBack();
+	const say = useSayOwedBack();
 	const [editing, setEditing] = useState(false);
 	return (
 		<div className="grid gap-3" data-testid={splitId ? "owed-back-split" : "owed-back-whole"}>
@@ -208,6 +215,26 @@ function OwedBackOn({
 							<Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
 								Change
 							</Button>
+							{canMoveToWhole ? (
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									disabled={say.isPending}
+									onClick={() =>
+										say.mutate({
+											owedBackId: item.id,
+											transactionId,
+											splitId: null,
+											who: item.who,
+											memberId: item.memberId,
+											amountCents: item.owed,
+										})
+									}
+								>
+									Put it on the whole purchase
+								</Button>
+							) : null}
 							<Button
 								type="button"
 								size="sm"
@@ -279,7 +306,8 @@ export function OwedBackOnPurchase({
 	);
 	return (
 		<div className="mt-4 grid gap-3 border-t border-border pt-4" data-testid="owed-back">
-			{splits.length === 0 || whole ? (
+			{/* An item whose Split is gone is the only thing said: it offers the whole purchase itself. */}
+			{(splits.length === 0 || whole) && !(loose.length > 0 && items.length === loose.length) ? (
 				<OwedBackOn
 					transactionId={transaction.id}
 					splitId={null}
@@ -309,6 +337,8 @@ export function OwedBackOnPurchase({
 					label="A Split that has changed since"
 					item={item}
 					people={children}
+					// Only when nothing else is said on the purchase: on the whole or its Splits, never both.
+					canMoveToWhole={items.length === loose.length}
 				/>
 			))}
 		</div>

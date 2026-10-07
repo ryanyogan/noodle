@@ -51,7 +51,7 @@ import {
 import { setCarriesOver } from "./plan";
 import { loadRolledOver } from "./rollover";
 import { applyRule, saveRule } from "./rules";
-import { income, owedBack, paidBackMatches, refundLinks, transactions } from "./schema";
+import { income, owedBack, paidBackMatches, refundLinks, splits, transactions } from "./schema";
 import { testDb } from "./test-db";
 
 // Paid back and Owed back (issue 132, ADR-0058). The ticket's scenario: tuition of $1,200 in
@@ -1192,6 +1192,117 @@ describe("what counted in a month that has ended stays as it was", () => {
 		// Lowered, but still at least its money back: the amount follows the bank.
 		await sync("imp-3", [bankLine("out-1", "2026-10-02", -30_00, "Rink Shop")], [], november);
 		expect((await purchaseNow(bought.id))?.amountCents).toBe(3_000);
+	});
+
+	/** A second purchase from the bank, split in two, with Owed back said and Paid back on one Split. */
+	const splitSetup = async () => {
+		const made = await bankSetup();
+		await made.sync(
+			"imp-s",
+			[
+				made.bankLine("out-2", "2026-10-03", -40_00, "Skate Barn"),
+				made.bankLine("in-2", "2026-10-06", 30_00, "ACH CREDIT CASEY LOWE"),
+			],
+			[],
+			today,
+		);
+		const [barn] = await db
+			.select()
+			.from(transactions)
+			.where(sql`${transactions.accountId} = 'bank' and ${transactions.amountCents} = 4000`);
+		const [paid] = await db
+			.select()
+			.from(income)
+			.where(sql`${income.accountId} = 'bank' and ${income.amountCents} = 3000`);
+		if (!barn || !paid) throw new Error("the bank's second lines didn't arrive");
+		expect(
+			await splitTransaction(db, {
+				householdId,
+				memberId: parentId,
+				transactionId: barn.id,
+				amountCents: 4_000 as Cents,
+				note: barn.note,
+				splits: [
+					{
+						id: "barn-a",
+						amountCents: 3_000 as Cents,
+						assignment: { bucketId: "hockey" },
+						forMemberIds: [],
+					},
+					{
+						id: "barn-b",
+						amountCents: 1_000 as Cents,
+						assignment: { bucketId: "health" },
+						forMemberIds: [],
+					},
+				],
+			}),
+		).toMatchObject({ ok: true });
+		expect(
+			(
+				await sayOwedBack(db, viewer, {
+					owedBackId: "ob-barn",
+					transactionId: barn.id,
+					splitId: "barn-a",
+					who: "Casey",
+					amountCents: 3_000 as Cents,
+				})
+			).ok,
+		).toBe(true);
+		expect(
+			(
+				await changeMoneyInKind(db, viewer, {
+					incomeId: paid.id,
+					kind: "paid-back",
+					transferId: "unused-2",
+					today,
+				})
+			).ok,
+		).toBe(true);
+		expect(
+			await confirmPaidBack(db, viewer, {
+				incomeId: paid.id,
+				matches: [{ id: "m-barn", owedBackId: "ob-barn", amount: 3_000 as Cents }],
+				today,
+			}),
+		).toMatchObject({ ok: true });
+		const splitAmounts = async () =>
+			Object.fromEntries(
+				(await db.select().from(splits).where(sql`${splits.transactionId} = ${barn.id}`)).map(
+					(row) => [row.id, row.amountCents],
+				),
+			);
+		return { ...made, barn, splitAmounts };
+	};
+
+	it("caps Owed back said on a Split at the Split's new amount when the bank lowers the purchase in the running month", async () => {
+		const { sync, bankLine, barn, splitAmounts } = await splitSetup();
+		await sync("imp-2", [bankLine("out-2", "2026-10-03", -20_00, "Skate Barn")], [], today);
+		expect(await purchaseNow(barn.id)).toMatchObject({ amountCents: 2_000, bankTookBackOn: null });
+		const now = await splitAmounts();
+		expect((now["barn-a"] ?? 0) + (now["barn-b"] ?? 0)).toBe(2_000);
+		expect(now["barn-a"]).toBeLessThan(3_000);
+		const [item] = await loadOwedBack(db, viewer, { id: "ob-barn" });
+		// Never more than its Split came to, and never more Paid back on it than is owed.
+		expect(item).toMatchObject({ owed: now["barn-a"], paid: now["barn-a"] });
+		expect((await matchAmounts())["m-barn"]).toBe(now["barn-a"]);
+	});
+
+	it("keeps a split purchase and its Splits when the bank lowers it below what one Split had Paid back, after the month ended", async () => {
+		const { sync, bankLine, barn, splitAmounts } = await splitSetup();
+		const spentBefore = await bucketSpent(october);
+		// $36 is still more than the $30 Paid back, but its Split's share of it is not.
+		await sync("imp-2", [bankLine("out-2", "2026-10-03", -36_00, "Skate Barn")], [], november);
+		expect(await purchaseNow(barn.id)).toMatchObject({
+			amountCents: 4_000,
+			bankTookBackOn: november,
+			bankAmountCents: 3_600,
+		});
+		expect(await splitAmounts()).toEqual({ "barn-a": 3_000, "barn-b": 1_000 });
+		const [item] = await loadOwedBack(db, viewer, { id: "ob-barn" });
+		expect(item).toMatchObject({ owed: 3_000, paid: 3_000 });
+		expect((await matchAmounts())["m-barn"]).toBe(3_000);
+		expect(await bucketSpent(october)).toEqual(spentBefore);
 	});
 
 	it("still lets all of it go while the month is running", async () => {
