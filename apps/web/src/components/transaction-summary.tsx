@@ -6,7 +6,7 @@ import { useHydrated } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { formatMoney } from "../format";
 import { moneyInQuery } from "../money-in";
-import { monthSummary, type TransactionShow } from "../transaction-summary";
+import { monthIncome, monthSummary, type TransactionShow } from "../transaction-summary";
 import { type TransactionFilters, transactionsQuery } from "../transactions";
 
 // The month at a glance, over the Transactions table (issue 134): Money in, Money out and Needs
@@ -65,6 +65,7 @@ export function MonthSummary({
 	// Until hydrated, a press would do nothing.
 	const disabled = !useHydrated();
 	const { inCents, outCents, needsReview } = monthSummary(moneyIn, list);
+	const incomeCents = monthIncome(moneyIn);
 	const shared = { on: filters.show, onShow, disabled };
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: a fieldset's legend can't sit in this grid.
@@ -81,6 +82,16 @@ export function MonthSummary({
 					{inCents > 0 ? "+" : ""}
 					{formatMoney(inCents)}
 				</span>
+				{/* Refunds and Paid back came in too, and aren't Income: say how much is, as This
+				    Month's "received" does. */}
+				{incomeCents !== inCents ? (
+					<span
+						className="text-[11px] font-normal text-subtle-foreground"
+						data-testid="month-in-income"
+					>
+						{formatMoney(incomeCents)} of it Income
+					</span>
+				) : null}
 			</Figure>
 			<Figure show="out" label="Money out" {...shared}>
 				<span className={figure} data-testid="month-total">

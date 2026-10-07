@@ -37,6 +37,16 @@ export function monthSummary(
 	};
 }
 
+/**
+ * How much of the month's Money in is Income: what This Month calls "received" and sets against
+ * Take-home pay. The rest of Money in is Refunds and Paid back, which are never Income.
+ */
+export const monthIncome = (moneyIn: Line[]): number =>
+	moneyIn.reduce(
+		(sum, line) => (line.kind === "income" && !line.needsReview ? sum + line.amount : sum),
+		0,
+	);
+
 /** The money-in lines the page lists under a filter: none for money out, those waiting for review. */
 export function moneyInShown<T extends Line>(lines: T[], show: TransactionShow | undefined): T[] {
 	if (show === "out") return [];
