@@ -253,7 +253,10 @@ test("the “Edit” beside a Commitment made in place opens that Commitment", a
 	await expect(toast(page, "It’s planned monthly")).toHaveCount(0);
 	await said.getByRole("button", { name: "Edit" }).click();
 	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}\/commitments\/[0-9A-Z]{26}/);
-	await expect(page.locator("[data-slot=detail-title]:visible")).toContainText(/discover/i);
+	// A cold dev server builds the Commitment's page first.
+	await expect(page.locator("[data-slot=detail-title]:visible")).toContainText(/discover/i, {
+		timeout: 30_000,
+	});
 });
 
 test("a payment to a card kept by hand is filed in the Commitment that pays it down, with one Undo", async ({
@@ -463,10 +466,12 @@ for (const view of ["?view=list", ""] as const) {
 		const edit = toast(page, "is now a Commitment").getByRole("button", { name: "Edit" });
 		await edit.click();
 		await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}\/commitments\/[0-9A-Z]{26}/);
-		await expect(page.locator("[data-slot=detail-title]:visible")).toContainText(/discover/i);
+		await expect(page.locator("[data-slot=detail-title]:visible")).toContainText(/discover/i, {
+			timeout: 30_000,
+		});
 	});
 
-	test(`Review, ${where}: a payment to a card kept by hand is filed in its Commitment, and Undo puts the card back`, async ({
+	test(`Review, ${where}: a payment to a card kept by hand is offered its Commitment, and Undo puts the card back`, async ({
 		browser,
 	}) => {
 		test.slow();
@@ -487,27 +492,19 @@ for (const view of ["?view=list", ""] as const) {
 			"checking.csv",
 			[HEADER, `DEBIT,${day},"APPLECARD GSBANK PAYMENT 8841",-300.00,ACH_DEBIT,2200.00,`],
 		);
-		const cards = await reviewCards(page, thisMonth, view, "APPLECARD");
-		const mark = cards.first().getByRole("button", { name: "It’s a card payment" }).first();
-		await expect(mark).toBeEnabled({ timeout: 30_000 });
-		await mark.click();
-		const asking = page.getByRole("dialog", { name: "It’s a card payment" });
-		const choice = asking.getByTestId("card-payment-choice");
-		await expect(choice).toContainText(
-			"Apple Card is kept by hand, so its payment is the spending: it’s filed in Apple Card bill.",
+		// Review reads it as a payment to Apple Card, which Apple Card bill pays down: the payment
+		// is the spending, so Confirm files it there. It isn't asked which card, and nothing offers
+		// to make it a Transfer first.
+		const cards = await reviewCards(page, thisMonth, view, "Apple Card bill");
+		const confirm = cards.first().getByRole("button", { name: "Confirm" });
+		await expect(confirm).toBeEnabled({ timeout: 30_000 });
+		await expect(cards.first().getByRole("button", { name: "Make it a Commitment" })).toHaveCount(
+			0,
 		);
-		await choice.getByRole("button", { name: "Apple Card", exact: true }).click();
-		const said = toast(page, "filed in Apple Card bill");
-		await expect(said).toContainText("Payments worded like it will be too.");
-		await expect(asking).toBeHidden();
+		await confirm.click();
 		await expect(cards).toHaveCount(0, SETTLED);
-
-		await said.getByRole("button", { name: "Undo" }).click();
+		await page.getByRole("status").getByRole("button", { name: "Undo" }).first().click();
 		await expect(cards.first()).toBeVisible(SETTLED);
-		// The Rule stated for the wording went with it.
-		await page.goto(new URL("/review/rules", thisMonth).href);
-		await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });
-		await expect(page.getByRole("main")).not.toContainText("applecard gsbank");
 	});
 }
 
