@@ -4,14 +4,19 @@ import {
 	completeCheckIn,
 	createHouseholdForParent,
 	type Db,
+	fileWithoutBucket,
 	listCheckInHouseholds,
 	loadCheckInDoers,
+	loadCheckInSkipped,
 	loadCheckInStack,
 	loadCheckIns,
+	loadReviewCleared,
 	setCheckInDay,
+	settleCategorization,
+	skipCheckInCard,
 	startCheckInStack,
 } from "./index";
-import { insights, members, monthCloses, moves } from "./schema";
+import { categorizations, insights, members, monthCloses, moves, transactions } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -289,5 +294,110 @@ describe("the week's stack", () => {
 			expect(await loadCheckInDoers(db, alex, card(["d"]))).toEqual({});
 			expect(await loadCheckInDoers(db, alex, [{ ...review, startedAt: monday }])).toEqual({});
 		});
+	});
+});
+
+describe("who cleared Review", () => {
+	const alex = { householdId, memberId: "alex" };
+	const sam = { householdId, memberId: "sam" };
+	const review: CheckInStarted = { kind: "review", count: 4 };
+	// The card joined before any of the filing below, which the database times as now.
+	const joined = new Date("2026-09-28T15:00:00Z");
+
+	/** Transactions waiting in Review. */
+	async function waiting(...ids: string[]) {
+		await db.insert(transactions).values(
+			ids.map((id) => ({
+				id,
+				householdId,
+				source: "quick-add" as const,
+				date: "2026-09-28",
+				amountCents: 1200,
+				note: id,
+				createdByMemberId: "alex",
+			})),
+		);
+		await db.insert(categorizations).values(
+			ids.map((id) => ({
+				transactionId: id,
+				householdId,
+				memberId: "alex",
+				outcome: "review" as const,
+				merchant: id,
+			})),
+		);
+	}
+
+	it("is each Parent who took a Transaction out of Review since the card joined, and how many", async () => {
+		await waiting("t1", "t2", "t3", "t4");
+		await fileWithoutBucket(db, sam, ["t1", "t2"]);
+		await settleCategorization(db, householdId, "t3", "alex");
+		// Nobody on record: decided with no Parent named, as everything was before this was kept.
+		await settleCategorization(db, householdId, "t4");
+		expect(await loadReviewCleared(db, alex, joined)).toEqual({ alex: 1, sam: 2 });
+		expect(await loadCheckInDoers(db, alex, [{ ...review, startedAt: joined }])).toEqual({
+			review: ["alex", "sam"],
+		});
+	});
+
+	it("leaves out what was cleared before the card joined, and what waits there again", async () => {
+		await waiting("t1", "t2");
+		await fileWithoutBucket(db, sam, ["t1", "t2"]);
+		const later = new Date(Date.now() + 60_000);
+		expect(await loadReviewCleared(db, alex, later)).toEqual({});
+		// Put back with Undo: it waits again, so nobody has cleared it.
+		await db.insert(categorizations).values({
+			transactionId: "t1",
+			householdId,
+			memberId: "alex",
+			outcome: "review",
+			merchant: "t1",
+		});
+		expect(await loadReviewCleared(db, alex, joined)).toEqual({ sam: 1 });
+	});
+
+	it("names nobody for a Transaction that wasn't waiting in Review, or another Household's", async () => {
+		await waiting("t1");
+		await db.delete(categorizations);
+		await settleCategorization(db, householdId, "t1", "sam");
+		await waiting("t2");
+		await fileWithoutBucket(db, sam, ["t2"]);
+		expect(await loadReviewCleared(db, alex, joined)).toEqual({ sam: 1 });
+		expect(
+			await loadReviewCleared(db, { householdId: "other", memberId: "other-parent" }, joined),
+		).toEqual({});
+	});
+});
+
+describe("skipping a card of the week's stack", () => {
+	const alex = { householdId, memberId: "alex" };
+	const sam = { householdId, memberId: "sam" };
+	const review: CheckInStarted = { kind: "review", count: 3 };
+	const insightsCard: CheckInStarted = { kind: "insights", count: 1, ids: ["a"] };
+	const monday = new Date("2026-09-28T15:00:00Z");
+	const nextWeek = "2026-10-04" as DayKey;
+
+	it("is remembered for that Parent, that week and that card only", async () => {
+		for (const parent of [alex, sam]) {
+			await startCheckInStack(db, { ...parent, week, cards: [review, insightsCard], now: monday });
+			await startCheckInStack(db, { ...parent, week: nextWeek, cards: [review], now: monday });
+		}
+		expect(await loadCheckInSkipped(db, alex, week)).toEqual([]);
+		expect(await skipCheckInCard(db, { ...alex, week, kind: "review", now: monday })).toBe(true);
+		expect(await loadCheckInSkipped(db, alex, week)).toEqual(["review"]);
+		expect(await loadCheckInSkipped(db, sam, week)).toEqual([]);
+		// A new week starts clean.
+		expect(await loadCheckInSkipped(db, alex, nextWeek)).toEqual([]);
+		// Skipping again changes nothing; the stack itself is as it was.
+		expect(await skipCheckInCard(db, { ...alex, week, kind: "review", now: monday })).toBe(false);
+		expect((await loadCheckInStack(db, alex, week)).map((card) => card.kind)).toEqual([
+			"review",
+			"insights",
+		]);
+	});
+
+	it("does nothing for a card that never joined the stack", async () => {
+		expect(await skipCheckInCard(db, { ...alex, week, kind: "sweeps", now: monday })).toBe(false);
+		expect(await loadCheckInSkipped(db, alex, week)).toEqual([]);
 	});
 });

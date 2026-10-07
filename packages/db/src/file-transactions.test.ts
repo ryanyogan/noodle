@@ -471,3 +471,34 @@ describe("filing many Transactions at once", () => {
 		});
 	});
 });
+
+describe("filing what waits in Review", () => {
+	it("notes the Parent who filed it as who cleared it, and nobody for one that didn't wait", async () => {
+		await add("a");
+		await add("b");
+		await db.insert(categorizations).values({
+			transactionId: "a",
+			householdId,
+			memberId: "alex",
+			outcome: "review",
+			merchant: "a",
+		});
+		await fileTransactions(db, viewer, {
+			selection: { ids: ["a", "b"] },
+			month,
+			assignment: groceries,
+		});
+		const rows = await db
+			.select({
+				id: transactions.id,
+				by: transactions.reviewClearedByMemberId,
+				at: transactions.reviewClearedAt,
+			})
+			.from(transactions)
+			.orderBy(asc(transactions.id));
+		expect(rows.map((row) => [row.id, row.by, row.at !== null])).toEqual([
+			["a", "alex", true],
+			["b", null, false],
+		]);
+	});
+});

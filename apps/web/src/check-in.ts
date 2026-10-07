@@ -47,9 +47,11 @@ function doers(by: Extract<CheckInStackCard, { state: "dealt" }>["by"], me: stri
 
 /**
  * What was done about a card that nothing waits on any more, in a line: "Sam decided $250 of
- * Extra income", "3 Transactions cleared from Review". It names who where there's a record of
- * it (nobody is on record for Review), and the figures are what the card held when it joined
- * the week's stack, read for this Parent.
+ * Extra income", "Sam cleared 3 Transactions from Review". It names who where there's a record of
+ * it, and the figures are what the card held when it joined the week's stack, read for this
+ * Parent. Review is the exception: where there's a record it says how many each Parent cleared
+ * ("You cleared 2 Transactions from Review, Sam cleared 4"), and "3 Transactions cleared from
+ * Review" when nobody is on record (anything filed before issue 142 kept who).
  */
 export function checkInDealtLine(
 	card: Extract<CheckInStackCard, { state: "dealt" }>,
@@ -58,8 +60,18 @@ export function checkInDealtLine(
 	const who = doers(card.by, me);
 	const started = card.started;
 	switch (started.kind) {
-		case "review":
-			return `${plural(started.count, "Transaction")} cleared from Review`;
+		case "review": {
+			// The reader first, as everywhere a line names both.
+			const [first, ...rest] = card.by
+				.flatMap((doer) => (doer.count ? [{ ...doer, count: doer.count }] : []))
+				.sort((a, b) => Number(b.memberId === me) - Number(a.memberId === me));
+			if (!first) return `${plural(started.count, "Transaction")} cleared from Review`;
+			const name = (doer: { memberId: string; name: string }) =>
+				doer.memberId === me ? "You" : doer.name;
+			return `${name(first)} cleared ${plural(first.count, "Transaction")} from Review${rest
+				.map((doer) => `, ${name(doer)} cleared ${doer.count}`)
+				.join("")}`;
+		}
 		case "insights": {
 			const what = plural(started.count, "Insight");
 			return who ? `${who} decided ${what}` : `${what} decided`;
@@ -73,6 +85,20 @@ export function checkInDealtLine(
 			return who ? `${who} decided ${what}` : `${what} decided`;
 		}
 	}
+}
+
+/**
+ * The line over a stack that was all dealt with before this Parent's visit: "Sam cleared these
+ * 3", "You and Sam cleared these 3", or "These 3 are dealt with" when any line has nobody on
+ * record.
+ */
+export function checkInClearedHeading(
+	cards: readonly Extract<CheckInStackCard, { state: "dealt" }>[],
+	me: string,
+): string {
+	const everyone = new Map(cards.flatMap((card) => card.by).map((doer) => [doer.memberId, doer]));
+	const who = cards.every((card) => card.by.length > 0) ? doers([...everyone.values()], me) : null;
+	return who ? `${who} cleared these ${cards.length}` : `These ${cards.length} are dealt with`;
 }
 
 /**
