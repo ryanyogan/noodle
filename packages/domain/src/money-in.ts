@@ -1,5 +1,6 @@
 import { looksPersonToPerson } from "./between-us";
 import { merchantKey } from "./categorize";
+import { cleanMerchant } from "./merchant-name";
 
 // Money in has a kind (ADR-0057): Income, a Refund, Paid back, a Transfer or Between us. Only
 // Income counts toward the Take-home pay and Extra income. A Parent can change which.
@@ -116,15 +117,46 @@ export function looksLikeReturnedPayment(text: string | null | undefined): boole
 const PAYING_BACK =
 	/\b(?:refund(?:ed|s|ing)?|rfnd|pa(?:y|ys|ying|id)\s?(?:(?:you|u|me)\s)?back|repa(?:y|id|yment|ying)|owe[ds]?|reimburs[a-z]*|iou)\b/i;
 
+// What follows a shop's name on money back, and the rail's own words: not who the shop is.
+const NOT_THE_SHOP =
+	/\b(?:refund(?:ed|s)?|rfnd|rfd|reversal|credit|return(?:ed|s)?|inst|xfer|transfer|payment|pymt|des|id|web|ppd|ach)\b/gi;
+
+/**
+ * The shop a line through PayPal names, as a key two lines from the same shop share ("PAYPAL
+ * *NIKE COM 4029357733" and "PAYPAL *NIKE COM REFUND" are both "nike com"); null for wording that
+ * isn't PayPal's, or that names nobody after it.
+ */
+export function paypalShopKey(text: string | null | undefined): string | null {
+	const at = text ? /\bpaypal\b/i.exec(text) : null;
+	if (!text || !at) return null;
+	const rest = text
+		.slice(at.index + at[0].length)
+		.replace(/[*:]/g, " ")
+		.replace(NOT_THE_SHOP, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+	if (!rest) return null;
+	return merchantKey(cleanMerchant(rest).name) || null;
+}
+
 /**
  * The kind Review suggests for money in that waits there, read from the wording each time, so
  * nothing is kept about it. Money from a person gets Paid back when its memo says so ("refund for
- * tickets", "paying you back", "what I owe you") and never Refund: there is no purchase at a
- * merchant to link. Other wording that reads as a refund gets Refund. Nothing otherwise.
+ * tickets", "paying you back", "what I owe you") and not Refund: there is no purchase at a
+ * merchant to link. The one exception is a shop paying back through PayPal (issue 142): when the
+ * Household is known to have bought there through PayPal, for at least as much, in the days a
+ * Refund is matched over (`shopPurchase`), it gets Refund. Other wording that reads as a refund
+ * gets Refund. Nothing otherwise.
  */
-export function suggestedMoneyInKind(description: string | null | undefined): MoneyInKind | null {
+export function suggestedMoneyInKind(
+	description: string | null | undefined,
+	known: { shopPurchase?: boolean } = {},
+): MoneyInKind | null {
 	if (!description || looksLikePayroll(description)) return null;
-	if (looksPersonToPerson(description)) return PAYING_BACK.test(description) ? "paid-back" : null;
+	if (looksPersonToPerson(description)) {
+		if (known.shopPurchase && paypalShopKey(description)) return "refund";
+		return PAYING_BACK.test(description) ? "paid-back" : null;
+	}
 	return looksLikeRefund(description) ? "refund" : null;
 }
 

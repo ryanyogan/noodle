@@ -231,18 +231,8 @@ export function useCardPaymentFiling() {
 						ruleBefore: result.ruleBefore,
 						months: result.months,
 						created,
-						waited: result.waited,
-						review: input.review && {
-							transactionId: input.transactionId,
-							merchant: input.review.merchant,
-							guess: input.review.guess && {
-								bucketId: input.review.guess.bucketId,
-								confidence: input.review.guess.confidence,
-								method: input.review.guess.method,
-								reason: input.review.guess.reason,
-							},
-							for: input.review.for,
-						},
+						// Which line it was answered from: the server kept its guess (issue 142).
+						review: input.review && { transactionId: input.transactionId },
 					},
 				})
 					.then((undone) => {

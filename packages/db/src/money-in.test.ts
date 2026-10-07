@@ -293,3 +293,31 @@ describe("a Rule states a kind", () => {
 		expect((await byNote("GUSTO 9917")).kind).toBe("income");
 	});
 });
+
+describe("a shop's refund through PayPal (issue 142)", () => {
+	it("is marked for Refund only when it matches an earlier purchase there through PayPal", async () => {
+		await importInto("checking", "import-1", [
+			line("2026-09-10", -8_000, "PAYPAL *NIKE COM 4029357733"),
+			// Money back for part of it, for more than was spent, and from a shop nothing was bought at.
+			line("2026-09-20", 3_000, "PAYPAL *NIKE COM REFUND"),
+			line("2026-09-21", 9_000, "PAYPAL *NIKE COM REFUND"),
+			line("2026-09-22", 1_200, "PAYPAL *ETSY INC REFUND"),
+			// Money in before the purchase is not money back for it.
+			line("2026-09-02", 2_000, "PAYPAL *NIKE COM REFUND"),
+		]);
+		const waiting = await loadMoneyIn(db, householdId, { review: true });
+		expect(
+			Object.fromEntries(
+				waiting.map((row) => [`${row.date} ${row.amount}`, row.shopRefund === true]),
+			),
+		).toEqual({
+			"2026-09-20 3000": true,
+			"2026-09-21 9000": false,
+			"2026-09-22 1200": false,
+			"2026-09-02 2000": false,
+		});
+		// Once a Parent has said what it is, nothing is suggested, so nothing is marked.
+		const all = await loadMoneyIn(db, householdId);
+		expect(all.filter((row) => row.shopRefund).map((row) => row.amount)).toEqual([3_000]);
+	});
+});

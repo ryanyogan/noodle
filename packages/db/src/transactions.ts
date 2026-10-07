@@ -2640,6 +2640,48 @@ function forWrites(db: Db, householdId: string, these: SQL | undefined, memberId
 }
 
 /**
+ * What unfileTransactions tests and writes for one chunk of entries (up to BULK_DELETE_CHUNK), so
+ * another Undo can put its lines back in a batch with its other writes: `back` holds for a
+ * Transaction the Undo puts back (still at the version the filing left it at, the Parent's to
+ * change, free to move), `was` reads where it goes back to, `update` is the write.
+ */
+export function unfiling(
+	db: Db,
+	viewer: Viewer,
+	chunk: FiledBefore[],
+	options: { today?: DayKey } = {},
+) {
+	const { householdId, memberId } = viewer;
+	const pairs = JSON.stringify(
+		chunk.map((entry) => [entry.id, entry.version, entry.bucketId, entry.commitmentId]),
+	);
+	const was = (index: 2 | 3) =>
+		sql<string | null>`(select json_extract(j.value, ${`$[${index}]`}) from json_each(${pairs}) j
+			where json_extract(j.value, '$[0]') = ${transactions.id})`;
+	// What it goes back to is still the Household's, and a Bucket this Parent can assign to.
+	const theirs = sql`(${was(2)} is null or exists (select 1 from buckets b where b.id = ${was(2)}
+		and b.household_id = ${householdId} and (b.owner_member_id is null or b.owner_member_id = ${memberId})))
+		and (${was(3)} is null or exists (select 1 from commitments c where c.id = ${was(3)}
+		and c.household_id = ${householdId}))`;
+	const back = and(
+		editableBy(householdId, memberId),
+		purchaseMayMove(options.today),
+		fileableWhole,
+		inPairs(pairs, 0),
+		theirs,
+	) as SQL;
+	const update = db
+		.update(transactions)
+		.set({
+			bucketId: was(2),
+			commitmentId: was(3),
+			version: sql`${transactions.version} + 1`,
+		})
+		.where(back);
+	return { pairs, was, theirs, back, update };
+}
+
+/**
  * Undo for "File in…" (ADR-0055): puts each Transaction back in the Bucket or Commitment it had
  * (or none), only while it is still at the version the filing left it at, still the Parent's to
  * change, and what it goes back to is the Household's and theirs to assign to. Says how many went
@@ -2660,17 +2702,7 @@ export async function unfileTransactions(
 	let kept = 0;
 	for (let start = 0; start < entries.length; start += BULK_DELETE_CHUNK) {
 		const chunk = entries.slice(start, start + BULK_DELETE_CHUNK);
-		const pairs = JSON.stringify(
-			chunk.map((entry) => [entry.id, entry.version, entry.bucketId, entry.commitmentId]),
-		);
-		const was = (index: 2 | 3) =>
-			sql<string | null>`(select json_extract(j.value, ${`$[${index}]`}) from json_each(${pairs}) j
-				where json_extract(j.value, '$[0]') = ${transactions.id})`;
-		// What it goes back to is still the Household's, and a Bucket this Parent can assign to.
-		const theirs = sql`(${was(2)} is null or exists (select 1 from buckets b where b.id = ${was(2)}
-			and b.household_id = ${householdId} and (b.owner_member_id is null or b.owner_member_id = ${memberId})))
-			and (${was(3)} is null or exists (select 1 from commitments c where c.id = ${was(3)}
-			and c.household_id = ${householdId}))`;
+		const { pairs, theirs, update } = unfiling(db, viewer, chunk, options);
 		const going = await db
 			.select({ id: transactions.id })
 			.from(transactions)
@@ -2701,14 +2733,6 @@ export async function unfileTransactions(
 		const whose = JSON.stringify(
 			withFor.flatMap((entry) => (entry.for ?? []).map((memberId) => [entry.id, memberId])),
 		);
-		const update = db
-			.update(transactions)
-			.set({
-				bucketId: was(2),
-				commitmentId: was(3),
-				version: sql`${transactions.version} + 1`,
-			})
-			.where(and(editable, fileableWhole, inPairs(pairs, 0), theirs));
 		if (withFor.length === 0) await update;
 		else {
 			await db.batch([

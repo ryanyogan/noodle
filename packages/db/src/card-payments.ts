@@ -16,11 +16,11 @@ import { purchaseMayMove } from "./ended-months";
 import type { Db } from "./index";
 import { cardPaymentForgottenEvents } from "./log-events";
 import { changeableBy, type Viewer, visibleTo } from "./privacy";
-import { returnToReview } from "./review";
-import { deleteRule, ruleSaving, saveRule } from "./rules";
+import { ruleDeleting, ruleSaving, saveRule } from "./rules";
 import {
 	accounts,
 	cardPaymentRules,
+	cardPaymentWaited,
 	categorizations,
 	commitments,
 	monthCloses,
@@ -30,12 +30,7 @@ import {
 	transactions,
 	transfers,
 } from "./schema";
-import {
-	commitmentFiling,
-	type FiledBefore,
-	fileTransactions,
-	unfileTransactions,
-} from "./transactions";
+import { commitmentFiling, type FiledBefore, fileTransactions, unfiling } from "./transactions";
 import {
 	commitmentPayments,
 	type MoneyResult,
@@ -921,6 +916,48 @@ export async function fileCardPayment(
 				sql`${categorizations.transactionId} in (select value from json_each(${mayWait}))`,
 			),
 		);
+	// What waited is kept here by the server (issue 142): the Undo reads each line's guess from
+	// it, never from the page. Kept beside the version the line has now, which this filing moves
+	// on from by one, so no other filing's Undo reads it; an answer sent again finds the lines
+	// filed, keeps nothing new, and leaves what the first try kept.
+	await db
+		.insert(cardPaymentWaited)
+		.select(
+			db
+				.select({
+					// Selected in the table's column order: insert … select is positional.
+					transactionId: sql<string>`${categorizations.transactionId}`.as("transaction_id"),
+					householdId: sql<string>`${categorizations.householdId}`.as("household_id"),
+					version: sql<number>`${transactions.version}`.as("version"),
+					method: sql<CardPaymentWaited["method"]>`${categorizations.method}`.as("method"),
+					bucketId: sql<string | null>`${categorizations.bucketId}`.as("bucket_id"),
+					confidence: sql<number | null>`${categorizations.confidence}`.as("confidence"),
+					merchant: sql<string>`${categorizations.merchant}`.as("merchant"),
+					reason: sql<string | null>`${categorizations.reason}`.as("reason"),
+					keptAt: sql<Date>`(unixepoch() * 1000)`.as("kept_at"),
+				})
+				.from(categorizations)
+				.innerJoin(transactions, eq(transactions.id, categorizations.transactionId))
+				.where(
+					and(
+						eq(categorizations.householdId, householdId),
+						eq(categorizations.outcome, "review"),
+						sql`${categorizations.transactionId} in (select value from json_each(${mayWait}))`,
+					),
+				),
+		)
+		.onConflictDoUpdate({
+			target: cardPaymentWaited.transactionId,
+			set: {
+				version: sql`excluded.version`,
+				method: sql`excluded.method`,
+				bucketId: sql`excluded.bucket_id`,
+				confidence: sql`excluded.confidence`,
+				merchant: sql`excluded.merchant`,
+				reason: sql`excluded.reason`,
+				keptAt: sql`excluded.kept_at`,
+			},
+		});
 	// The Rule the Household shares for this wording, if one is stated: saveRule changes that row.
 	const [earlier] = pattern
 		? await db
@@ -1190,6 +1227,12 @@ function wordsWithin(text: string, length: number) {
  * changed it since), and the Rule for the wording is as it was: forgotten when the answer stated
  * it, else filing where it did before (`ruleBefore`), For whom it was. An earlier target that has
  * gone since can't be filed into, so the Rule is forgotten then too.
+ *
+ * A line the answer took out of Review waits there again with the guess it had, read from what
+ * the server kept when it was filed (card_payment_waited), never from the page (issue 142). Who
+ * it is For stays as it is: this filing never changes that. The lines, their guesses and the Rule
+ * are ONE batch, so the Undo lands whole or not at all. Sent again it writes nothing: the lines
+ * are a version on, and the Rule is already as it was.
  */
 export async function undoCardPaymentFiling(
 	db: Db,
@@ -1199,212 +1242,147 @@ export async function undoCardPaymentFiling(
 		ruleId: string | null;
 		ruleBefore?: RuleBefore | null;
 		/**
-		 * The line answered, when it was answered from its card in Review: once unfiled it waits
-		 * there again, with the guess it had and For who it was For.
+		 * The line answered, when it was answered from its card in Review: its version once it
+		 * waits there again is said back (`reviewVersion`).
 		 */
-		review?: CardPaymentReview;
-		/**
-		 * The lines the answer took out of Review (fileCardPayment's `waited`): each waits there
-		 * again once unfiled, with the guess it had. `review` has the last word on its own line.
-		 */
-		waited?: CardPaymentWaited[];
+		review?: { transactionId: string };
 	},
 ): Promise<{ restored: number; reviewVersion?: number | null }> {
-	const { restored } = await unfileTransactions(db, viewer, input.undo);
-	const done =
-		input.review === undefined
-			? { restored }
-			: { restored, reviewVersion: await waitInReviewAgain(db, viewer, input.undo, input.review) };
-	const others = (input.waited ?? []).filter((line) => line.id !== input.review?.transactionId);
-	// Who each is For stays as it is now (the unfiling has put back a For the filing changed).
-	for (let start = 0; start < others.length; start += WAIT_AGAIN_CHUNK) {
-		await waitManyInReviewAgain(
-			db,
-			viewer,
-			input.undo,
-			others.slice(start, start + WAIT_AGAIN_CHUNK),
+	const { householdId, memberId } = viewer;
+	const kept = (column: string) => sql.raw(`card_payment_waited.${column}`);
+	// The guess is only ever one of the Household's own Buckets, as it is now.
+	const guess = sql<string | null>`(select b.id from buckets b where b.id = ${kept("bucket_id")}
+		and b.household_id = ${householdId} and b.owner_member_id is null)`;
+	const guessed = (column: string) =>
+		sql`case when ${guess} is null then null else ${kept(column)} end`;
+	const statements: BatchItem<"sqlite">[] = [];
+	const chunks: { back: SQL; going: number }[] = [];
+	const count = async (where: SQL) =>
+		(
+			await db
+				.select({ count: sql<number>`count(*)`.mapWith(Number) })
+				.from(transactions)
+				.where(where)
+		)[0]?.count ?? 0;
+	for (let start = 0; start < input.undo.length; start += UNDO_CHUNK) {
+		const { was, back, update } = unfiling(db, viewer, input.undo.slice(start, start + UNDO_CHUNK));
+		chunks.push({ back, going: await count(back) });
+		// Over `card_payment_waited`: its line is one this very batch unfiles to nowhere, kept by the
+		// filing being undone (one version before the one it left the line at), and this Parent's.
+		const waited = and(
+			eq(cardPaymentWaited.householdId, householdId),
+			sql`exists (select 1 from ${transactions} where ${and(
+				sql`${transactions.id} = ${kept("transaction_id")}`,
+				sql`${transactions.version} = ${kept("version")} + 1`,
+				back,
+				sql`${was(2)} is null and ${was(3)} is null`,
+				isNull(transactions.goalId),
+				changeableBy(viewer),
+			)})`,
+		) as SQL;
+		statements.push(
+			db
+				.insert(categorizations)
+				.select(
+					db
+						.select({
+							// Selected in the table's column order: insert … select is positional.
+							transactionId: sql<string>`${kept("transaction_id")}`.as("transaction_id"),
+							householdId: sql<string>`${householdId}`.as("household_id"),
+							memberId: sql<string>`${memberId}`.as("member_id"),
+							outcome: sql<"review">`'review'`.as("outcome"),
+							method: sql<string | null>`${guessed("method")}`.as("method"),
+							bucketId: sql<string | null>`${guess}`.as("bucket_id"),
+							confidence: sql<number | null>`${guessed("confidence")}`.as("confidence"),
+							merchant: sql<string>`${kept("merchant")}`.as("merchant"),
+							createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+							reason: sql<string | null>`${guessed("reason")}`.as("reason"),
+							commitmentId: sql<string | null>`null`.as("commitment_id"),
+							returnedAt: sql<Date>`(unixepoch() * 1000)`.as("returned_at"),
+						})
+						.from(cardPaymentWaited)
+						.where(waited),
+				)
+				.onConflictDoUpdate({
+					target: categorizations.transactionId,
+					set: {
+						outcome: sql`'review'`,
+						method: sql`excluded.method`,
+						bucketId: sql`excluded.bucket_id`,
+						commitmentId: sql`null`,
+						confidence: sql`excluded.confidence`,
+						reason: sql`excluded.reason`,
+						returnedAt: sql`excluded.returned_at`,
+					},
+				}),
+			// What was kept has been used: the next answer keeps its own.
+			db.delete(cardPaymentWaited).where(waited),
+			// Last: the writes before it are guarded by the version this one moves on from.
+			update,
 		);
 	}
-	if (!input.ruleId) return done;
-	if (input.ruleBefore) {
-		const { householdId, memberId } = viewer;
-		const [stated] = await db
-			.select({ pattern: rules.pattern })
-			.from(rules)
-			.where(
-				and(
-					eq(rules.id, input.ruleId),
-					eq(rules.householdId, householdId),
-					isNull(rules.ownerMemberId),
-				),
+	if (input.ruleId) {
+		const before = input.ruleBefore ?? null;
+		const [stated] = before
+			? await db
+					.select({ pattern: rules.pattern })
+					.from(rules)
+					.where(
+						and(
+							eq(rules.id, input.ruleId),
+							eq(rules.householdId, householdId),
+							isNull(rules.ownerMemberId),
+						),
+					)
+			: [];
+		if (!before) statements.push(...ruleDeleting(db, viewer, input.ruleId));
+		else if (stated) {
+			const saving = ruleSaving(db, {
+				id: input.ruleId,
+				householdId,
+				memberId,
+				pattern: stated.pattern,
+				bucketId: before.bucketId,
+				commitmentId: before.commitmentId,
+				forMemberIds: before.for,
+			});
+			// Forgotten when it couldn't be made to file where it did before.
+			statements.push(
+				...(saving ? saving.statements : []),
+				...ruleDeleting(db, viewer, input.ruleId, saving ? before : undefined),
 			);
-		const back = stated
-			? await saveRule(db, {
-					id: input.ruleId,
-					householdId,
-					memberId,
-					pattern: stated.pattern,
-					bucketId: input.ruleBefore.bucketId,
-					commitmentId: input.ruleBefore.commitmentId,
-					forMemberIds: input.ruleBefore.for,
-				})
-			: null;
-		if (!stated || back?.ok) return done;
+		}
 	}
-	await deleteRule(db, viewer, input.ruleId);
-	return done;
-}
-
-/** The Review card a card payment was answered from: what puts it back there. */
-export type CardPaymentReview = {
-	transactionId: string;
-	merchant: string;
-	guess: Parameters<typeof returnToReview>[2]["guess"];
-	for: string[];
-};
-
-/**
- * Filing took the line out of Review (a Parent had decided it), and unfiling alone leaves it
- * assigned nowhere and waiting nowhere. This puts it back in Review, only when the Undo is what
- * unfiled it: it was unassigned before the answer, is unassigned again, and is one version on
- * from where the filing left it (ADR-0041), now or on an earlier try. Its version afterwards; null when it was left.
- */
-async function waitInReviewAgain(
-	db: Db,
-	viewer: Viewer,
-	undo: FiledBefore[],
-	review: CardPaymentReview,
-): Promise<number | null> {
-	const filed = undo.find((entry) => entry.id === review.transactionId);
-	if (!filed || filed.bucketId !== null || filed.commitmentId !== null) return null;
-	// Another screen's change leaves it at that same version: only an unassigned line is the Undo's.
-	const [now] = await db
-		.select({ bucketId: transactions.bucketId, commitmentId: transactions.commitmentId })
+	if (statements.length > 0) {
+		await db.batch(statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+	}
+	let restored = 0;
+	for (const chunk of chunks) restored += Math.max(0, chunk.going - (await count(chunk.back)));
+	if (input.review === undefined) return { restored };
+	// The line answered waits in Review again when the Undo is what put it there: it was in
+	// nothing before the answer, is in nothing now, and is one version on from where the filing
+	// left it, on this try or an earlier one.
+	const { transactionId } = input.review;
+	const filed = input.undo.find((entry) => entry.id === transactionId);
+	if (!filed || filed.bucketId !== null || filed.commitmentId !== null) {
+		return { restored, reviewVersion: null };
+	}
+	const [waits] = await db
+		.select({ version: transactions.version })
 		.from(transactions)
 		.where(
 			and(
-				eq(transactions.id, review.transactionId),
-				eq(transactions.householdId, viewer.householdId),
+				eq(transactions.id, transactionId),
+				eq(transactions.householdId, householdId),
+				eq(transactions.version, filed.version + 1),
+				isNull(transactions.bucketId),
+				isNull(transactions.commitmentId),
+				sql`exists (select 1 from ${categorizations} where ${categorizations.transactionId} = ${transactions.id}
+					and ${categorizations.outcome} = 'review')`,
 			),
 		);
-	if (!now || now.bucketId !== null || now.commitmentId !== null) return null;
-	const back = await returnToReview(db, viewer, {
-		transactionId: review.transactionId,
-		merchant: review.merchant,
-		guess: review.guess,
-		forMemberIds: review.for,
-		expectedVersion: filed.version + 1,
-	});
-	return back.ok ? back.version : null;
+	return { restored, reviewVersion: waits?.version ?? null };
 }
 
-/** How many lines one write puts back in Review (undoCardPaymentFiling's `waited` is up to 2,000). */
-export const WAIT_AGAIN_CHUNK = 100;
-
-/**
- * waitInReviewAgain for many lines in one write (issue 141): the lines an answer took out of
- * Review wait there again, a chunk at a time, each chunk whole or not at all (one batch, one JSON
- * parameter). The same test as the single one, made by the database on its own rows: the line was
- * unassigned before the answer (`undo`, at the version the filing left it), is unassigned and
- * unsplit now, is one version on (the Undo unfiled it, nothing else touched it), and is this
- * Parent's to change. Its guess is only ever one of the Household's own Buckets. Sent again, the
- * lines are one more version on and nothing is written.
- */
-async function waitManyInReviewAgain(
-	db: Db,
-	viewer: Viewer,
-	undo: FiledBefore[],
-	lines: CardPaymentWaited[],
-) {
-	const { householdId, memberId } = viewer;
-	const filedAt = new Map(
-		undo
-			.filter((entry) => entry.bucketId === null && entry.commitmentId === null)
-			.map((entry) => [entry.id, entry.version]),
-	);
-	const rows = lines.flatMap((line) => {
-		const version = filedAt.get(line.id);
-		if (version === undefined) return [];
-		const guessed = line.bucketId !== null;
-		return [
-			{
-				id: line.id,
-				version: version + 1,
-				merchant: line.merchant,
-				bucketId: line.bucketId,
-				method: guessed ? line.method : null,
-				confidence: guessed ? line.confidence : null,
-				reason: guessed ? line.reason : null,
-			},
-		];
-	});
-	if (rows.length === 0) return;
-	const payload = JSON.stringify(rows);
-	const field = (name: string) => sql.raw(`json_extract(j.value, '$.${name}')`);
-	// Over `transactions`: what the Undo just unfiled and nothing has touched since.
-	const unfiled = and(
-		eq(transactions.householdId, householdId),
-		changeableBy(viewer),
-		isNull(transactions.bucketId),
-		isNull(transactions.commitmentId),
-		isNull(transactions.goalId),
-		sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
-	);
-	const guess = sql`(select b.id from buckets b where b.id = ${field("bucketId")}
-		and b.household_id = ${householdId} and b.owner_member_id is null)`;
-	await db.batch([
-		db
-			.insert(categorizations)
-			.select(
-				db
-					.select({
-						// Selected in the table's column order: insert … select is positional.
-						transactionId: sql<string>`${field("id")}`.as("transaction_id"),
-						householdId: sql<string>`${householdId}`.as("household_id"),
-						memberId: sql<string>`${memberId}`.as("member_id"),
-						outcome: sql<"review">`'review'`.as("outcome"),
-						method: sql<
-							string | null
-						>`case when ${guess} is null then null else ${field("method")} end`.as("method"),
-						bucketId: sql<string | null>`${guess}`.as("bucket_id"),
-						confidence: sql<number | null>`${field("confidence")}`.as("confidence"),
-						merchant: sql<string>`${field("merchant")}`.as("merchant"),
-						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
-						reason: sql<string | null>`${field("reason")}`.as("reason"),
-						commitmentId: sql<string | null>`null`.as("commitment_id"),
-						returnedAt: sql<Date>`(unixepoch() * 1000)`.as("returned_at"),
-					})
-					.from(sql`json_each(${payload}) j`)
-					.where(
-						sql`exists (select 1 from ${transactions} where ${and(
-							sql`${transactions.id} = ${field("id")}`,
-							sql`${transactions.version} = ${field("version")}`,
-							unfiled,
-						)})`,
-					),
-			)
-			.onConflictDoUpdate({
-				target: categorizations.transactionId,
-				set: {
-					outcome: sql`'review'`,
-					method: sql`excluded.method`,
-					bucketId: sql`excluded.bucket_id`,
-					commitmentId: sql`null`,
-					confidence: sql`excluded.confidence`,
-					reason: sql`excluded.reason`,
-					returnedAt: sql`excluded.returned_at`,
-				},
-			}),
-		// Last: the write before it is guarded by the version this one moves on from.
-		db
-			.update(transactions)
-			.set({ version: sql`${transactions.version} + 1` })
-			.where(
-				and(
-					unfiled,
-					sql`${transactions.version} = (select ${field("version")} from json_each(${payload}) j
-						where ${field("id")} = ${transactions.id})`,
-				),
-			),
-	]);
-}
+/** How many lines one statement of the Undo puts back (unfiling's chunk). */
+const UNDO_CHUNK = 100;

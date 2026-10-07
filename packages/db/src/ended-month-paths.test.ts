@@ -261,6 +261,28 @@ describe("the months money back counted in, for the sentence on a line the bank 
 		]);
 	});
 
+	it("are the months of a Refund linked to a purchase on a card too", async () => {
+		// The tape went back in November, as money back on the card it was bought with.
+		await addQuickAdd(db, {
+			householdId,
+			transactionId: "tape-back",
+			bucketId: "hockey",
+			date: "2026-11-03",
+			amountCents: 900 as Cents,
+			note: "PURE HOCKEY #12 REFUND",
+			forMemberIds: [],
+			createdByMemberId: parentId,
+		});
+		await db.run(
+			sql`insert into refunds (id, household_id, refund_transaction_id, original_transaction_id)
+				values ('card-refund', 'household', 'tape-back', 'tape')`,
+		);
+		expect(await loadRestoreMonths(db, viewer, { transactionId: "tape" })).toEqual(["2026-11"]);
+		// A Refund unlinked again is not one of them.
+		await db.run(sql`update refunds set removed_at = 1 where id = 'card-refund'`);
+		expect(await loadRestoreMonths(db, viewer, { transactionId: "tape" })).toEqual([]);
+	});
+
 	it("are none for a purchase with no money back, or for another Household", async () => {
 		expect(await loadRestoreMonths(db, viewer, { transactionId: "tape" })).toEqual([]);
 		expect(

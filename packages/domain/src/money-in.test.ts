@@ -6,6 +6,7 @@ import {
 	moneyInKindOf,
 	moneyInOnImport,
 	moneyInRuleFor,
+	paypalShopKey,
 	suggestedMoneyInKind,
 } from "./money-in";
 
@@ -244,5 +245,34 @@ describe("money in that reads as a refund (issue 141)", () => {
 		expect(
 			moneyInOnImport("ZELLE FROM JOHN refund for tickets", [{ pattern: "zelle", kind: "income" }]),
 		).toEqual({ kind: "income", review: false });
+	});
+});
+
+describe("a shop's refund that arrives through PayPal", () => {
+	it("gets Refund suggested only when an earlier purchase there through PayPal matches it", () => {
+		// PayPal reads as person to person, so by its wording alone it is Paid back.
+		expect(suggestedMoneyInKind("PAYPAL *NIKE COM REFUND")).toBe("paid-back");
+		expect(suggestedMoneyInKind("PAYPAL *NIKE COM REFUND", { shopPurchase: false })).toBe(
+			"paid-back",
+		);
+		expect(suggestedMoneyInKind("PAYPAL *NIKE COM REFUND", { shopPurchase: true })).toBe("refund");
+		// The shop's money back needn't say "refund" when the purchase is known.
+		expect(suggestedMoneyInKind("PAYPAL *NIKE COM", { shopPurchase: true })).toBe("refund");
+		expect(suggestedMoneyInKind("PAYPAL *NIKE COM")).toBeNull();
+		// Only PayPal carries a shop's name: a person's Zelle stays as it was.
+		expect(
+			suggestedMoneyInKind("Zelle payment from JORDAN PIKE refund", { shopPurchase: true }),
+		).toBe("paid-back");
+	});
+
+	it("reads the shop from PayPal's wording, whatever follows it", () => {
+		const nike = paypalShopKey("PAYPAL *NIKE COM");
+		expect(nike).toBeTruthy();
+		expect(paypalShopKey("PAYPAL *NIKE COM REFUND")).toBe(nike);
+		expect(paypalShopKey("PayPal *Nike Com Refund")).toBe(nike);
+		expect(paypalShopKey("PAYPAL *ETSY INC")).not.toBe(nike);
+		expect(paypalShopKey("TARGET REFUND 0423")).toBeNull();
+		expect(paypalShopKey("PAYPAL REFUND")).toBeNull();
+		expect(paypalShopKey(null)).toBeNull();
 	});
 });

@@ -6,6 +6,7 @@ import {
 	ruleKeys,
 } from "@noodle/domain";
 import { and, asc, eq, gt, isNull, lt, ne, or, type SQL, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { type CategorizationDecision, fileCategorizations } from "./categorize";
 import { counts } from "./counting";
 import { purchaseMayMove } from "./ended-months";
@@ -484,14 +485,34 @@ export async function editRule(
 	return { ok: false, reason: saved && clash ? "duplicate" : "not-found" };
 }
 
+/**
+ * deleteRule's statements, for a batch with others. With `unless`, the Rule is deleted only while
+ * it doesn't file there: what a write earlier in the same batch was to make it do.
+ */
+export function ruleDeleting(
+	db: Db,
+	viewer: Viewer,
+	ruleId: string,
+	unless?: { bucketId: string | null; commitmentId: string | null },
+): BatchItem<"sqlite">[] {
+	const which = and(
+		eq(rules.id, ruleId),
+		visibleRule(viewer),
+		unless ? sql`not (${filesInto(unless)})` : undefined,
+	) as SQL;
+	const theirs = sql`exists (select 1 from ${rules} where ${which})`;
+	return [
+		...ruleRemovedEvents(db, which, viewer),
+		db.delete(ruleFor).where(and(eq(ruleFor.ruleId, ruleId), theirs)),
+		db.delete(rules).where(which),
+	];
+}
+
 /** Deletes a Rule `viewer` may see. What it already filed stays where it is. Idempotent. */
 export async function deleteRule(db: Db, viewer: Viewer, ruleId: string): Promise<void> {
-	const theirs = sql`exists (select 1 from ${rules} where ${and(eq(rules.id, ruleId), visibleRule(viewer))})`;
-	await db.batch([
-		...ruleRemovedEvents(db, and(eq(rules.id, ruleId), visibleRule(viewer)) as SQL, viewer),
-		db.delete(ruleFor).where(and(eq(ruleFor.ruleId, ruleId), theirs)),
-		db.delete(rules).where(and(eq(rules.id, ruleId), visibleRule(viewer))),
-	]);
+	await db.batch(
+		ruleDeleting(db, viewer, ruleId) as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]],
+	);
 }
 
 /**

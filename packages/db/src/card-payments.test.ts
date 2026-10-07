@@ -594,10 +594,10 @@ describe("A payment to a card whose payment is the spending", () => {
 
 		const review = { transactionId: opened, merchant: merchantKey(WORDING), guess: null, for: [] };
 		const filedAt = filing.undo.find((entry) => entry.id === opened)?.version as number;
-		// Unfiled is one version on from filed, and waiting again is one on from that.
+		// Unfiled and waiting again in the one write: one version on from filed.
 		expect(await undoCardPaymentFiling(db, viewer, { ...filing, review })).toEqual({
 			restored: 2,
-			reviewVersion: filedAt + 2,
+			reviewVersion: filedAt + 1,
 		});
 		expect((await rowOf(30_000))?.commitmentId).toBeNull();
 		// The other line waited there too, so it does again.
@@ -607,9 +607,132 @@ describe("A payment to a card whose payment is the spending", () => {
 		// Sent again (the answer was lost on the way): nothing moves, and it says the same.
 		expect(await undoCardPaymentFiling(db, viewer, { ...filing, review })).toEqual({
 			restored: 0,
-			reviewVersion: filedAt + 2,
+			reviewVersion: filedAt + 1,
 		});
 		expect((await waiting()).sort()).toEqual([opened, other].sort());
+	});
+
+	it("undone, each line waits in Review again with the guess the server kept, in one write", async () => {
+		await addBucket(db, {
+			householdId,
+			memberId: viewer.memberId,
+			bucketId: "groceries",
+			name: "Groceries",
+			color: 1,
+			month: "2026-09" as MonthKey,
+			allowanceCents: 40_000 as Cents,
+		});
+		await importInto("checking", "i-1", [
+			line("2026-09-05", -30_000, WORDING),
+			line("2026-09-19", -5_000, WORDING),
+		]);
+		const opened = (await rowOf(30_000))?.id as string;
+		const other = (await rowOf(5_000))?.id as string;
+		await db.insert(categorizations).values(
+			[opened, other].map((transactionId) => ({
+				transactionId,
+				householdId,
+				outcome: "review" as const,
+				method: "model" as const,
+				bucketId: "groceries",
+				confidence: 0.6,
+				reason: transactionId === opened ? "reads like food" : "food again",
+				merchant: merchantKey(WORDING),
+			})),
+		);
+		const guesses = async () =>
+			(
+				await db
+					.select({
+						id: categorizations.transactionId,
+						outcome: categorizations.outcome,
+						method: categorizations.method,
+						bucketId: categorizations.bucketId,
+						confidence: categorizations.confidence,
+						reason: categorizations.reason,
+					})
+					.from(categorizations)
+			).sort((a, b) => a.id.localeCompare(b.id));
+		const before = await guesses();
+
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: opened,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		if (!filing.ok) throw new Error("not filed");
+		expect(await guesses()).toEqual([]);
+
+		// The page says only which lines and which Rule: no guess, no merchant, nobody it is For.
+		const batch = vi.spyOn(db, "batch");
+		const filedAt = filing.undo.find((entry) => entry.id === opened)?.version as number;
+		const sent = {
+			undo: filing.undo,
+			ruleId: filing.ruleId,
+			ruleBefore: filing.ruleBefore,
+			review: { transactionId: opened },
+		};
+		expect(await undoCardPaymentFiling(db, viewer, sent)).toEqual({
+			restored: 2,
+			reviewVersion: filedAt + 1,
+		});
+		// The lines, their guesses and the Rule went back together.
+		expect(batch).toHaveBeenCalledTimes(1);
+		batch.mockRestore();
+		expect(await guesses()).toEqual(before);
+		expect((await rowOf(30_000))?.commitmentId).toBeNull();
+		expect((await rowOf(5_000))?.commitmentId).toBeNull();
+		expect(await listRules(db, viewer)).toEqual([]);
+
+		// Sent again: nothing moves, and it says the same.
+		expect(await undoCardPaymentFiling(db, viewer, sent)).toEqual({
+			restored: 0,
+			reviewVersion: filedAt + 1,
+		});
+		expect(await guesses()).toEqual(before);
+	});
+
+	it("undone, a line that was filed before the answer goes back where it was, not into Review", async () => {
+		await addBucket(db, {
+			householdId,
+			memberId: viewer.memberId,
+			bucketId: "groceries",
+			name: "Groceries",
+			color: 1,
+			month: "2026-09" as MonthKey,
+			allowanceCents: 40_000 as Cents,
+		});
+		await importInto("checking", "i-1", [
+			line("2026-09-05", -30_000, WORDING),
+			line("2026-09-19", -5_000, WORDING),
+		]);
+		const opened = (await rowOf(30_000))?.id as string;
+		const other = (await rowOf(5_000))?.id as string;
+		// The other line waits in Review; the one answered was filed in Groceries by mistake.
+		await db.insert(categorizations).values({
+			transactionId: other,
+			householdId,
+			outcome: "review" as const,
+			method: "none" as const,
+			merchant: merchantKey(WORDING),
+		});
+		await db.update(transactions).set({ bucketId: "groceries" }).where(eq(transactions.id, opened));
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: opened,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		if (!filing.ok) throw new Error("not filed");
+		expect(
+			await undoCardPaymentFiling(db, viewer, {
+				undo: filing.undo,
+				ruleId: filing.ruleId,
+				ruleBefore: filing.ruleBefore,
+				review: { transactionId: opened },
+			}),
+		).toEqual({ restored: 2, reviewVersion: null });
+		expect((await rowOf(30_000))?.bucketId).toBe("groceries");
+		expect((await loadReview(db, viewer, 50)).items.map((item) => item.id)).toEqual([other]);
 	});
 
 	it("undone, puts 250 lines back in Review in a few writes, not one for each", async () => {
@@ -658,14 +781,14 @@ describe("A payment to a card whose payment is the spending", () => {
 		const batches = vi.spyOn(db, "batch");
 		expect(await undoCardPaymentFiling(db, viewer, filing)).toMatchObject({ restored: 250 });
 		// Three writes of at most 100 lines for Review; the Rule's own leaving is the rest.
-		expect(batches.mock.calls.length).toBeLessThanOrEqual(6);
+		expect(batches.mock.calls.length).toBe(1);
 		batches.mockRestore();
 		expect(await waiting()).toBe(250);
 		const versions = await db
 			.select({ id: transactions.id, version: transactions.version })
 			.from(transactions);
 		const filedAt = new Map(filing.undo.map((entry) => [entry.id, entry.version]));
-		expect(versions.every((row) => row.version === (filedAt.get(row.id) ?? 0) + 2)).toBe(true);
+		expect(versions.every((row) => row.version === (filedAt.get(row.id) ?? 0) + 1)).toBe(true);
 
 		// Sent again: nothing moves.
 		await undoCardPaymentFiling(db, viewer, filing);

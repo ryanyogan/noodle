@@ -163,7 +163,7 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 					paysDown: z.boolean().optional(),
 				})
 				.optional(),
-			// The lines the answer took out of Review (fileCardPayment's `waited`): they wait again.
+			// Not read any more (issue 142): the server kept what waited. A page loaded before sends it.
 			waited: z
 				.array(
 					z.object({
@@ -177,11 +177,13 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 				)
 				.max(2000)
 				.optional(),
-			// Answered from its card in Review: the line waits there again (as returnToReview's).
+			// Answered from its card in Review: the line waits there again. Only which line is read:
+			// its guess comes from what the server kept (issue 142). The rest is what a page loaded
+			// before then still sends.
 			review: z
 				.object({
 					transactionId: ulidSchema,
-					merchant: z.string().trim().min(1).max(64),
+					merchant: z.string().trim().min(1).max(64).optional(),
 					guess: z
 						.object({
 							bucketId: ulidSchema,
@@ -189,8 +191,8 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 							method: z.enum(["rule", "similar", "model", "none"]).nullable().optional(),
 							reason: z.string().max(80).nullable().optional(),
 						})
-						.nullable(),
-					for: z.array(ulidSchema).max(20),
+						.nullish(),
+					for: z.array(ulidSchema).max(20).optional(),
 				})
 				.optional(),
 		}),
@@ -201,8 +203,7 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 			undo: data.undo.map((entry) => ({ ...entry, for: entry.for ?? undefined })),
 			ruleId: data.ruleId,
 			ruleBefore: data.ruleBefore,
-			review: data.review,
-			waited: data.waited,
+			review: data.review && { transactionId: data.review.transactionId },
 		});
 		if (data.created) {
 			if (data.created.paysDown) {

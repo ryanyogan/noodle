@@ -7,6 +7,8 @@ import {
 	moneyInKindOf,
 	moneyInRuleFor,
 	monthOfDay,
+	paypalShopKey,
+	REFUND_WINDOW_DAYS,
 } from "@noodle/domain";
 import { type AnyColumn, and, eq, gte, isNull, lt, ne, type SQL, sql } from "drizzle-orm";
 import { incomeCounts } from "./counting";
@@ -68,6 +70,11 @@ export type MoneyInLine = {
 	bankTookBackOn: DayKey | null;
 	/** What the bank says it is now, when it only changed the amount; null when it took it back. */
 	bankAmount: Cents | null;
+	/**
+	 * It waits in Review, came through PayPal, and matches something bought at the same shop
+	 * through PayPal: Review suggests Refund for it, not Paid back (issue 142).
+	 */
+	shopRefund?: boolean;
 };
 
 export type MoneyInFilter = {
@@ -119,7 +126,7 @@ export async function loadMoneyIn(
 			),
 		)
 		.orderBy(sql`${income.date} desc`, sql`${income.id} desc`);
-	return rows.map((row) => ({
+	const lines: MoneyInLine[] = rows.map((row) => ({
 		id: row.id,
 		amount: row.amount as Cents,
 		// Dates are always written as DayKeys.
@@ -140,6 +147,61 @@ export async function loadMoneyIn(
 		bankTookBackOn: row.bankTookBackOn as DayKey | null,
 		bankAmount: row.bankAmount as Cents | null,
 	}));
+	return markShopRefunds(db, householdId, lines);
+}
+
+/** The day `days` before `day`. */
+const daysBefore = (day: string, days: number) =>
+	new Date(Date.parse(`${day}T12:00:00Z`) - days * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * Marks the lines that wait in Review, came through PayPal, and match an earlier purchase at the
+ * same shop made through PayPal (issue 142): the same shop once PayPal's prefix is taken off, for
+ * no more than the purchase, within the days a Refund is matched over. One read for all of them.
+ * A purchase in a Parent's own Personal Allowance is never what a line is matched with.
+ */
+async function markShopRefunds(
+	db: Db,
+	householdId: string,
+	lines: MoneyInLine[],
+): Promise<MoneyInLine[]> {
+	const asking = lines.flatMap((line) => {
+		const shop = line.needsReview ? paypalShopKey(line.note) : null;
+		return shop ? [{ line, shop }] : [];
+	});
+	if (asking.length === 0) return lines;
+	const days = asking.map(({ line }) => line.date).sort();
+	const from = daysBefore(days[0] as string, REFUND_WINDOW_DAYS);
+	const bought = await db
+		.select({ date: transactions.date, amount: transactions.amountCents, note: transactions.note })
+		.from(transactions)
+		.where(
+			and(
+				eq(transactions.householdId, householdId),
+				gte(transactions.date, from),
+				sql`${transactions.date} <= ${days.at(-1)}`,
+				sql`${transactions.amountCents} >= 1`,
+				sql`${transactions.note} like '%paypal%'`,
+				sql`not exists (select 1 from buckets b where b.id = ${transactions.bucketId}
+					and b.owner_member_id is not null)`,
+			),
+		);
+	const found = new Set(
+		asking
+			.filter(({ line, shop }) =>
+				bought.some(
+					(purchase) =>
+						purchase.amount >= line.amount &&
+						purchase.date <= line.date &&
+						purchase.date >= daysBefore(line.date, REFUND_WINDOW_DAYS) &&
+						paypalShopKey(purchase.note) === shop,
+				),
+			)
+			.map(({ line }) => line.id),
+	);
+	return found.size === 0
+		? lines
+		: lines.map((line) => (found.has(line.id) ? { ...line, shopRefund: true } : line));
 }
 
 /** What kind one money-in line is, with the line; null when it isn't the Household's. */

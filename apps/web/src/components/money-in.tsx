@@ -56,7 +56,11 @@ export function MoneyInKindChoice({
 	// While it waits in Review, wording that reads as a store's refund puts Refund first, and a
 	// person's memo that says they're paying back puts Paid back first (issue 141). It is a
 	// suggestion: the line is neither until the Parent presses it.
-	const suggested = line.needsReview ? suggestedMoneyInKind(line.note) : null;
+	// Money back through PayPal that matches something bought at the same shop through PayPal is a
+	// shop's Refund, not a person paying back (issue 142).
+	const suggested = line.needsReview
+		? suggestedMoneyInKind(line.note, { shopPurchase: line.shopRefund === true })
+		: null;
 	const kinds = suggested
 		? [suggested, ...MONEY_IN_KINDS.filter((kind) => kind !== suggested)]
 		: MONEY_IN_KINDS;
@@ -105,9 +109,11 @@ export function MoneyInKindChoice({
 					className="text-sm text-muted-foreground"
 					data-testid="money-in-suggested"
 				>
-					{suggested === "paid-back"
-						? "This reads as money Paid back, so it’s first. It isn’t until you say so."
-						: `This reads as a ${MONEY_IN_KIND_LABELS[suggested]}, so it’s first. It isn’t one until you say so.`}
+					{suggested === "refund" && line.shopRefund
+						? "This matches something you bought there through PayPal, so Refund is first. It isn’t one until you say so."
+						: suggested === "paid-back"
+							? "This reads as money Paid back, so it’s first. It isn’t until you say so."
+							: `This reads as a ${MONEY_IN_KIND_LABELS[suggested]}, so it’s first. It isn’t one until you say so.`}
 				</p>
 			) : null}
 			{line.note ? (

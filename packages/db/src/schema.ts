@@ -1236,6 +1236,30 @@ export const categorizations = sqliteTable(
 	(t) => [index("categorizations_household_idx").on(t.householdId, t.outcome)],
 );
 
+// What a line had waiting in Review when a card-payment answer filed it (issue 142). Filing takes
+// the line out of Review; the answer's Undo puts it back with this guess, read here and not from
+// the page. `version` is the line's before the answer filed it, so only that filing's Undo reads
+// it. `bucket_id` is no foreign key: a Bucket deleted since is simply no guess any more.
+export const cardPaymentWaited = sqliteTable(
+	"card_payment_waited",
+	{
+		transactionId: text("transaction_id")
+			.primaryKey()
+			.references(() => transactions.id, { onDelete: "cascade" }),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		version: integer("version").notNull(),
+		method: text("method", { enum: ["rule", "similar", "model", "none"] }),
+		bucketId: text("bucket_id"),
+		confidence: real("confidence"),
+		merchant: text("merchant").notNull(),
+		reason: text("reason"),
+		keptAt: integer("kept_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(t) => [index("card_payment_waited_household_idx").on(t.householdId)],
+);
+
 export type Household = typeof households.$inferSelect;
 export type Member = typeof members.$inferSelect;
 export type Invite = typeof invites.$inferSelect;
