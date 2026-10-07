@@ -47,3 +47,13 @@ Every reader of what's owed uses this one figure: the Account page and list, a p
 - **Suggestions (ADR-0027) still leave card and loan payment lines out** (`isMoneyMovement`). `spotCommitments` reads merchants only: it cannot tell a card Noodle follows from one it doesn't, and payments like the Amex pattern have no cadence for it to find. A payment to a card Noodle doesn't follow already has its way to a Commitment on its Review card ("Make it a Commitment"), which now arrives with the amount suggested.
 - **Review on the shortest phones.** A payment card's "why" is the second line of its grey panel, naming the card when the line does ("Noodle can't see what was bought on Discover it, so the payment is the spending."); the separate "Looks like a payment to …" line is gone. Under 360px wide the panel drops its tile and shows the why alone (its title is still read out), the card's name keeps to one line, and a card Noodle doesn't follow has no third row: "Connect the card" ends the why as a link and "It's a card payment" sits beside the picker. That leaves Skip and Undo above the bottom bar at 320×640.
 - **The export's Accounts file** has "Owed now" beside "Balance": the balance last entered, and that less the payments filed since, as the app shows it.
+
+## A card kept by hand (issue 136, spec 130 item 8)
+
+"Kept by hand" above meant only "no Bank Connection", and what's owed moved only with Commitment payments. A credit card now says how its purchases get in (`accounts.purchases`: `statements`, `hand`, `none`; null until asked), and for `hand` with no Bank Connection what's owed moves with more:
+
+- every line on the card dated after the balance's day goes on (a Quick Add picked "Paid with" the card, a Wallet capture naming it, an imported line; a Quick Add Matched with a statement line gives way to the line), and money back comes off;
+- a payment marked as a Transfer naming the card (`transfers.other_account_id`, one-sided) comes off, beside the Commitment payments this ADR already takes off. The card's page lists both under Payments.
+- The monthly balance check (`accounts.statement_day`, `checkStatementBalance`) replaces "what's owed drifts low" for these cards: the statement's balance is compared with what's recorded up to its day and then taken as the balance.
+
+"It's a card payment" reads the same answer: bank or statements is a Transfer; `none` (or not asked) files it in the Commitment that pays the card down when there is one. Snapshots carry the new columns and `capture_cards` by name (ADR-0048); the Household's export still lists an Account's name, kind, balance and owed, not how its purchases get in.

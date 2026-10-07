@@ -84,7 +84,7 @@ The label for the credit card or loan a Commitment's payments bring down ("Pays 
 _Avoid_: Paid to, linked account
 
 **What's owed** (on a credit card or loan):
-The card's or loan's balance as Noodle knows it: the latest one its bank brought in, a Parent entered, or a Parent took from a statement. On an Account kept by hand, the payments filed since that balance's day in a Commitment that pays it down come off it (ADR-0050); a payment on the balance's own day is taken as already in it, and a connected Account's is always its bank's.
+The card's or loan's balance as Noodle knows it: the latest one its bank brought in, a Parent entered, or a Parent took from a statement. On an Account kept by hand, the payments filed since that balance's day in a Commitment that pays it down come off it (ADR-0050); a payment on the balance's own day is taken as already in it, and a connected Account's is always its bank's. On a **card kept by hand** every line on the card dated after the balance's day goes on as well, and a payment marked as a Transfer naming the card comes off.
 _Avoid_: Debt, principal, outstanding balance
 
 **Set aside**:
@@ -184,6 +184,14 @@ _Avoid_: Manual entry, pending
 A batch of Transactions brought in from an Account, whether from a statement file or a Bank Connection.
 It leaves out lines already in the Account and lines a Parent deleted from it (ADR-0045).
 _Avoid_: Sync, upload, feed
+
+**A card kept by hand / by statements**:
+How a credit card's purchases get into Noodle when no Bank Connection reaches it, said once per card (asked when it's added, on Accounts, and on the card's page): **from its statements** (a Parent imports them; paying the card is a Transfer), **by hand** (Apple Card: the Quick Adds on it are the record, so they never say "Waiting for bank", and they add to what's owed), or **they won't** (the payment is the spending, planned as a Commitment). A Quick Add lands on a card kept by hand when the Parent picks it under "Paid with", or when a Wallet capture names the card; a Wallet card Noodle can't place is asked about once ("Which Account is “Titanium” in Wallet?", or "None of these"). Paying a card kept by hand is a Transfer naming it, which brings what's owed down.
+_Avoid_: manual card, offline card
+
+**Balance check**:
+Once a month, after a card kept by hand's statement closes, Noodle asks a Parent to type the statement's balance and compares it with what's recorded up to that day: "That matches", or how much higher (something's missing: add it, or import the statement) or lower (a payment or money back is missing, or something was added twice). The statement's balance becomes the card's balance as of that day either way.
+_Avoid_: reconciliation, reconcile
 
 **Bank Connection**:
 An ongoing authorized link to a financial institution that produces Imports automatically: when the institution says there's news, and at least daily. When its login lapses it waits for a Parent to reconnect (log in again) and brings in nothing meanwhile.
