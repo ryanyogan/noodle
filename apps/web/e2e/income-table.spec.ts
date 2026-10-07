@@ -39,9 +39,14 @@ test("whose pay is said in the Income table, totalled per Parent, and typed Inco
 
 	const table = income(page).getByRole("table", { name: /^Income in / });
 	await expect(table).toContainText("Paycheck");
-	// The Account is a column of its own: typed-in Income has none.
+	// The Account is said once however wide the table is: after the day where rows stack, and in
+	// a column of its own where there is room. Typed-in Income has none.
+	await expect(table.getByText("Typed in").filter({ visible: true })).toHaveCount(1);
+	const size = page.viewportSize();
+	await page.setViewportSize({ width: 1440, height: 900 });
 	await expect(table.getByRole("columnheader", { name: "Account" })).toBeVisible();
-	await expect(table.getByRole("cell", { name: "Typed in", exact: true })).toBeVisible();
+	await expect(table.getByText("Typed in").filter({ visible: true })).toHaveCount(1);
+	if (size) await page.setViewportSize(size);
 
 	// It is the Household's until a Parent says whose pay it is.
 	const whose = table.getByRole("combobox", { name: "Whose pay is $2,500 from Paycheck" });

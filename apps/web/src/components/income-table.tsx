@@ -185,14 +185,14 @@ export function IncomeTable({
 				<>
 					{shortDay(row.date)}
 					{/* Stacked (a phone), the Account has no column of its own: it follows the day. */}
-					{waiting ? null : <span className="@2xl:hidden"> · {accountOf(row)}</span>}
+					{waiting ? null : <span className="@2xl/dt:hidden"> · {accountOf(row)}</span>}
 				</>
 			),
 		},
 		{
 			id: "from",
 			header: "From",
-			min: 8,
+			min: 7,
 			width: "minmax(0,2fr)",
 			stacked: "title",
 			cell: (row) => row.note ?? "Income",
