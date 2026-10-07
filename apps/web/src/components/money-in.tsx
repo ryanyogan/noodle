@@ -10,13 +10,12 @@ import { dayName, formatMoney } from "../format";
 import {
 	type MoneyInLine,
 	moneyInAccountsQuery,
+	moneyInFollowUp,
 	moneyInKindText,
 	moneyInLabel,
 	moneyInQuery,
 	moneyInReviewQuery,
-	pairOffered,
 	useMoneyInKindChange,
-	whosePayOffered,
 } from "../money-in";
 import { moneyInShown, type TransactionShow } from "../transaction-summary";
 import { AccountPairOffer } from "./money-in-rules";
@@ -38,13 +37,14 @@ export function MoneyInKindChoice({
 	onChanged,
 }: {
 	line: MoneyInLine;
-	/** Called with the line as it is once its kind is changed and nothing more is asked here. */
+	/** Called with the line as it is once its kind is changed and nothing more is asked of it. */
 	onDone?: (line: MoneyInLine) => void;
 	/** Called with the line as it is after every change of kind. */
 	onChanged?: (line: MoneyInLine) => void;
 }) {
 	const id = useId();
 	const change = useMoneyInKindChange();
+	const accounts = useQuery(moneyInAccountsQuery()).data ?? [];
 	const [always, setAlways] = useState(false);
 	return (
 		<div className="grid gap-3" data-testid="money-in-kind-choice">
@@ -70,8 +70,8 @@ export function MoneyInKindChoice({
 									.mutateAsync({ line, kind, always })
 									.then((changed) => {
 										onChanged?.(changed);
-										// A Transfer stays open to ask which Account it came from, and Income whose pay.
-										if (!pairOffered(changed) && !whosePayOffered(changed)) onDone?.(changed);
+										// It stays open only while something more is asked (MoneyInFollowUpAsk).
+										if (!moneyInFollowUp(changed, accounts)) onDone?.(changed);
 									})
 									// Said by the change itself (its toast).
 									.catch(() => undefined)
@@ -94,8 +94,49 @@ export function MoneyInKindChoice({
 					</label>
 				</div>
 			) : null}
-			{pairOffered(line) ? <AccountPairOffer line={line} /> : null}
-			{whosePayOffered(line) ? <WhosePayOffer line={line} onDone={() => onDone?.(line)} /> : null}
+		</div>
+	);
+}
+
+/**
+ * What is asked once a line's kind is said, with one "Done": whose pay Income is, what Paid back
+ * pays back, which purchase a Refund is for, which Account a Transfer came from. Nothing when
+ * nothing is asked, so no row stays open for no reason.
+ */
+export function MoneyInFollowUpAsk({
+	line,
+	today,
+	onDone,
+}: {
+	line: MoneyInLine;
+	today: string;
+	/** Called when the Parent is done with it: "Done", or the offer was taken or declined. */
+	onDone: () => void;
+}) {
+	const accounts = useQuery(moneyInAccountsQuery()).data ?? [];
+	const asked = moneyInFollowUp(line, accounts);
+	if (!asked) return null;
+	return (
+		<div className="grid gap-3" data-testid="money-in-follow-up">
+			{asked === "paid-back" ? (
+				<PaidBackMatching line={line} today={today} />
+			) : asked === "refund" ? (
+				<RefundLinking line={line} today={today} />
+			) : asked === "pair" ? (
+				<AccountPairOffer line={line} onDone={onDone} />
+			) : (
+				<WhosePayOffer line={line} onDone={onDone} />
+			)}
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				className="justify-self-start"
+				aria-label={`Done with ${moneyInLabel(line)}`}
+				onClick={onDone}
+			>
+				Done
+			</Button>
 		</div>
 	);
 }
@@ -166,20 +207,9 @@ export function MoneyInSection({
 						below={
 							open === line.id ? (
 								<div className="grid gap-4">
-									<MoneyInKindChoice
-										line={line}
-										// Paid back stays open: what it pays back is asked next (issue 132); so
-										// does a Refund, for the purchase it is for (issue 131).
-										onDone={(now) =>
-											now.kind === "paid-back" || now.kind === "refund" ? undefined : setOpen(null)
-										}
-									/>
-									{line.kind === "refund" && !line.needsReview ? (
-										<RefundLinking line={line} today={today} />
-									) : null}
-									{line.kind === "paid-back" && !line.needsReview ? (
-										<PaidBackMatching line={line} today={today} />
-									) : null}
+									{/* Closed at once when nothing more is asked; else by the follow-up's "Done". */}
+									<MoneyInKindChoice line={line} onDone={() => setOpen(null)} />
+									<MoneyInFollowUpAsk line={line} today={today} onDone={() => setOpen(null)} />
 								</div>
 							) : undefined
 						}
@@ -200,13 +230,11 @@ export function MoneyInReview({ today, className }: { today: string; className?:
 	// it pays back, which purchase a Refund is for, which Account a Transfer came from, whose pay
 	// Income is).
 	const [named, setNamed] = useState<MoneyInLine[]>([]);
-	const asksMore = (line: MoneyInLine) =>
-		line.kind === "paid-back" ||
-		line.kind === "refund" ||
-		whosePayOffered(line) ||
-		(pairOffered(line) && accounts.some((account) => account.id !== line.accountId));
+	const asksMore = (line: MoneyInLine) => moneyInFollowUp(line, accounts) !== null;
 	const forget = (lineId: string) => setNamed((was) => was.filter((one) => one.id !== lineId));
-	const matching = named.filter((said) => !lines.some((line) => line.id === said.id));
+	const matching = named.filter(
+		(said) => asksMore(said) && !lines.some((line) => line.id === said.id),
+	);
 	if (lines.length === 0 && matching.length === 0) return null;
 	return (
 		<Section aria-labelledby={id} data-testid="money-in-review" className={className}>
@@ -255,30 +283,7 @@ export function MoneyInReview({ today, className }: { today: string; className?:
 							</>
 						}
 						trailing={<span className={moneyInAmount}>+{formatMoney(line.amount)}</span>}
-						below={
-							line.kind === "paid-back" ? (
-								<PaidBackMatching line={line} today={today} />
-							) : (
-								<div className="grid justify-items-start gap-3">
-									{line.kind === "refund" ? (
-										<RefundLinking line={line} today={today} />
-									) : line.kind === "transfer" ? (
-										<AccountPairOffer line={line} onDone={() => forget(line.id)} />
-									) : (
-										<WhosePayOffer line={line} onDone={() => forget(line.id)} />
-									)}
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										aria-label={`Done with ${moneyInLabel(line)}`}
-										onClick={() => forget(line.id)}
-									>
-										Done
-									</Button>
-								</div>
-							)
-						}
+						below={<MoneyInFollowUpAsk line={line} today={today} onDone={() => forget(line.id)} />}
 						belowFull
 					/>
 				))}

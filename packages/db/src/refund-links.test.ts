@@ -1,7 +1,8 @@
-import type { Cents, DayKey, MonthKey } from "@noodle/domain";
+import type { BankLine, Cents, DayKey, MonthKey } from "@noodle/domain";
 import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+	addBankConnection,
 	addBucket,
 	addChild,
 	addCommitment,
@@ -9,6 +10,7 @@ import {
 	addIncome,
 	addQuickAdd,
 	changeMoneyInKind,
+	chooseBankAccounts,
 	createHouseholdForParent,
 	type Db,
 	deleteTransaction,
@@ -20,12 +22,13 @@ import {
 	loadPlanRecords,
 	loadSpending,
 	setTakeHomePay,
+	syncBankLines,
 	unlinkMoneyInRefund,
 } from "./index";
 import { bucketLeftSql } from "./moves";
 import { setCarriesOver } from "./plan";
 import { loadRolledOver } from "./rollover";
-import { refundLinks } from "./schema";
+import { income, refundLinks } from "./schema";
 import { testDb } from "./test-db";
 
 // A Refund that lands in checking can be linked to its purchase (issue 131, ADR-0057): skates of
@@ -184,6 +187,19 @@ describe("a Refund lands in checking in October", () => {
 		});
 	});
 
+	it("is marked a Refund where it restores, so the month says refunded and not Paid back", async () => {
+		await link("back", "skates");
+		await link("back", "skates");
+		expect(await loadSpending(db, viewer, october)).toMatchObject([
+			{ bucketId: "hockey", amount: -2_000, paidBack: true, refund: true },
+		]);
+		await unlinkMoneyInRefund(db, viewer, { incomeId: "back", today });
+		await link("back", "tuition-sep");
+		expect(await loadCharges(db, viewer, october)).toMatchObject([
+			{ commitmentId: "tuition", amount: -2_000, paidBack: true, refund: true },
+		]);
+	});
+
 	it("shows in what's left of the Bucket and in what it carries over", async () => {
 		await setCarriesOver(db, {
 			householdId,
@@ -240,6 +256,63 @@ describe("a Refund lands in checking in October", () => {
 		expect(await link("more", "skates")).toEqual({ ok: false, reason: "refused" });
 	});
 
+	it("takes several Refunds for one purchase up to what it cost, and no further", async () => {
+		await refund("second", "2026-10-06", 2_500);
+		await refund("third", "2026-10-06", 1);
+		expect(await link("back", "skates")).toEqual({ ok: true, months: [october] });
+		expect(await link("second", "skates")).toEqual({ ok: true, months: [october] });
+		// $20 and $25 back for $45 skates: not a cent more.
+		expect(await link("third", "skates")).toEqual({ ok: false, reason: "refused" });
+		expect(await bucketSpent(october)).toEqual([
+			["hockey", -2_000, ["leo"]],
+			["hockey", -2_500, ["leo"]],
+		]);
+		const offered = await loadMoneyInRefund(db, viewer, "third", today);
+		expect(offered?.likely.map((purchase) => purchase.id)).not.toContain("skates");
+	});
+
+	it("doesn't offer a purchase that other Refunds have left too little of", async () => {
+		await refund("more", "2026-10-06", 3_000);
+		await link("back", "skates");
+		const offered = await loadMoneyInRefund(db, viewer, "more", today);
+		// $25 of the $45 skates is left: not enough for $30 back.
+		expect(offered?.likely.map((purchase) => purchase.id)).toEqual(["dentist", "tuition-sep"]);
+	});
+
+	it("offers the five likeliest, same wording then nearest in amount, and the rest behind Show more", async () => {
+		for (const [transactionId, amountCents, note] of [
+			["mortgage", 185_000, "MORTGAGE"],
+			["sticks", 12_000, "PURE HOCKEY #12"],
+			["groceries", 2_100, "Corner Market"],
+			["shoes", 6_000, "Shoe Barn"],
+			["gas", 3_000, "Fuel Stop"],
+		] as const) {
+			await addQuickAdd(db, {
+				householdId,
+				transactionId,
+				bucketId: "health",
+				date: "2026-09-25",
+				amountCents: amountCents as Cents,
+				note,
+				forMemberIds: [],
+				createdByMemberId: parentId,
+			});
+		}
+		const offered = await loadMoneyInRefund(db, viewer, "back", today);
+		expect(offered?.likely.map((purchase) => purchase.id)).toEqual([
+			"skates",
+			"sticks",
+			"groceries",
+			"gas",
+			"shoes",
+		]);
+		expect(offered?.more.map((purchase) => purchase.id)).toEqual([
+			"dentist",
+			"tuition-sep",
+			"mortgage",
+		]);
+	});
+
 	it("can be taken off, and the Bucket loses the money again", async () => {
 		await link("back", "skates");
 		expect(await unlinkMoneyInRefund(db, viewer, { incomeId: "back", today })).toEqual({
@@ -280,6 +353,74 @@ describe("a Refund lands in checking in October", () => {
 		expect(data.refundLinks).toEqual([
 			{ incomeId: "back", transactionId: "skates", amountCents: 2_000, countsOn: "2026-10-05" },
 		]);
+	});
+});
+
+describe("the bank takes a linked Refund line back", () => {
+	it("drops the link with the line, and the Bucket loses the money again", async () => {
+		await addBankConnection(db, {
+			householdId,
+			connectionId: "conn-1",
+			provider: "plaid",
+			externalId: "item-1",
+			institution: "First Platypus Bank",
+			credential: "v1:sealed",
+			createdByMemberId: parentId,
+		});
+		await chooseBankAccounts(db, {
+			householdId,
+			connectionId: "conn-1",
+			createdByMemberId: parentId,
+			choices: [
+				{
+					balanceId: "checking-b",
+					account: {
+						externalId: "acc-chk",
+						name: "Checking",
+						mask: null,
+						kind: "checking",
+						balance: null,
+					},
+					choice: { kind: "add", accountId: "checking" },
+				},
+			],
+		});
+		let ids = 0;
+		const sync = (importId: string, lines: BankLine[], removed: string[] = []) =>
+			syncBankLines(db, {
+				householdId,
+				connectionId: "conn-1",
+				accountId: "checking",
+				importId,
+				lines,
+				removed,
+				createdByMemberId: parentId,
+				newId: () => `bank-${++ids}`,
+			});
+		await sync("imp-1", [
+			{
+				accountExternalId: "acc-chk",
+				bankId: "r1",
+				date: "2026-10-05",
+				amount: 20_00,
+				description: "PURE HOCKEY REFUND",
+			} as BankLine,
+		]);
+		const [line] = await db.select({ id: income.id }).from(income);
+		if (!line) throw new Error("the bank's money in didn't arrive");
+		const changed = await changeMoneyInKind(db, viewer, {
+			incomeId: line.id,
+			kind: "refund",
+			transferId: "bank-refund-transfer",
+		});
+		expect(changed.ok).toBe(true);
+		expect(await link(line.id, "skates")).toEqual({ ok: true, months: [october] });
+		expect(await bucketSpent(october)).toEqual([["hockey", -2_000, ["leo"]]]);
+
+		expect(await sync("imp-2", [], ["r1"])).toMatchObject({ removed: 1 });
+		expect(await db.select().from(income)).toEqual([]);
+		expect(await db.select().from(refundLinks)).toEqual([]);
+		expect(await bucketSpent(october)).toEqual([]);
 	});
 });
 

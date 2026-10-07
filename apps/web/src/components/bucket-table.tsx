@@ -77,6 +77,7 @@ function Summary({
 	allowance,
 	spent,
 	paidBack,
+	refunded,
 	left,
 	rolling = false,
 	indent = false,
@@ -86,6 +87,8 @@ function Summary({
 	spent: number;
 	/** Money Paid back into it this month: a month it took below zero says so, not "−$45 spent". */
 	paidBack?: number | undefined;
+	/** What of `paidBack` linked Refunds gave back: said as "refunded". */
+	refunded?: number | undefined;
 	left: number;
 	rolling?: boolean;
 	/** Starts where the row over it does in a table without handles: see `STACKED_INDENT`. */
@@ -106,7 +109,7 @@ function Summary({
 					{back ? (
 						<>
 							<span className="font-medium text-foreground">
-								{bucketSpentText({ spent, paidBack })}
+								{bucketSpentText({ spent, paidBack, refunded })}
 							</span>
 							{DOT}
 							<PhoneFigure cents={allowance} short={short} /> allowance
@@ -141,7 +144,7 @@ function Summary({
 						<span className="ps-[1em] whitespace-nowrap">{formatMoney(allowance)} allowance</span>
 						<span className="whitespace-nowrap">
 							{DOT}
-							{bucketSpentText({ spent, paidBack })}
+							{bucketSpentText({ spent, paidBack, refunded })}
 						</span>
 						{rolling ? (
 							<span className="whitespace-nowrap">
@@ -399,6 +402,7 @@ export function BucketTable({
 						allowance={bucket.allowance}
 						spent={bucket.spent}
 						paidBack={bucket.paidBack}
+						refunded={bucket.refunded}
 						left={bucket.left}
 						rolling={bucket.rolling}
 						indent={indent}

@@ -66,24 +66,46 @@ export function owedBackOnCommitmentText(
  * was paid (ADR-0058). Null when none was.
  */
 export function paidBackIntoText(
-	paidBack: { amount: number; who: readonly string[] } | undefined,
+	paidBack: { amount: number; who: readonly string[]; refunded?: number | undefined } | undefined,
 ): string | null {
 	if (!paidBack || paidBack.amount <= 0) return null;
-	const sum = `${formatMoney(paidBack.amount)} Paid back`;
-	return paidBack.who.length > 0 ? `${sum} by ${names.format(paidBack.who)}` : sum;
+	// A Refund linked to its purchase is "refunded": "Paid back" is what was Owed back (ADR-0058).
+	const refunded = Math.min(paidBack.refunded ?? 0, paidBack.amount);
+	const owed = paidBack.amount - refunded;
+	const sum = `${formatMoney(owed)} Paid back`;
+	const said = [
+		...(owed > 0
+			? [paidBack.who.length > 0 ? `${sum} by ${names.format(paidBack.who)}` : sum]
+			: []),
+		...(refunded > 0 ? [`${formatMoney(refunded)} refunded`] : []),
+	];
+	return said.join(" and ");
 }
 
 /**
  * What a Bucket has spent this month: "$120 spent". Where money Paid back into it has taken the
  * month below zero it says that instead of negative spending: "$45 Paid back", or "$20 more Paid
- * back than spent" when there were purchases too. A month a Refund took below zero stays as it was.
+ * back than spent" when there were purchases too. What a Refund linked to its purchase gave back
+ * (`refunded`, a part of `paidBack`) is "refunded", never "Paid back", which is Owed back's word
+ * (ADR-0058): "$20 refunded", "$20 more refunded than spent", and with both, "$20 refunded and $45
+ * Paid back". A month a Refund on a card took below zero stays as it was.
  */
-export function bucketSpentText(bucket: { spent: number; paidBack?: number | undefined }): string {
+export function bucketSpentText(bucket: {
+	spent: number;
+	paidBack?: number | undefined;
+	refunded?: number | undefined;
+}): string {
 	const back = bucket.paidBack ?? 0;
 	if (bucket.spent >= 0 || back < -bucket.spent) return `${formatMoney(bucket.spent)} spent`;
-	return back === -bucket.spent
-		? `${formatMoney(back)} Paid back`
-		: `${formatMoney(-bucket.spent)} more Paid back than spent`;
+	const refunded = Math.min(bucket.refunded ?? 0, back);
+	const owed = back - refunded;
+	if (back === -bucket.spent)
+		return [
+			...(refunded > 0 ? [`${formatMoney(refunded)} refunded`] : []),
+			...(owed > 0 ? [`${formatMoney(owed)} Paid back`] : []),
+		].join(" and ");
+	const how = refunded === 0 ? "Paid back" : owed === 0 ? "refunded" : "refunded and Paid back";
+	return `${formatMoney(-bucket.spent)} more ${how} than spent`;
 }
 
 /** What's still Owed back on purchases filed in a Commitment, and by whom; null when nothing is. */

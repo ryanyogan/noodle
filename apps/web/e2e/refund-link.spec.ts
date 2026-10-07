@@ -86,13 +86,17 @@ test("a Refund in checking is linked to its purchase, whose Bucket gets the mone
 	await expect(toast(page, "Linked.")).toBeVisible();
 	await expect(linking).toContainText("A Refund for Pure Hockey skates");
 	await expect(linking).toContainText("Its Bucket or Commitment got $20 back");
+	// One "Done" closes the row: it doesn't stay open with nothing more to ask.
+	await row.getByRole("button", { name: "Done with Pure Hockey" }).click();
+	await expect(linking).toBeHidden();
 
 	// It counts this month in the purchase's Bucket, never as Income; last month is untouched.
 	await page.goto(`/month/${now}`);
 	await expect(page.getByRole("region", { name: "Income" })).toContainText("$0 received", {
 		timeout: 30_000,
 	});
-	expect(await words(page)).toContain("Kids −$20 spent $320 of $300");
+	// "refunded", not "Paid back": that is Owed back's word (ADR-0058).
+	expect(await words(page)).toContain("Kids $20 refunded $320 of $300");
 	const [kept = []] = await seedSql([
 		`select transaction_id, counts_on from refund_links where household_id = ${household};`,
 	]);

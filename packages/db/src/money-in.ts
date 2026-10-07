@@ -623,6 +623,85 @@ async function pairWithOtherAccount(
 	}
 }
 
+/** How many lines marked alone one Import looks at for money out that has since come in. */
+const JOIN_LIMIT = 200;
+
+/**
+ * The other order (issue 131): money in was marked alone as a Transfer naming another Account,
+ * and that Account's money out is imported afterwards. Each such line takes the same amount
+ * going out of the Account it names, the nearest in days first, and its one-sided Transfer
+ * becomes the pair; the money out no longer waits in Review as spending. A line a Parent unmarked
+ * has no Transfer and is left alone. Running it twice changes nothing.
+ */
+async function joinPairsLater(db: Db, householdId: string): Promise<void> {
+	const alone = await db
+		.select({
+			id: transfers.id,
+			otherAccountId: transfers.otherAccountId,
+			amount: income.amountCents,
+			date: income.date,
+		})
+		.from(transfers)
+		.innerJoin(income, eq(income.id, transfers.inIncomeId))
+		.where(
+			and(
+				eq(transfers.householdId, householdId),
+				eq(income.householdId, householdId),
+				isNull(transfers.removedAt),
+				isNull(transfers.outTransactionId),
+				isNull(transfers.reason),
+				sql`${transfers.otherAccountId} is not null`,
+			),
+		)
+		.orderBy(income.date, transfers.id)
+		.limit(JOIN_LIMIT);
+	const candidates: { markId: string; outId: string; apart: number; date: string }[] = [];
+	for (const mark of alone) {
+		if (!mark.otherAccountId) continue;
+		const outs = await db
+			.select({ id: transactions.id, date: transactions.date })
+			.from(transactions)
+			.where(
+				and(
+					eq(transactions.householdId, householdId),
+					eq(transactions.accountId, mark.otherAccountId),
+					eq(transactions.amountCents, mark.amount),
+					transferable,
+				),
+			);
+		for (const out of outs)
+			candidates.push({
+				markId: mark.id,
+				outId: out.id,
+				apart: daysApart(out.date, mark.date),
+				date: mark.date,
+			});
+	}
+	// The nearest in days pair first, so two lines of the same amount each take their own.
+	candidates.sort(
+		(a, b) => a.apart - b.apart || a.date.localeCompare(b.date) || a.outId.localeCompare(b.outId),
+	);
+	const joined = new Set<string>();
+	for (const { markId, outId } of candidates) {
+		if (joined.has(markId) || joined.has(outId)) continue;
+		joined.add(markId).add(outId);
+		await db
+			.update(transfers)
+			.set({ outTransactionId: outId })
+			.where(
+				and(
+					eq(transfers.id, markId),
+					eq(transfers.householdId, householdId),
+					isNull(transfers.removedAt),
+					isNull(transfers.outTransactionId),
+					// The money out was paired by someone else meanwhile: this line stays alone.
+					sql`not exists (select 1 from transfers x where x.out_transaction_id = ${outId}
+						and x.removed_at is null)`,
+				),
+			);
+	}
+}
+
 /** Removes a Rule for money in; lines it already decided stay as they are. */
 export async function deleteMoneyInRule(db: Db, householdId: string, ruleId: string) {
 	await db
@@ -635,6 +714,8 @@ export async function deleteMoneyInRule(db: Db, householdId: string, ruleId: str
  * nothing, is marked alone. Never a line that was in a Transfer before (an unmarked one is not
  * marked again), so running it twice changes nothing. A remembered pair of Accounts first looks
  * for its money out in the other Account, and names that Account when it marks the line alone.
+ * Every Import, whatever it brought, also joins money out that has come in since to the lines
+ * that were marked alone naming its Account (joinPairsLater).
  */
 export async function markMoneyInByRule(
 	db: Db,
@@ -643,7 +724,7 @@ export async function markMoneyInByRule(
 	newId: () => string,
 ): Promise<void> {
 	const ruled = lines.filter((line) => line.kind === "transfer" || line.kind === "between-us");
-	if (ruled.length === 0) return;
+	if (ruled.length === 0) return joinPairsLater(db, householdId);
 	await pairWithOtherAccount(
 		db,
 		householdId,
@@ -686,4 +767,5 @@ export async function markMoneyInByRule(
 				),
 		)
 		.onConflictDoNothing();
+	await joinPairsLater(db, householdId);
 }
