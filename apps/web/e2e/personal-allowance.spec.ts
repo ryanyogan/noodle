@@ -22,6 +22,9 @@ const list = (page: Page) =>
 const bucketRow = (page: Page, name: string) =>
 	page.getByRole("listitem", { name: new RegExp(`^${name}: `) });
 
+/** The For chip of a row: the control that changes who that Transaction is For. */
+const forChip = (page: Page, title: string) =>
+	list(page).getByRole("button", { name: new RegExp(`^Change who ${title} is For, now `) });
 const ALEX_PA = "Alex’s Personal Allowance";
 const SAM_PA = "Sam’s Personal Allowance";
 const ULID = /[0-9A-HJKMNP-TV-Z]{26}/g;
@@ -143,7 +146,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		await editSheet(alex).getByRole("button", { name: "Save" }).click();
 		await expect(editSheet(alex)).toBeHidden();
 		await expect(list(alex).getByRole("button", { name: /^Target run,/ })).toHaveAccessibleName(
-			`Target run, $100, Split across 2: Groceries, ${ALEX_PA}`,
+			`Target run, $100, Split across 2: Groceries, ${ALEX_PA}, For Everyone`,
 		);
 
 		// Sam sees both Personal Allowances' totals.
@@ -193,7 +196,18 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		);
 		// The Target run as only its Groceries Split, without its note; Sam can't change it.
 		const targetRun = list(sam).getByRole("button", { name: /^Quick Add,/ });
-		await expect(targetRun).toHaveAccessibleName("Quick Add, $70, Split across 1: Groceries");
+		// Who it is For is the Groceries Split's alone, and said, never a chip: nothing on Sam's row
+		// writes to a Transaction partly in Alex's Personal Allowance (ADR-0003).
+		await expect(targetRun).toHaveAccessibleName(
+			"Quick Add, $70, Split across 1: Groceries, For Everyone",
+		);
+		// Looked for where the table keeps its For column: Milk has the chip, the Target run none.
+		const narrow = sam.viewportSize();
+		await sam.setViewportSize({ width: 1440, height: 900 });
+		await expect(forChip(sam, "Milk")).toHaveCount(1);
+		await expect(forChip(sam, "Quick Add")).toHaveCount(0);
+		await expect(list(sam).getByRole("button", { name: /^Change who /i })).toHaveCount(1);
+		if (narrow) await sam.setViewportSize(narrow);
 		await targetRun.click();
 		const shown = sam
 			.locator("[role=dialog], [data-slot=transaction-detail]")

@@ -1415,7 +1415,7 @@ const sameMembers = (a: readonly string[], b: readonly string[]) =>
  * Changes only who a Transaction is For, for the Parent `memberId` (issue 141): its amount, name
  * and assignment stay as they are, so an unassigned one stays unassigned (and in Review, if it
  * waits there) and a split one keeps its Splits. A split Transaction is For only through its
- * Splits: every one of them takes the new For, and only while they all had none or the same; one
+ * Splits: every one of them takes the new For, and only while they were all For the same people; one
  * whose Splits are For different people is refused ("for-differs"). Guarded as every change is:
  * the Household's, theirs to change (not Goal spending, nothing in the other Parent's Personal
  * Allowance, even through one Split: ADR-0003), and still at the version it was made on
@@ -1499,8 +1499,8 @@ export async function setTransactionFor(
 			? { ok: true, version: before.version }
 			: { ok: false, reason: "changed-elsewhere" };
 	}
-	const said = before.each.filter((one) => one.length > 0);
-	if (said.some((one) => !sameMembers(one, said[0] as string[])))
+	// A Split that names nobody is For Everyone: beside one For somebody, that is a difference.
+	if (before.each.some((one) => !sameMembers(one, before.each[0] as string[])))
 		return { ok: false, reason: "for-differs" };
 
 	// Every write holds only while the Transaction is as it was read; the version moves last, so

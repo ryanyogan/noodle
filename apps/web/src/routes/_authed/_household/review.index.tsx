@@ -1503,26 +1503,24 @@ function ReviewPage() {
 						description={asking ? labelOf(asking) : undefined}
 					/>
 					{asking ? (
-						<>
-							<CardPaymentQuestion
-								transaction={{
-									id: asking.id,
-									date: asking.date,
-									note: asking.note ?? "",
-									merchantName: labelOf(asking),
-									amountCents: asking.amountCents,
-								}}
-								label={labelOf(asking)}
-								onCancel={() => setAsking(null)}
-								onTransfer={(card) => markPayment(asking, undefined, card)}
-								filing={filingOf(asking)}
-								onDone={(answer) => {
-									setAsking(null);
-									if (answer === "transfer") return;
-									filedInCommitment(asking);
-								}}
-							/>
-						</>
+						<CardPaymentQuestion
+							transaction={{
+								id: asking.id,
+								date: asking.date,
+								note: asking.note ?? "",
+								merchantName: labelOf(asking),
+								amountCents: asking.amountCents,
+							}}
+							label={labelOf(asking)}
+							onCancel={() => setAsking(null)}
+							onTransfer={(card) => markPayment(asking, undefined, card)}
+							filing={filingOf(asking)}
+							onDone={(answer) => {
+								setAsking(null);
+								if (answer === "transfer") return;
+								filedInCommitment(asking);
+							}}
+						/>
 					) : null}
 				</SheetContent>
 			</Sheet>

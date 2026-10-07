@@ -29,7 +29,6 @@ import {
 	owedBack,
 	paidBackMatches,
 	splitFor,
-	splits,
 	transactionFor,
 	transactions,
 } from "./schema";
@@ -396,7 +395,7 @@ export async function loadPaidBack(
 	incomeId: string,
 ): Promise<PaidBackLine | null> {
 	const line = await loadMoneyInLine(db, householdId, incomeId);
-	if (!line || line.kind !== "paid-back" || line.needsReview) return null;
+	if (line?.kind !== "paid-back" || line.needsReview) return null;
 	const matches = (await db
 		.select({
 			id: paidBackMatches.id,

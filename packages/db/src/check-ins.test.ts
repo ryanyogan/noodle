@@ -224,6 +224,24 @@ describe("the week's stack", () => {
 			});
 		});
 
+		it("counts Extra income decided in the very second the card joined", async () => {
+			// A decision is timed by the database in whole seconds; the card's start is to the
+			// millisecond. One made later in the start's own second must still count.
+			const joined = new Date(monday.getTime() + 640);
+			await db.insert(moves).values({
+				id: "same-second",
+				householdId,
+				kind: "windfall",
+				month: september,
+				amountCents: 100,
+				createdByMemberId: "alex",
+				createdAt: monday,
+			});
+			expect(await loadCheckInDoers(db, alex, [{ ...extra, startedAt: joined }])).toEqual({
+				windfalls: ["alex"],
+			});
+		});
+
 		it("is whoever decided the card's Insights, never by way of one the reader can't see", async () => {
 			const insight = {
 				householdId,

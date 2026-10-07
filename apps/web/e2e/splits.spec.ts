@@ -4,6 +4,7 @@ import {
 	choose,
 	clientRendered,
 	createPlannedHousehold,
+	hydrated,
 	pickQuickAddBucket,
 	savedBy,
 	serverFn,
@@ -46,6 +47,8 @@ async function setUp(page: Page) {
 		],
 	});
 	await page.goto("/household");
+	// Typed before the page is live, the name is lost when it comes alive.
+	await hydrated(page.getByLabel("Add a Child"));
 	await page.getByLabel("Add a Child").fill("Leo");
 	await page.getByRole("button", { name: "Add Child" }).click();
 	await expect(page.getByRole("button", { name: "Edit Leo" })).toBeVisible();
@@ -110,8 +113,9 @@ test("splitting a Quick Add spends each Split from its own Bucket, For its own M
 		.click();
 	await save(page).click();
 	await expect(editSheet(page)).toBeHidden();
+	// Groceries' Split is For Everyone and Hockey's For Leo: the row claims neither.
 	await expect(costco(page)).toHaveAccessibleName(
-		"Costco, $250, Split across 2: Groceries, Hockey",
+		"Costco, $250, Split across 2: Groceries, Hockey, For Different for each Split",
 	);
 
 	// Filters match the Splits: Hockey's Split is For Leo; Groceries' is For everyone.
@@ -187,8 +191,9 @@ test("a failed split is undone and can be retried", async ({ browser }) => {
 
 	await page.unroute(split);
 	await failed.getByRole("button", { name: "Retry" }).click();
+	// Groceries' Split is For Everyone and Hockey's For Leo: the row claims neither.
 	await expect(costco(page)).toHaveAccessibleName(
-		"Costco, $250, Split across 2: Groceries, Hockey",
+		"Costco, $250, Split across 2: Groceries, Hockey, For Different for each Split",
 	);
 	await nav(page).getByRole("link", { name: "This Month" }).click();
 	await expect(bucketRow(page, "Hockey")).toContainText("$70 spent");

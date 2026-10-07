@@ -234,22 +234,36 @@ describe("changing who a row is For from its chips (issue 134)", () => {
 		expect(undoOf(unassigned, { for: [] })).toEqual({ for: ["m1"] });
 	});
 
-	it("a split row sets every Split's For where they have none or the same", () => {
+	it("a split row sets every Split's For where they are all For the same people", () => {
 		const even = row({
 			bucketId: null,
 			for: [],
-			splits: [split, { ...split, id: "s2", for: ["m2"] }],
+			splits: [
+				{ ...split, for: ["m2"] },
+				{ ...split, id: "s2", for: ["m2"] },
+			],
 		});
 		expect(splitsFor(even)).toEqual(["m2"]);
 		expect(forEdits(even)).toBe(true);
 		expect(forOf(even, ["m1"])).toEqual({ for: ["m1"] });
-		// Said again as it is: the Split that had none takes it too.
-		expect(forOf(even, ["m2"])).toEqual({ for: ["m2"] });
-		// Its Splits didn't all say the same, so there is nothing one write could put back.
-		expect(undoOf(even, { for: ["m1"] })).toBeNull();
+		expect(forOf(even, ["m2"])).toBeNull();
+		expect(undoOf(even, { for: ["m1"] })).toEqual({ for: ["m2"] });
 		const all = row({ bucketId: null, for: [], splits: [split, { ...split, id: "s2" }] });
+		expect(splitsFor(all)).toEqual([]);
 		expect(forOf(all, [])).toBeNull();
 		expect(undoOf(all, { for: ["m1"] })).toEqual({ for: [] });
+	});
+
+	it("a Split For Everyone beside one For somebody is a difference, not a gap to fill", () => {
+		const mixed = row({
+			bucketId: null,
+			for: [],
+			splits: [split, { ...split, id: "s2", for: ["m2"] }],
+		});
+		expect(splitsFor(mixed)).toBeNull();
+		expect(forEdits(mixed)).toBe(false);
+		expect(forOf(mixed, ["m2"])).toBeNull();
+		expect(undoOf(mixed, { for: ["m1"] })).toBeNull();
 	});
 
 	it("a split row whose Splits are For different people has no chip", () => {
