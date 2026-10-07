@@ -2,8 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import {
-	accountKindLabel,
-	choose,
+	chooseKind,
 	createPlannedHousehold,
 	moreItem,
 	moreItems,
@@ -224,7 +223,7 @@ test("an item's page has the same header: Back, title and arrows on one row, one
 	// An Account.
 	await page.goto("/accounts");
 	await page.getByLabel("Name").fill("Joint Savings");
-	await choose(page, "Kind", accountKindLabel("savings"));
+	await chooseKind(page, "savings");
 	await page.getByLabel("Balance now").fill("8,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await list.getByRole("link", { name: /^Joint Savings, / }).click();

@@ -2,8 +2,8 @@ import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import {
-	accountKindLabel,
 	choose,
+	chooseKind,
 	createPlannedHousehold,
 	hydrated,
 	savedBy,
@@ -54,7 +54,7 @@ test("Wallet captures land on the card they name, an unknown card is asked about
 		}
 		await expect(page.getByLabel("Name")).toBeVisible({ timeout: 1000 });
 		await page.getByLabel("Name").fill(apple);
-		await choose(page, "Kind", accountKindLabel("credit-card"));
+		await chooseKind(page, "credit-card");
 		await expect(page.getByLabel("How do its purchases get into Noodle?")).toBeVisible({
 			timeout: 1000,
 		});

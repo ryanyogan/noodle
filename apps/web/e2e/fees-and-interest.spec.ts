@@ -1,13 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import {
-	accountKindLabel,
-	choose,
-	createPlannedHousehold,
-	hydrated,
-	reloadUntil,
-	signedInPage,
-} from "./session";
+import { chooseKind, createPlannedHousehold, hydrated, reloadUntil, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -32,7 +25,7 @@ async function uploadChecking(page: Page, lines: string[]) {
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill("Checking");
-	await choose(page, "Kind", accountKindLabel("checking"));
+	await chooseKind(page, "checking");
 	await page.getByLabel("Balance now").fill("2,500");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Checking, / }).click();

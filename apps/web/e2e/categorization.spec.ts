@@ -1,9 +1,9 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
-	accountKindLabel,
 	addBucketsInSheet,
 	choose,
+	chooseKind,
 	createPlannedHousehold,
 	reloadUntil,
 	signedInPage,
@@ -32,7 +32,7 @@ async function uploadCardStatement(page: Page, lines: [string, string][]) {
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill("Visa");
-	await choose(page, "Kind", accountKindLabel("credit-card"));
+	await chooseKind(page, "credit-card");
 	await page.getByLabel("Owed now").fill("800");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Visa, / }).click();

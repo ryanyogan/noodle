@@ -5,6 +5,7 @@ import {
 	choose,
 	createPlannedHousehold,
 	hydrated,
+	PURCHASES_QUESTION,
 	pickQuickAddBucket,
 	savedBy,
 	signedInPage,
@@ -50,16 +51,24 @@ test("a card kept by hand is asked about when added, and has its statement balan
 			await page.getByRole("button", { name: "Add Account" }).click();
 		}
 		await expect(page.getByLabel("Name")).toBeVisible({ timeout: 1000 });
-		await page.getByLabel("Name").fill("Apple Card");
+		await page.getByLabel("Name").fill("Visa");
 		await choose(page, "Kind", accountKindLabel("credit-card"));
-		await expect(page.getByLabel("How do its purchases get into Noodle?")).toBeVisible({
-			timeout: 1000,
-		});
+		await expect(page.getByLabel(PURCHASES_QUESTION)).toBeVisible({ timeout: 1000 });
 	}).toPass();
-	// Statements unless said otherwise; by hand is the Apple Card's answer.
-	await expect(page.getByText("You upload its statements.")).toBeVisible();
-	await choose(page, "How do its purchases get into Noodle?", "I add them by hand");
+	// Nothing is chosen for a card (issue 141): a Parent says it, and the form says so if they don't.
+	const question = page.getByRole("combobox", { name: PURCHASES_QUESTION, exact: true });
+	await expect(question).toContainText("Choose one");
+	await page.getByRole("button", { name: "Add Account" }).last().click();
+	await expect(page.getByText("Choose how this card’s purchases get into Noodle.")).toBeVisible();
+	await expect(page.getByRole("link", { name: /^Visa, / })).toHaveCount(0);
+	await shot(page, "add-card-nothing-chosen");
+	// A name that reads as an Apple Card suggests by hand, already chosen; it can be changed.
+	await page.getByLabel("Name").fill("Apple Card");
+	await expect(question).toContainText("I add them by hand");
 	await expect(page.getByText("For a card no bank reaches, like Apple Card.")).toBeVisible();
+	await choose(page, PURCHASES_QUESTION, "From its statements");
+	await expect(page.getByText("You upload its statements.")).toBeVisible();
+	await choose(page, PURCHASES_QUESTION, "I add them by hand");
 	await shot(page, "add-card-question");
 	// No balance yet: the statement's balance is what the check will ask for.
 	await page.getByRole("button", { name: "Add Account" }).last().click();

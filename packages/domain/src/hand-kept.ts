@@ -68,6 +68,15 @@ const cardWords = (name: string) =>
 		.trim();
 
 /**
+ * What a new card's name suggests for how its purchases get in, offered as the answer already
+ * chosen (issue 141): "hand" for an Apple Card ("Apple Card", "AppleCard", "Apple Titanium"),
+ * which no bank or statement file reaches. Null for any other name: the Parent has to choose.
+ */
+export function suggestedPurchases(name: string): PurchasesGetIn | null {
+	return /(^| )apple ?(card|titanium)( |$)/.test(cardWords(name)) ? "hand" : null;
+}
+
+/**
  * The Account a Wallet capture's card name says ("Apple Card", "Chase Freedom Unlimited"): the one
  * a Parent said that name is (`walletName`), else the only card Account whose name is that name,
  * or holds it or is held by it as whole words. Null when none or more than one could be meant: a

@@ -518,7 +518,8 @@ describe("A payment to a card whose payment is the spending", () => {
 			reviewVersion: filedAt + 2,
 		});
 		expect((await rowOf(30_000))?.commitmentId).toBeNull();
-		expect(await waiting()).toEqual([opened]);
+		// The other line waited there too, so it does again.
+		expect((await waiting()).sort()).toEqual([opened, other].sort());
 		expect(await listRules(db, viewer)).toEqual([]);
 
 		// Sent again (the answer was lost on the way): nothing moves, and it says the same.
@@ -526,7 +527,80 @@ describe("A payment to a card whose payment is the spending", () => {
 			restored: 0,
 			reviewVersion: filedAt + 2,
 		});
-		expect(await waiting()).toEqual([opened]);
+		expect((await waiting()).sort()).toEqual([opened, other].sort());
+	});
+
+	it("undone, puts the lines worded like it back in Review too when that is where they waited", async () => {
+		await importInto("checking", "i-1", [
+			line("2026-09-05", -30_000, WORDING),
+			line("2026-09-19", -5_000, WORDING),
+			line("2026-09-21", -7_000, WORDING),
+		]);
+		const opened = (await rowOf(30_000))?.id as string;
+		const other = (await rowOf(5_000))?.id as string;
+		const never = (await rowOf(7_000))?.id as string;
+		// Two wait in Review; the third was never there (nothing asked about it).
+		await db.insert(categorizations).values(
+			[opened, other].map((transactionId) => ({
+				transactionId,
+				householdId,
+				outcome: "review" as const,
+				method: "none" as const,
+				merchant: merchantKey(WORDING),
+			})),
+		);
+		const waiting = async () =>
+			(await loadReview(db, viewer, 50)).items.map((item) => item.id).sort();
+
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: opened,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		if (!filing.ok) throw new Error("not filed");
+		expect(filing.filed).toBe(3);
+		expect(filing.waited.map((line) => line.id).sort()).toEqual([opened, other].sort());
+		expect(await waiting()).toEqual([]);
+
+		// Answered from the Transactions page (no Review card): both that waited wait again.
+		expect(await undoCardPaymentFiling(db, viewer, filing)).toMatchObject({ restored: 3 });
+		expect(await waiting()).toEqual([opened, other].sort());
+		expect((await rowOf(7_000))?.commitmentId).toBeNull();
+		expect(await waiting()).not.toContain(never);
+
+		// Sent again: nothing moves.
+		expect(await undoCardPaymentFiling(db, viewer, filing)).toMatchObject({ restored: 0 });
+		expect(await waiting()).toEqual([opened, other].sort());
+	});
+
+	it("undone, leaves a line worded like it where another screen filed it since", async () => {
+		await importInto("checking", "i-1", [
+			line("2026-09-05", -30_000, WORDING),
+			line("2026-09-19", -5_000, WORDING),
+		]);
+		const opened = (await rowOf(30_000))?.id as string;
+		const other = (await rowOf(5_000))?.id as string;
+		await db.insert(categorizations).values({
+			transactionId: other,
+			householdId,
+			outcome: "review" as const,
+			method: "none" as const,
+			merchant: merchantKey(WORDING),
+		});
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: opened,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		if (!filing.ok) throw new Error("not filed");
+		// Another screen changes the other line after the filing.
+		await db
+			.update(transactions)
+			.set({ version: sql`${transactions.version} + 1` })
+			.where(sql`${transactions.id} = ${other}`);
+		await undoCardPaymentFiling(db, viewer, filing);
+		expect((await rowOf(5_000))?.commitmentId).toBe("apple");
+		expect((await loadReview(db, viewer, 50)).items.map((item) => item.id)).toEqual([]);
 	});
 
 	it("undone from Review after another screen filed it elsewhere, is left where that put it", async () => {
@@ -678,7 +752,8 @@ describe("A payment to a card whose payment is the spending", () => {
 				commitmentId: "apple",
 				ruleId: "rule-1",
 			}),
-		).toEqual({ ok: false });
+			// The Commitment starts in September: August's Plan doesn't have it, and it says so.
+		).toEqual({ ok: false, reason: "not-in-plan", lineMonth: "2026-08" });
 		expect(await listRules(db, viewer)).toEqual([]);
 	});
 });

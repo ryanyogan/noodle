@@ -2,8 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { currentTab, expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
 import {
-	accountKindLabel,
-	choose,
+	chooseKind,
 	clientRendered,
 	createPlannedHousehold,
 	openPlanBuckets,
@@ -44,7 +43,7 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	// A savings Account, for a one-off to be saved for as a Goal.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Ally savings");
-	await choose(page, "Kind", accountKindLabel("savings"));
+	await chooseKind(page, "savings");
 	await page.getByLabel("Balance now").fill("1,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: /^Ally savings, Savings/ })).toBeVisible();

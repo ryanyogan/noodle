@@ -506,6 +506,7 @@ export {
 export {
 	type CardPaymentFiling,
 	type CardPaymentReview,
+	type CardPaymentWaited,
 	fileCardPayment,
 	forgetCardPayment,
 	loadCardPaymentRules,

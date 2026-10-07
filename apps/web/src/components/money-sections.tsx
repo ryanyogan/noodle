@@ -5,6 +5,7 @@ import { Skeleton } from "@noodle/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { ulid } from "ulid";
+import { cardPaymentCardsQuery, cardPaymentIntro } from "../card-payments";
 import { formatMoney, shortDay } from "../format";
 import { membersQuery } from "../queries";
 import type { TransactionRow } from "../transactions";
@@ -77,6 +78,8 @@ export function TransferSection({
 	const { data } = useQuery({ ...moneyQuery(transaction), enabled: view === undefined });
 	const change = useMoneyChange();
 	const { data: members } = useQuery(membersQuery());
+	// The Household's cards, for words that agree with the choice under them (issue 141).
+	const { data: cards } = useQuery(cardPaymentCardsQuery());
 	const transfer = view ?? data?.transfer;
 	if (!transfer || (transfer.kind === "none" && !transfer.markable)) return null;
 	const label = transaction.merchantName || transaction.note || "Transaction";
@@ -127,7 +130,7 @@ export function TransferSection({
 			</h3>
 			<p className="text-[13px] text-muted-foreground">
 				{looksLikeCardPayment(transaction.note || transaction.merchantName)
-					? "Looks like a card payment. What you bought on the card is already in your Buckets, so the payment itself isn’t spending: mark it as a Transfer and it counts nowhere."
+					? cardPaymentIntro(cards)
 					: named
 						? `Looks like money sent to ${named}. That’s between you: money one of you moved to the other isn’t spending.`
 						: looksPersonToPerson(transaction.note || transaction.merchantName)

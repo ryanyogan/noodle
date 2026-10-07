@@ -1,8 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
-	accountKindLabel,
-	choose,
+	chooseKind,
 	createPlannedHousehold,
 	pickQuickAddBucket,
 	reloadUntil,
@@ -57,7 +56,7 @@ async function uploadStatement(
 		}).toPass();
 	}
 	await page.getByLabel("Name").fill(account.name);
-	await choose(page, "Kind", accountKindLabel(account.kind));
+	await chooseKind(page, account.kind);
 	await page
 		.getByLabel(account.kind === "credit-card" ? "Owed now" : "Balance now")
 		.fill(account.balance);

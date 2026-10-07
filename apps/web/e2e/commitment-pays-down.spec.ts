@@ -3,9 +3,10 @@ import { settledAxe } from "./axe";
 import { measure } from "./overflow";
 import { createTestParent } from "./parents";
 import {
-	accountKindLabel,
 	choose,
+	chooseKind,
 	createPlannedHousehold,
+	PURCHASES_QUESTION,
 	reloadUntil,
 	savedBy,
 	signedInPage,
@@ -50,7 +51,7 @@ async function addAccount(page: Page, name: string, kind: string, amount?: strin
 		? page.getByRole("main")
 		: page.getByRole("dialog", { name: "Add an Account" });
 	await form.getByLabel("Name").fill(name);
-	await choose(form, "Kind", accountKindLabel(kind));
+	await chooseKind(form, kind);
 	if (amount) await form.getByLabel(kind === "checking" ? "Balance now" : "Owed now").fill(amount);
 	const saved = savedBy(page, "addAccount");
 	await form.getByRole("button", { name: "Add Account" }).click();
@@ -198,7 +199,13 @@ test("a Commitment pays down a card kept by hand: a payment brings what's owed d
 	await paysDown(sheet, page, "Add a card or loan…");
 	const inline = sheet.getByRole("group", { name: "Add a card or loan" });
 	await inline.getByLabel("Card or loan name").fill("Car loan");
+	// A credit card added here is asked how its purchases get in, as on Accounts; a loan isn't.
+	const question = inline.getByRole("combobox", { name: PURCHASES_QUESTION, exact: true });
+	await expect(question).toContainText("Choose one");
+	await inline.getByRole("button", { name: "Add card" }).click();
+	await expect(inline.getByText("Choose how this card’s purchases get into Noodle.")).toBeVisible();
 	await choose(inline, "Kind", "Loan");
+	await expect(question).toHaveCount(0);
 	await inline.getByLabel("What’s owed today (optional)").fill("9,000");
 	const loanAdded = savedBy(page, "addAccount");
 	await inline.getByRole("button", { name: "Add loan" }).click();

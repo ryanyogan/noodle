@@ -17,6 +17,7 @@ import { GlossaryDialog } from "../../components/glossary";
 import { AmountInput } from "../../components/goals";
 import { IntroVideoCard } from "../../components/intro-video";
 import { InviteOtherParent } from "../../components/invite-other-parent";
+import { PurchasesField, usePurchasesAnswer } from "../../components/purchases-field";
 import { SetupBills } from "../../components/setup-bills";
 import { SetupBankCard, SetupStatementCard } from "../../components/setup-spending";
 import { CarriesOverHelp, StarterBucketPicker } from "../../components/starter-buckets";
@@ -1047,6 +1048,8 @@ function GoalStep({
 	const [name, setName] = useState("");
 	const [target, setTarget] = useState("");
 	const [owed, setOwed] = useState<"credit-card" | "loan">("credit-card");
+	// A credit card Noodle adds here is asked how its purchases get in, as on Accounts.
+	const purchases = usePurchasesAnswer(name);
 	// Money for a Goal can stay in a savings Account the Household already has (from a bank or a
 	// statement), so setup doesn't add a second one.
 	const goalsData = useSuspenseQuery(goalsQuery()).data;
@@ -1075,6 +1078,7 @@ function GoalStep({
 			: (owingAccount?.name.trim().slice(0, 40) ?? name.trim());
 	const ready = !!kind && !!goalName && targetCents !== null && targetCents > 0;
 	const threeMonths = billsMonthly(answers.bills ?? []) * 3;
+	const asksPurchases = !added && kind === "payoff" && !owingAccount && owed === "credit-card";
 
 	const save = useMutation({
 		mutationFn: async () => {
@@ -1114,6 +1118,7 @@ function GoalStep({
 						kind: goal.accountKind,
 						balanceCents: kind === "payoff" ? targetCents : null,
 						balanceId: goal.balanceId,
+						purchases: goal.accountKind === "credit-card" ? purchases.value : null,
 					},
 				});
 			}
@@ -1150,7 +1155,11 @@ function GoalStep({
 			onSkip={added ? undefined : onSkip}
 			pending={save.isPending}
 			disabled={!added && !ready}
-			onSubmit={() => save.mutate()}
+			onSubmit={() => {
+				// A new credit card isn't added until a Parent has said how its purchases get in.
+				if (asksPurchases && purchases.check() === null) return;
+				save.mutate();
+			}}
 		>
 			{added ? (
 				<Card className="flex items-center justify-between gap-4 p-(--card-pad) text-sm">
@@ -1260,6 +1269,7 @@ function GoalStep({
 							/>
 						</Field>
 					) : null}
+					{asksPurchases ? <PurchasesField id={`${id}-purchases`} answer={purchases} /> : null}
 					{kind ? (
 						<Field
 							label={kind === "payoff" ? "What’s owed on it now?" : "How much?"}

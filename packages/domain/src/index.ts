@@ -258,6 +258,7 @@ export {
 	STATEMENTS_FOLLOWED_DAYS,
 	statementCheckDue,
 	statementsFollowed,
+	suggestedPurchases,
 } from "./hand-kept";
 export {
 	findInsights,

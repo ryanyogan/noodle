@@ -18,6 +18,7 @@ import { backgroundStatus, type SetupJobView } from "../setup";
 import { importSummary } from "../statements";
 import { useConnectBank } from "./bank-connections";
 import { SaveFailed } from "./plan-editing";
+import { PurchasesField, usePurchasesAnswer } from "./purchases-field";
 import { balanceOffer, type Draft, NO_DRAFT, UploadForm } from "./statements";
 
 // How spending comes in during the get-started wizard (#53), without leaving it: connecting a bank
@@ -129,6 +130,9 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 	const [name, setName] = useState("");
 	const [nameMissing, setNameMissing] = useState(false);
 	const [kind, setKind] = useState<AccountKind>("checking");
+	// A card added here is about to have its statement read, so "From its statements" is offered
+	// already chosen (an Apple Card's name still suggests by hand); the Parent can change it.
+	const purchases = usePurchasesAnswer(name, "statements");
 	const [draft, setDraft] = useState<Draft>(NO_DRAFT);
 	const [imported, setImported] = useState<(ImportRecord & { accountName: string }) | null>(null);
 	const account = accounts.find((a) => a.id === accountId) ?? null;
@@ -223,7 +227,15 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 		setNameMissing(!trimmed);
 		if (!trimmed) return;
 		const accountId = ulid();
-		addAccount.mutate({ accountId, name: trimmed, kind, balanceCents: null, balanceId: ulid() });
+		addAccount.mutate({
+			accountId,
+			name: trimmed,
+			kind,
+			balanceCents: null,
+			balanceId: ulid(),
+			purchases: kind === "credit-card" ? purchases.check() : null,
+		});
+		purchases.reset();
 		setAccountId(accountId);
 	}
 
@@ -338,6 +350,9 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 							/>
 						</Field>
 					</div>
+				) : null}
+				{from === "new" && kind === "credit-card" ? (
+					<PurchasesField id={`${id}-purchases`} answer={purchases} disabled={!hydrated} />
 				) : null}
 				<Button type="submit" className="justify-self-start" disabled={!hydrated}>
 					Choose the statement
