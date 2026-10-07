@@ -137,6 +137,8 @@ class Refused extends Error {
 const reasonOf = (error: unknown) => (error instanceof Refused ? error.reason : null);
 
 export type OwedBackSaid = {
+	/** The item meant, when it is one whose Split is gone; a new ID otherwise. */
+	owedBackId?: string;
 	transactionId: string;
 	/** One Split of the purchase, instead of the whole of it. */
 	splitId?: string | null;

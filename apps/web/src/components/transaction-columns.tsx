@@ -12,6 +12,7 @@ import {
 import { cn } from "@noodle/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeftRight, Check, Sparkles, Split as SplitIcon, Target } from "lucide-react";
+import { BANK_TOOK_BACK_WORD, bankTookBackText } from "../bank-took-back";
 import { monogram } from "../buckets";
 import { askCardPayment } from "../card-payments";
 import { shortDay } from "../format";
@@ -189,6 +190,16 @@ function NameCell({
 					{view.pending ? (
 						<Badge aria-hidden="true" dot className={pill}>
 							Pending
+						</Badge>
+					) : null}
+					{/* Kept after the bank took it back or changed it (issue 141); opening it says why. */}
+					{transaction.bankTookBackOn ? (
+						<Badge
+							data-testid="bank-took-back"
+							className={pill}
+							title={bankTookBackText(transaction) ?? undefined}
+						>
+							{BANK_TOOK_BACK_WORD}
 						</Badge>
 					) : null}
 					{view.autoFiled ? (

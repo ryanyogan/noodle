@@ -467,8 +467,9 @@ let saidAt = Number.NEGATIVE_INFINITY;
  * (cards decided one after another, or queued behind each other) get one message, not one each.
  */
 /**
- * A delete the server refused: money Paid back on the purchase, or a Refund linked to it, counted
- * in a month that has ended, which never changes (ADR-0058). Sending it again won't help.
+ * A delete, or a change of amount or filing, the server refused: money Paid back on the purchase,
+ * or a Refund linked to it, counted in a month that has ended, which never changes (ADR-0058).
+ * Sending it again won't help.
  */
 export class MonthEnded extends Error {
 	constructor() {
@@ -476,6 +477,15 @@ export class MonthEnded extends Error {
 		this.name = "MonthEnded";
 	}
 }
+
+/**
+ * Why a purchase stayed as it was, said plainly: its amount, where it's filed and its Splits can't
+ * change, and it can't be deleted, once money back on it counted in a month that has ended.
+ */
+export const monthEndedText = (label: string, edit: boolean) =>
+	edit
+		? `Money back on ${label} counted in a month that has ended, so its amount and where it’s filed stay as they are. You can still change its note and who it’s For.`
+		: `Money back on ${label} counted in a month that has ended, so it can’t be deleted.`;
 
 export function sayChangedElsewhere(now = Date.now()) {
 	if (now - saidAt < SAY_AGAIN_AFTER_MS) return;
@@ -670,10 +680,9 @@ export function useTransactionChange() {
 				return sayChangedElsewhere();
 			}
 			if (error instanceof MonthEnded)
-				return void toast(
-					`Money back on ${variables.label} counted in a month that has ended, so it can’t be deleted.`,
-					{ tone: "error" },
-				);
+				return void toast(monthEndedText(variables.label, variables.next !== null), {
+					tone: "error",
+				});
 			toast(
 				variables.next
 					? `Couldn’t save your change to ${variables.label}, so it’s been undone.`
