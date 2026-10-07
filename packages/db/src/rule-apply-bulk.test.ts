@@ -83,7 +83,7 @@ describe("applying a Rule to many Transactions", () => {
 	it("files thousands at once, with For, a count on the Rule and one categorization each", async () => {
 		const db = await household(3_000, 500);
 		const result = await applyRule(db, alex, "costco");
-		expect(result).toEqual({ filed: 3_000, months: ["2026-09", "2026-10"] });
+		expect(result).toEqual({ filed: 3_000, months: ["2026-09", "2026-10"], kept: 0 });
 		const filed = await db
 			.select({ id: transactions.id, version: transactions.version })
 			.from(transactions)
@@ -100,7 +100,7 @@ describe("applying a Rule to many Transactions", () => {
 		const [rule] = await db.select().from(rules).where(eq(rules.id, "costco"));
 		expect(rule?.matchedCount).toBe(3_000);
 		// The other 500 are untouched, and a second apply finds nothing left.
-		expect(await applyRule(db, alex, "costco")).toEqual({ filed: 0, months: [] });
+		expect(await applyRule(db, alex, "costco")).toEqual({ filed: 0, months: [], kept: 0 });
 	}, 60_000);
 
 	it("costs in step with how many it files, not with their square", async () => {

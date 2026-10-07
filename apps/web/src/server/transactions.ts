@@ -632,6 +632,7 @@ export const fileTransactions = createServerFn({ method: "POST" })
 			assignment: data.assignment,
 			versions,
 			forMemberIds: data.forMemberIds,
+			today: dayKeyAt(new Date(), context.household.timeZone),
 		});
 		if (!result.ok) {
 			throw new Error(
@@ -664,9 +665,11 @@ export const undoFiling = createServerFn({ method: "POST" })
 				.max(5000),
 		}),
 	)
-	.handler(async ({ data, context }): Promise<{ restored: number }> => {
+	.handler(async ({ data, context }): Promise<{ restored: number; kept: number }> => {
 		const entries: FiledBefore[] = data.entries;
-		const result = await unfileTransactions(getDb(), viewerOf(context), entries);
+		const result = await unfileTransactions(getDb(), viewerOf(context), entries, {
+			today: dayKeyAt(new Date(), context.household.timeZone),
+		});
 		if (result.restored > 0) {
 			await notifyHousehold(context.household.id, ["months", "for-earlier", "bucket-uses"]);
 		}

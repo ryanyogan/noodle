@@ -39,7 +39,7 @@ Nightly snapshots are kept for 14 days, then one a week is kept for 8 weeks. One
 3. Type your Household's name to confirm.
 4. Press **Restore**. It takes about a minute.
 
-Noodle takes a snapshot of how things are now first, so you can come back. A bank linked since the snapshot is disconnected. The other Parent is told.
+Noodle takes a snapshot of how things are now first, so you can come back. A bank linked since the snapshot is disconnected. The Log keeps its record of what was removed, before the snapshot and since. The other Parent is told.
 
 A snapshot taken with a newer version of Noodle than the one you are using cannot be restored.
 

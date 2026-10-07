@@ -123,6 +123,13 @@ export function useMoneyChange() {
 		mutationKey: monthChangeKey,
 		mutationFn: send,
 		onSuccess: (result, variables) => {
+			if (!result.ok && result.reason === "month-ended") {
+				toast(
+					`Money back on ${variables.label} counted in a month that has ended, so it keeps counting where it is and can’t be marked as a Transfer.`,
+					{ tone: "error" },
+				);
+				return;
+			}
 			if (!result.ok) {
 				toast(
 					`Couldn’t ${failed[variables.kind].replace("{label}", variables.label)}: it was just changed.`,

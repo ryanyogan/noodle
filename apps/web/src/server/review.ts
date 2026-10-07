@@ -13,7 +13,7 @@ import {
 	stateRule as stateRuleInDb,
 	type Viewer,
 } from "@noodle/db";
-import { monthKeyAt } from "@noodle/domain";
+import { dayKeyAt, monthKeyAt } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { queueAi } from "./ai-queue";
@@ -29,7 +29,7 @@ import {
 	newestMigration,
 	ruleApplyOutcome,
 } from "./snapshot-store";
-import type { TransactionWriteAnswer } from "./transactions";
+import type { MonthEndedAnswer, TransactionWriteAnswer } from "./transactions";
 
 // Review and Rules. Review is read for the Parent looking, like every read of Transactions
 // (ADR-0003); confirming or changing a card is an ordinary Transaction edit (server/transactions),
@@ -40,12 +40,20 @@ import type { TransactionWriteAnswer } from "./transactions";
  * Applies a Rule; when it is about to file more than one Transaction, a snapshot is taken first
  * (ADR-0035), and nothing is filed if that fails. Not exported: this file is imported by pages.
  */
-async function applyRuleInDb(_db: ReturnType<typeof getDb>, viewer: Viewer, ruleId: string) {
+async function applyRuleInDb(
+	_db: ReturnType<typeof getDb>,
+	viewer: Viewer,
+	ruleId: string,
+	timeZone?: string,
+) {
+	const now = new Date();
 	return applyRuleWithSnapshot(
 		{ db: _db, bucket: env.BACKUPS, migration: await newestMigration(env.DB) },
 		viewer,
 		ruleId,
-		new Date(),
+		now,
+		// The Household's day, for "months that have ended don't change".
+		timeZone ? dayKeyAt(now, timeZone) : undefined,
 	);
 }
 
@@ -101,8 +109,13 @@ export const returnToReview = createServerFn({ method: "POST" })
 			expectedVersion: z.number().int().min(0).optional(),
 		}),
 	)
-	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
-		const result = await returnToReviewInDb(getDb(), viewerOf(context), data);
+	.handler(async ({ data, context }): Promise<TransactionWriteAnswer | MonthEndedAnswer> => {
+		const result = await returnToReviewInDb(getDb(), viewerOf(context), {
+			...data,
+			today: dayKeyAt(new Date(), context.household.timeZone),
+		});
+		// Money back on it counted in a month that has ended: it stays filed, and the screen says why.
+		if (!result.ok && result.reason === "month-ended") return { status: "month-ended" };
 		// Changed on another screen since: it stays as it is, and this screen refetches.
 		if (!result.ok) return { status: "changed-elsewhere", current: null };
 		// Every month: what's left can roll into later ones.
@@ -178,7 +191,7 @@ export const saveRule = createServerFn({ method: "POST" })
 		if (stated.status === "other-rule") return { filed: 0, snapshot: false, madeSince: true };
 		if (stated.status === "repeat") return { filed: stated.filed, snapshot: stated.snapshot };
 		const applied = data.apply
-			? await applyRuleInDb(getDb(), viewer, stated.ruleId)
+			? await applyRuleInDb(getDb(), viewer, stated.ruleId, context.household.timeZone)
 			: { filed: 0, snapshotId: null };
 		const outcome = ruleApplyOutcome(applied);
 		if (data.apply) await noteRuleStated(getDb(), viewer, data.ruleId, outcome);
@@ -230,7 +243,12 @@ export const applyRule = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ ruleId: ulidSchema }))
 	.handler(async ({ data, context }) => {
-		const result = await applyRuleInDb(getDb(), viewerOf(context), data.ruleId);
+		const result = await applyRuleInDb(
+			getDb(),
+			viewerOf(context),
+			data.ruleId,
+			context.household.timeZone,
+		);
 		await notifyHousehold(
 			context.household.id,
 			result.filed > 0 ? [...changesAfterRuleApply(result), "rules"] : ["months"],

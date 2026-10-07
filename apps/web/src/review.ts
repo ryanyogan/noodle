@@ -30,6 +30,7 @@ import {
 } from "./transaction-versions";
 import {
 	applyTransactionChange,
+	MonthEnded,
 	monthOfTransaction,
 	refetchAfterChange,
 	saveTransactionChange,
@@ -136,6 +137,8 @@ export async function sendReturnToReview(item: ReviewItem) {
 			forMemberIds: item.for,
 		},
 	});
+	// It stays filed (ADR-0058); sending it again won't help.
+	if (answer.status === "month-ended") throw new MonthEnded();
 	settleWrite(item.id, answer);
 }
 
@@ -437,6 +440,12 @@ export function useReturnToReview() {
 			context?.rollback();
 			// Another screen changed it after the decision: it stays as it is there (ADR-0041).
 			if (error instanceof ChangedElsewhere) return sayChangedElsewhere();
+			// Money back on it counted in a month that has ended: it stays filed, and a Retry won't help.
+			if (error instanceof MonthEnded)
+				return void toast(
+					`Money back on ${transactionLabel(item)} counted in a month that has ended, so it stays filed where it is.`,
+					{ tone: "error" },
+				);
 			toast(`Couldn’t put ${transactionLabel(item)} back in Review.`, {
 				tone: "error",
 				action: { label: "Retry", onClick: () => returnCard.mutate(item) },
@@ -457,7 +466,18 @@ export type RuleInput = {
 };
 
 /** What applying a Rule did: how many it filed, and whether a snapshot was taken first. */
-export type RuleApplied = { filed: number; snapshot: boolean };
+export type RuleApplied = {
+	filed: number;
+	snapshot: boolean;
+	/** Matched and left unassigned: money back on them counted in a month that has ended. */
+	kept?: number;
+};
+
+/** " 2 stayed unassigned: money back on them counted in a month that has ended." or nothing. */
+const ruleKept = (kept: number | undefined) =>
+	kept
+		? ` ${kept.toLocaleString("en-US")} stayed unassigned: money back on ${kept === 1 ? "it" : "them"} counted in a month that has ended.`
+		: "";
 
 /**
  * Said after a Rule filed more than one Transaction: Noodle took a snapshot first (ADR-0035), and
@@ -468,14 +488,18 @@ export const SNAPSHOT_FIRST =
 
 /** What's said once a Rule from Rules was applied to what's still unassigned. */
 export const ruleAppliedMessage = (
-	{ filed, snapshot }: RuleApplied,
+	{ filed, snapshot, kept }: RuleApplied,
 	rule: { pattern: string; bucketName: string },
 ) =>
 	filed === 0
-		? `Nothing unassigned matches ${rule.pattern}`
+		? kept
+			? `Nothing was filed.${ruleKept(kept)}`
+			: `Nothing unassigned matches ${rule.pattern}`
 		: snapshot
-			? `Filed ${filed} in ${rule.bucketName}. ${SNAPSHOT_FIRST}`
-			: `Filed ${filed} in ${rule.bucketName}`;
+			? `Filed ${filed} in ${rule.bucketName}.${ruleKept(kept)} ${SNAPSHOT_FIRST}`
+			: kept
+				? `Filed ${filed} in ${rule.bucketName}.${ruleKept(kept)}`
+				: `Filed ${filed} in ${rule.bucketName}`;
 
 /** What's said once a Rule was saved, and applied to what's still unassigned. */
 export const ruleSavedMessage = (

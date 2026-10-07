@@ -483,14 +483,26 @@ function removeWrites(
 ): BatchItem<"sqlite">[] {
 	const from = endedBefore(today);
 	const asRead = stillAsRead(householdId, accountId, row);
-	// Kept, it says the day the bank took it back (issue 141): the first day, if said again.
-	const tookBack = { bankTookBackOn: sql<string>`coalesce(bank_took_back_on, ${today})` };
+	// Kept, it says the day the bank took it back (issue 141): the first day, if said again. A
+	// line the bank had lowered before ("changed this to $60") says the withdrawal instead, with
+	// its own day: what happened last is what is true of it now.
+	const tookBack = {
+		bankTookBackOn: sql<string>`case when bank_amount_cents is not null then ${today}
+			else coalesce(bank_took_back_on, ${today}) end`,
+		bankAmountCents: null,
+	};
 	const marked =
 		row.kind === "transaction"
 			? db
 					.update(transactions)
 					.set({ ...tookBack, version: sql`${transactions.version} + 1` })
-					.where(and(asRead, purchaseEndedRestores(from), isNull(transactions.bankTookBackOn)))
+					.where(
+						and(
+							asRead,
+							purchaseEndedRestores(from),
+							sql`(${transactions.bankTookBackOn} is null or ${transactions.bankAmountCents} is not null)`,
+						),
+					)
 			: db
 					.update(income)
 					.set(tookBack)

@@ -37,6 +37,7 @@ const none = {
 	private: 0,
 	changed: 0,
 	otherMonth: 0,
+	monthEnded: 0,
 };
 
 let db: Db;
@@ -318,22 +319,22 @@ describe("filing many Transactions at once", () => {
 		if (!result.ok) throw new Error("not filed");
 		// b is changed on another screen before Undo.
 		await db.update(transactions).set({ version: 2 }).where(eq(transactions.id, "b"));
-		expect(await unfileTransactions(db, viewer, result.undo)).toEqual({ restored: 2 });
+		expect(await unfileTransactions(db, viewer, result.undo)).toEqual({ restored: 2, kept: 0 });
 		const now = await filedIn();
 		expect([now.a, now.b, now.f]).toEqual(["- v2", "groceries v2", "fun v2"]);
 		// A second Undo, and another Household's, change nothing.
-		expect(await unfileTransactions(db, viewer, result.undo)).toEqual({ restored: 0 });
+		expect(await unfileTransactions(db, viewer, result.undo)).toEqual({ restored: 0, kept: 0 });
 		expect(
 			await unfileTransactions(db, { householdId: "nobody", memberId: "x" }, [
 				{ id: "a", bucketId: "groceries", commitmentId: null, version: 2 },
 			]),
-		).toEqual({ restored: 0 });
+		).toEqual({ restored: 0, kept: 0 });
 		// Nor can it put one in a Bucket that isn't the Household's.
 		expect(
 			await unfileTransactions(db, viewer, [
 				{ id: "a", bucketId: "no-such-bucket", commitmentId: null, version: 2 },
 			]),
-		).toEqual({ restored: 0 });
+		).toEqual({ restored: 0, kept: 0 });
 	});
 	// For as well as the assignment (issue 138): the same path, and the same Undo.
 	describe("with For", () => {
@@ -460,12 +461,12 @@ describe("filing many Transactions at once", () => {
 			]);
 			// g is changed on another screen before Undo: its Bucket and its For stay.
 			await db.update(transactions).set({ version: 2 }).where(eq(transactions.id, "g"));
-			expect(await unfileTransactions(db, viewer, result.undo)).toEqual({ restored: 2 });
+			expect(await unfileTransactions(db, viewer, result.undo)).toEqual({ restored: 2, kept: 0 });
 			expect(await forOf()).toEqual({ b: ["leo"], g: ["leo", "mia"], s: ["leo"] });
 			expect(await filedIn()).toMatchObject({ a: "- v2", b: "- v2", g: "groceries v2" });
 			// A second Undo changes nothing, For included.
 			await db.insert(transactionFor).values({ transactionId: "a", memberId: "mia", householdId });
-			expect(await unfileTransactions(db, viewer, result.undo)).toEqual({ restored: 0 });
+			expect(await unfileTransactions(db, viewer, result.undo)).toEqual({ restored: 0, kept: 0 });
 			expect((await forOf()).a).toEqual(["mia"]);
 		});
 	});

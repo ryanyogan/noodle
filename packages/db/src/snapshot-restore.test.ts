@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
-import { clearHouseholdRows } from "./fresh-start";
+import { clearHouseholdRows, tablesToClear } from "./fresh-start";
 import type { Db } from "./index";
 import * as s from "./schema";
 import { buildSeed, type SeedOptions, writeSeed } from "./seed";
@@ -85,7 +85,7 @@ describe("restoring a snapshot", () => {
 		expect(await exportHouseholdRows(db, theirs)).toEqual(theirsBefore);
 	});
 
-	it("brings the Log's own record back as it was when the snapshot was taken", async () => {
+	it("leaves the Log's own record alone: what was removed before and since, and by the restore itself", async () => {
 		const [parent] = await db
 			.select({ id: s.members.id })
 			.from(s.members)
@@ -99,22 +99,36 @@ describe("restoring a snapshot", () => {
 			memberId: parent?.id ?? null,
 			createdAt: new Date(Date.UTC(2026, 8, 20)),
 		});
+		const logged = async () =>
+			(await db.select().from(s.logEvents).where(eq(s.logEvents.householdId, ours)))
+				.map((row) => row.id)
+				.sort();
 		await db.insert(s.logEvents).values(event("then:removed", "costco"));
 		const before = await exportHouseholdRows(db, ours);
-		expect(before.tables.logEvents).toHaveLength(1);
+		// The record is history, not state: a snapshot doesn't hold it, so a restore can't rewind it.
+		expect(before.tables.logEvents).toBeUndefined();
 
-		// Since the snapshot: a Fresh start (which keeps the record) and one more thing removed.
+		// Since the snapshot: a Fresh start (which keeps the record), one more thing removed, and
+		// the bank the restore itself disconnects before it puts the rows back.
 		await clearHouseholdRows(db, ours, "fresh-start");
 		await db.insert(s.logEvents).values(event("since:removed", "target"));
+		await db.insert(s.logEvents).values({
+			...event("conn-1:removed", "Chase"),
+			kind: "bank-connection-removed" as const,
+		});
 		await restoreHouseholdRows(db, ours, fileOf(ours, before.tables));
+		expect(await logged()).toEqual(["conn-1:removed", "since:removed", "then:removed"]);
 
-		const after = await exportHouseholdRows(db, ours);
-		expect(after.tables.logEvents).toEqual(before.tables.logEvents);
-		expect(
-			(await db.select().from(s.logEvents).where(eq(s.logEvents.householdId, ours))).map(
-				(row) => row.id,
-			),
-		).toEqual(["then:removed"]);
+		// A snapshot from when the record was still in the file (or from before there was one)
+		// doesn't empty or rewind it either.
+		const older = { ...before.tables, logEvents: [] };
+		await restoreHouseholdRows(db, ours, fileOf(ours, older));
+		expect(await logged()).toEqual(["conn-1:removed", "since:removed", "then:removed"]);
+		expect(RESTORED_BY_INSERT).not.toContain("logEvents");
+
+		// Delete Household still clears it.
+		expect(tablesToClear("delete")).toContain("logEvents");
+		expect(tablesToClear("fresh-start")).not.toContain("logEvents");
 		await db.delete(s.logEvents).where(eq(s.logEvents.householdId, ours));
 	});
 

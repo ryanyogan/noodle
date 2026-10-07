@@ -579,9 +579,9 @@ describe("Rules", () => {
 		await imported("t3", "legoland");
 		await imported("t4", "sephora");
 
-		expect(await applyRule(db, alex, "r1")).toEqual({ filed: 1, months: ["2026-09"] });
+		expect(await applyRule(db, alex, "r1")).toEqual({ filed: 1, months: ["2026-09"], kept: 0 });
 		// Sam can't apply Alex's private Rule.
-		expect(await applyRule(db, sam, "mine")).toEqual({ filed: 0, months: [] });
+		expect(await applyRule(db, sam, "mine")).toEqual({ filed: 0, months: [], kept: 0 });
 
 		const rows = await db.select().from(transactions);
 		expect(Object.fromEntries(rows.map((r) => [r.id, r.bucketId]))).toEqual({
@@ -743,9 +743,9 @@ describe("Rules into a Commitment", () => {
 		await imported("t1", "Netflix.com", { outcome: "review", bucketId: "fun", confidence: 0.4 });
 		await imported("t2", "GYM 24");
 
-		expect(await applyRule(db, sam, "r1")).toEqual({ filed: 1, months: ["2026-09"] });
+		expect(await applyRule(db, sam, "r1")).toEqual({ filed: 1, months: ["2026-09"], kept: 0 });
 		// The Gym is planned from October, so September's charge waits in Review.
-		expect(await applyRule(db, alex, "r2")).toEqual({ filed: 0, months: [] });
+		expect(await applyRule(db, alex, "r2")).toEqual({ filed: 0, months: [], kept: 0 });
 		const rows = await db.select().from(transactions);
 		expect(Object.fromEntries(rows.map((r) => [r.id, r.commitmentId]))).toEqual({
 			t1: "netflix",

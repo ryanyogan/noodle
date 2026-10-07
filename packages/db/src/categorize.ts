@@ -2,6 +2,7 @@ import { type Categorization, type DayKey, merchantKey } from "@noodle/domain";
 import { and, asc, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { counts } from "./counting";
+import { purchaseMayMove } from "./ended-months";
 import type { Db } from "./index";
 import { applyOwedBackRules } from "./owed-back-rules";
 import { assignableBy, changeableBy, type Viewer } from "./privacy";
@@ -132,11 +133,13 @@ export async function fileCategorizations(
 	db: Db,
 	viewer: Viewer,
 	decisions: CategorizationDecision[],
+	/** The Household's day; UTC's when left out. */
+	today?: DayKey,
 ): Promise<void> {
 	if (decisions.length === 0) return;
 	const batch: BatchItem<"sqlite">[] = [];
 	for (let i = 0; i < decisions.length; i += FILED_PER_STATEMENT)
-		batch.push(...filingStatements(db, viewer, decisions.slice(i, i + FILED_PER_STATEMENT)));
+		batch.push(...filingStatements(db, viewer, decisions.slice(i, i + FILED_PER_STATEMENT), today));
 	await db.batch(batch as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
 	// A Rule that remembers who pays part back says it on what it just filed (ADR-0058).
 	await applyOwedBackRules(db, viewer, decisions);
@@ -157,6 +160,7 @@ function filingStatements(
 	db: Db,
 	viewer: Viewer,
 	decisions: CategorizationDecision[],
+	today?: DayKey,
 ): BatchItem<"sqlite">[] {
 	const { householdId, memberId } = viewer;
 	// One JSON parameter for all of them: D1 caps a statement's bound parameters at 100.
@@ -230,6 +234,8 @@ function filingStatements(
 		isNull(transactions.commitmentId),
 		isNull(transactions.goalId),
 		sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
+		// Money back on it counted in a month that has ended: it stays unassigned (ADR-0058).
+		purchaseMayMove(today),
 	);
 	// Buckets first: a decision naming both lands in its Bucket, and in its Commitment only when
 	// the Bucket wouldn't take it.

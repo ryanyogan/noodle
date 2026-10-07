@@ -293,6 +293,11 @@ describe("restoring a snapshot taken under an older migration", () => {
 		);
 		// A table that has gone, with nothing in it, loses nothing.
 		expect(carryRefusal({ ...now, envelopes: [] })).toBeNull();
+		// A file that still holds the Log's record (taken while snapshots held it) restores: the
+		// record is left alone, not refused.
+		expect(
+			carryRefusal({ ...now, logEvents: [{ id: "1", household_id: ours, gone_column: 1 }] }),
+		).toBeNull();
 	});
 
 	it("refuses one taken under a newer migration than the database's (a rollback)", () => {

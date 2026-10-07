@@ -76,7 +76,10 @@ export const markTransfer = createServerFn({ method: "POST" })
 		}),
 	)
 	.handler(async ({ data, context }): Promise<MoneyResult> => {
-		const result = await mark(getDb(), viewerOf(context), data);
+		const result = await mark(getDb(), viewerOf(context), {
+			...data,
+			today: dayKeyAt(new Date(), context.household.timeZone),
+		});
 		if (result.ok) await notifyHousehold(context.household.id, moneyChanges(result.months));
 		return result;
 	});
