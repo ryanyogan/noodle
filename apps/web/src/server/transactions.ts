@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import {
 	addQuickAdd as addQuickAddInDb,
+	changeTransactionDate as changeTransactionDateInDb,
 	countSameMerchant,
 	type DeletionSummary,
 	deleteTransaction as deleteTransactionInDb,
@@ -29,6 +30,7 @@ import {
 	type DayKey,
 	dayKeyAt,
 	MAX_CENTS,
+	type MonthKey,
 	type Rule,
 	splitsBalance,
 } from "@noodle/domain";
@@ -314,6 +316,62 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			"bucket-uses",
 		]);
 		return saved(result.version);
+	});
+
+/**
+ * How a change of date ended (issue 148, ADR-0060). Saved, it says the day it was on before (what
+ * Undo sends back) and the bank's own day while that differs. Refused, it says why, for the
+ * client to say in the app's voice: a day that hasn't come, a month that has been closed (which
+ * one), a Bucket or Commitment not in the Plan that month, or a Refund that would no longer come
+ * after its purchase.
+ */
+export type TransactionDateAnswer =
+	| { status: "saved"; version: number; from: DayKey; bankDate: DayKey | null; months: MonthKey[] }
+	| Exclude<TransactionWriteAnswer, { status: "saved" }>
+	| { status: "refused"; reason: "future" | "not-in-plan" | "refund-order" }
+	| { status: "refused"; reason: "month-closed"; month: MonthKey };
+
+/**
+ * Moves a Transaction to another day, any up to the Household's today: it counts on that day, in
+ * that day's month, everywhere. The bank's own day is kept beside it and is what the bank's next
+ * sync goes by. Refused once either month has been closed. Idempotent, so the client can retry it.
+ */
+export const changeTransactionDate = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			transactionId: ulidSchema,
+			date: dayKeySchema,
+			expectedVersion: versionSchema,
+		}),
+	)
+	.handler(async ({ data, context }): Promise<TransactionDateAnswer> => {
+		const result = await changeTransactionDateInDb(getDb(), {
+			today: dayKeyAt(new Date(), context.household.timeZone),
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			transactionId: data.transactionId,
+			date: data.date as DayKey,
+			expectedVersion: data.expectedVersion,
+		});
+		if (!result.ok) {
+			if (result.reason === "changed-elsewhere") {
+				const answer = await changedElsewhere(viewerOf(context), data.transactionId);
+				// changedElsewhere never answers "saved".
+				return answer as Exclude<TransactionWriteAnswer, { status: "saved" }>;
+			}
+			return result.reason === "month-closed"
+				? { status: "refused", reason: result.reason, month: result.month }
+				: { status: "refused", reason: result.reason };
+		}
+		await notifyHousehold(context.household.id, [
+			// Every month: it left one and landed in another, and what's left rolls into later ones.
+			"months",
+			"for-earlier",
+			"bucket-uses",
+		]);
+		const { version, from, bankDate, months } = result;
+		return { status: "saved", version, from, bankDate, months };
 	});
 
 /**

@@ -11,6 +11,8 @@ import {
 	MATCH_WINDOW,
 	type MonthKey,
 	merchantKey,
+	monthOfDay,
+	REFUND_WINDOW_DAYS,
 	type SplitAssignment,
 	splitsBalance,
 } from "@noodle/domain";
@@ -393,6 +395,7 @@ export async function addQuickAdd(
 					bankAmountCents: sql<number | null>`null`.as("bank_amount_cents"),
 					reviewClearedByMemberId: sql<string | null>`null`.as("review_cleared_by_member_id"),
 					reviewClearedAt: sql<Date | null>`null`.as("review_cleared_at"),
+					bankDate: sql<string | null>`null`.as("bank_date"),
 				})
 				.from(buckets)
 				.where(
@@ -491,6 +494,11 @@ export type TransactionRow = {
 	 * that has ended: it is kept as it was so that month doesn't change (issue 141).
 	 */
 	bankTookBackOn?: DayKey | null;
+	/**
+	 * The day the bank gave it, once a Parent has moved it to another: `date` is then the Parent's,
+	 * the day it counts on (issue 148, ADR-0060). Null while `date` is the bank's own, or it was typed in.
+	 */
+	bankDate?: DayKey | null;
 	/** What the bank says it is now, when it only lowered it; null when it took it back. */
 	bankAmount?: Cents | null;
 	/** For a Quick Add Matched to its bank copy: the Account the copy was imported into. */
@@ -817,6 +825,7 @@ export async function loadTransactionsPage(
 			partlyPrivate: sql<boolean>`${partly}`.mapWith(Boolean),
 			pending: transactions.pending,
 			bankTookBackOn: transactions.bankTookBackOn,
+			bankDate: transactions.bankDate,
 			bankAmount: transactions.bankAmountCents,
 			byHand:
 				sql<boolean>`coalesce(${accounts.purchases} = 'hand' and ${accounts.bankConnectionId} is null, 0)`.mapWith(
@@ -1342,6 +1351,162 @@ export async function updateTransaction(
 		.where(and(theTransaction, edited));
 	if (landed) return { ok: true, version: landed.version };
 	return { ok: false, reason: await refusal(db, input) };
+}
+
+/** How a change of date ended (issue 148, ADR-0060). */
+export type TransactionDateResult =
+	/**
+	 * `from`: the day it was on before (what Undo puts back); `bankDate`: the bank's own day, kept
+	 * while it differs; `months`: the months whose lists and totals moved.
+	 */
+	| { ok: true; version: number; from: DayKey; bankDate: DayKey | null; months: MonthKey[] }
+	/**
+	 * "future": a day that hasn't come; "not-in-plan": what it is filed in (or one of its Splits)
+	 * wasn't in the Plan that month; "refund-order": a Refund linked to it would no longer come
+	 * after its purchase, within the days a Refund may; "changed-elsewhere": it is no longer at the
+	 * version the change was made on, isn't theirs to change, or is gone.
+	 */
+	| { ok: false; reason: "future" | "not-in-plan" | "refund-order" | "changed-elsewhere" }
+	/** `month` has been closed, and it would leave it, land in it, or move within it. */
+	| { ok: false; reason: "month-closed"; month: MonthKey };
+
+/**
+ * Moves a Transaction to the day `date`, for the Parent `memberId`: it counts on that day, in
+ * that day's month, everywhere, with its Splits, its For, what it pays and what is linked to it.
+ * One from a bank or a statement keeps the bank's own day beside it (`bank_date`), which is what
+ * bank sync, duplicate detection and Matching go on recognising it by; back on the bank's day,
+ * nothing is kept. One typed in simply changes.
+ *
+ * Refused for a day after `today`; while either month (the one it leaves or the one it lands in)
+ * has been closed; where what it is filed in wasn't in the Plan in the month it lands in; and
+ * where a linked Refund would end up before its purchase or more than REFUND_WINDOW_DAYS after.
+ * Setting the day it already has changes nothing, so a retry lands the same.
+ */
+export async function changeTransactionDate(
+	db: Db,
+	input: {
+		householdId: string;
+		memberId: string;
+		transactionId: string;
+		date: DayKey;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
+		/** The version the Parent made this change on: refused if it has moved on (ADR-0041). */
+		expectedVersion?: number;
+	},
+): Promise<TransactionDateResult> {
+	const { householdId, memberId, transactionId, date } = input;
+	const today = input.today ?? (new Date().toISOString().slice(0, 10) as DayKey);
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > today) return { ok: false, reason: "future" };
+	const theTransaction = and(eq(transactions.id, transactionId), editableBy(householdId, memberId));
+	const [row] = await db
+		.select({
+			date: transactions.date,
+			bankDate: transactions.bankDate,
+			source: transactions.source,
+			version: transactions.version,
+			bucketId: transactions.bucketId,
+			commitmentId: transactions.commitmentId,
+		})
+		.from(transactions)
+		.where(theTransaction);
+	if (!row) return { ok: false, reason: "changed-elsewhere" };
+	const from = row.date as DayKey;
+	const months = [...new Set([monthOfDay(from), monthOfDay(date)])].sort();
+	const expected = input.expectedVersion;
+	if (
+		from === date &&
+		(expected === undefined || (row.version - expected <= 1 && row.version >= expected))
+	) {
+		// Already there: the same day asked again, or this change on an earlier try.
+		const bankDate = row.bankDate as DayKey | null;
+		return { ok: true, version: row.version, from: bankDate ?? from, bankDate, months };
+	}
+	if (expected !== undefined && row.version !== expected) {
+		return { ok: false, reason: "changed-elsewhere" };
+	}
+
+	const [closed] = await db
+		.select({ month: monthCloses.month })
+		.from(monthCloses)
+		.where(and(eq(monthCloses.householdId, householdId), inArray(monthCloses.month, months)))
+		.orderBy(asc(monthCloses.month));
+	if (closed) return { ok: false, reason: "month-closed", month: closed.month as MonthKey };
+
+	// A Refund comes after its purchase, within the days one may (as linking it asks): for money
+	// back in checking linked to this purchase, for money back on a card it is the purchase of,
+	// and for money back on a card that this is.
+	const latest = addDays(date, REFUND_WINDOW_DAYS);
+	const earliest = addDays(date, -REFUND_WINDOW_DAYS);
+	const [links] = await db
+		.select({
+			broken:
+				sql<number>`(exists (select 1 from refund_links rl join income ri on ri.id = rl.income_id
+					where rl.transaction_id = ${transactionId} and rl.household_id = ${householdId}
+					and (ri.date < ${date} or ri.date > ${latest}))
+				or exists (select 1 from refunds cr join transactions rt on rt.id = cr.refund_transaction_id
+					where cr.original_transaction_id = ${transactionId} and cr.household_id = ${householdId}
+					and cr.removed_at is null and (rt.date < ${date} or rt.date > ${latest}))
+				or exists (select 1 from refunds cr join transactions ot on ot.id = cr.original_transaction_id
+					where cr.refund_transaction_id = ${transactionId} and cr.household_id = ${householdId}
+					and cr.removed_at is null and (ot.date > ${date} or ot.date < ${earliest})))`.mapWith(
+					Number,
+				),
+		})
+		.from(transactions)
+		.where(theTransaction);
+	if (links?.broken) return { ok: false, reason: "refund-order" };
+
+	if (months.length > 1) {
+		// What it is filed in, whole or by its Splits, is in the Plan for the month it lands in.
+		const parts = await db
+			.select({ bucketId: splits.bucketId, commitmentId: splits.commitmentId })
+			.from(splits)
+			.where(and(eq(splits.transactionId, transactionId), eq(splits.householdId, householdId)));
+		const filedIn = new Map<string, SplitAssignment>();
+		for (const { bucketId, commitmentId } of [row, ...parts]) {
+			if (bucketId) filedIn.set(`b:${bucketId}`, { bucketId });
+			else if (commitmentId) filedIn.set(`c:${commitmentId}`, { commitmentId });
+		}
+		const month = sql`${monthOfDay(date)}`;
+		// One at a time: a statement's bound parameters are capped (D1), however many Splits.
+		for (const assignment of filedIn.values()) {
+			const [found] = await db
+				.select({
+					inPlan: sql<number>`${assignable(householdId, memberId, assignment, month)}`.mapWith(
+						Number,
+					),
+				})
+				.from(transactions)
+				.where(theTransaction);
+			if (!found?.inPlan) return { ok: false, reason: "not-in-plan" };
+		}
+	}
+
+	// The bank's own day is kept the first time it moves, and let go when it is back on it.
+	const kept = row.source === "import" ? ((row.bankDate ?? from) as DayKey) : null;
+	const bankDate = kept === date ? null : kept;
+	await db
+		.update(transactions)
+		.set({ date, bankDate, version: sql`${transactions.version} + 1` })
+		.where(
+			and(
+				theTransaction,
+				eq(transactions.version, row.version),
+				eq(transactions.date, from),
+				// Neither month was closed meanwhile.
+				sql`not exists (select 1 from month_closes mc where mc.household_id = ${householdId}
+					and mc.month in (${months[0]}, ${months.at(-1)}))`,
+			),
+		);
+	const [landed] = await db
+		.select({ version: transactions.version })
+		.from(transactions)
+		.where(
+			and(theTransaction, eq(transactions.date, date), eq(transactions.version, row.version + 1)),
+		);
+	if (!landed) return { ok: false, reason: "changed-elsewhere" };
+	return { ok: true, version: landed.version, from, bankDate, months };
 }
 
 /** How a rename ended. "not-editable": not theirs to change here (or not the Household's). */

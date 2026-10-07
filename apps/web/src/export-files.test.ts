@@ -110,6 +110,7 @@ describe("exportFiles", () => {
 			"For",
 			"Bank took it back on",
 			"Bank lowered it to",
+			"Bank’s date",
 		]);
 		expect(rows[1]?.[3]).toBe('Dinner, "the good place"\nwith Robin');
 		expect(rows[1]?.[9]).toBe("Robin");
@@ -118,7 +119,7 @@ describe("exportFiles", () => {
 		expect(rows[3]?.[3]).toBe("'+1 refund");
 		// Money stays a number, so a refund's minus sign isn't guarded.
 		expect(rows[3]?.[4]).toBe("-2.5");
-		expect(rows.every((r) => r.length === 12)).toBe(true);
+		expect(rows.every((r) => r.length === 13)).toBe(true);
 	});
 
 	it("re-totals each Bucket's month, with the other Parent's Personal Allowance only as its total", () => {
@@ -366,8 +367,12 @@ describe("exportFiles", () => {
 			}),
 		);
 		const lines = parseCsv(files["transactions.csv"] as string);
-		expect(lines[0]?.slice(-2)).toEqual(["Bank took it back on", "Bank lowered it to"]);
-		expect(lines.slice(1).map((r) => r.slice(-2))).toEqual([
+		expect(lines[0]?.slice(-3)).toEqual([
+			"Bank took it back on",
+			"Bank lowered it to",
+			"Bank’s date",
+		]);
+		expect(lines.slice(1).map((r) => r.slice(-3, -1))).toEqual([
 			["2026-10-03", ""],
 			["2026-10-04", "2.5"],
 			["", ""],

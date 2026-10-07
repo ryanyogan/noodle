@@ -59,6 +59,9 @@ export function exportFiles(data: ExportData): Record<string, string> {
 			// lowered it, and what the bank says it is now when it only lowered it.
 			"Bank took it back on",
 			"Bank lowered it to",
+			// Where a Parent moved it to another day (issue 148): Date is the day it counts on, and
+			// this is the day the bank gave it. Empty while Date is still the bank's own.
+			"Bank’s date",
 		],
 	];
 	for (const t of data.transactions) {
@@ -83,6 +86,7 @@ export function exportFiles(data: ExportData): Record<string, string> {
 			t.splits.length > 0 ? "" : forNames(t.for),
 			t.bankTookBackOn ?? "",
 			dollars(t.bankAmount),
+			t.bankDate ?? "",
 		]);
 	}
 	for (const total of data.privateTotals) {
@@ -99,6 +103,7 @@ export function exportFiles(data: ExportData): Record<string, string> {
 			"Everyone",
 			"",
 			null,
+			"",
 		]);
 	}
 

@@ -201,6 +201,7 @@ export async function addReceipt(
 						bankAmountCents: sql<number | null>`null`.as("bank_amount_cents"),
 						reviewClearedByMemberId: sql<string | null>`null`.as("review_cleared_by_member_id"),
 						reviewClearedAt: sql<Date | null>`null`.as("review_cleared_at"),
+						bankDate: sql<string | null>`null`.as("bank_date"),
 					})
 					.from(members)
 					.where(

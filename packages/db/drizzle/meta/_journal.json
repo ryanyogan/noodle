@@ -554,6 +554,13 @@
       "when": 1793500000000,
       "tag": "0086_account_whose",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "6",
+      "when": 1793600000000,
+      "tag": "0087_transaction_bank_date",
+      "breakpoints": true
     }
   ]
 }

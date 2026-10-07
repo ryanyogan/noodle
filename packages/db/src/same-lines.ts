@@ -10,7 +10,7 @@ import {
 import { and, eq, gte, inArray, lte, type SQL, type SQLWrapper, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
-import { bankLinePairs, imports, income, transactions } from "./schema";
+import { bankDay, bankLinePairs, imports, income, transactions } from "./schema";
 
 // The same line from two places (ADR-0020): a bank line for a line a statement already brought
 // into the Account, or the other way round. pairSameLines (@noodle/domain) decides; this reads
@@ -32,7 +32,8 @@ async function rowsIn(
 		db
 			.select({
 				id: transactions.id,
-				date: transactions.date,
+				// The bank's own day, wherever a Parent has since put the line (issue 148).
+				date: bankDay,
 				amount: transactions.amountCents,
 				description: transactions.note,
 			})
@@ -42,8 +43,8 @@ async function rowsIn(
 					eq(transactions.householdId, householdId),
 					eq(transactions.accountId, accountId),
 					eq(transactions.source, "import"),
-					gte(transactions.date, from),
-					lte(transactions.date, to),
+					sql`${bankDay} >= ${from}`,
+					sql`${bankDay} <= ${to}`,
 					where.spent,
 				),
 			),

@@ -670,12 +670,24 @@ export const transactions = sqliteTable(
 		// this was kept, and for what nobody filed by hand. Last, as inserts here go by position.
 		reviewClearedByMemberId: text("review_cleared_by_member_id").references(() => members.id),
 		reviewClearedAt: integer("review_cleared_at", { mode: "timestamp_ms" }),
+		// The day the bank (or a statement) gave it, kept once a Parent moved it to another day
+		// (issue 148, ADR-0060): `date` is then the Parent's, the day it counts on everywhere. Null
+		// while `date` is still the bank's own, and always for one typed in. What recognises the
+		// bank's line (bank-sync.ts, same-lines.ts, matches.ts) goes by `bankDay`. Last, as inserts
+		// here go by position.
+		bankDate: text("bank_date"),
 	},
 	(t) => [
 		index("transactions_household_date_idx").on(t.householdId, t.date),
 		uniqueIndex("transactions_account_external_idx").on(t.accountId, t.externalId),
 	],
 );
+
+/**
+ * The day the bank gave a Transaction: its own even after a Parent moved it to another day (issue
+ * 148, ADR-0060). What has to recognise the bank's line again goes by this, never by `date`.
+ */
+export const bankDay = sql<string>`coalesce(${transactions.bankDate}, ${transactions.date})`;
 
 // Who a Transaction was For: one row per Member it was spent on. No rows means the whole
 // Household, so shared spending is never counted again under each Member.

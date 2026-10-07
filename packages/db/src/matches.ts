@@ -12,7 +12,7 @@ import { accountLabelSql } from "./account-label";
 import { inTransfer } from "./counting";
 import type { Db } from "./index";
 import { changeableBy, type Viewer, visibleTo } from "./privacy";
-import { accounts, matches, splits, transactions } from "./schema";
+import { accounts, bankDay, matches, splits, transactions } from "./schema";
 
 // Matches (see the `matches` table): made automatically after an Import (matchImported), or by a
 // Parent from a Transaction's detail, and unmatched by a Parent. Deciding which pairs to Match
@@ -63,7 +63,9 @@ const untouched = and(
 
 const sideColumns = {
 	id: transactions.id,
-	date: transactions.date,
+	// The bank's own day for an imported line a Parent has moved (issue 148): a Quick Add and its
+	// bank copy are a few days apart as the bank dates it. A Quick Add's is simply its day.
+	date: bankDay,
 	amount: transactions.amountCents,
 	text: transactions.note,
 };
@@ -100,8 +102,8 @@ export async function matchImported(
 					eq(transactions.householdId, householdId),
 					unmatchedSide("import"),
 					untouched,
-					gte(transactions.date, from),
-					lte(transactions.date, to),
+					sql`${bankDay} >= ${from}`,
+					sql`${bankDay} <= ${to}`,
 				),
 			),
 		db
@@ -215,8 +217,8 @@ export async function loadMatch(db: Db, viewer: Viewer, transactionId: string): 
 			and(
 				isQuickAdd ? visibleTo(viewer) : changeableBy(viewer),
 				unmatchedSide(isQuickAdd ? "import" : "quick-add"),
-				gte(transactions.date, from),
-				lte(transactions.date, to),
+				sql`${bankDay} >= ${from}`,
+				sql`${bankDay} <= ${to}`,
 			),
 		);
 	const ranked = possibleMatches(self as MatchSide, others as MatchSide[], isQuickAdd);

@@ -450,6 +450,7 @@ describe("Personal Allowance privacy: Splits", () => {
 		expect(seen).toEqual({
 			id: "target",
 			bankTookBackOn: null,
+			bankDate: null,
 			bankAmount: null,
 			date: "2026-09-14",
 			amountCents: 7_000,

@@ -20,6 +20,7 @@ import { owedBackOffGoneSplits } from "./owed-back";
 import { bankLinesNotHere } from "./same-lines";
 import {
 	accounts,
+	bankDay,
 	income,
 	owedBack,
 	paidBackMatches,
@@ -102,6 +103,12 @@ export async function syncBankLines(
 	}
 	const months = new Set<string>();
 	const changedDays: DayKey[] = [];
+	// Where a Parent moved a row to is the month its change, or its going, is seen in.
+	const shown = new Map(rows.map((row) => [row.id, row.shown]));
+	for (const row of [...plan.change.map((change) => change.row), ...plan.remove]) {
+		const day = shown.get(row.id);
+		if (day && day !== row.date) months.add(day.slice(0, 7));
+	}
 	for (const change of plan.change) {
 		months.add(change.row.date.slice(0, 7));
 		months.add(change.date.slice(0, 7));
@@ -182,7 +189,7 @@ async function loadBankRows(
 	householdId: string,
 	accountId: string,
 	bankIds: string[],
-): Promise<BankRow[]> {
+): Promise<(BankRow & { shown: DayKey })[]> {
 	const keys = sql`(select value from json_each(${JSON.stringify(
 		[...new Set(bankIds)].map(bankLineKey),
 	)}))`;
@@ -191,7 +198,9 @@ async function loadBankRows(
 			.select({
 				id: transactions.id,
 				externalId: transactions.externalId,
-				date: transactions.date,
+				// The bank's own day: a Parent's day for it is never what the bank's line is held to.
+				date: bankDay,
+				shown: transactions.date,
 				amount: transactions.amountCents,
 				pending: transactions.pending,
 			})
@@ -238,6 +247,7 @@ async function loadBankRows(
 			kind: "transaction" as const,
 			externalId: row.externalId as string,
 			date: row.date as DayKey,
+			shown: row.shown as DayKey,
 			splits: splitRows
 				.filter((split) => split.transactionId === row.id)
 				.map(({ id, amount }) => ({ id, amount })),
@@ -247,6 +257,7 @@ async function loadBankRows(
 			kind: "income" as const,
 			externalId: row.externalId as string,
 			date: row.date as DayKey,
+			shown: row.date as DayKey,
 			pending: false,
 			splits: [],
 		})),
@@ -269,7 +280,7 @@ const stillAsRead = (householdId: string, accountId: string, row: BankRow): SQL 
 				eq(transactions.householdId, householdId),
 				eq(transactions.accountId, accountId),
 				eq(transactions.externalId, row.externalId),
-				eq(transactions.date, row.date),
+				sql`${bankDay} = ${row.date}`,
 				eq(transactions.amountCents, row.amount),
 				eq(transactions.pending, row.pending),
 			) as SQL);
@@ -374,7 +385,11 @@ function changeWrites(
 	}
 	const set = {
 		externalId: change.externalId,
-		date: change.date,
+		// A day a Parent chose stays (issue 148): the bank's new day is kept beside it instead.
+		date: sql<string>`case when bank_date is null then ${change.date} else date end`,
+		bankDate: sql<
+			string | null
+		>`case when bank_date is null or date = ${change.date} then null else ${change.date} end`,
 		amountCents: change.amount,
 		pending: change.pending,
 		// A Parent's change made on what the bank said before is refused, not this (ADR-0041).
