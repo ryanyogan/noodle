@@ -209,8 +209,8 @@ function TransactionPane() {
 				onClose={close}
 				onChange={(next) => {
 					change.mutate({ transaction, label: transactionLabel(transaction), next });
-					// A delete takes the row, and this editor under it, off the page at once: there is
-					// nothing left to fold away, and the closing motion would never get to leave.
+					// Deleted: its row has left the list and this pane with it, so there is nothing to
+					// close slowly. Staying at its address meanwhile would ask for it again by its ID.
 					if (next === null) leave();
 					else close();
 				}}

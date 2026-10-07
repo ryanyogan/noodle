@@ -1,9 +1,14 @@
 import { forTotals, monthState } from "@noodle/domain";
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, test } from "vitest";
 import type { MonthData } from "./server/month";
 import {
+	applyTransactionChange,
+	monthOfTransaction,
 	type TransactionChange,
 	type TransactionRow,
+	transactionQuery,
+	transactionsQuery,
 	withRowChange,
 	withTransactionChange,
 } from "./transactions";
@@ -281,5 +286,27 @@ describe("withRowChange: the list shows the change", () => {
 
 	test("drops a deleted row", () => {
 		expect(withRowChange(list, change(null)).pages[0]?.transactions).toEqual([]);
+	});
+});
+
+describe("applyTransactionChange: a Transaction cached by its ID is not one of the month's lists", () => {
+	test("a delete lands in the list, and is put back, with that Transaction cached beside it", async () => {
+		const queryClient = new QueryClient();
+		const itsMonth = monthOfTransaction(skates);
+		const listKey = transactionsQuery(itsMonth, {}).queryKey;
+		const oneKey = transactionQuery(itsMonth, skates.id).queryKey;
+		const list = {
+			pageParams: [undefined],
+			pages: [{ transactions: [skates], next: null, total: null, summary: null }],
+		};
+		queryClient.setQueryData(listKey, list as never);
+		queryClient.setQueryData(oneKey, skates as never);
+
+		const putBack = await applyTransactionChange(queryClient, change(null));
+		expect(queryClient.getQueryData<typeof list>(listKey)?.pages[0]?.transactions).toEqual([]);
+		expect(queryClient.getQueryData(oneKey)).toEqual(skates);
+
+		putBack();
+		expect(queryClient.getQueryData(listKey)).toEqual(list);
 	});
 });

@@ -69,7 +69,7 @@ import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
 import { forFilterSchema, SEARCH_MAX, transactionSortSchema } from "../../../server/transactions";
 import { ShownFilters } from "../../../transaction-filters-shown";
-import { animateTransactionClose } from "../../../transaction-motion";
+import { animateTransactionClose, cancelTransactionClose } from "../../../transaction-motion";
 import {
 	RANGE_OPTIONS,
 	rangeName,
@@ -223,7 +223,11 @@ function TransactionsPage() {
 		// unselects instead of opening. In columns the checkbox selects and the row still opens.
 		if (picking && tableIsStacked()) return setPicking(togglePicked(picking, transaction.id));
 		if (window.matchMedia("(min-width: 1024px)").matches) {
+			// Pressed while a pane is still closing: that close is off. Its own row stays open, and
+			// another row opens without the first one's ending closing it.
+			const reopened = cancelTransactionClose();
 			if (transaction.id === picked) {
+				if (reopened) return;
 				return animateTransactionClose(
 					() =>
 						void navigate({
@@ -712,21 +716,32 @@ function FiltersForm({
 	onApply: (filters: TransactionFilters) => void;
 }) {
 	const id = useId();
-	const [bucket, setBucket] = useState(filters.bucket ?? "");
-	const [member, setMember] = useState<string>(filters.for ?? "");
-	const [account, setAccount] = useState(filters.account ?? "");
-	const [range, setRange] = useState<string>(filters.range ?? "");
+	// What the form opened showing. Opened a moment after an Apply, that can be the filters from
+	// before it: the list is still loading, and the page hasn't taken the new ones yet.
+	const [began] = useState(() => ({
+		range: filters.range ?? "",
+		bucket: filters.bucket ?? "",
+		for: filters.for ?? "",
+		account: filters.account ?? "",
+	}));
+	const [bucket, setBucket] = useState(began.bucket);
+	const [member, setMember] = useState<string>(began.for);
+	const [account, setAccount] = useState(began.account);
+	const [range, setRange] = useState<string>(began.range);
 	return (
 		<form
 			className="grid gap-5"
 			onSubmit={(event) => {
 				event.preventDefault();
-				onApply({
-					range: (range || undefined) as TransactionRange | undefined,
-					bucket: bucket || undefined,
-					for: (member || undefined) as TransactionFilters["for"],
-					account: account || undefined,
-				});
+				// Only what was changed here: a filter applied a moment ago, which this form opened
+				// too soon to show, is kept rather than put back to what the form began with.
+				const picked: TransactionFilters = {};
+				if (range !== began.range)
+					picked.range = (range || undefined) as TransactionRange | undefined;
+				if (bucket !== began.bucket) picked.bucket = bucket || undefined;
+				if (member !== began.for) picked.for = (member || undefined) as TransactionFilters["for"];
+				if (account !== began.account) picked.account = account || undefined;
+				onApply(picked);
 			}}
 		>
 			<div className="grid gap-4">

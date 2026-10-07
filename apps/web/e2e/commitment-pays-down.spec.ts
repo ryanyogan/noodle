@@ -161,7 +161,10 @@ test("a Commitment pays down a card kept by hand: a payment brings what's owed d
 	await expect(page.getByRole("region", { name: /^Charges/ })).toHaveCount(0);
 
 	// Un-filing the payment (deleting the Quick Add) puts what's owed back.
-	// Reached from the Sidebar, so the page is hydrated and the row opens when pressed.
+	// Reached from the Sidebar, so the page is hydrated and the row opens when pressed. Under 1440
+	// the Commitment is a drawer over the page, whose scrim takes clicks beside it: closed first.
+	await page.getByRole("link", { name: "Close Commitment" }).click();
+	await expect(page.locator("[data-panel-scrim]")).toHaveCount(0);
 	await page
 		.getByRole("navigation", { name: "Main" })
 		.getByRole("link", { name: "Transactions" })
