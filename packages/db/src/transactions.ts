@@ -5,6 +5,7 @@ import {
 	type BucketUse,
 	type CategorizationMethod,
 	type Cents,
+	cleanMerchant,
 	type DayKey,
 	hourAt,
 	MATCH_WINDOW,
@@ -509,6 +510,13 @@ export type TransactionRow = {
 	 * 99): a list of more than a month can't name it from one month's Plan. Null when it has none.
 	 */
 	assignedName?: string | null;
+	/**
+	 * Its name is one a Parent gave it, not background naming's or the bank's wording cleaned up:
+	 * a row that otherwise goes by what it is ("Card payment") keeps a Parent's name (issue 141).
+	 */
+	named?: boolean;
+	/** It waits in Review (the list's Needs review figure counts it). */
+	waits?: boolean;
 	/** Which version of it this is: sent back with a change, so one made on an old one is refused (ADR-0041). */
 	version: number;
 };
@@ -828,6 +836,14 @@ export async function loadTransactionsPage(
 				(select ${buckets.name} from ${buckets} where ${buckets.id} = ${transactions.bucketId}),
 				(select ${commitments.name} from ${commitments} where ${commitments.id} = ${transactions.commitmentId}))`,
 			version: transactions.version,
+			// Not a name background naming keeps for its note: checked again against the normaliser's.
+			named:
+				sql<boolean>`case when ${partly} then 0 else coalesce(${transactions.merchant} is not null
+				and not exists (select 1 from merchant_names mn where mn.household_id = ${transactions.householdId}
+					and mn.raw = ${transactions.note} and mn.name = ${transactions.merchant}), 0) end`.mapWith(
+					Boolean,
+				),
+			waits: sql<boolean>`${needsReview()}`.mapWith(Boolean),
 			sortKey: textKey ?? sql<string | null>`null`,
 		})
 		.from(transactions)
@@ -915,9 +931,10 @@ export async function loadTransactionsPage(
 	return {
 		// Dates are always written as DayKeys.
 		transactions: page.map(
-			({ goalId, goalName, transfer, sortKey: _sortKey, ...row }) =>
+			({ goalId, goalName, transfer, sortKey: _sortKey, named, ...row }) =>
 				({
 					...row,
+					named: named && row.merchantName !== (row.note ? cleanMerchant(row.note).name : null),
 					...transferOf(transfer),
 					goal: goalId ? { id: goalId, name: goalName ?? "A Goal" } : null,
 					for: forOf.get(row.id) ?? [],
@@ -1293,6 +1310,180 @@ export async function renameTransaction(
 	if (landed) return { ok: true, version: landed.version };
 	const reason = await refusal(db, input);
 	return { ok: false, reason: reason === "not-in-plan" ? "not-editable" : reason };
+}
+
+/**
+ * How a For-only change ended. "not-editable": not theirs to change here (or not the Household's).
+ * "for-differs": it is split and its Splits are For different people, which only its own form
+ * can say apart.
+ */
+export type TransactionForResult =
+	| { ok: true; version: number }
+	| { ok: false; reason: "changed-elsewhere" | "not-editable" | "for-differs" };
+
+const sameMembers = (a: readonly string[], b: readonly string[]) =>
+	[...a].sort().join("\t") === [...b].sort().join("\t");
+
+/**
+ * Changes only who a Transaction is For, for the Parent `memberId` (issue 141): its amount, name
+ * and assignment stay as they are, so an unassigned one stays unassigned (and in Review, if it
+ * waits there) and a split one keeps its Splits. A split Transaction is For only through its
+ * Splits: every one of them takes the new For, and only while they all had none or the same; one
+ * whose Splits are For different people is refused ("for-differs"). Guarded as every change is:
+ * the Household's, theirs to change (not Goal spending, nothing in the other Parent's Personal
+ * Allowance, even through one Split: ADR-0003), and still at the version it was made on
+ * (ADR-0041). Members who aren't the Household's are left out. Safe to retry: a repeat of one
+ * that landed finds the Transaction one version on and For as asked, and writes nothing.
+ */
+export async function setTransactionFor(
+	db: Db,
+	input: {
+		householdId: string;
+		memberId: string;
+		transactionId: string;
+		forMemberIds: string[];
+		/** The version the Parent made this change on: refused if it has moved on (ADR-0041). */
+		expectedVersion?: number;
+	},
+): Promise<TransactionForResult> {
+	const { householdId, transactionId } = input;
+	const theTransaction = and(
+		eq(transactions.id, transactionId),
+		editableBy(householdId, input.memberId),
+	);
+	const read = async () => {
+		const [row] = await db
+			.select({ version: transactions.version })
+			.from(transactions)
+			.where(theTransaction);
+		if (!row) return null;
+		const parts = await db
+			.select({ id: splits.id })
+			.from(splits)
+			.where(and(eq(splits.transactionId, transactionId), eq(splits.householdId, householdId)));
+		const whose =
+			parts.length > 0
+				? await db
+						.select({ of: splitFor.splitId, memberId: splitFor.memberId })
+						.from(splitFor)
+						.innerJoin(splits, eq(splits.id, splitFor.splitId))
+						.where(
+							and(eq(splits.transactionId, transactionId), eq(splitFor.householdId, householdId)),
+						)
+				: await db
+						.select({ of: transactionFor.transactionId, memberId: transactionFor.memberId })
+						.from(transactionFor)
+						.where(
+							and(
+								eq(transactionFor.transactionId, transactionId),
+								eq(transactionFor.householdId, householdId),
+							),
+						);
+		const of = (id: string) => whose.filter((one) => one.of === id).map((one) => one.memberId);
+		return {
+			version: row.version,
+			split: parts.length > 0,
+			// Who each part is For: the whole Transaction's, or each Split's.
+			each: parts.length > 0 ? parts.map((part) => of(part.id)) : [of(transactionId)],
+		};
+	};
+	const before = await read();
+	if (!before) return { ok: false, reason: "not-editable" };
+	const wanted = (
+		input.forMemberIds.length > 0
+			? await db
+					.select({ id: members.id })
+					.from(members)
+					.where(and(eq(members.householdId, householdId), inArray(members.id, input.forMemberIds)))
+			: []
+	).map((member) => member.id);
+	const asAsked = (now: { each: string[][] }) => now.each.every((one) => sameMembers(one, wanted));
+	if (input.expectedVersion !== undefined && before.version !== input.expectedVersion) {
+		// One version on and For as asked: this change, landed on an earlier try.
+		return before.version === input.expectedVersion + 1 && asAsked(before)
+			? { ok: true, version: before.version }
+			: { ok: false, reason: "changed-elsewhere" };
+	}
+	const said = before.each.filter((one) => one.length > 0);
+	if (said.some((one) => !sameMembers(one, said[0] as string[])))
+		return { ok: false, reason: "for-differs" };
+
+	// Every write holds only while the Transaction is as it was read; the version moves last, so
+	// the batch lands whole or not at all.
+	const asRead = sql`exists (select 1 from ${transactions} where ${and(
+		theTransaction,
+		eq(transactions.version, before.version),
+	)})`;
+	const itsSplits = db
+		.select({ id: splits.id })
+		.from(splits)
+		.where(and(eq(splits.transactionId, transactionId), eq(splits.householdId, householdId)));
+	const clear = before.split
+		? db
+				.delete(splitFor)
+				.where(
+					and(eq(splitFor.householdId, householdId), inArray(splitFor.splitId, itsSplits), asRead),
+				)
+		: db
+				.delete(transactionFor)
+				.where(
+					and(
+						eq(transactionFor.transactionId, transactionId),
+						eq(transactionFor.householdId, householdId),
+						asRead,
+					),
+				);
+	const theirs = and(eq(members.householdId, householdId), inArray(members.id, wanted), asRead);
+	const set =
+		wanted.length === 0
+			? []
+			: before.split
+				? [
+						db
+							.insert(splitFor)
+							.select(
+								db
+									.select({
+										splitId: sql<string>`${splits.id}`.as("split_id"),
+										memberId: sql<string>`${members.id}`.as("member_id"),
+										householdId: sql<string>`${members.householdId}`.as("household_id"),
+									})
+									.from(members)
+									.innerJoin(
+										splits,
+										and(
+											eq(splits.transactionId, transactionId),
+											eq(splits.householdId, householdId),
+										),
+									)
+									.where(theirs),
+							)
+							.onConflictDoNothing(),
+					]
+				: [
+						db
+							.insert(transactionFor)
+							.select(
+								db
+									.select({
+										transactionId: sql<string>`${transactionId}`.as("transaction_id"),
+										memberId: members.id,
+										householdId: members.householdId,
+									})
+									.from(members)
+									.where(theirs),
+							)
+							.onConflictDoNothing(),
+					];
+	const bump = db
+		.update(transactions)
+		.set({ version: sql`${transactions.version} + 1` })
+		.where(and(theTransaction, eq(transactions.version, before.version)));
+	await db.batch([clear, ...set, bump]);
+	const after = await read();
+	if (after && after.version === before.version + 1 && asAsked(after))
+		return { ok: true, version: after.version };
+	return { ok: false, reason: after ? "changed-elsewhere" : "not-editable" };
 }
 
 /** A Split to write: its client ID, amount, assignment, and For (none for the whole Household). */

@@ -1318,3 +1318,147 @@ test("on a computer, a slow search with a Transaction open keeps its editor on s
 		await page.evaluate(() => (window as unknown as { paneLoading: number }).paneLoading),
 	).toBe(0);
 });
+
+/**
+ * A planned Household with a Child, a Transaction that waits in Review with no Bucket, one split
+ * whose Splits say nobody, and one split whose Splits are For different people (issue 141).
+ */
+async function setUpForRows(page: Page) {
+	const created = await createPlannedHousehold(page, plan);
+	if (!created) throw new Error("The Household wasn't made directly, so its IDs aren't known");
+	const { householdId, parentId, month, bucketIds } = created;
+	await page.goto("/household");
+	const addChild = page.getByRole("button", { name: "Add Child" });
+	await hydrated(addChild);
+	await page.getByLabel("Add a Child").fill("Leo");
+	await addChild.click();
+	await expect(page.getByRole("button", { name: "Edit Leo" })).toBeVisible();
+	const sql = (value: string) => `'${value.replaceAll("'", "''")}'`;
+	// The Child is on screen before the server has answered: seeded only once it is kept.
+	const leo = `(select id from members where household_id = ${sql(householdId)} and id <> ${sql(parentId)} limit 1)`;
+	await expect
+		.poll(async () => (await seedSql([`select ${leo} as id`]))[0]?.[0]?.id ?? null)
+		.not.toBeNull();
+	const [first = "", second = first] = Object.values(bucketIds);
+	const [unfiled, even, mixed] = [ulid(), ulid(), ulid()];
+	const transaction = (id: string, note: string, cents: number) =>
+		`insert into transactions (id, household_id, source, date, amount_cents, note, created_by_member_id) values (${sql(id)}, ${sql(householdId)}, 'quick-add', ${sql(`${month}-01`)}, ${cents}, ${sql(note)}, ${sql(parentId)})`;
+	const parts = (of: string) =>
+		[first, second].map((bucketId, position) => {
+			const id = ulid();
+			return {
+				id,
+				insert: `insert into splits (id, household_id, transaction_id, amount_cents, bucket_id, position) values (${sql(id)}, ${sql(householdId)}, ${sql(of)}, 1000, ${sql(bucketId)}, ${position})`,
+			};
+		});
+	const mixedParts = parts(mixed);
+	const whose = (splitId: string, member: string) =>
+		`insert into split_for (split_id, member_id, household_id) select ${sql(splitId)}, ${member}, ${sql(householdId)}`;
+	await seedSql([
+		transaction(unfiled, "Unfiled U", 4200),
+		`insert into categorizations (transaction_id, household_id, member_id, outcome, merchant, created_at) values (${sql(unfiled)}, ${sql(householdId)}, ${sql(parentId)}, 'review', 'unfiled u', unixepoch() * 1000)`,
+		transaction(even, "Split S", 2000),
+		...parts(even).map((part) => part.insert),
+		transaction(mixed, "Mixed M", 2000),
+		...mixedParts.map((part) => part.insert),
+		whose(mixedParts[0]?.id ?? "", sql(parentId)),
+		whose(mixedParts[1]?.id ?? "", leo),
+	]);
+	await page.goto(`/transactions/${month}`);
+	await expect(row(page, "Unfiled U")).toBeVisible();
+	return { month };
+}
+
+const forChips = (page: Page, title: string) =>
+	list(page).getByRole("button", { name: new RegExp(`^Change who ${title} is For, now `) });
+
+test("For is changed from the chips of a Transaction with no Bucket and of a split one; Splits For different people say so in words", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	// Wide enough that the table keeps its For column.
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await setUpForRows(page);
+	const summary = page.getByRole("group", { name: "The month at a glance" });
+	await expect(summary.getByTestId("month-review")).toHaveText("1");
+	const picker = page.getByRole("toolbar", { name: "For" });
+
+	// No Bucket: its chips are a control all the same, and it stays unassigned and in Review.
+	const unfiled = forChips(page, "Unfiled U");
+	await expect(unfiled).toHaveText("Everyone");
+	await hydrated(unfiled);
+	await unfiled.click();
+	await picker.getByRole("button", { name: "Leo" }).click();
+	const saved = savedBy(page, "setTransactionFor");
+	await page.keyboard.press("Escape");
+	await saved;
+	await expect(unfiled).toHaveText("Leo");
+	await expect(row(page, "Unfiled U")).toHaveAccessibleName(
+		/^Unfiled U, \$42, Unassigned, For Leo/,
+	);
+	await expect(said(page, "is For")).toContainText("Unfiled U is For Leo");
+	await expect(editSheet(page)).toBeHidden();
+	await expect(summary.getByTestId("month-review")).toHaveText("1");
+
+	const undone = savedBy(page, "setTransactionFor");
+	await said(page, "is For").getByRole("button", { name: "Undo" }).click();
+	await undone;
+	await expect(unfiled).toHaveText("Everyone");
+
+	// Split, and its Splits say nobody: the chip sets every Split's For, and it stays split.
+	const split = forChips(page, "Split S");
+	await expect(split).toHaveText("Everyone");
+	await split.click();
+	await picker.getByRole("button", { name: "Leo" }).click();
+	const splitSaved = savedBy(page, "setTransactionFor");
+	await page.keyboard.press("Escape");
+	await splitSaved;
+	await expect(split).toHaveText("Leo");
+	await expect(row(page, "Split S")).toHaveAccessibleName(/Split across 2: .*, For Leo$/);
+
+	// Splits For different people: said in words, and nothing there to press.
+	await expect(forChips(page, "Mixed M")).toHaveCount(0);
+	await expect(row(page, "Mixed M")).toHaveAccessibleName(/For Different for each Split$/);
+	await expect(
+		list(page).locator("[data-transaction]").filter({ hasText: "Mixed M" }),
+	).toContainText("Different for each Split");
+
+	// Kept by the server: there after a reload.
+	await page.reload();
+	await expect(forChips(page, "Split S")).toHaveText("Leo");
+	await expect(forChips(page, "Unfiled U")).toHaveText("Everyone");
+	await page.screenshot({ path: ".tmp-shots/for-chips-1440.png" });
+	await page.context().close();
+});
+
+test("on a phone the For chips of a Transaction with no Bucket and of a split one change who it is For in place", {
+	tag: "@phone",
+}, async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	// Set up as on a computer (the Sidebar's links), then looked at as on a phone.
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await setUpForRows(page);
+	await page.setViewportSize({ width: 393, height: 852 });
+	const picker = page.getByRole("toolbar", { name: "For" });
+	for (const title of ["Unfiled U", "Split S"]) {
+		const chips = forChips(page, title);
+		await expect(chips).toHaveCount(1);
+		await expect(chips).toHaveText("Everyone");
+		expect((await chips.boundingBox())?.height).toBeGreaterThanOrEqual(24);
+		await hydrated(chips);
+		await chips.click();
+		await picker.getByRole("button", { name: "Leo" }).click();
+		const saved = savedBy(page, "setTransactionFor");
+		await page.keyboard.press("Escape");
+		await saved;
+		await expect(picker).toBeHidden();
+		await expect(chips).toHaveText("Leo");
+		await expect(editSheet(page)).toBeHidden();
+	}
+	// Nothing to press where the Splits are For different people.
+	await expect(forChips(page, "Mixed M")).toHaveCount(0);
+	// Nothing runs off the side of the screen.
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
+	await page.screenshot({ path: ".tmp-shots/for-chips-393.png" });
+	await page.context().close();
+});

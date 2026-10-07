@@ -335,10 +335,11 @@ export function transactionColumns({
 			priority: 3,
 			stacked: "hidden",
 			className: "text-muted-foreground",
-			// Chips, a name each (issue 134): pressed, they change who it was For. A chip is always that
-			// control: a row whose For can't be written from here (unassigned or split: the write needs
-			// one Bucket or Commitment to keep; partly the other Parent's; the open row, whose editor is
-			// under it) says it in plain words, so nothing that looks pressable opens the row instead.
+			// Chips, a name each (issue 134): pressed, they change who it was For, on an unassigned row
+			// and a split one too (issue 141). A chip is always that control: a row whose For can't be
+			// written from here (partly the other Parent's; split with Splits For different people; the
+			// open row, whose editor is under it) says it in plain words, so nothing that looks
+			// pressable opens the row instead.
 			// Empty where For doesn't apply (a Transfer, Goal spending, money back).
 			cell: ({ transaction, view }) =>
 				view.who === "" ? null : cells &&

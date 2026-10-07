@@ -1,6 +1,7 @@
 import {
 	nameOf,
 	type TransactionEdit,
+	type TransactionFor,
 	type TransactionRename,
 	type TransactionRow,
 } from "./transactions";
@@ -40,8 +41,6 @@ type Row = Pick<
  */
 export function cellEdits(row: Row): { name: "edit" | "rename" | null; refile: boolean } {
 	if (row.goal || row.partlyPrivate) return { name: null, refile: false };
-	// A payment to a card is listed as "Card payment": a name typed in its cell would not show.
-	if (row.paysCard) return { name: null, refile: false };
 	const special =
 		row.splits.length > 0 || row.transfer !== null || row.refundOf !== null || row.amountCents < 1;
 	if (special) return { name: "rename", refile: false };
@@ -99,19 +98,50 @@ export function refileOf(row: Row, value: string): TransactionEdit | null {
 	};
 }
 
-/** A row's For chips change who it was For: only where it is assigned whole, to one thing. */
-export const forEdits = (row: Row) => cellEdits(row).name === "edit";
+/**
+ * Who a split row is For, where one answer says it: every Split's, when they all have none or
+ * the same people (a Split with none takes the others'). Null when its Splits are For different
+ * people, which only the opened row can say apart.
+ */
+export function splitsFor(row: Pick<TransactionRow, "splits">): string[] | null {
+	const said = row.splits.map((split) => [...split.for].sort()).filter((one) => one.length > 0);
+	const first = said[0] ?? [];
+	return said.every((one) => one.join() === first.join()) ? first : null;
+}
+
+/** Who a row is For as its chips say it: a split row's by its Splits, null when they differ. */
+export const forNow = (row: Pick<TransactionRow, "for" | "splits">): string[] | null =>
+	row.splits.length > 0 ? splitsFor(row) : row.for;
 
 /**
- * The change that says who a row was For (its chips, issue 134), with its amount, note and
- * assignment as they are. Null when For is as it was, or the row has no single Bucket or
- * Commitment to keep (unassigned, split, a side of a Transfer, money back, Goal spending).
+ * A row's For chips change who it is For wherever For applies (issue 141): filed whole,
+ * unassigned, or split with Splits that agree. Not Goal spending, a side of a Transfer or money
+ * back (For doesn't apply), not one partly in the other Parent's Personal Allowance (theirs to
+ * change), and not a split whose Splits are For different people (said in words instead).
  */
-export function forOf(row: Row, memberIds: string[]): TransactionEdit | null {
-	const assignment = assignmentOf(row);
-	if (!forEdits(row) || !assignment) return null;
+export const forEdits = (row: Row) =>
+	!row.goal &&
+	!row.partlyPrivate &&
+	row.transfer === null &&
+	row.refundOf === null &&
+	row.amountCents >= 1 &&
+	forNow(row) !== null;
+
+/**
+ * The change that says who a row is For (its chips, issue 134). One filed whole in a Bucket or
+ * Commitment keeps its amount, note and assignment in the write its form makes; an unassigned or
+ * split one changes only its For (and stays unassigned, or split). Null when For is as it was or
+ * can't be changed here.
+ */
+export function forOf(row: Row, memberIds: string[]): TransactionEdit | TransactionFor | null {
+	const now = forNow(row);
+	if (!forEdits(row) || now === null) return null;
 	const forMemberIds = [...new Set(memberIds)].sort();
-	if (forMemberIds.join() === [...row.for].sort().join()) return null;
+	// A split whose Splits partly have none still takes it: they don't all say it yet.
+	const partly = row.splits.some((split) => split.for.length === 0) && now.length > 0;
+	if (forMemberIds.join() === [...now].sort().join() && !partly) return null;
+	const assignment = assignmentOf(row);
+	if (row.splits.length > 0 || !assignment) return { for: forMemberIds };
 	return { amountCents: row.amountCents, note: row.note, assignment, forMemberIds };
 }
 
@@ -122,8 +152,14 @@ export function forOf(row: Row, memberIds: string[]): TransactionEdit | null {
  */
 export function undoOf(
 	row: Row,
-	next: TransactionEdit | TransactionRename,
-): TransactionEdit | TransactionRename | null {
+	next: TransactionEdit | TransactionRename | TransactionFor,
+): TransactionEdit | TransactionRename | TransactionFor | null {
+	// Only who it was For: back to that. Splits that didn't all say the same can't be put back.
+	if ("for" in next) {
+		const now = forNow(row);
+		const even = row.splits.every((split) => [...split.for].sort().join() === (now ?? []).join());
+		return now && even ? { for: now } : null;
+	}
 	const was = cellName(row);
 	if ("rename" in next) return was ? { rename: was } : null;
 	const assignment = assignmentOf(row);

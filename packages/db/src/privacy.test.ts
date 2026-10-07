@@ -465,6 +465,9 @@ describe("Personal Allowance privacy: Splits", () => {
 			autoFiled: null,
 			assignedName: null,
 			version: 1,
+			// Nothing about its name or Review either: a partly private row says neither.
+			named: false,
+			waits: false,
 			for: [],
 			splits: [
 				{

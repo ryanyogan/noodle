@@ -12,7 +12,7 @@ import type { ChoiceGroup } from "@noodle/ui/components/select";
 import { ChevronDown, Ellipsis, Pencil } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { MemberSummary } from "../members";
-import { assignedValue, cellName, NAME_MAX } from "../transaction-cells";
+import { assignedValue, cellName, forNow, NAME_MAX } from "../transaction-cells";
 import { type TransactionRow, useEditFormKey } from "../transactions";
 import { BucketPicker } from "./bucket-picker";
 import { ForPicker } from "./for-picker";
@@ -289,13 +289,14 @@ export function ForCell({
 	useEffect(() => {
 		if (!editing) setMine(false);
 	}, [editing]);
-	const [value, setValue] = useState(transaction.for);
+	// A split row's For is its Splits', where they agree (only then is this cell drawn).
+	const [value, setValue] = useState(forNow(transaction) ?? []);
 	return (
 		<Popover
 			open={editing && mine}
 			onOpenChange={(open) => {
 				if (open) {
-					setValue(transaction.for);
+					setValue(forNow(transaction) ?? []);
 					setMine(true);
 					cells.start(transaction, "for");
 				} else {
