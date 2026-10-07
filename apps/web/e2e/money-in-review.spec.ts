@@ -178,8 +178,10 @@ test("money in is named in Review with whose pay and its Account, and Plan › I
 	await expect(rules).toContainText(`Always Income, ${name}’s pay`, { timeout: 30_000 });
 	await upload(page, "more.csv", [[today, PAY, "500.00"]]);
 	await page.goto(`/plan/${month}/income`);
+	// Whose pay is said once the month's money in has been read, after the table's rows are there.
 	await expect(table.getByRole("combobox", { name: /^Whose pay is \$500 from / })).toContainText(
 		name,
+		{ timeout: 30_000 },
 	);
 	await expect(totals).toContainText("$2,640 so far");
 	await page.context().close();
