@@ -1,4 +1,4 @@
-import type { DayKey, MonthKey, StatementLine } from "@noodle/domain";
+import { type DayKey, type MonthKey, merchantKey, type StatementLine } from "@noodle/domain";
 import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -16,9 +16,11 @@ import {
 	markCardPayments,
 	undoCardPaymentFiling,
 	undoCardPaymentMarks,
+	undoCardPaymentRemembered,
 	unmarkTransfer,
 } from "./index";
-import { transactions, transfers } from "./schema";
+import { saveRule } from "./rules";
+import { ruleFor, rules, transactions, transfers } from "./schema";
 import { testDb } from "./test-db";
 
 // The card's side of a payment (issue 136): statements go in through importStatement, as an
@@ -342,6 +344,81 @@ describe("An answer covers the lines already here that say the same", () => {
 	});
 });
 
+describe("Undo of a remembered card payment puts back what was remembered before", () => {
+	const rowsOf = async () =>
+		(await loadTransactionsPage(db, viewer, { month, limit: 50 })).transactions;
+	const WORDING = "CARDMEMBER SERV WEB PYMT";
+
+	beforeEach(async () => {
+		await importInto("checking", "i-1", [
+			line("2026-09-03", -9_900, WORDING),
+			line("2026-09-10", -8_800, WORDING),
+		]);
+	});
+
+	it("forgets a wording that was new with the answer", async () => {
+		const [first] = await rowsOf();
+		const answer = await markCardPayment(db, viewer, {
+			transferId: "t-1",
+			transactionId: first?.id ?? "",
+			cardAccountId: "card",
+			ruleId: "r-1",
+		});
+		expect(answer).toMatchObject({ ok: true, remembered: merchantKey(WORDING) });
+		expect(answer.replaced).toBeUndefined();
+		await undoCardPaymentRemembered(db, householdId, merchantKey(WORDING), answer.replaced);
+		expect(await loadCardPaymentRules(db, householdId)).toEqual([]);
+	});
+
+	it("names the earlier card again when the answer replaced it", async () => {
+		const [first, second] = await rowsOf();
+		await markCardPayment(db, viewer, {
+			transferId: "t-1",
+			transactionId: first?.id ?? "",
+			cardAccountId: null,
+			ruleId: "r-1",
+		});
+		const answer = await markCardPayment(db, viewer, {
+			transferId: "t-2",
+			transactionId: second?.id ?? "",
+			cardAccountId: "card",
+			ruleId: "r-2",
+		});
+		expect(answer.replaced).toEqual({ accountId: null });
+		await undoCardPaymentRemembered(db, householdId, merchantKey(WORDING), answer.replaced);
+		expect(await loadCardPaymentRules(db, householdId)).toMatchObject([
+			{ id: "r-1", accountId: null },
+		]);
+	});
+
+	it("says nothing was replaced when the same answer is sent again", async () => {
+		const [first] = await rowsOf();
+		const send = () =>
+			markCardPayment(db, viewer, {
+				transferId: "t-1",
+				transactionId: first?.id ?? "",
+				cardAccountId: "card",
+				ruleId: "r-1",
+			});
+		await send();
+		expect((await send()).replaced).toBeUndefined();
+	});
+
+	it("never names an Account that isn't one of the Household's cards", async () => {
+		const [first] = await rowsOf();
+		await markCardPayment(db, viewer, {
+			transferId: "t-1",
+			transactionId: first?.id ?? "",
+			cardAccountId: null,
+			ruleId: "r-1",
+		});
+		await undoCardPaymentRemembered(db, householdId, merchantKey(WORDING), {
+			accountId: "checking",
+		});
+		expect(await loadCardPaymentRules(db, householdId)).toMatchObject([{ accountId: null }]);
+	});
+});
+
 describe("A payment to a card whose payment is the spending", () => {
 	const rowOf = async (amount: number) => {
 		const page = await loadTransactionsPage(db, viewer, { month, limit: 50 });
@@ -423,6 +500,91 @@ describe("A payment to a card whose payment is the spending", () => {
 		expect(filing).toMatchObject({ ok: true, filed: 131, months: [month] });
 		if (!filing.ok) throw new Error("not filed");
 		expect(await undoCardPaymentFiling(db, viewer, filing)).toEqual({ restored: 131 });
+	});
+
+	it("puts an earlier Rule for the wording back on Undo: its target and who it's For", async () => {
+		await addCommitment(db, {
+			householdId,
+			memberId: parentId,
+			commitmentId: "old",
+			name: "Cards",
+			month,
+			amountCents: 10_000,
+			cadence: "monthly",
+			dueDate: "2026-09-09",
+		});
+		const stated = await saveRule(db, {
+			id: "rule-0",
+			householdId,
+			memberId: parentId,
+			pattern: WORDING,
+			bucketId: null,
+			commitmentId: "old",
+			forMemberIds: [parentId],
+		});
+		expect(stated).toMatchObject({ ok: true, ruleId: "rule-0" });
+		await importInto("checking", "i-1", [line("2026-09-05", -30_000, WORDING)]);
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: (await rowOf(30_000))?.id as string,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		if (!filing.ok) throw new Error("not filed");
+		// The Rule for a wording is one row: the answer changed where it files.
+		expect(filing).toMatchObject({
+			ruleId: "rule-0",
+			ruleBefore: { bucketId: null, commitmentId: "old", for: [parentId] },
+		});
+		expect(await db.select({ to: rules.commitmentId }).from(rules)).toEqual([{ to: "apple" }]);
+
+		await undoCardPaymentFiling(db, viewer, filing);
+		expect((await rowOf(30_000))?.commitmentId).toBeNull();
+		expect(await db.select({ id: rules.id, to: rules.commitmentId }).from(rules)).toEqual([
+			{ id: "rule-0", to: "old" },
+		]);
+		expect(await db.select({ member: ruleFor.memberId }).from(ruleFor)).toEqual([
+			{ member: parentId },
+		]);
+	});
+
+	it("says no Rule was there before when it states a new one", async () => {
+		await importInto("checking", "i-1", [line("2026-09-05", -30_000, WORDING)]);
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: (await rowOf(30_000))?.id as string,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		expect(filing).toMatchObject({ ok: true, ruleBefore: null, stays: false });
+	});
+
+	it("leaves a payment in a month that has ended as it is, and files the later ones", async () => {
+		await importInto("checking", "i-1", [
+			line("2026-08-05", -30_000, WORDING),
+			line("2026-09-05", -31_000, WORDING),
+		]);
+		const august = await loadTransactionsPage(db, viewer, { month: "2026-08", limit: 50 });
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: august.transactions[0]?.id as string,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+			leaveBefore: month,
+		});
+		expect(filing).toMatchObject({
+			ok: true,
+			stays: true,
+			lineMonth: "2026-08",
+			filed: 1,
+			months: [month],
+			ruleId: "rule-1",
+		});
+		const after = await loadTransactionsPage(db, viewer, { month: "2026-08", limit: 50 });
+		expect(after.transactions[0]?.commitmentId).toBeNull();
+		expect((await rowOf(31_000))?.commitmentId).toBe("apple");
+
+		if (!filing.ok) throw new Error("not filed");
+		expect(await undoCardPaymentFiling(db, viewer, filing)).toEqual({ restored: 1 });
+		expect((await rowOf(31_000))?.commitmentId).toBeNull();
+		expect(await listRules(db, viewer)).toEqual([]);
 	});
 
 	it("refuses money back, and a Commitment that isn't in the line's month", async () => {
