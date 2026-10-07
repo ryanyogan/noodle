@@ -2761,8 +2761,17 @@ test.beforeAll(async ({ browser }) => {
 					const confirm = card.getByRole("button", { name: "Confirm" });
 					const payment = card.getByRole("button", { name: "It’s a card payment" });
 					if (await confirm.isVisible()) await confirm.click();
-					else if (await payment.isVisible()) await payment.click();
-					else if (await card.getByRole("combobox").first().isVisible()) {
+					else if (await payment.isVisible()) {
+						await payment.click();
+						// A payment whose wording names no card in Noodle asks which: a card not here, a Transfer.
+						const asking = page.getByRole("dialog", { name: "It’s a card payment" });
+						await page.waitForTimeout(300);
+						if (await asking.isVisible()) {
+							const notHere = asking.getByRole("button", { name: "A card that isn’t in Noodle" });
+							if (await notHere.isVisible()) await notHere.click();
+							await asking.getByRole("button", { name: "No, it’s a Transfer" }).click();
+						}
+					} else if (await card.getByRole("combobox").first().isVisible()) {
 						await card.getByRole("combobox").first().click();
 						await page.getByRole("option").first().click({ timeout: 15_000 });
 					} else await stack.getByRole("button", { name: "Skip" }).click();

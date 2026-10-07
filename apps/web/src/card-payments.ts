@@ -151,6 +151,21 @@ export function cardNamedBy(
 	return card ? { id: card.id, name: card.name } : undefined;
 }
 
+/**
+ * Whether Review's "It's a card payment" asks which card before anything is marked: when the line
+ * reads as a card's payment and its wording names no one card in Noodle for sure (two cards fit,
+ * or none does: it may be one kept by hand under another name, or a card that isn't here, which
+ * is then asked whether the payment counts as spending). A line that names its card is marked in
+ * one click, with Undo; so is one that doesn't read as a card's payment at all.
+ */
+export function asksWhichCard(
+	payment: PaymentCase | null | undefined,
+	accounts: { id: string; name: string; kind: string }[],
+): boolean {
+	if (!payment || payment.kind === "commitment") return false;
+	return !cardNamedBy(payment, accounts)?.id;
+}
+
 // The Transactions row's own "It's a card payment" opens the row with the question already asked.
 // Which line was asked about waits here until its detail is drawn; one already open hears the event.
 let asked: string | null = null;

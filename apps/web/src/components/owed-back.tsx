@@ -360,7 +360,8 @@ export function PaidBackMatching({ line, today }: { line: MoneyInLine; today: st
 						return (
 							<li
 								key={match.id}
-								className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
+								// The words wrap, never the button: every "Take off" stays beside its line.
+								className="flex items-center justify-between gap-x-4"
 								data-testid="paid-back-match"
 							>
 								<span className="min-w-0 text-sm">
@@ -376,6 +377,7 @@ export function PaidBackMatching({ line, today }: { line: MoneyInLine; today: st
 										type="button"
 										size="sm"
 										variant="ghost"
+										className="shrink-0"
 										disabled={confirm.isPending}
 										aria-label={`Take ${formatMoney(match.amount)} off ${name}`}
 										onClick={() =>

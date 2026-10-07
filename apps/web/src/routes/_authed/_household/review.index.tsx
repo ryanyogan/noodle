@@ -65,7 +65,7 @@ import { ulid } from "ulid";
 import { z } from "zod";
 import { pastPlanSentence } from "../../../before-plan";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
-import { cardNamedBy } from "../../../card-payments";
+import { asksWhichCard, cardNamedBy } from "../../../card-payments";
 import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
 import { CardPaymentQuestion } from "../../../components/card-payment";
 import { ReviewMatchOffer } from "../../../components/match-section";
@@ -537,8 +537,10 @@ function ReviewPage() {
 	) {
 		// The card its wording names is said and remembered with it (issue 136).
 		const card = reason ? undefined : (chosen ?? cardNamedBy(paymentOf(item), accounts ?? []));
-		// A payment to a card Noodle follows whose wording doesn't say which: it asks.
-		if (!reason && !card && paymentOf(item)?.kind === "followed") return setAsking(item);
+		// A card's payment whose wording names no one card in Noodle: it asks which, and for a card
+		// that isn't here, whether the payment counts as spending.
+		if (!reason && !chosen && asksWhichCard(paymentOf(item), accounts ?? []))
+			return setAsking(item);
 		const transferId = ulid();
 		const back = () => {
 			marked.current.delete(item.id);
