@@ -9,7 +9,9 @@ import {
 	addQuickAdd,
 	createHouseholdForParent,
 	type Db,
+	fileWithoutBucket,
 	importStatement,
+	loadReview,
 	loadTransactionsPage,
 	setTakeHomePay,
 	splitTransaction,
@@ -18,7 +20,7 @@ import {
 	type TransactionSort,
 	type Viewer,
 } from "./index";
-import { members, transactions } from "./schema";
+import { categorizations, members, transactions } from "./schema";
 import { testDb } from "./test-db";
 
 // The Transactions list's orders (issue 99): each one, both ways, a page at a time, and what a
@@ -421,6 +423,40 @@ describe("A long run of Transactions the order can't tell apart", () => {
 	});
 });
 
+/** Categorization leaves the imported lines with these notes for a Parent: they wait in Review. */
+async function sendToReview(...notes: string[]) {
+	for (const note of notes) {
+		const [row] = await db.select().from(transactions).where(eq(transactions.note, note));
+		await db.insert(categorizations).values({
+			transactionId: row?.id ?? "",
+			householdId,
+			outcome: "review",
+			method: "model",
+			merchant: note.toLowerCase(),
+		} as never);
+	}
+}
+
+describe("a page longer than D1's 100 parameters", () => {
+	it("loads 150 rows with who each was For", async () => {
+		for (let i = 0; i < 150; i++) {
+			await addQuickAdd(db, {
+				householdId,
+				transactionId: `many-${String(i).padStart(3, "0")}`,
+				bucketId: "groceries",
+				date: "2026-09-10",
+				amountCents: 100 + i,
+				note: null,
+				forMemberIds: i === 0 ? ["alex"] : [],
+				createdByMemberId: "alex",
+			});
+		}
+		const page = await loadTransactionsPage(db, alex, { month, limit: 150 });
+		expect(page.transactions).toHaveLength(150);
+		expect(page.transactions.find((row) => row.id === "many-000")?.for).toEqual(["alex"]);
+	});
+});
+
 describe("the month's summary and its Needs review filter (issue 134)", () => {
 	beforeEach(async () => {
 		await quickAdd(alex, "q-1", "groceries", 4_000, "Costco");
@@ -429,6 +465,28 @@ describe("the month's summary and its Needs review filter (issue 134)", () => {
 			line("2026-09-12", -1_200, "Corner shop"),
 			line("2026-09-13", -800, "Parking"),
 		]);
+		await sendToReview("Corner shop", "Parking");
+	});
+
+	it("leaves out what a Parent filed without a Bucket: it has left Review (ADR-0037)", async () => {
+		await importInto("checking", "i-w", [line("2026-09-14", -700, "Vending")]);
+		await sendToReview("Vending");
+		const before = await loadTransactionsPage(db, alex, { month, limit: 50 });
+		expect(before.summary?.needsReview).toBe(3);
+		const [vending] = await db.select().from(transactions).where(eq(transactions.note, "Vending"));
+		await fileWithoutBucket(db, alex, [vending?.id ?? ""]);
+		const page = await loadTransactionsPage(db, alex, { month, review: true, limit: 50 });
+		expect(page.summary?.needsReview).toBe(2);
+		expect(named(page.transactions).sort()).toEqual(["Corner shop", "Parking"]);
+		// Still unassigned, still in the month's list and its Money out.
+		expect(page.summary?.outCents).toBe(9_200);
+	});
+
+	it("counts what Review holds: the same number as the Review queue", async () => {
+		await importInto("checking", "i-n", [line("2026-09-15", -300, "Never looked at")]);
+		const page = await loadTransactionsPage(db, alex, { month, limit: 50 });
+		expect(page.summary?.needsReview).toBe((await loadReview(db, alex, 50)).total);
+		expect(page.summary?.needsReview).toBe(2);
 	});
 
 	it("says what the month spent and how many wait, on the first page", async () => {
