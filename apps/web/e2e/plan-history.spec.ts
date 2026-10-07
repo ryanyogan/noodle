@@ -3,6 +3,7 @@ import { createTestParent } from "./parents";
 import {
 	createPlannedHousehold,
 	enterJoinedHousehold,
+	hydrated,
 	savedBy,
 	signedInPage,
 	switchTo,
@@ -156,5 +157,49 @@ test("the Log shows each Plan change, who made it and when; the other Parent's P
 		await expect(log(samPage)).not.toContainText("$150");
 	} finally {
 		await Promise.all([first.remove(), second.remove()]);
+	}
+});
+
+test("the Log sorts by when and by who from the server, and shows a snapshot as it is taken", async ({
+	browser,
+}) => {
+	test.slow();
+	const parent = await createTestParent();
+	try {
+		const page = await signedInPage(browser, parent.email);
+		await createPlannedHousehold(page, {
+			baseline: "9,000",
+			buckets: [
+				["Groceries", "1,200"],
+				["Fuel", "300"],
+			],
+		});
+		await page.goto("/household#log");
+		const all = log(page).locator("[data-slot=data-table-row]");
+		await expect(all.first()).toBeVisible({ timeout: 30_000 });
+		const newest = await all.allTextContents();
+		expect(newest.length).toBeGreaterThanOrEqual(3);
+
+		// A click on When turns the whole Log round: the server sorts, and the address says so.
+		const when = log(page).getByRole("button", { name: "When, newest first" });
+		await hydrated(when);
+		await when.click();
+		await expect(page).toHaveURL(/order=oldest/);
+		await expect(log(page).getByRole("button", { name: "When, oldest first" })).toBeVisible();
+		await expect.poll(() => all.allTextContents()).toEqual([...newest].reverse());
+
+		await log(page).getByRole("button", { name: "Sort by who" }).click();
+		await expect(page).toHaveURL(/order=who\b/);
+		await expect(log(page).getByRole("button", { name: "Who, A to Z" })).toBeVisible();
+		await expect(all).toHaveCount(newest.length);
+
+		// A snapshot taken on this screen is a row of the Log without a reload.
+		const snapshots = page.getByRole("region", { name: "Snapshots" });
+		await snapshots.getByLabel("Note").fill("Before the holidays");
+		await snapshots.getByRole("button", { name: "Take a snapshot" }).click();
+		await expect(rows(page, "Snapshot")).toContainText("Before the holidays", { timeout: 40_000 });
+		await expect(rows(page, "Snapshot")).toContainText("Right away");
+	} finally {
+		await parent.remove();
 	}
 });

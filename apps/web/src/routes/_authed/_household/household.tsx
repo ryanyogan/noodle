@@ -23,7 +23,7 @@ import { ColourPicker } from "../../../components/colour-picker";
 import { DataDownload } from "../../../components/data-download";
 import { DangerZone } from "../../../components/fresh-start";
 import { HouseholdDetails } from "../../../components/household-details";
-import { HouseholdLog, LOG_HASH, logQuery } from "../../../components/household-log";
+import { HouseholdLog, LOG_HASH, LOG_ORDERS, logQuery } from "../../../components/household-log";
 import { HouseholdSnapshots, snapshotsQuery } from "../../../components/household-snapshots";
 import { InviteOtherParent } from "../../../components/invite-other-parent";
 import { NudgeSettings } from "../../../components/nudge-settings";
@@ -58,6 +58,7 @@ export const Route = createFileRoute("/_authed/_household/household")({
 		month: monthKeySchema.optional().catch(undefined),
 		who: z.string().min(1).max(64).optional().catch(undefined),
 		kind: z.enum(LOG_ITEM_KINDS).optional().catch(undefined),
+		order: z.enum(LOG_ORDERS).optional().catch(undefined),
 	}),
 	loaderDeps: ({ search }) => ({ month: search.month, who: search.who, kind: search.kind }),
 	loader: async ({ context, deps }) => {
@@ -164,7 +165,8 @@ function HouseholdPage() {
 					<SectionGroup id={LOG_HASH} title="Log" className="col-span-full scroll-mt-20">
 						<p className="text-sm text-muted-foreground">
 							Every change to the Plan, who made it and when, with Rules made, snapshots, Fresh
-							starts and Bank Connections. Newest first.
+							starts and Bank Connections. Newest first unless you sort it. A Fresh start clears the
+							changes before it; the Fresh start and your snapshots stay listed.
 						</p>
 						<HouseholdLog
 							filters={filters}

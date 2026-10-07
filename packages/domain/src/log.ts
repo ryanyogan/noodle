@@ -15,8 +15,17 @@ export const LOG_ITEM_KINDS = [
 
 export type LogItemKind = (typeof LOG_ITEM_KINDS)[number];
 
-/** Where the Log's next page starts: after the row made at `at`, of source `rank`, with `id`. */
-export type LogCursor = { at: number; rank: number; id: string };
+/**
+ * The Log's order: by when a change was made, or by who made it (by name, and each Member's
+ * changes newest first). Newest first unless asked otherwise.
+ */
+export type LogSort = { by: "when" | "who"; desc: boolean };
+
+/**
+ * Where the Log's next page starts: after the row made at `at`, of source `rank`, with `id`;
+ * and, in the order by who, by the Member named `who` ("" when nobody is on record).
+ */
+export type LogCursor = { at: number; rank: number; id: string; who?: string };
 
 /** Why a Household snapshot the Log shows was taken (the nightly ones are left out). */
 export type LogSnapshotKind =

@@ -278,6 +278,7 @@ export {
 	type LogItemKind,
 	type LogRow,
 	type LogSnapshotKind,
+	type LogSort,
 	logItemOfPlanChange,
 } from "./log";
 export {

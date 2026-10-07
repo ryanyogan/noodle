@@ -4,6 +4,7 @@ import {
 	addBucket,
 	addGoal,
 	addPersonalAllowance,
+	clearHouseholdRows,
 	createHouseholdForParent,
 	type Db,
 	loadLog,
@@ -237,6 +238,45 @@ describe("The Log", () => {
 		expect(first.rows).toHaveLength(4);
 		expect(first.next).not.toBeNull();
 		expect((await loadLog(db, alex, { limit: 10 })).next).toBeNull();
+	});
+
+	it("sorts by when and by who, either way, and pages each order whole", async () => {
+		const newest = (await whole()).map((r) => r.key);
+		const oldest = (await whole(alex, { sort: { by: "when", desc: false } })).map((r) => r.key);
+		expect(oldest).toEqual([...newest].reverse());
+
+		const byWho = await whole(alex, { sort: { by: "who", desc: false } });
+		const names = byWho.map((r) => r.memberName);
+		expect(names).toEqual([...names].sort());
+		expect(new Set(names)).toEqual(new Set(["Alex", "Sam"]));
+		// Each Parent's changes are newest first, in the order the whole Log has them.
+		for (const name of ["Alex", "Sam"]) {
+			expect(byWho.filter((r) => r.memberName === name).map((r) => r.key)).toEqual(
+				(await whole()).filter((r) => r.memberName === name).map((r) => r.key),
+			);
+		}
+		const zToA = await whole(alex, { sort: { by: "who", desc: true } });
+		expect(zToA.map((r) => r.memberName)).toEqual([...names].reverse().sort().reverse());
+		expect(zToA[0]?.memberName).toBe("Sam");
+
+		for (const sort of [
+			{ by: "when", desc: false },
+			{ by: "who", desc: false },
+			{ by: "who", desc: true },
+		] as const) {
+			const all = (await whole(alex, { sort })).map((r) => r.key);
+			expect(all).toHaveLength(newest.length);
+			for (const limit of [1, 2, 3, 7]) {
+				expect((await whole(alex, { sort }, limit)).map((r) => r.key)).toEqual(all);
+			}
+		}
+	});
+
+	it("after a Fresh start keeps the Fresh start and the snapshots; what it cleared is gone", async () => {
+		await clearHouseholdRows(db, householdId, "fresh-start");
+		expect((await whole()).map(said)).toEqual(["fresh-start:cancelled", "snapshot:manual"]);
+		// Who asked for it and who took the snapshot still read: Members are kept.
+		expect((await whole()).map((r) => r.memberName)).toEqual(["Alex", "Sam"]);
 	});
 
 	it("narrows to who, to a kind of item, and to the month a change takes effect", async () => {

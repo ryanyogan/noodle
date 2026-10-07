@@ -3,10 +3,11 @@ import {
 	type LogItemKind,
 	type LogRow,
 	type LogSnapshotKind,
+	type LogSort,
 	logItemOfPlanChange,
 	type MonthKey,
 } from "@noodle/domain";
-import { type AnyColumn, and, desc, eq, isNull, ne, or, type SQL, sql } from "drizzle-orm";
+import { type AnyColumn, and, asc, desc, eq, isNull, ne, or, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { planChangeOf, selectPlanChanges } from "./plan-log";
 import type { Viewer } from "./privacy";
@@ -29,6 +30,11 @@ import {
 // The order is when (newest first), then the source in the order below, then the row's own ID
 // (newest first). Each source gives its next few rows after the cursor and the page is the
 // newest of them all, so no read is ever larger than a page.
+//
+// Asked for oldest first, the order is that one backwards. Asked for by who, it is the Member's
+// name (A to Z, or Z to A; nobody on record counts as "") and each Member's changes in the
+// order above. Every order is total, so a cursor names one place in it and paging neither
+// repeats nor skips a row. Names compare as SQLite compares them (by bytes), here and there.
 
 const SOURCES = ["plan", "rule", "snapshot", "fresh-start", "bank-connection"] as const;
 type Source = (typeof SOURCES)[number];
@@ -44,9 +50,16 @@ export type LogFilter = {
 	/** Only what this Member changed. */
 	memberId?: string;
 	item?: LogItemKind;
+	/** Newest first when left out. */
+	sort?: LogSort;
 	after?: LogCursor;
 	limit?: number;
 };
+
+const NEWEST_FIRST: LogSort = { by: "when", desc: true };
+
+/** Who made a row, as the order by who reads it: nobody on record sorts as "". */
+const whoKey = sql<string>`coalesce(${members.name}, '')`;
 
 export type LogPage = { rows: LogRow[]; next: LogCursor | null };
 
@@ -67,11 +80,19 @@ const planItem = (item: LogItemKind): SQL => {
 type Ranked = { rank: number; id: string; numeric: boolean; row: LogRow };
 
 /** Newest first; at the same moment by source, then the newer ID first. */
-const inOrder = (a: Ranked, b: Ranked) => {
+const newestFirst = (a: Ranked, b: Ranked) => {
 	if (a.row.at !== b.row.at) return b.row.at - a.row.at;
 	if (a.rank !== b.rank) return a.rank - b.rank;
 	if (a.numeric) return Number(b.id) - Number(a.id);
 	return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+};
+
+/** The Log's order for `sort`, the same one its selects and cursors keep to. */
+const inOrder = (sort: LogSort) => (a: Ranked, b: Ranked) => {
+	if (sort.by === "when") return sort.desc ? newestFirst(a, b) : newestFirst(b, a);
+	const [x, y] = [a.row.memberName ?? "", b.row.memberName ?? ""];
+	if (x !== y) return (x < y ? -1 : 1) * (sort.desc ? -1 : 1);
+	return newestFirst(a, b);
 };
 
 /**
@@ -82,6 +103,9 @@ const inOrder = (a: Ranked, b: Ranked) => {
 export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): Promise<LogPage> {
 	const limit = Math.max(1, Math.min(filter.limit ?? LOG_PAGE, LOG_PAGE_MAX));
 	const { after, memberId } = filter;
+	const sort = filter.sort ?? NEWEST_FIRST;
+	// Within one Member's changes the order by who is newest first.
+	const newest = sort.by === "who" || sort.desc;
 	const only = filter.item === undefined ? null : sourceOf(filter.item);
 	// A source the filters leave out is still asked, for nothing: the batch keeps its shape.
 	const wanted = (source: Source): SQL | undefined =>
@@ -91,12 +115,30 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 	/** Rows of `source` that come after the cursor, by its `at` and `id` columns. */
 	const afterCursor = (source: Source, at: AnyColumn, id: AnyColumn): SQL | undefined => {
 		if (!after) return undefined;
+		const when = afterWhen(source, at, id, after);
+		if (sort.by === "when") return when;
+		const name = after.who ?? "";
+		return sort.desc
+			? sql`(${whoKey} < ${name} or (${whoKey} = ${name} and ${when}))`
+			: sql`(${whoKey} > ${name} or (${whoKey} = ${name} and ${when}))`;
+	};
+	/** The same, by when alone: later in the order than the cursor's moment, source and ID. */
+	const afterWhen = (source: Source, at: AnyColumn, id: AnyColumn, cursor: LogCursor): SQL => {
 		const rank = rankOf(source);
-		if (rank > after.rank) return sql`${at} <= ${after.at}`;
-		if (rank < after.rank) return sql`${at} < ${after.at}`;
-		const earlier =
-			source === "plan" ? sql`${id} < cast(${after.id} as integer)` : sql`${id} < ${after.id}`;
-		return sql`(${at} < ${after.at} or (${at} = ${after.at} and ${earlier}))`;
+		const cursorId = source === "plan" ? sql`cast(${cursor.id} as integer)` : sql`${cursor.id}`;
+		if (newest) {
+			if (rank > cursor.rank) return sql`${at} <= ${cursor.at}`;
+			if (rank < cursor.rank) return sql`${at} < ${cursor.at}`;
+			return sql`(${at} < ${cursor.at} or (${at} = ${cursor.at} and ${id} < ${cursorId}))`;
+		}
+		if (rank < cursor.rank) return sql`${at} >= ${cursor.at}`;
+		if (rank > cursor.rank) return sql`${at} > ${cursor.at}`;
+		return sql`(${at} > ${cursor.at} or (${at} = ${cursor.at} and ${id} > ${cursorId}))`;
+	};
+	/** A source's rows in the Log's order. */
+	const ordered = (at: AnyColumn, id: AnyColumn): SQL[] => {
+		const when = newest ? [desc(at), desc(id)] : [asc(at), asc(id)];
+		return sort.by === "who" ? [sort.desc ? desc(whoKey) : asc(whoKey), ...when] : when;
 	};
 	const by = (column: AnyColumn) => (memberId === undefined ? undefined : eq(column, memberId));
 	const who = (column: AnyColumn) => eq(members.id, column);
@@ -113,7 +155,7 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 				afterCursor("plan", planChanges.createdAt, planChanges.id),
 			),
 		)
-			.orderBy(desc(planChanges.createdAt), desc(planChanges.id))
+			.orderBy(...ordered(planChanges.createdAt, planChanges.id))
 			.limit(limit + 1),
 		db
 			.select({
@@ -141,7 +183,7 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 					afterCursor("rule", rules.createdAt, rules.id),
 				),
 			)
-			.orderBy(desc(rules.createdAt), desc(rules.id))
+			.orderBy(...ordered(rules.createdAt, rules.id))
 			.limit(limit + 1),
 		db
 			.select({
@@ -164,7 +206,7 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 					afterCursor("snapshot", householdSnapshots.createdAt, householdSnapshots.id),
 				),
 			)
-			.orderBy(desc(householdSnapshots.createdAt), desc(householdSnapshots.id))
+			.orderBy(...ordered(householdSnapshots.createdAt, householdSnapshots.id))
 			.limit(limit + 1),
 		db
 			.select({
@@ -185,7 +227,7 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 					afterCursor("fresh-start", freshStarts.createdAt, freshStarts.id),
 				),
 			)
-			.orderBy(desc(freshStarts.createdAt), desc(freshStarts.id))
+			.orderBy(...ordered(freshStarts.createdAt, freshStarts.id))
 			.limit(limit + 1),
 		db
 			.select({
@@ -206,7 +248,7 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 					afterCursor("bank-connection", bankConnections.createdAt, bankConnections.id),
 				),
 			)
-			.orderBy(desc(bankConnections.createdAt), desc(bankConnections.id))
+			.orderBy(...ordered(bankConnections.createdAt, bankConnections.id))
 			.limit(limit + 1),
 	]);
 
@@ -278,12 +320,20 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 				disconnected: row.status === "disconnected",
 			}),
 		),
-	].sort(inOrder);
+	].sort(inOrder(sort));
 
 	const page = all.slice(0, limit);
 	const last = page[page.length - 1];
 	return {
 		rows: page.map((r) => r.row),
-		next: all.length > limit && last ? { at: last.row.at, rank: last.rank, id: last.id } : null,
+		next:
+			all.length > limit && last
+				? {
+						at: last.row.at,
+						rank: last.rank,
+						id: last.id,
+						...(sort.by === "who" ? { who: last.row.memberName ?? "" } : {}),
+					}
+				: null,
 	};
 }

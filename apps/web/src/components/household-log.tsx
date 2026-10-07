@@ -2,11 +2,12 @@ import { LOG_ITEM_KINDS, type LogCursor, type LogItemKind, type MonthKey } from 
 import { Button } from "@noodle/ui/components/button";
 import { DataTable, type DataTableColumn } from "@noodle/ui/components/data-table";
 import { OptionSelect } from "@noodle/ui/components/select";
+import type { TableSort } from "@noodle/ui/lib/data-table";
 import { infiniteQueryOptions, useInfiniteQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { History, X } from "lucide-react";
 import { fullDay, monthName } from "../format";
-import { monthsKey } from "../queries";
+import { logKey } from "../household-changes";
 import { type DatedLogRow, getLog } from "../server/log";
 import { describeChange, fromScenario, scopeText } from "./plan-history";
 import { useParents } from "./whose-pay";
@@ -20,22 +21,49 @@ import { useParents } from "./whose-pay";
 /** The Log's section on Household settings: where "See what changed" lands. */
 export const LOG_HASH = "log";
 
-export type LogFilters = { month?: MonthKey; who?: string; kind?: LogItemKind };
+/** The Log's orders besides newest first, as the address says them. */
+export const LOG_ORDERS = ["oldest", "who", "who-desc"] as const;
+export type LogOrder = (typeof LOG_ORDERS)[number];
+
+export type LogFilters = { month?: MonthKey; who?: string; kind?: LogItemKind; order?: LogOrder };
+
+/** The table's order for an address: newest first when it names none. */
+const sortOf = (order: LogOrder | undefined): TableSort =>
+	order === "who" || order === "who-desc"
+		? { id: "who", desc: order === "who-desc" }
+		: { id: "when", desc: order !== "oldest" };
+
+const orderOf = (sort: TableSort): LogOrder | undefined =>
+	sort.id === "who" ? (sort.desc ? "who-desc" : "who") : sort.desc ? undefined : "oldest";
 
 /**
- * The Log, a page at a time. Under the months' key, so a change to the Plan made in another tab
- * or by the other Parent shows without a reload.
+ * The Log, a page at a time, in the order asked for: the server sorts, so the order holds across
+ * pages. Under the months' key, so a change to the Plan made in another tab or by the other
+ * Parent shows without a reload; a Rule, a snapshot, a Bank Connection or a Fresh start does
+ * through the Household's live updates (`logKey` in household-changes.ts).
  */
 export const logQuery = (filters: LogFilters) =>
 	infiniteQueryOptions({
 		queryKey: [
-			...monthsKey,
-			"log",
+			...logKey,
 			filters.month ?? null,
 			filters.who ?? null,
 			filters.kind ?? null,
+			filters.order ?? null,
 		],
-		queryFn: ({ pageParam }) => getLog({ data: { ...filters, after: pageParam } }),
+		queryFn: ({ pageParam }) => {
+			const sort = sortOf(filters.order);
+			return getLog({
+				data: {
+					month: filters.month,
+					who: filters.who,
+					kind: filters.kind,
+					sort: sort.id === "who" ? "who" : "when",
+					desc: sort.desc,
+					after: pageParam,
+				},
+			});
+		},
 		initialPageParam: undefined as LogCursor | undefined,
 		getNextPageParam: (page) => page.next ?? undefined,
 	});
@@ -133,6 +161,7 @@ const columns: DataTableColumn<DatedLogRow>[] = [
 		min: 6.5,
 		width: "6.5rem",
 		stacked: "value",
+		sortable: { descFirst: true, said: { asc: "oldest first", desc: "newest first" } },
 		className: "text-muted-foreground",
 		cell: (row) => fullDay(row.day),
 	},
@@ -142,6 +171,7 @@ const columns: DataTableColumn<DatedLogRow>[] = [
 		min: 5,
 		width: "minmax(5rem,0.6fr)",
 		stacked: "hidden",
+		sortable: { said: { asc: "A to Z", desc: "Z to A" } },
 		cell: logWho,
 	},
 	{
@@ -253,6 +283,8 @@ export function HouseholdLog({
 					columns={columns}
 					data={rows}
 					getRowId={(row) => row.key}
+					sort={sortOf(filters.order)}
+					onSortChange={(sort) => onFilter({ ...filters, order: orderOf(sort) })}
 					loading={log.isPending}
 					loadingRows={5}
 					empty={

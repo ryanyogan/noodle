@@ -15,6 +15,7 @@ const cursorSchema = z.object({
 	at: z.number().int().nonnegative(),
 	rank: z.number().int().min(0).max(8),
 	id: z.string().min(1).max(64),
+	who: z.string().max(200).optional(),
 });
 
 /**
@@ -28,6 +29,8 @@ export const getLog = createServerFn({ method: "GET" })
 			month: monthKeySchema.optional(),
 			who: z.string().min(1).max(64).optional(),
 			kind: z.enum(LOG_ITEM_KINDS).optional(),
+			sort: z.enum(["when", "who"]).optional(),
+			desc: z.boolean().optional(),
 			after: cursorSchema.optional(),
 		}),
 	)
@@ -36,7 +39,14 @@ export const getLog = createServerFn({ method: "GET" })
 		const page = await loadLog(
 			getDb(),
 			{ householdId: household.id, memberId: context.parent.id },
-			{ month: data.month, memberId: data.who, item: data.kind, after: data.after },
+			{
+				month: data.month,
+				memberId: data.who,
+				item: data.kind,
+				// Newest first unless asked; by who, A to Z unless asked.
+				sort: { by: data.sort ?? "when", desc: data.desc ?? data.sort !== "who" },
+				after: data.after,
+			},
 		);
 		// Days in the Household's time zone, so server and browser render the same dates.
 		return {

@@ -83,8 +83,8 @@ describe("queryKeysFor", () => {
 		]);
 	});
 
-	test("a snapshot taken before a Rule was applied refetches the snapshot history, and nothing else", () => {
-		expect(queryKeysFor(["snapshots"])).toEqual([["snapshots"]]);
+	test("a snapshot taken before a Rule was applied refetches the snapshot history and the Log, and nothing else", () => {
+		expect(queryKeysFor(["snapshots"])).toEqual([["snapshots"], ["month", "log"]]);
 		expect(parseHouseholdChanges(householdChangesMessage(["snapshots"]))).toEqual(["snapshots"]);
 		// The history's own query is declared beside its page; the two keys must stay the same.
 		const page = readFileSync(
