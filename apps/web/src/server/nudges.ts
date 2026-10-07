@@ -45,6 +45,8 @@ export const saveNudgePreferences = createServerFn({ method: "POST" })
 			bucketPace: z.boolean(),
 			otherParentQuickAdds: z.boolean(),
 			windfalls: z.boolean(),
+			// On unless said: a page loaded before this Nudge existed doesn't send it.
+			balanceChecks: z.boolean().default(true),
 			quietHours: z.object({ start: minuteOfDay, end: minuteOfDay }).nullable(),
 			timeZone: timeZoneSchema,
 		}),

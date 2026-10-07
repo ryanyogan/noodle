@@ -76,6 +76,7 @@ export const HOUSEHOLD_TABLES = {
 	cardPaymentRules: s.cardPaymentRules,
 	categorizations: s.categorizations,
 	captureCards: s.captureCards,
+	balanceCheckAsks: s.balanceCheckAsks,
 	captureTokens: s.captureTokens,
 	checkIns: s.checkIns,
 	perkSources: s.perkSources,

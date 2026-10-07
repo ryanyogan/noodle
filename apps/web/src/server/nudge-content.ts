@@ -138,6 +138,49 @@ export function scheduleCheckInNudges(
 	});
 }
 
+const statementDay = (day: DayKey) =>
+	new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", {
+		month: "short",
+		day: "numeric",
+		timeZone: "UTC",
+	});
+
+/** A statement of a card kept by hand that has closed: the Balance check is due. */
+export type StatementClosed = { accountId: string; name: string; day: DayKey };
+
+/** The monthly Balance check: the card and the day its statement closed, never an amount. */
+export function balanceCheckNudge(statement: StatementClosed): NudgeMessage {
+	return {
+		kind: "balance-check",
+		title: `${statement.name}’s statement closed on ${statementDay(statement.day)}`,
+		body: "Type its balance to check nothing’s missing.",
+		// One per card per statement.
+		tag: `balance-check:${statement.accountId}:${statement.day}`,
+		url: `/accounts/${statement.accountId}`,
+	};
+}
+
+/**
+ * One Balance check Nudge per closed statement for each Parent who wants them, at `at` (9 AM on
+ * the day the nightly run finds it) or when their quiet hours end.
+ */
+export function scheduleBalanceCheckNudges(
+	recipients: readonly NudgeRecipient[],
+	statements: readonly StatementClosed[],
+	at: Date,
+): ScheduledNudge[] {
+	return recipients
+		.filter(({ preferences }) => wantsNudge(preferences, "balance-check"))
+		.flatMap(({ memberId, preferences }) => {
+			const deliverAt = nudgeDeliveryTime(at, preferences.quietHours, preferences.timeZone);
+			return statements.map((statement) => ({
+				memberId,
+				nudge: balanceCheckNudge(statement),
+				deliverAt: deliverAt.getTime(),
+			}));
+		});
+}
+
 /** What a Parent sees when they send themselves a test. */
 export const testNudge = (): NudgeMessage => ({
 	kind: "test",

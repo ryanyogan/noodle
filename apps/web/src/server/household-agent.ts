@@ -85,6 +85,11 @@ export class HouseholdAgent extends DurableObject<Env> {
 		this.broadcast(JSON.stringify({ freshStart: progress }));
 	}
 
+	/** Holds Nudges the nightly run decided (a statement's Balance check) until each is due. */
+	async holdNudges(householdId: string, nudges: ScheduledNudge[]): Promise<void> {
+		await this.nudges.hold(householdId, nudges);
+	}
+
 	/** Holds a week's Check-in Nudges until they're due; false when that week's were already taken. */
 	async checkIn(householdId: string, week: DayKey, nudges: ScheduledNudge[]): Promise<boolean> {
 		return this.nudges.checkIn(householdId, week, nudges);

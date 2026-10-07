@@ -153,6 +153,7 @@ describe("Nudge preferences and devices", () => {
 			bucketPace: false,
 			otherParentQuickAdds: true,
 			windfalls: true,
+			balanceChecks: false,
 			quietHours: { start: 22 * 60, end: 6 * 60 },
 			timeZone: "Europe/London",
 		};

@@ -1,5 +1,6 @@
 import {
 	type BalanceCheck,
+	cardKeptUnasked,
 	type DayKey,
 	PURCHASES_GET_IN,
 	type PurchasesGetIn,
@@ -14,13 +15,23 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
-import { purchasesHint, purchasesName, walletQuestionsQuery } from "../card-kept";
+import {
+	balanceChecksPutAwayQuery,
+	purchasesHint,
+	purchasesName,
+	walletQuestionsQuery,
+} from "../card-kept";
 import { formatMoney } from "../format";
 import { type AccountView, useGoals, useSetCardKept } from "../goals";
 import { goalsQuery, monthsKey } from "../queries";
-import { answerWalletCard, checkStatementBalance, dismissWalletCard } from "../server/card-kept";
+import {
+	answerWalletCard,
+	checkStatementBalance,
+	dismissWalletCard,
+	putAwayBalanceCheck,
+} from "../server/card-kept";
 import { AmountInput } from "./goals";
 import { markQuickAddOpened, quickAddSearch } from "./quick-add";
 
@@ -82,27 +93,6 @@ function CheckFound({ check, account }: { check: BalanceCheck; account: AccountV
 			.
 		</>
 	);
-}
-
-const DISMISSED_KEY = "noodle:balance-check:dismissed";
-
-/** The balance checks this device said "Not now" to, each as `account:statement day`. */
-function readDismissed(): string[] {
-	try {
-		const kept: unknown = JSON.parse(window.localStorage.getItem(DISMISSED_KEY) ?? "[]");
-		return Array.isArray(kept) ? kept.filter((k) => typeof k === "string") : [];
-	} catch {
-		return [];
-	}
-}
-
-function keepDismissed(keys: string[]) {
-	try {
-		// A statement's key is never asked about after its month: the last few are plenty.
-		window.localStorage.setItem(DISMISSED_KEY, JSON.stringify(keys.slice(-24)));
-	} catch {
-		// Private windows: it comes back on the next visit.
-	}
 }
 
 /**
@@ -275,9 +265,10 @@ function BalanceCheckForm({ account, today }: { account: AccountView; today: Day
 
 /**
  * On Accounts: the monthly balance check that's due on each card kept by hand (once per statement:
- * "Not now" puts it away on this device until the next one closes; the card's own page still
- * offers it), the cards no one has said how purchases get in for, and the Wallet cards captures
- * named that no Account is known for, each asked once.
+ * "Not now" puts it away for the Household, on every device, until the next one closes; the
+ * card's own page still offers it), the cards no one has said how purchases get in for (unless
+ * their statements came in lately), and the Wallet cards captures named that no Account is known
+ * for, each asked once.
  */
 export function CardNudges() {
 	const hydrated = useHydrated();
@@ -308,17 +299,27 @@ export function CardNudges() {
 		},
 		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
 	});
-	// Read after the page is live: what's put away is this device's, which the server can't know.
-	const [dismissed, setDismissed] = useState<string[] | null>(null);
-	useEffect(() => setDismissed(readDismissed()), []);
+	// Nothing shows until what's been put away is known, so a check put away never flashes.
+	const putAwayKey = balanceChecksPutAwayQuery().queryKey;
+	const putAway = useQuery(balanceChecksPutAwayQuery()).data;
+	const notNow = useMutation({
+		mutationFn: (data: { accountId: string; day: DayKey }) => putAwayBalanceCheck({ data }),
+		onMutate: async ({ accountId, day }) => {
+			await queryClient.cancelQueries({ queryKey: putAwayKey });
+			queryClient.setQueryData(putAwayKey, (kept: string[] | undefined) => [
+				...(kept ?? []),
+				`${accountId}:${day}`,
+			]);
+		},
+		onError: () => toast("Couldn’t put that away. Try again.", { tone: "error" }),
+		onSettled: () => queryClient.invalidateQueries({ queryKey: putAwayKey }),
+	});
 	const due = accounts.flatMap((account) => {
 		const day = checkDue(account, asOf);
-		return day && dismissed && !dismissed.includes(`${account.id}:${day}`)
-			? [{ account, day }]
-			: [];
+		return day && putAway && !putAway.includes(`${account.id}:${day}`) ? [{ account, day }] : [];
 	});
 	const cards = accounts.filter((a) => a.kind === "credit-card" && a.bankConnectionId === null);
-	const unasked = cards.filter((a) => a.purchases === null);
+	const unasked = cards.filter((a) => cardKeptUnasked(a, asOf));
 	if (due.length === 0 && unasked.length === 0 && (questions.length === 0 || cards.length === 0))
 		return null;
 	return (
@@ -343,11 +344,8 @@ export function CardNudges() {
 								size="sm"
 								variant="ghost"
 								aria-label={`Not now: ${account.name}’s balance check`}
-								onClick={() => {
-									const next = [...(dismissed ?? []), `${account.id}:${day}`];
-									setDismissed(next);
-									keepDismissed(next);
-								}}
+								disabled={!hydrated}
+								onClick={() => notNow.mutate({ accountId: account.id, day })}
 							>
 								Not now
 							</Button>

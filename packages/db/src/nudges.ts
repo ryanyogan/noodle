@@ -27,6 +27,7 @@ const toPreferences = (row: PreferencesRow | null, householdTimeZone: string): N
 				bucketPace: row.bucketPace,
 				otherParentQuickAdds: row.otherParentQuickAdds,
 				windfalls: row.windfalls,
+				balanceChecks: row.balanceChecks ?? true,
 				quietHours:
 					row.quietStart === null || row.quietEnd === null
 						? null
@@ -60,6 +61,7 @@ export async function saveNudgePreferences(
 		bucketPace: preferences.bucketPace,
 		otherParentQuickAdds: preferences.otherParentQuickAdds,
 		windfalls: preferences.windfalls,
+		balanceChecks: preferences.balanceChecks,
 		quietStart: preferences.quietHours?.start ?? null,
 		quietEnd: preferences.quietHours?.end ?? null,
 		timeZone: preferences.timeZone,

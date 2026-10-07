@@ -1,6 +1,7 @@
 import handler from "@tanstack/react-start/server-entry";
 import { CAPTURE_PATH } from "./capture-path";
 import { HOUSEHOLD_AGENT_PATH } from "./household-changes";
+import { startBalanceCheckNudges } from "./server/balance-check-nudges";
 // The Worker's entry: TanStack Start serves the app, and screens' WebSockets go to their
 // Household Agent, which the Worker must export. It also consumes the Nudge Queue, and its cron
 // starts each Household's Month-close Workflow (also exported); a nightly one looks for Insights,
@@ -102,6 +103,10 @@ export default {
 				console.error("Couldn’t start Perk re-checks", error),
 			);
 			await sweepExports(now).catch((error) => console.error("Couldn’t sweep downloads", error));
+			// A card kept by hand whose statement has closed: one Nudge per statement.
+			await startBalanceCheckNudges(now).catch((error) =>
+				console.error("Couldn’t ask for statement balances", error),
+			);
 			return startCheckIns(now);
 		}
 		return startMonthCloses(now);

@@ -91,8 +91,10 @@ describe("quiet hours", () => {
 });
 
 describe("preferences", () => {
-	it("defaults to Pace and Extra income, not the other Parent's Quick Adds, quiet overnight", () => {
+	it("defaults to Pace, Extra income and the Balance check, not the other Parent's Quick Adds, quiet overnight", () => {
 		const preferences = defaultNudgePreferences("America/Chicago");
+		expect(wantsNudge(preferences, "balance-check")).toBe(true);
+		expect(wantsNudge({ ...preferences, balanceChecks: false }, "balance-check")).toBe(false);
 		expect(wantsNudge(preferences, "bucket-pace")).toBe(true);
 		expect(wantsNudge(preferences, "windfall")).toBe(true);
 		expect(wantsNudge(preferences, "quick-add")).toBe(false);

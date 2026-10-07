@@ -14,12 +14,18 @@ import {
 	type Db,
 	dismissWalletCard,
 	importStatement,
+	isCardKeptByHand,
+	listBalanceCheckHouseholds,
+	loadBalanceChecksDue,
+	loadBalanceChecksPutAway,
 	loadGoals,
 	loadTransactionsPage,
 	loadWalletQuestions,
+	markBalanceChecksNudged,
 	markCardPayment,
 	owedNow,
 	owedSql,
+	putAwayBalanceCheck,
 	setCardKept,
 	setTakeHomePay,
 	updateAccountBalance,
@@ -301,7 +307,13 @@ describe("what's owed on a card kept by hand", () => {
 		// Listed for the card's page, under Payments.
 		const goals = await loadGoals(db, viewer);
 		expect(goals.sent).toEqual([
-			{ id: payment?.id, accountId: "apple", amount: 20_000, date: "2026-09-10" },
+			{
+				id: payment?.id,
+				accountId: "apple",
+				amount: 20_000,
+				date: "2026-09-10",
+				comesOff: true,
+			},
 		]);
 	});
 
@@ -378,5 +390,134 @@ describe("the monthly balance check", () => {
 				createdByMemberId: parentId,
 			}),
 		).toEqual({ ok: false });
+	});
+});
+
+describe("a Transfer to a card kept by statements", () => {
+	it("is listed for the card's page, and leaves what's owed to its statements", async () => {
+		await setCardKept(db, { householdId, accountId: "freedom", purchases: "statements" });
+		await balance("freedom-1", "freedom", 30_000, "2026-09-01");
+		await importLines("checking-1", "checking", [
+			spent("2026-09-10", 20_000, "CHASE CARD PAYMENT"),
+		]);
+		const [payment] = await db
+			.select({ id: s.transactions.id })
+			.from(s.transactions)
+			.where(eq(s.transactions.accountId, "checking"));
+		const marked = await markCardPayment(db, viewer, {
+			transferId: "transfer",
+			transactionId: payment?.id ?? "",
+			cardAccountId: "freedom",
+			ruleId: "rule",
+		});
+		expect(marked.ok).toBe(true);
+		const goals = await loadGoals(db, viewer);
+		expect(goals.sent).toEqual([
+			{
+				id: payment?.id,
+				accountId: "freedom",
+				amount: 20_000,
+				date: "2026-09-10",
+				comesOff: false,
+			},
+		]);
+		expect(goals.accounts.find((a) => a.id === "freedom")?.owed).toBe(30_000);
+		expect(await owedNow(db, { householdId, accountId: "freedom" })).toBe(30_000);
+	});
+});
+
+describe("asking for a statement's balance", () => {
+	const household = { id: householdId, timeZone: "America/Chicago" };
+	const due = (today: DayKey) => loadBalanceChecksDue(db, household, today);
+	const apple = { accountId: "apple", name: "Apple Card" };
+
+	beforeEach(async () => {
+		await balance("apple-1", "apple", 50_000, "2026-09-01");
+		await setCardKept(db, { householdId, accountId: "apple", purchases: "hand", statementDay: 30 });
+	});
+
+	it("is due once the statement has closed, on a card kept by hand with a statement day", async () => {
+		expect(await due("2026-09-29")).toEqual([]);
+		expect(await due("2026-10-01")).toEqual([
+			{ ...apple, day: "2026-09-30", nudged: false, putAway: false },
+		]);
+		expect(await listBalanceCheckHouseholds(db)).toEqual([household]);
+		// A card kept another way never is, whatever its statement day.
+		await setCardKept(db, {
+			householdId,
+			accountId: "freedom",
+			purchases: "statements",
+			statementDay: 30,
+		});
+		expect((await due("2026-10-01")).map((c) => c.accountId)).toEqual(["apple"]);
+	});
+
+	it("records its Nudge once per statement, however often it's asked", async () => {
+		const now = new Date("2026-10-01T09:00:00Z");
+		const first = await markBalanceChecksNudged(db, householdId, await due("2026-10-01"), now);
+		expect(first).toEqual([{ accountId: "apple", day: "2026-09-30" }]);
+		expect(await due("2026-10-02")).toEqual([
+			{ ...apple, day: "2026-09-30", nudged: true, putAway: false },
+		]);
+		expect(await markBalanceChecksNudged(db, householdId, await due("2026-10-02"), now)).toEqual(
+			[],
+		);
+	});
+
+	it("isn't due once the statement's balance is typed, and is again for the next statement", async () => {
+		await markBalanceChecksNudged(db, householdId, await due("2026-10-01"), new Date());
+		await checkStatementBalance(db, {
+			householdId,
+			accountId: "apple",
+			balanceId: "apple-2",
+			statementCents: 50_000,
+			asOf: "2026-09-30",
+			createdByMemberId: parentId,
+		});
+		expect(await due("2026-10-02")).toEqual([]);
+		expect(await due("2026-10-30")).toEqual([
+			{ ...apple, day: "2026-10-30", nudged: false, putAway: false },
+		]);
+	});
+
+	it("stays put away for the Household until the next statement closes", async () => {
+		expect(
+			await putAwayBalanceCheck(db, { householdId, accountId: "apple", day: "2026-09-30" }),
+		).toEqual({ ok: true });
+		expect(await loadBalanceChecksPutAway(db, householdId)).toEqual(["apple:2026-09-30"]);
+		expect(await due("2026-10-05")).toEqual([
+			{ ...apple, day: "2026-09-30", nudged: false, putAway: true },
+		]);
+		// Put away before its Nudge went: taking the Nudge later keeps it put away.
+		await markBalanceChecksNudged(db, householdId, await due("2026-10-05"), new Date());
+		expect((await due("2026-10-05"))[0]).toMatchObject({ nudged: true, putAway: true });
+		expect((await due("2026-10-30"))[0]).toMatchObject({
+			day: "2026-10-30",
+			nudged: false,
+			putAway: false,
+		});
+	});
+
+	it("can't be put away for another Household's card, or one not kept by hand", async () => {
+		expect(
+			await putAwayBalanceCheck(db, {
+				householdId: "other",
+				accountId: "apple",
+				day: "2026-09-30",
+			}),
+		).toEqual({ ok: false });
+		expect(
+			await putAwayBalanceCheck(db, { householdId, accountId: "freedom", day: "2026-09-30" }),
+		).toEqual({ ok: false });
+		expect(await loadBalanceChecksPutAway(db, householdId)).toEqual([]);
+	});
+
+	it("knows a card kept by hand from every other Account", async () => {
+		expect(await isCardKeptByHand(db, householdId, "apple")).toBe(true);
+		// Not asked about, purchases never get in, a checking Account, another Household's.
+		expect(await isCardKeptByHand(db, householdId, "freedom")).toBe(false);
+		expect(await isCardKeptByHand(db, householdId, "store")).toBe(false);
+		expect(await isCardKeptByHand(db, householdId, "checking")).toBe(false);
+		expect(await isCardKeptByHand(db, "other", "apple")).toBe(false);
 	});
 });

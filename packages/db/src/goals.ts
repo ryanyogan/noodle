@@ -30,6 +30,7 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import type { ArchivedAccount } from "./account-archive";
 import { counts, countsRaw } from "./counting";
 import type { Db } from "./index";
@@ -561,6 +562,39 @@ const byHandQueries = (db: Db, householdId: string, accountId?: string) =>
 			),
 	] as const;
 
+const transferIn = alias(transactions, "transfer_in");
+
+/**
+ * Every payment marked as a Transfer to one of the Household's cards or loans, however the card
+ * is kept: one naming the card alone (its card side isn't in Noodle), and one paired with the
+ * card's own line from its bank or statement. For the card's page; only byHandQueries' move
+ * what's owed.
+ */
+const cardTransfersQuery = (db: Db, householdId: string) =>
+	db
+		.select({
+			id: transactions.id,
+			accountId: sql<string>`coalesce(${transferIn.accountId}, ${transfers.otherAccountId})`.as(
+				"card_id",
+			),
+			amount: transactions.amountCents,
+			date: transactions.date,
+		})
+		.from(transfers)
+		.innerJoin(transactions, eq(transactions.id, transfers.outTransactionId))
+		.leftJoin(transferIn, eq(transferIn.id, transfers.inTransactionId))
+		.innerJoin(
+			accounts,
+			sql`${accounts.id} = coalesce(${transferIn.accountId}, ${transfers.otherAccountId})`,
+		)
+		.where(
+			and(
+				eq(transfers.householdId, householdId),
+				isNull(transfers.removedAt),
+				inArray(accounts.kind, ["credit-card", "loan"]),
+			),
+		);
+
 /**
  * What's owed now on one of the Household's Accounts (owedOn), and its latest balance's day.
  * With `upTo`, what was owed at the end of that day: later payments and purchases are left out.
@@ -1090,10 +1124,11 @@ export type GoalRecords = {
 	 */
 	payments: (OwedPayment & { id: string; accountId: string; commitmentId: string })[];
 	/**
-	 * The payments marked as a Transfer naming a card kept by hand (issue 136), whose card side
-	 * Noodle can't see; `id` is the paying Transaction's. Optional so older fixtures needn't say.
+	 * The payments marked as a Transfer to a card or loan, however it's kept; `id` is the paying
+	 * Transaction's. `comesOff` on those that bring what's owed down: one naming a card kept by
+	 * hand, whose card side Noodle can't see (issue 136). Optional so older fixtures needn't say.
 	 */
-	sent?: (OwedPayment & { id: string; accountId: string })[];
+	sent?: (OwedPayment & { id: string; accountId: string; comesOff?: boolean })[];
 	/** The Goal the Household keeps for emergencies, if it has marked one. */
 	emergencyGoalId: string | null;
 	/**
@@ -1124,6 +1159,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 		splitPaymentRows,
 		boughtRows,
 		sentRows,
+		cardTransferRows,
 	] = await db.batch([
 		db
 			.select({
@@ -1224,6 +1260,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			.orderBy(desc(accounts.archivedAt), asc(accounts.id)),
 		...paymentQueries(db, householdId),
 		...byHandQueries(db, householdId),
+		cardTransfersQuery(db, householdId),
 	]);
 	const spendingRows = [
 		...wholeRows,
@@ -1320,8 +1357,14 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 				day: balanceDay(row, timeZone),
 			})),
 		payments,
-		sent: (sentRows as (OwedPayment & { id: string; accountId: string })[]).map(
-			({ id, accountId, amount, date }) => ({ id, accountId, amount, date }),
+		sent: (cardTransferRows as (OwedPayment & { id: string; accountId: string })[]).map(
+			({ id, accountId, amount, date }) => ({
+				id,
+				accountId,
+				amount,
+				date,
+				comesOff: sentRows.some((row) => row.id === id),
+			}),
 		),
 		emergencyGoalId: householdRows[0]?.emergencyGoalId ?? null,
 		archivedAccounts: archivedRows.map((row) => ({
