@@ -90,7 +90,7 @@ async function listClearOf(page: Page, panelLeft: number, what: string) {
 	const hidden = await list(page).evaluate((pane, left) => {
 		const out: string[] = [];
 		for (const part of pane.querySelectorAll<HTMLElement>(
-			"a[href], button, [data-slot=list-row] *",
+			"a[href], button, [data-slot=list-row] *, [role=columnheader], [data-column]",
 		)) {
 			const box = part.getBoundingClientRect();
 			if (box.width === 0 || box.height === 0) continue;
@@ -461,28 +461,48 @@ test("a Bucket's row opens it in the panel and the table keeps its width and eve
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	const box = await settled(page, 1440);
 	expect(box.width).toBe(436);
-	// The list and the table are exactly where and as wide as they were, with the same columns.
-	expect(await list(page).boundingBox()).toEqual(listBefore);
-	expect(await table.boundingBox()).toEqual(tableBefore);
-	await expect(table.getByRole("columnheader", { name: "Left", exact: true })).toBeVisible();
+	// The panel covers none of the table's columns (ADR-0047). With no rail to lie over, the page
+	// gives it a rail's width while it is open: the list starts where it did and ends 16px short of
+	// the panel, and the table drops the columns that no longer fit (the last two) rather than have
+	// them under the panel.
+	const listOpen = await list(page).boundingBox();
+	expect(listOpen?.x).toBe(listBefore?.x);
+	expect((listOpen?.x ?? 0) + (listOpen?.width ?? 0)).toBe(box.x - 16);
+	for (const name of ["Bucket", "Allowance", "Spent", "Left"]) {
+		await expect(table.getByRole("columnheader", { name, exact: true })).toBeVisible();
+	}
+	for (const name of ["Pace", "End of month"]) {
+		await expect(table.getByRole("columnheader", { name, exact: true })).toBeHidden();
+	}
+	await expect(page.getByRole("button", { name: "Edit Gas", exact: true })).toBeVisible();
+	await listClearOf(page, box.x, "A Bucket at 1440");
 	await expect(bucketRow(page, "Gas")).toHaveAttribute("aria-current", "true");
-	// With no rail to cover (issue 139) the panel is over the table's right-hand columns. Whether
-	// it should be a drawer there instead is open (ADR-0047 has it cover none of the list's
-	// columns); what holds either way is that every Bucket's name stays clear of it.
-	const names = await table.evaluate((node) =>
-		[...node.querySelectorAll<HTMLElement>("[data-column=bucket]")].map(
-			(part) => part.getBoundingClientRect().right,
-		),
-	);
-	expect(Math.max(...names), "the names' column ends before the panel").toBeLessThanOrEqual(
-		box.x + 0.5,
-	);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1440);
 	await axe(page, "A Bucket in its panel");
 
-	// Esc closes it.
+	// Esc closes it, and the table has the page's width and every column again.
 	await page.keyboard.press("Escape");
 	await expect(page).toHaveURL(bucketsAddress);
 	await expect(panel(page)).toHaveCount(0);
+	expect(await list(page).boundingBox()).toEqual(listBefore);
+	expect(await table.boundingBox()).toEqual(tableBefore);
+	await expect(
+		table.getByRole("columnheader", { name: "End of month", exact: true }),
+	).toBeVisible();
+
+	// On a wide screen the same holds, and what is left beside the panel has room for every column.
+	await page.setViewportSize({ width: 1920, height: 1000 });
+	await bucketRow(page, "Gas").locator("[data-column=spent]").click();
+	await expect(title(page)).toHaveText("Gas");
+	await expect(page.getByRole("dialog")).toHaveCount(0);
+	const wide = await settled(page, 1920);
+	for (const name of ["Bucket", "Allowance", "Spent", "Left", "Pace", "End of month"]) {
+		await expect(table.getByRole("columnheader", { name, exact: true })).toBeVisible();
+	}
+	await listClearOf(page, wide.x, "A Bucket at 1920");
+	await page.keyboard.press("Escape");
+	await expect(panel(page)).toHaveCount(0);
+	await page.setViewportSize({ width: 1440, height: 900 });
 
 	// Enter on a row in focus opens it too.
 	await bucketRow(page, "Fun").focus();
@@ -541,13 +561,16 @@ test("Buckets is a table from 1024 with the totals under it; a Bucket is a drawe
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
 			width,
 		);
-		// With no rail beside the table, a Bucket is a drawer over the dimmed page.
+		// Too narrow to give a panel room beside the table: a Bucket is a drawer over the dimmed
+		// page, and the table under the scrim keeps its width and its columns.
+		const before = await table.boundingBox();
 		await bucketRow(page, "Gas").locator("[data-column=spent]").click();
 		await expect(page).toHaveURL(bucketAddress);
 		await expect(title(page)).toHaveText("Gas");
 		expect((await settled(page, width)).width).toBe(480);
 		await expect(panel(page)).toHaveAttribute("role", "dialog");
 		await expect(page.locator("[data-panel-scrim]")).toBeVisible();
+		expect(await table.boundingBox()).toEqual(before);
 		await page.keyboard.press("Escape");
 		await expect(page).toHaveURL(bucketsAddress);
 		await expect(panel(page)).toHaveCount(0);

@@ -99,10 +99,13 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	);
 	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current]")).toHaveCount(1);
 	// The Bucket is in a panel on the window's right edge (issue 107), the height of the window;
-	// the list is as wide as it was.
+	// with no rail to lie over, the page gives it a rail's width, so it covers none of the list.
 	await expect(detail(page)).toHaveAttribute("aria-label", "Bucket details");
-	expect((await detail(page).boundingBox())?.y).toBe(0);
-	expect((await list(page).boundingBox())?.width).toBe(widthBefore);
+	const panelBox = await detail(page).boundingBox();
+	expect(panelBox?.y).toBe(0);
+	const listBox = await list(page).boundingBox();
+	expect(listBox?.width).toBeLessThan(widthBefore ?? 0);
+	expect((listBox?.x ?? 0) + (listBox?.width ?? 0)).toBeLessThanOrEqual((panelBox?.x ?? 0) - 16);
 	await axe(page, "A Bucket in its panel");
 
 	// Previous and next are in the panel's header; Back is the phone's.

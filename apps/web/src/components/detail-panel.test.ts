@@ -218,6 +218,21 @@ describe("ListWithPanel", () => {
 		expect(tag(closed, "master-detail-list")).not.toContain("max-lg:hidden");
 	});
 
+	it("with no rail, keeps a rail's width clear for the panel only while an item is open beside the list", () => {
+		const grid = (html: string) => tag(html, "master-detail").match(/class="([^"]*)"/)?.[1];
+		const closed = renderToStaticMarkup(h(ListWithPanel, { ...base, list: "rows" }));
+		expect(grid(closed)).not.toContain("var(--rail-width)");
+		// The Plan's first page: a drawer up to 1440 (the list keeps the page), beside it from there.
+		const late = renderToStaticMarkup(
+			h(ListWithPanel, { ...base, list: "rows", detail: "Gas", besideFrom: "late" }),
+		);
+		expect(grid(late)).toContain("min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]");
+		expect(grid(late)).not.toMatch(/(^| )(lg|xl):grid-cols/);
+		const xl = renderToStaticMarkup(h(ListWithPanel, { ...base, list: "rows", detail: "Gas" }));
+		expect(grid(xl)).toContain("xl:grid-cols-[minmax(0,1fr)_var(--rail-width)]");
+		expect(grid(xl)).not.toMatch(/(^| )lg:grid-cols/);
+	});
+
 	it("opens the item as a labelled region on the right edge, sized by the layout", () => {
 		const html = renderToStaticMarkup(
 			h(ListWithPanel, { ...base, list: "rows", detail: "Rent", size: "wide", close: "x" }),

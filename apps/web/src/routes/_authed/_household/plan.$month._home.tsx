@@ -115,9 +115,11 @@ function PlanHome() {
 		<PlanMasterDetail
 			noun="Bucket"
 			listLabel="The Plan"
-			// A Bucket opens in a panel from the right; the page keeps its width and the table every
-			// column. There is no rail: the Plan's figures are the split's, the Buckets' totals are
-			// the table's last row, and what changed is the Log in Household settings (issue 139).
+			// There is no rail: the Plan's figures are the split's, the Buckets' totals are the
+			// table's last row, and what changed is the Log in Household settings (issue 139). So
+			// with nothing open the page has its whole width and the table every column. A Bucket
+			// opens in a panel from the right: a drawer up to 1440, and from there beside the page,
+			// which gives it a rail's width (the table drops the columns that no longer fit).
 			// Closing leaves the page where it is scrolled, so the address has no hash.
 			panel={{
 				size: "wide",

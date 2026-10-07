@@ -390,6 +390,10 @@ function DetailPanel({
  * item is a `DetailPanel` over them. Below lg it shows one level at a time: the list and then the
  * rail, or the item as ordinary page content.
  *
+ * A list with no rail has the page's whole width with nothing picked. While an item is open beside
+ * it (not as a drawer), the list gives up a rail's width, so the panel has the same room as on a
+ * page with a rail and covers none of the list's columns.
+ *
  * A row's link to its item carries `data-md-item` (the app's `masterDetailItem`), as in
  * MasterDetail; the router's `aria-current` on it is how the open item's row is known.
  */
@@ -419,6 +423,7 @@ function ListWithPanel({
 	/**
 	 * `late`: the list has the page's whole width up to 1440 with the rail under it, and the rail is
 	 * beside it only from there (a table that needs the room). The item is a drawer until then.
+	 * With no rail at all, the list has the page's width at every width while nothing is picked.
 	 */
 	besideFrom?: BesideFrom;
 	/**
@@ -449,7 +454,16 @@ function ListWithPanel({
 						? besideFrom === "late"
 							? "min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
 							: "lg:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
-						: null,
+						: // No rail (issue 139): the list has the page's whole width, and a panel beside it
+							// would lie over its right-hand columns. So while an item is open beside the list,
+							// the rail's column is kept empty for the panel, exactly as wide as a rail would
+							// be: the list is one column narrower, a table drops the columns that no longer
+							// fit, and nothing that is left is covered. As a drawer the list keeps its width.
+							picked
+							? besideFrom === "late"
+								? "min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
+								: "xl:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
+							: null,
 				className,
 			)}
 			{...props}
