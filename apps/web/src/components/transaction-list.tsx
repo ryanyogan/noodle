@@ -15,6 +15,7 @@ import type { MemberSummary } from "../members";
 import { membersQuery, monthQuery } from "../queries";
 import { rowView } from "../transaction-row";
 import {
+	dateChange,
 	monthOfTransaction,
 	type TransactionRow,
 	transactionLabel,
@@ -240,6 +241,11 @@ export function EditTransactionSheet({
 			onChange={(next) => {
 				if (!transaction) return;
 				change.mutate({ transaction, label: transactionLabel(transaction), next });
+				onClose();
+			}}
+			onDate={(date) => {
+				if (!transaction) return;
+				change.mutate(dateChange(transaction, date));
 				onClose();
 			}}
 		/>

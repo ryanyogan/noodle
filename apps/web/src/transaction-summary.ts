@@ -57,11 +57,11 @@ export const monthIncome = (moneyIn: Line[]): number =>
 export function summaryAfterChange<T extends { outCents: number; needsReview?: number }>(
 	summary: T,
 	was: { amountCents: number; transfer: unknown; partlyPrivate?: boolean; waits?: boolean },
-	next: { amountCents: number } | { rename: string } | { for: string[] } | null,
+	next: { amountCents: number } | { rename: string } | { for: string[] } | { date: string } | null,
 ): T {
 	if (was.transfer !== null || was.partlyPrivate) return summary;
 	// A new name, or only who it is For: no money moves, and one that waits in Review still does.
-	if (next && ("rename" in next || "for" in next)) return summary;
+	if (next && ("rename" in next || "for" in next || "date" in next)) return summary;
 	const outCents = summary.outCents - was.amountCents + (next?.amountCents ?? 0);
 	// Filed, split or deleted from the list: it waits in Review no longer (issue 141).
 	return was.waits && summary.needsReview !== undefined

@@ -1,9 +1,13 @@
 import { forTotals, monthState } from "@noodle/domain";
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, test } from "vitest";
+import { monthQuery } from "./queries";
 import type { MonthData } from "./server/month";
 import {
+	accountTransactionsQuery,
 	applyTransactionChange,
+	dateChange,
+	dateRefusedText,
 	monthOfTransaction,
 	nameGiven,
 	type TransactionChange,
@@ -69,6 +73,8 @@ const skates: TransactionRow = {
 	autoFiled: null,
 	version: 0,
 };
+
+const monthQueryKey = (key: Parameters<typeof monthQuery>[0]) => monthQuery(key).queryKey;
 
 const change = (next: TransactionChange["next"]): TransactionChange => ({
 	transaction: skates,
@@ -332,5 +338,152 @@ describe("nameGiven: only a Parent's own typing names an imported Transaction", 
 		expect(nameGiven(" ", "Big shop", "Costco")).toBe("Costco");
 		expect(nameGiven("", "Costco", "Costco")).toBeNull();
 		expect(nameGiven("", "", "")).toBeNull();
+	});
+});
+
+describe("a change of date (issue 148)", () => {
+	const costco: TransactionRow = {
+		...skates,
+		id: "costco",
+		date: "2026-09-13",
+		amountCents: 18_642,
+	};
+	const older: TransactionRow = { ...skates, id: "older", date: "2026-09-02", amountCents: 500 };
+	const pages = (rows: TransactionRow[]) => ({
+		pageParams: [undefined],
+		pages: [
+			{
+				transactions: rows,
+				next: null,
+				total: null,
+				summary: { outCents: 25_641, needsReview: 0 },
+			},
+		],
+	});
+	const ids = (data: unknown) =>
+		(data as ReturnType<typeof pages>).pages.flatMap((page) => page.transactions.map((r) => r.id));
+	const rowIn = (data: unknown, id: string) =>
+		(data as ReturnType<typeof pages>).pages
+			.flatMap((page) => page.transactions)
+			.find((row) => row.id === id);
+
+	test("within the month: the row moves to its new day, and its spending stays in its Bucket", () => {
+		const moved = withRowChange(
+			pages([costco, skates, older]) as never,
+			change({ date: "2026-09-01" }),
+		);
+		expect(ids(moved)).toEqual(["costco", "older", "skates"]);
+		expect(rowIn(moved, "skates")?.date).toBe("2026-09-01");
+		// The list's Money out is the same: nothing left it.
+		expect(moved.pages[0]?.summary).toEqual({ outCents: 25_641, needsReview: 0 });
+
+		const data = withTransactionChange(month, change({ date: "2026-09-01" }));
+		expect(data.spending.find((spend) => spend.id === "skates")?.date).toBe("2026-09-01");
+		expect(spentIn(data)).toEqual(spentIn(month));
+	});
+
+	test("to a later day it goes above the rows before it", () => {
+		const moved = withRowChange(
+			pages([costco, skates, older]) as never,
+			change({ date: "2026-09-14" }),
+		);
+		expect(ids(moved)).toEqual(["skates", "costco", "older"]);
+	});
+
+	test("a list in another order keeps its order: only the day changes", () => {
+		const moved = withRowChange(
+			pages([older, costco, skates]) as never,
+			change({ date: "2026-09-01" }),
+		);
+		expect(ids(moved)).toEqual(["older", "costco", "skates"]);
+		expect(rowIn(moved, "skates")?.date).toBe("2026-09-01");
+	});
+
+	test("one from a bank keeps the bank's day beside it, and loses it when put back", () => {
+		const bank = { ...skates, importedFrom: "bank" } as TransactionRow;
+		const moved = withRowChange(pages([bank]) as never, {
+			...change({ date: "2026-09-10" }),
+			transaction: bank,
+		});
+		expect(rowIn(moved, "skates")).toMatchObject({ date: "2026-09-10", bankDate: "2026-09-12" });
+		const back = withRowChange(moved, {
+			...change({ date: "2026-09-12" }),
+			transaction: rowIn(moved, "skates") as TransactionRow,
+		});
+		expect(rowIn(back, "skates")).toMatchObject({ date: "2026-09-12", bankDate: null });
+		// One typed in simply changes.
+		expect(
+			rowIn(withRowChange(pages([skates]) as never, change({ date: "2026-09-10" })), "skates")
+				?.bankDate ?? null,
+		).toBeNull();
+	});
+
+	test("out of the month: it leaves that month's lists and spending, and stays in lists of several months at its new day", async () => {
+		const queryClient = new QueryClient();
+		const itsMonth = monthOfTransaction(skates);
+		const monthKey = monthQueryKey(itsMonth);
+		const listKey = transactionsQuery(itsMonth, {}).queryKey;
+		const rangeKey = transactionsQuery(itsMonth, { range: "3m" } as never).queryKey;
+		const accountKey = accountTransactionsQuery("checking").queryKey;
+		const list = pages([costco, skates, older]);
+		queryClient.setQueryData(monthKey, month as never);
+		queryClient.setQueryData(listKey, list as never);
+		queryClient.setQueryData(rangeKey, list as never);
+		queryClient.setQueryData(accountKey, list as never);
+
+		const putBack = await applyTransactionChange(queryClient, change({ date: "2026-08-30" }));
+		expect(ids(queryClient.getQueryData(listKey))).toEqual(["costco", "older"]);
+		expect(
+			(queryClient.getQueryData(listKey) as ReturnType<typeof pages>).pages[0]?.summary.outCents,
+		).toBe(25_641 - 6_499);
+		expect(ids(queryClient.getQueryData(rangeKey))).toEqual(["costco", "older", "skates"]);
+		expect(ids(queryClient.getQueryData(accountKey))).toEqual(["costco", "older", "skates"]);
+		expect(rowIn(queryClient.getQueryData(rangeKey), "skates")?.date).toBe("2026-08-30");
+		const data = queryClient.getQueryData(monthKey) as MonthData;
+		expect(data.spending.map((spend) => spend.id)).toEqual(["costco"]);
+
+		// Refused, or it failed: everything is as it was.
+		putBack();
+		expect(queryClient.getQueryData(listKey)).toEqual(list);
+		expect(queryClient.getQueryData(rangeKey)).toEqual(list);
+		expect(queryClient.getQueryData(accountKey)).toEqual(list);
+		expect(queryClient.getQueryData(monthKey)).toEqual(month);
+	});
+
+	test("within the month it is put back where it was when the change fails", async () => {
+		const queryClient = new QueryClient();
+		const listKey = transactionsQuery(monthOfTransaction(skates), {}).queryKey;
+		const list = pages([costco, skates, older]);
+		queryClient.setQueryData(listKey, list as never);
+		const putBack = await applyTransactionChange(queryClient, change({ date: "2026-09-01" }));
+		expect(ids(queryClient.getQueryData(listKey))).toEqual(["costco", "older", "skates"]);
+		putBack();
+		expect(queryClient.getQueryData(listKey)).toEqual(list);
+	});
+
+	test("what the Parent is told: the day, and the month when it left the one it was in", () => {
+		expect(dateChange(skates, "2026-09-01")).toMatchObject({
+			next: { date: "2026-09-01" },
+			said: "Moved to Sep 1",
+			back: { date: "2026-09-12" },
+		});
+		expect(dateChange(skates, "2026-08-30").said).toBe("Moved to Aug 30 · August");
+	});
+
+	test("each refusal says why in plain words", () => {
+		const to = {
+			...change({ date: "2026-08-30" }),
+			transaction: { ...skates, assignedName: "Hockey" },
+		};
+		expect(dateRefusedText(to, "month-closed", "2026-08")).toBe(
+			"August is closed, so nothing moves into or out of it.",
+		);
+		expect(dateRefusedText(to, "future")).toBe("A Transaction can’t be dated after today.");
+		expect(dateRefusedText(to, "not-in-plan")).toBe(
+			"Hockey wasn’t in August’s Plan, so it can’t count there. File it somewhere else first.",
+		);
+		expect(dateRefusedText({ ...to, next: { date: "2026-09-20" } }, "refund-order")).toBe(
+			"Its Refund would come before it. Move the Refund first.",
+		);
 	});
 });

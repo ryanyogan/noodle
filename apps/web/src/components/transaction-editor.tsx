@@ -8,6 +8,7 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Combobox } from "@noodle/ui/components/combobox";
+import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
@@ -25,7 +26,7 @@ import { Clock, Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-rea
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { cantSaveSentence, isUnassigned, noSplitSentence, nothingToFileIn } from "../before-plan";
-import { dayName, formatMoney, formatMoneyInput } from "../format";
+import { dayName, formatMoney, formatMoneyInput, shortDay } from "../format";
 import { forLabel, type MemberSummary } from "../members";
 import type { ReviewItem } from "../review";
 import { PENDING_MEANS } from "../transaction-row";
@@ -100,6 +101,7 @@ export function TransactionEditor({
 	members,
 	parentId,
 	onChange,
+	onDate,
 	onClose,
 	splitting = false,
 	layout = "side",
@@ -114,6 +116,11 @@ export function TransactionEditor({
 	/** The Parent looking. */
 	parentId: string;
 	onChange: (next: TransactionEdit | null) => void;
+	/**
+	 * Moves it to another day (issue 148); without this the form has no Date field. `alone`: the
+	 * date is all that changed, so nothing else was sent and closing the editor is left to this.
+	 */
+	onDate?: (date: DayKey, alone: boolean) => void;
 	onClose: () => void;
 	/** Opens on splitting it, as Review's card's Split does. */
 	splitting?: boolean;
@@ -136,6 +143,7 @@ export function TransactionEditor({
 						members={members}
 						parentId={parentId}
 						onChange={onChange}
+						onDate={onDate}
 						onClose={onClose}
 						splitting={splitting}
 						paymentOptions={paymentOptions}
@@ -161,6 +169,7 @@ export function TransactionBody({
 	members,
 	parentId,
 	onChange,
+	onDate,
 	onClose,
 	heading,
 	inline = false,
@@ -175,6 +184,7 @@ export function TransactionBody({
 	members: MemberSummary[];
 	parentId: string;
 	onChange: (next: TransactionEdit | null) => void;
+	onDate?: (date: DayKey, alone: boolean) => void;
 	onClose: () => void;
 	heading: (title: string, description: string) => ReactNode;
 	inline?: boolean;
@@ -223,6 +233,7 @@ export function TransactionBody({
 			plan={plan}
 			members={members}
 			onChange={onChange}
+			onDate={onDate}
 			onClose={onClose}
 			inline={inline}
 			wide={wide}
@@ -307,6 +318,7 @@ function EditForm({
 	plan,
 	members,
 	onChange,
+	onDate,
 	onClose,
 	inline,
 	wide,
@@ -317,6 +329,7 @@ function EditForm({
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
 	onChange: (next: TransactionEdit | null) => void;
+	onDate?: (date: DayKey, alone: boolean) => void;
 	onClose: () => void;
 	/** In a pane, not a sheet: Cancel closes the pane. */
 	inline: boolean;
@@ -359,6 +372,11 @@ function EditForm({
 	// taken for theirs (issue 147).
 	const [typedName, setName] = useState<string | null>(null);
 	const name = typedName ?? calledNow;
+	// The day it counts on. One from a bank or a statement keeps the bank's own day, said under the
+	// field whenever the two differ, with the way back to it (issue 148).
+	const [date, setDate] = useState(transaction.date as DayKey);
+	const banksDay = fromBank ? ((transaction.bankDate ?? transaction.date) as DayKey) : null;
+	const redated = date !== transaction.date;
 	const amountCents = parseDollars(amount);
 	const remainder =
 		splits && amountCents
@@ -480,8 +498,14 @@ function EditForm({
 
 	function save(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
+		// Only its day: nothing else is sent, not its name and not where it's filed, so a line that
+		// isn't filed anywhere yet can be moved too (issue 148).
+		if (redated && onDate && !dirty()) return onDate(date, true);
 		const next = edited();
-		if (next) onChange(next);
+		if (!next) return;
+		onChange(next);
+		// After the rest, so the day is changed on the version the edit leaves.
+		if (redated) onDate?.(date, false);
 	}
 
 	const choices: Choices = [
@@ -647,6 +671,39 @@ function EditForm({
 							)}
 						</Field>
 					)}
+					{onDate ? (
+						<Field
+							label="Date"
+							htmlFor="transaction-date"
+							hint={
+								banksDay && date !== banksDay ? (
+									<span
+										className="flex flex-wrap items-baseline gap-x-2"
+										data-testid="bank-date-hint"
+									>
+										<span>From your bank: {shortDay(banksDay)}</span>
+										<Button
+											type="button"
+											variant="link"
+											size="inline"
+											disabled={!hydrated}
+											onClick={() => setDate(banksDay)}
+										>
+											Put it back
+										</Button>
+									</span>
+								) : undefined
+							}
+						>
+							<DatePicker
+								id="transaction-date"
+								required
+								max={today}
+								value={date}
+								onChange={(day) => (day ? setDate(day as DayKey) : undefined)}
+							/>
+						</Field>
+					) : null}
 				</div>
 				{invalid === "amount" ? (
 					<FormError>Enter the amount in dollars, like 12 or 85.50.</FormError>

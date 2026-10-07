@@ -13,6 +13,7 @@ import { membersQuery, monthQuery } from "../../../queries";
 import { ShownFilters } from "../../../transaction-filters-shown";
 import { animateTransactionClose } from "../../../transaction-motion";
 import {
+	dateChange,
 	monthOfTransaction,
 	nameOf,
 	transactionLabel,
@@ -213,6 +214,14 @@ function TransactionPane() {
 					// close slowly. Staying at its address meanwhile would ask for it again by its ID.
 					if (next === null) leave();
 					else close();
+				}}
+				onDate={(date, alone) => {
+					change.mutate(dateChange(transaction, date));
+					// Dated out of the month shown: its row has left the list and this pane with it, as
+					// a deleted one's does, so there is nothing to close slowly. A list of several months
+					// keeps the row, on its new day.
+					if (!ranged && date.slice(0, 7) !== monthOfTransaction(transaction)) leave();
+					else if (alone) close();
 				}}
 			/>
 			{/* Someone outside the Household paying part of it back (issue 132). */}

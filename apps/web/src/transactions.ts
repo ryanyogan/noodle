@@ -5,7 +5,13 @@ import type {
 	TransactionRow,
 	TransactionSort,
 } from "@noodle/db";
-import { assignedParts, canAssign, displayMerchant, type MonthKey } from "@noodle/domain";
+import {
+	assignedParts,
+	canAssign,
+	type DayKey,
+	displayMerchant,
+	type MonthKey,
+} from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import {
 	type InfiniteData,
@@ -17,12 +23,13 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { formatMoney } from "./format";
+import { formatMoney, monthName, shortDay } from "./format";
 import { monthChangeKey } from "./plan-changes";
 import { bucketUsesQuery, forTotalsEarlierKey, monthQuery, monthsKey } from "./queries";
 import { reviewWrites } from "./review-stack";
 import type { MonthData } from "./server/month";
 import {
+	changeTransactionDate,
 	deleteTransaction,
 	getRangeBuckets,
 	getSameMerchant,
@@ -179,19 +186,83 @@ export type TransactionRename = { rename: string };
  */
 export type TransactionFor = { for: string[] };
 
+/**
+ * Only the day it counts on (issue 148, ADR-0060): it moves to that day, and that day's month,
+ * everywhere. Nothing else about it changes, so one that isn't filed anywhere yet can be moved too.
+ */
+export type TransactionDate = { date: DayKey };
+
+/** Every change that keeps the Transaction: an edit, or one thing about it alone. */
+type TransactionNext = TransactionEdit | TransactionRename | TransactionFor | TransactionDate;
+
 /** A change to one Transaction: new values for what a Parent can edit, or `null` to delete it. */
 export type TransactionChange = {
 	transaction: TransactionRow;
 	/** What it's called in messages: its transactionLabel from before the change. */
 	label: string;
-	next: TransactionEdit | TransactionRename | TransactionFor | null;
+	next: TransactionNext | null;
 	/** A delete the Parent was already told about, with its Undo: nothing more is said when it lands. */
 	quiet?: boolean;
 	/** What to say once it has saved, instead of "… saved" (a cell's rename or refile). */
 	said?: string;
 	/** With `said`: the change that puts it back, offered as the message's Undo. */
-	back?: TransactionEdit | TransactionRename | TransactionFor | null;
+	back?: TransactionNext | null;
 };
+
+/** The month a change of date lands the Transaction in, when that isn't the one it is in. */
+const leavesFor = (change: TransactionChange): MonthKey | null => {
+	const { next, transaction } = change;
+	if (!next || !("date" in next)) return null;
+	const to = next.date.slice(0, 7) as MonthKey;
+	return to === transaction.date.slice(0, 7) ? null : to;
+};
+
+/**
+ * A Parent's change of a Transaction's date, with what they are told once it has saved ("Moved to
+ * Sep 30", and the month when it left the one it was in) and the Undo that puts the day back.
+ */
+export function dateChange(transaction: TransactionRow, date: DayKey): TransactionChange {
+	const change: TransactionChange = {
+		transaction,
+		label: transactionLabel(transaction),
+		next: { date },
+		back: { date: transaction.date as DayKey },
+	};
+	const to = leavesFor(change);
+	return { ...change, said: `Moved to ${shortDay(date)}${to ? ` · ${monthName(to)}` : ""}` };
+}
+
+/** Why the server left a Transaction's date as it was (ADR-0060). Sending it again won't help. */
+export type DateRefusal = "month-closed" | "future" | "not-in-plan" | "refund-order";
+export class DateRefused extends Error {
+	constructor(
+		readonly reason: DateRefusal,
+		/** The closed month, for "month-closed". */
+		readonly month?: MonthKey,
+	) {
+		super(reason);
+		this.name = "DateRefused";
+	}
+}
+
+/** Why a Transaction stayed on its day, said plainly. */
+export function dateRefusedText(
+	{ transaction, next }: Pick<TransactionChange, "transaction" | "next">,
+	reason: DateRefusal,
+	closed?: MonthKey,
+) {
+	const date = next && "date" in next ? next.date : transaction.date;
+	const landing = monthName(date.slice(0, 7));
+	if (reason === "month-closed")
+		return `${closed ? monthName(closed) : landing} is closed, so nothing moves into or out of it.`;
+	if (reason === "future") return "A Transaction can’t be dated after today.";
+	if (reason === "not-in-plan")
+		return `${transaction.assignedName || "What it’s filed in"} wasn’t in ${landing}’s Plan, so it can’t count there. File it somewhere else first.`;
+	// A Refund comes after its purchase, within the days one may.
+	return date > transaction.date
+		? "Its Refund would come before it. Move the Refund first."
+		: "Its Refund would come too long after it. Move the Refund first.";
+}
 
 /** The month a Transaction is in. */
 export const monthOfTransaction = (transaction: TransactionRow) =>
@@ -227,6 +298,21 @@ export function withTransactionChange(data: MonthData, change: TransactionChange
 	const next = change.next;
 	// A new name moves no money.
 	if (next && "rename" in next) return data;
+	// A new day: within the month what it spent says the new day; out of it, it is no longer this
+	// month's spending, as if it had been deleted from it (the month it lands in is asked for again).
+	if (next && "date" in next) {
+		const day = next.date;
+		const stays = day.slice(0, 7) === date.slice(0, 7);
+		return {
+			...data,
+			spending: stays
+				? data.spending.map((spend) => (spend.id === id ? { ...spend, date: day } : spend))
+				: data.spending.filter((spend) => spend.id !== id),
+			charges: stays
+				? data.charges.map((charge) => (charge.id === id ? { ...charge, date: day } : charge))
+				: data.charges.filter((charge) => charge.id !== id),
+		};
+	}
 	// Only who it was For: no money moves. What it (or each of its Splits, which all take the new
 	// For) spent in a Bucket says the new For at once, so figures by person don't wait for the
 	// month to come back. Money back on it is its own entry and stays as it is; an unassigned one
@@ -271,10 +357,14 @@ export function withTransactionChange(data: MonthData, change: TransactionChange
 }
 
 /** A Transaction's row once `next` has landed on it. */
-function editedRow(
-	row: TransactionRow,
-	next: TransactionEdit | TransactionRename | TransactionFor,
-): TransactionRow {
+function editedRow(row: TransactionRow, next: TransactionNext): TransactionRow {
+	// Only its day. One from a bank or a statement keeps the bank's own day beside it while the
+	// two differ; one typed in simply changes.
+	if ("date" in next) {
+		if (row.importedFrom === null) return { ...row, date: next.date };
+		const banks = row.bankDate ?? row.date;
+		return { ...row, date: next.date, bankDate: banks === next.date ? null : (banks as DayKey) };
+	}
 	// Only who it is For: a split one's Splits each take it; its assignment and Review stay.
 	if ("for" in next) {
 		return row.splits.length > 0
@@ -329,13 +419,65 @@ function editedRow(
 	};
 }
 
-/** A list's pages with a Transaction changed or deleted. */
+/** Whether the rows are newest first by day, as a list is unless the Parent sorted it otherwise. */
+const newestFirst = (rows: TransactionRow[]) =>
+	rows.every((row, i) => i === 0 || (rows[i - 1] as TransactionRow).date >= row.date);
+
+/**
+ * A list's pages with a Transaction on another day. In a list that is newest first the row goes
+ * to its new day, above that day's other rows; in any other order it stays where it is until the
+ * list comes back from the server.
+ */
+function withRowOnDay(
+	data: InfiniteData<TransactionsPage>,
+	id: string,
+	next: TransactionDate,
+): InfiniteData<TransactionsPage> {
+	const rows = data.pages.flatMap((page) => page.transactions);
+	const was = rows.find((row) => row.id === id);
+	if (!was) return data;
+	const moved = editedRow(was, next);
+	if (!newestFirst(rows)) {
+		return {
+			...data,
+			pages: data.pages.map((page) => ({
+				...page,
+				transactions: page.transactions.map((row) => (row.id === id ? moved : row)),
+			})),
+		};
+	}
+	// The first row of an earlier day or the same one: it goes just above. None: at the end.
+	const before = rows.find((row) => row.id !== id && row.date <= moved.date);
+	const last = data.pages.length - 1;
+	return {
+		...data,
+		pages: data.pages.map((page, index) => {
+			const transactions = page.transactions.filter((row) => row.id !== id);
+			const at = before ? transactions.indexOf(before) : index === last ? transactions.length : -1;
+			return {
+				...page,
+				transactions:
+					at < 0 ? transactions : [...transactions.slice(0, at), moved, ...transactions.slice(at)],
+			};
+		}),
+	};
+}
+
+/**
+ * A list's pages with a Transaction changed or deleted. `monthOnly`: the list is one month's, so
+ * a Transaction dated out of that month leaves it; a list of several months keeps it, on its day.
+ */
 export function withRowChange(
 	data: InfiniteData<TransactionsPage>,
 	change: TransactionChange,
+	monthOnly = false,
 ): InfiniteData<TransactionsPage> {
 	const { id } = change.transaction;
-	const next = change.next;
+	if (change.next && "date" in change.next) {
+		if (!(monthOnly && leavesFor(change))) return withRowOnDay(data, id, change.next);
+	}
+	// Dated out of this list's month, it leaves the list as a deleted one does.
+	const next = change.next && "date" in change.next ? null : change.next;
 	// As it is in this list, if it is: only then is it in the list's Money out.
 	const was = data.pages.flatMap((page) => page.transactions).find((row) => row.id === id);
 	return {
@@ -367,6 +509,14 @@ export function withRowChange(
 export async function saveTransactionChange({ transaction, next }: TransactionChange) {
 	const month = monthOfTransaction(transaction);
 	const expectedVersion = expectedVersionOf(transaction);
+	if (next && "date" in next) {
+		const moved = await changeTransactionDate({
+			data: { transactionId: transaction.id, date: next.date, expectedVersion },
+		});
+		if (moved.status === "refused")
+			throw new DateRefused(moved.reason, "month" in moved ? moved.month : undefined);
+		return settleWrite(transaction.id, moved);
+	}
 	const answer =
 		next && "rename" in next
 			? await renameTransaction({
@@ -589,10 +739,12 @@ export async function applyTransactionChange(queryClient: QueryClient, change: T
 	if (previousMonth) {
 		queryClient.setQueryData(monthKey, withTransactionChange(previousMonth, change));
 	}
+	// The month's own lists: a Transaction dated out of the month leaves them (issue 148).
+	const ofMonth = queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+		queryKey: transactionsKey(month),
+	});
 	const previousLists = [
-		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
-			queryKey: transactionsKey(month),
-		}),
+		...ofMonth,
 		// An Account's list holds Transactions from any month.
 		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
 			queryKey: [...monthsKey, "account-transactions"],
@@ -607,7 +759,15 @@ export async function applyTransactionChange(queryClient: QueryClient, change: T
 	// One Transaction asked for by its ID is cached under its month's key too: it is not a list.
 	const lists = previousLists.filter(([, list]) => Array.isArray(list?.pages));
 	for (const [queryKey, list] of lists) {
-		if (list) queryClient.setQueryData(queryKey, withRowChange(list, change));
+		if (list)
+			queryClient.setQueryData(
+				queryKey,
+				withRowChange(
+					list,
+					change,
+					ofMonth.some(([key]) => key === queryKey),
+				),
+			);
 	}
 	return () => {
 		if (previousMonth) queryClient.setQueryData(monthKey, previousMonth);
@@ -708,6 +868,11 @@ export function useTransactionChange() {
 				return void toast(monthEndedText(variables.label, variables.next !== null), {
 					tone: "error",
 				});
+			// Its day stays as it was, and why is said: nothing to retry.
+			if (error instanceof DateRefused)
+				return void toast(dateRefusedText(variables, error.reason, error.month), {
+					tone: "error",
+				});
 			toast(
 				variables.next
 					? `Couldn’t save your change to ${variables.label}, so it’s been undone.`
@@ -719,7 +884,12 @@ export function useTransactionChange() {
 			if (variables.quiet) return;
 			// A cell's change says what it did, with an Undo that writes it back in its turn.
 			if (variables.said) {
-				const { back } = variables;
+				const { back, next } = variables;
+				// On its new day, which is where the Undo of a change of date finds it.
+				const transaction =
+					next && "date" in next
+						? { ...variables.transaction, date: next.date }
+						: variables.transaction;
 				return void toast(
 					variables.said,
 					back
@@ -727,7 +897,7 @@ export function useTransactionChange() {
 								tone: "success",
 								undo: () =>
 									change.mutate({
-										transaction: variables.transaction,
+										transaction,
 										label: variables.label,
 										next: back,
 										quiet: true,

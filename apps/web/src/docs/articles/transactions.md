@@ -27,6 +27,7 @@ Open a Transaction by pressing its row. On a computer it opens under the row. On
 - **Name.** Rename it to something you recognise. For one from a bank or a statement, the bank's own wording stays underneath ("From your bank: …"), and **Use the bank's name** puts it back.
 - **Amount.** Correct it if it is wrong.
 - **Assigned to.** Choose the [Bucket](/docs/buckets) or [Commitment](/docs/commitments) it belongs to. This is called filing it.
+- **Date.** Change the day it counts on, to any day up to today: a charge made on September 30 that your bank posted on October 2 can go back into September, unless that month has been closed. For one from a bank or a statement, the bank's own date is kept underneath ("From your bank: Oct 2"), so your bank never changes it back or brings it in twice, and **Put it back** returns it to the bank's date.
 - **For.** Say who the spending was for: one Member, several, or the whole Household.
 - **Add Split.** Divide one Transaction across more than one Bucket. The Splits must add up to the amount. **Remove Splits** goes back to one.
 - **Delete.** Removes it, after you confirm.

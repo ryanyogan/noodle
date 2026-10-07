@@ -86,6 +86,7 @@ import {
 import { TRANSACTION_SHOWS } from "../../../transaction-summary";
 import { escapeStep } from "../../../transaction-table";
 import {
+	dateChange,
 	monthOfTransaction,
 	rangeBucketsQuery,
 	type TransactionChange,
@@ -488,6 +489,11 @@ function TransactionsPage() {
 				onChange={(next) => {
 					if (!editing) return;
 					change.mutate({ transaction: editing, label: transactionLabel(editing), next });
+					setEditing(null);
+				}}
+				onDate={(date) => {
+					if (!editing) return;
+					change.mutate(dateChange(editing, date));
 					setEditing(null);
 				}}
 			/>
