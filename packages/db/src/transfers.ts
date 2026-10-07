@@ -258,23 +258,40 @@ export async function detectTransfers(
 	to: DayKey,
 	newId: () => string,
 ): Promise<{ marked: number; months: string[] }> {
-	const [{ outs: leaving, ins }, refusedRows, paysCommitment] = await Promise.all([
-		loadSides(
-			db,
-			householdId,
-			addDays(from, -TRANSFER_WINDOW_DAYS),
-			addDays(to, TRANSFER_WINDOW_DAYS),
-			{ out: true, into: true },
-		),
-		db
-			.select({
-				outId: transfers.outTransactionId,
-				inId: sql<string | null>`coalesce(${transfers.inTransactionId}, ${transfers.inIncomeId})`,
-			})
-			.from(transfers)
-			.where(and(eq(transfers.householdId, householdId), isNotNull(transfers.removedAt))),
-		commitmentPayments(db, householdId),
-	]);
+	const [{ outs: leaving, ins: arriving }, refusedRows, paysCommitment, unmarkedOnCards] =
+		await Promise.all([
+			loadSides(
+				db,
+				householdId,
+				addDays(from, -TRANSFER_WINDOW_DAYS),
+				addDays(to, TRANSFER_WINDOW_DAYS),
+				{ out: true, into: true },
+			),
+			db
+				.select({
+					outId: transfers.outTransactionId,
+					inId: sql<string | null>`coalesce(${transfers.inTransactionId}, ${transfers.inIncomeId})`,
+				})
+				.from(transfers)
+				.where(and(eq(transfers.householdId, householdId), isNotNull(transfers.removedAt))),
+			commitmentPayments(db, householdId),
+			db
+				.select({ id: transfers.inTransactionId })
+				.from(transfers)
+				.innerJoin(transactions, eq(transactions.id, transfers.inTransactionId))
+				.innerJoin(accounts, eq(accounts.id, transactions.accountId))
+				.where(
+					and(
+						eq(transfers.householdId, householdId),
+						isNotNull(transfers.removedAt),
+						eq(accounts.kind, "credit-card"),
+					),
+				),
+		]);
+	// A line on a card that a Parent unmarked is never made a Transfer again by Noodle, with any
+	// paying line (issue 136): the other pairs are refused pair by pair, below.
+	const neverAgain = new Set(unmarkedOnCards.map((row) => row.id));
+	const ins = arriving.filter((side) => !neverAgain.has(side.id));
 	const outs = leaving.filter((out) => !paysCommitment(out));
 	if (outs.length === 0 || ins.length === 0) return { marked: 0, months: [] };
 	const refused = new Set(refusedRows.map((row) => `${row.outId}|${row.inId}`));

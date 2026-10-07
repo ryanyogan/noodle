@@ -1,6 +1,7 @@
 import type { DayKey, MonthKey, StatementLine } from "@noodle/domain";
 import { sql } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { PASS } from "./card-payments";
 import {
 	addAccount,
 	addCommitment,
@@ -447,5 +448,173 @@ describe("A payment to a card whose payment is the spending", () => {
 			}),
 		).toEqual({ ok: false });
 		expect(await listRules(db, viewer)).toEqual([]);
+	});
+});
+
+describe("A card line a Parent unmarked", () => {
+	it("isn't paired with a paying line of the same amount that comes in later", async () => {
+		await importInto("card", "i-1", [line("2026-09-11", 50_000, "PAYMENT THANK YOU")]);
+		const [mark] = await db.select().from(transfers);
+		expect(await unmarkTransfer(db, viewer, mark?.id ?? "")).toMatchObject({ ok: true });
+		await importInto("checking", "i-2", [line("2026-09-12", -50_000, "CHASE CREDIT CRD AUTOPAY")]);
+		const rows = await listed();
+		expect(rows.get("PAYMENT THANK YOU")).toBeNull();
+		expect(rows.get("CHASE CREDIT CRD AUTOPAY")).toBeNull();
+	});
+});
+
+describe("The wording remembered for a card payment", () => {
+	it("is the merchant's when the line has no note, and later lines saying it are marked", async () => {
+		await importInto("checking", "i-1", [line("2026-09-03", -9_900, "CARDMEMBER SERV")]);
+		const [{ id } = { id: "" }] = await db.select({ id: transactions.id }).from(transactions);
+		await db.update(transactions).set({ note: null, merchant: "CARDMEMBER SERV" });
+		const answered = await markCardPayment(db, viewer, {
+			transferId: "t-1",
+			transactionId: id,
+			cardAccountId: "card",
+			ruleId: "r-1",
+		});
+		expect(answered.ok && answered.remembered).toBeTruthy();
+		expect(await loadCardPaymentRules(db, householdId)).toMatchObject([{ id: "r-1" }]);
+		// Another line with a merchant and no note; and one whose note says it.
+		await importInto("checking", "i-2", [line("2026-09-20", -4_400, "OTHER WORDS")]);
+		await db
+			.update(transactions)
+			.set({ note: null, merchant: "CARDMEMBER SERV" })
+			.where(sql`${transactions.amountCents} = 4400`);
+		const later = await importInto("checking", "i-3", [
+			line("2026-09-28", -12_345, "CARDMEMBER SERV"),
+		]);
+		expect(later.ok && later.transfers).toBe(2);
+	});
+});
+
+describe("A Household with more card lines than one page of the pass", () => {
+	beforeEach(() => {
+		PASS.size = 2;
+	});
+	afterEach(() => {
+		PASS.size = 2000;
+	});
+
+	it("has the payments past the first page marked too", async () => {
+		PASS.size = 2000;
+		await importInto("card", "i-1", [
+			line("2026-09-25", 2_000, "TARGET REFUND"),
+			line("2026-09-24", 2_100, "REI RETURN"),
+			line("2026-09-23", 2_200, "AMAZON REFUND"),
+			line("2026-09-02", 7_500, "MOBILE PAYMENT - THANK YOU"),
+		]);
+		await db.delete(transfers);
+		PASS.size = 2;
+		expect(await markCardPayments(db, householdId, newId)).toEqual({
+			marked: 1,
+			months: ["2026-09"],
+		});
+	});
+
+	it("has a remembered wording's lines past the first page marked too", async () => {
+		PASS.size = 2000;
+		await importInto("checking", "i-1", [line("2026-09-03", -9_900, "CARDMEMBER SERV WEB PYMT")]);
+		const [{ id } = { id: "" }] = await db.select({ id: transactions.id }).from(transactions);
+		await markCardPayment(db, viewer, {
+			transferId: "t-1",
+			transactionId: id,
+			cardAccountId: "card",
+			ruleId: "r-1",
+		});
+		PASS.size = 2;
+		const later = await importInto("checking", "i-2", [
+			line("2026-09-29", -4_000, "COSTCO WHSE #1042"),
+			line("2026-09-28", -4_100, "REI"),
+			line("2026-09-27", -4_200, "SAFEWAY"),
+			line("2026-09-10", -12_345, "CARDMEMBER SERV WEB PYMT"),
+		]);
+		expect(later.ok && later.transfers).toBe(1);
+	});
+
+	it("files the lines worded like the payment past the first page too", async () => {
+		PASS.size = 2000;
+		await addCommitment(db, {
+			householdId,
+			memberId: parentId,
+			commitmentId: "apple",
+			name: "Apple Card",
+			month,
+			amountCents: 30_000,
+			cadence: "monthly",
+			dueDate: "2026-09-05",
+		});
+		await importInto("checking", "i-1", [
+			line("2026-09-29", -4_000, "COSTCO WHSE #1042"),
+			line("2026-09-28", -4_100, "REI"),
+			line("2026-09-27", -4_200, "SAFEWAY"),
+			line("2026-09-06", -5_000, "APPLECARD GSBANK PAYMENT 8841"),
+			line("2026-09-05", -30_000, "APPLECARD GSBANK PAYMENT 8841"),
+		]);
+		const [{ id } = { id: "" }] = await db
+			.select({ id: transactions.id })
+			.from(transactions)
+			.where(sql`${transactions.amountCents} = 30000`);
+		PASS.size = 2;
+		expect(
+			await fileCardPayment(db, viewer, { transactionId: id, commitmentId: "apple", ruleId: "r" }),
+		).toMatchObject({ ok: true, filed: 2 });
+	});
+});
+
+describe("A “count it as spending” answer and the months before it", () => {
+	const WORDING = "APPLECARD GSBANK PAYMENT 8841";
+	const commitmentOf = async (amount: number) =>
+		(
+			await db
+				.select({ commitmentId: transactions.commitmentId })
+				.from(transactions)
+				.where(sql`${transactions.amountCents} = ${amount}`)
+		)[0]?.commitmentId;
+
+	beforeEach(async () => {
+		await addCommitment(db, {
+			householdId,
+			memberId: parentId,
+			commitmentId: "apple",
+			name: "Apple Card",
+			month: "2026-08",
+			amountCents: 30_000,
+			cadence: "monthly",
+			dueDate: "2026-08-05",
+		});
+		await importInto("checking", "i-1", [
+			line("2026-08-05", -29_000, WORDING),
+			line("2026-09-05", -30_000, WORDING),
+			line("2026-09-19", -5_000, WORDING),
+		]);
+	});
+
+	it("files the lines of the payment's own month, and none of an earlier month", async () => {
+		const [{ id } = { id: "" }] = await db
+			.select({ id: transactions.id })
+			.from(transactions)
+			.where(sql`${transactions.amountCents} = 30000`);
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: id,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		expect(filing).toMatchObject({ ok: true, filed: 2, months: ["2026-09"] });
+		expect(await commitmentOf(5_000)).toBe("apple");
+		expect(await commitmentOf(29_000)).toBeNull();
+	});
+
+	it("never files another line in a month that has ended", async () => {
+		await db.run(
+			sql`insert into month_closes (id, household_id, month) values ('close', ${householdId}, '2026-09')`,
+		);
+		const [{ id } = { id: "" }] = await db
+			.select({ id: transactions.id })
+			.from(transactions)
+			.where(sql`${transactions.amountCents} = 30000`);
+		await fileCardPayment(db, viewer, { transactionId: id, commitmentId: "apple", ruleId: "r" });
+		expect(await commitmentOf(5_000)).toBeNull();
 	});
 });
