@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { owedOn } from "./goals";
-import { accountForWalletCard, balanceCheck, cardKept, statementCheckDue } from "./hand-kept";
+import {
+	accountForWalletCard,
+	balanceCheck,
+	cardKept,
+	cardPaymentIsSpending,
+	statementCheckDue,
+} from "./hand-kept";
 
 describe("how a card's purchases get into Noodle", () => {
 	it("is its bank's when it syncs, whatever was answered", () => {
@@ -54,6 +60,31 @@ describe("what's owed on a card kept by hand", () => {
 	});
 	it("is the bank's on a connected card, whatever was bought", () => {
 		expect(owedOn(latest, [], true, [{ amount: 4_200, date: "2026-10-02" }])).toBe(50_000);
+	});
+});
+
+describe("a payment to a card", () => {
+	it("is the spending on a card kept by hand that a Commitment pays down", () => {
+		expect(cardPaymentIsSpending("hand", true)).toBe(true);
+	});
+	it("is the spending on a card not asked yet that a Commitment pays down", () => {
+		const kept = cardKept({ bankConnectionId: null, purchases: null, followed: false });
+		expect(cardPaymentIsSpending(kept, true)).toBe(true);
+	});
+	it("is the spending on a card whose purchases never come in, paid down by a Commitment", () => {
+		expect(cardPaymentIsSpending("none", true)).toBe(true);
+	});
+	it("is a Transfer naming the card when no Commitment pays it down", () => {
+		expect(cardPaymentIsSpending("hand", false)).toBe(false);
+		expect(cardPaymentIsSpending("none", false)).toBe(false);
+		expect(cardPaymentIsSpending(null, false)).toBe(false);
+	});
+	it("is a Transfer on a card kept by its statements or its bank, Commitment or not", () => {
+		expect(cardPaymentIsSpending("statements", true)).toBe(false);
+		expect(cardPaymentIsSpending("bank", true)).toBe(false);
+		// Not asked, but a statement's purchases came in lately: by statements.
+		const followed = cardKept({ bankConnectionId: null, purchases: null, followed: true });
+		expect(cardPaymentIsSpending(followed, true)).toBe(false);
 	});
 });
 

@@ -242,6 +242,7 @@ export {
 	balanceCheck,
 	type CardKept,
 	cardKept,
+	cardPaymentIsSpending,
 	PURCHASES_GET_IN,
 	type PurchasesGetIn,
 	statementCheckDue,
