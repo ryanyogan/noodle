@@ -150,7 +150,7 @@ test("income is added and removed on Plan › Income as on This Month", async ({
 		"Income",
 	);
 	await addIncome(page, "2,500", "Paycheck");
-	await expect(income(page)).toContainText("$2,500 received of $5,000 usual take-home pay");
+	await expect(page.getByTestId("income-summary")).toContainText("$2,500");
 	// Here the entries are a table (issue 133).
 	const table = income(page).getByRole("table", { name: /^Income in / });
 	await expect(table).toContainText("Paycheck");
@@ -162,7 +162,7 @@ test("income is added and removed on Plan › Income as on This Month", async ({
 	await income(page).getByRole("button", { name: "Actions for $2,500 of income" }).click();
 	await page.getByRole("menuitem", { name: "Remove income" }).click();
 	await expect(table).toHaveCount(0);
-	await expect(income(page)).toContainText("$0 received");
+	await expect(page.getByTestId("income-summary")).toContainText("$0");
 	await page.context().close();
 });
 
@@ -177,7 +177,7 @@ test("a low month: take-home pay is lowered to what came in, for this month only
 
 	// Plan › Income offers it quietly whenever the month's Income is below take-home pay.
 	await page.goto(`/plan/${month}/income`);
-	const takeHomePay = page.getByRole("listitem").filter({ hasText: "Your usual monthly pay" });
+	const takeHomePay = page.getByTestId("take-home-pay");
 	const lower = page.getByRole("button", { name: "Lower take-home pay to $4,400" });
 	await expect(lower).toHaveCount(0);
 	await addIncome(page, "4,400", "Paychecks");

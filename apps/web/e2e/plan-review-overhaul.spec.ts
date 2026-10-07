@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { choose, createPlannedHousehold, signedInPage } from "./session";
+import { choose, createPlannedHousehold, hydrated, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 test.beforeEach(async () => {
@@ -34,29 +34,53 @@ test("income includes deposits of every kind and can count them as income", asyn
 		`insert into transfers (id, household_id, in_income_id) values ('${ulid()}', ${household()}, '${transferred}')`,
 	]);
 	await page.goto(`/plan/${month}/income`);
-	const other = page.getByRole("region", { name: "Other money in" });
-	await expect(other.getByRole("button", { name: /^Mark .* as income$/ })).toHaveCount(4);
-	await other.getByRole("button", { name: "Mark Side job as income" }).click();
-	const dialog = page.getByRole("dialog", { name: "Side job" });
-	await expect(dialog).toBeVisible();
-	await dialog.getByRole("button", { name: "Done with Side job" }).click();
-	await expect(page.getByRole("table", { name: /^Income in/ })).toContainText("Side job");
-	await expect(other).not.toContainText("Side job");
-
-	await other.getByRole("button", { name: "Mark Client deposit as income" }).click();
-	await page
-		.getByRole("dialog", { name: "Client deposit" })
-		.getByRole("button", { name: "Done with Client deposit" })
-		.click();
-	await expect(page.getByRole("table", { name: /^Income in/ })).toContainText("Client deposit");
+	const table = page.getByRole("table", { name: /^Income in/ });
+	const summary = page.getByTestId("income-summary");
+	const notCounted = page.getByRole("region", { name: "Other money in" });
+	const waiting = page.getByRole("region", { name: "Waiting in Review" });
+	// Each deposit is on the page once, under what it counts as (issue 145).
+	const once = async (name: string) =>
+		expect(page.getByText(name, { exact: true })).toHaveCount(1, { timeout: 30_000 });
+	for (const name of ["Side job", "Reimbursement", "Returned deposit", "Client deposit"])
+		await once(name);
+	await expect(notCounted).toContainText("Reimbursement");
+	await expect(notCounted).toContainText("Returned deposit");
+	await expect(notCounted).toContainText("Client deposit");
+	// Their total is said once, under them; nothing counts as Income yet.
+	await expect(notCounted).toContainText("$325");
+	await expect(summary).toContainText("$0");
+	// What waits in Review is named there: here it has a link, and none of Review's controls.
+	await expect(waiting).toContainText("Side job");
+	await expect(waiting.getByRole("button")).toHaveCount(0);
+	await expect(waiting.getByRole("link", { name: "Open Review" })).toHaveAttribute(
+		"href",
+		"/review",
+	);
+	// One control per deposit changes what it counts as.
+	await expect(notCounted.getByRole("button")).toHaveCount(3);
+	await expect(page.getByRole("button", { name: /as income$/i })).toHaveCount(0);
+	const change = notCounted.getByRole("button", { name: "Change what Client deposit is" });
+	await hydrated(change);
+	await change.click();
+	const dialog = page.getByRole("dialog", { name: "Client deposit" });
+	await dialog.getByRole("button", { name: "Income", exact: true }).click();
+	await dialog.getByRole("button", { name: "Done with Client deposit" }).click();
+	await expect(table).toContainText("Client deposit");
+	await expect(notCounted).not.toContainText("Client deposit");
+	await once("Client deposit");
+	await expect(summary).toContainText("$75");
+	await expect(notCounted).toContainText("$250");
 	await page.reload();
-	await expect(page.getByRole("table", { name: /^Income in/ })).toContainText("$200");
-	await expect(other.getByRole("button", { name: /^Mark .* as income$/ })).toHaveCount(2);
-	await page.screenshot({ path: "/tmp/noodle-income-desktop.png", fullPage: true });
+	await expect(table).toContainText("Client deposit");
+	await expect(notCounted.getByRole("button")).toHaveCount(2);
+	await once("Client deposit");
 	await page.setViewportSize({ width: 390, height: 844 });
-	await expect(other.getByRole("button", { name: "Mark Reimbursement as income" })).toBeVisible();
-	await page.screenshot({ path: "/tmp/noodle-income-phone.png", fullPage: true });
+	await expect(
+		notCounted.getByRole("button", { name: "Change what Reimbursement is" }),
+	).toBeVisible();
+	await once("Reimbursement");
 	await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+	await page.context().close();
 });
 
 test("commitments can be added and edited from the table on desktop and phone", async ({
