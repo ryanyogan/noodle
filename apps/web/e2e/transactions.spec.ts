@@ -786,10 +786,12 @@ test("a Transaction is refiled in its Assigned to cell, Undo puts it back, and T
 	await page.context().close();
 });
 
-test("on a phone a row's For chips open the picker in place, and it offers only Members", async ({
-	browser,
-}) => {
+test("on a phone a row's For chips open the picker in place, and it offers only Members", {
+	tag: "@phone",
+}, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
+	// Set up as on a computer (the Sidebar's links), then looked at as on a phone.
+	await page.setViewportSize({ width: 1280, height: 900 });
 	await setUp(page);
 	await openTransactions(page);
 	// Stacked rows: no For column, so the chips are in the row's second line, a control there too.

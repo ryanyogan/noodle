@@ -84,11 +84,12 @@ export function rowView(
 ): RowView {
 	const split = transaction.splits.length > 0;
 	const assignment = assignmentOf(transaction, plan);
-	// A payment to a card says so: the bank's wording for one ("PAYMENT THANK YOU - WEB") cleans up
-	// to nothing a Parent would know it by. A name they gave it stays; its detail keeps the wording.
+	// A payment to a card says so: the bank's wording for one ("PAYMENT THANK YOU - WEB") cleans up,
+	// by rule or by the background naming, to nothing a Parent would know it by ("Thank You",
+	// "Online Payment"). Its detail keeps the bank's wording.
 	const title =
-		transaction.merchantName ||
 		(transaction.paysCard ? "Card payment" : null) ||
+		transaction.merchantName ||
 		(transaction.note && displayMerchant(transaction.note)) ||
 		(transaction.goal
 			? "Goal spending"

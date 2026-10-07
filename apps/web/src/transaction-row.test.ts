@@ -54,7 +54,7 @@ describe("rowView", () => {
 		});
 	});
 
-	it("a payment to a card is called Card payment, unless a Parent named it", () => {
+	it("a payment to a card is called Card payment, whatever the bank's wording cleaned up to", () => {
 		const transfer = { from: "Checking", to: "Visa", reason: null };
 		const bank = { merchantName: null, note: "PAYMENT THANK YOU - WEB", importedFrom: "Visa" };
 		expect(view({ ...bank, transfer, paysCard: true })).toMatchObject({
@@ -62,8 +62,8 @@ describe("rowView", () => {
 			kindWord: "Transfer",
 			label: `Card payment, ${money}, Transfer, Checking to Visa`,
 		});
-		expect(view({ ...bank, transfer, paysCard: true, merchantName: "Visa autopay" }).title).toBe(
-			"Visa autopay",
+		expect(view({ ...bank, transfer, paysCard: true, merchantName: "Online Payment" }).title).toBe(
+			"Card payment",
 		);
 		// Any other Transfer keeps the bank's wording, cleaned up.
 		expect(view({ ...bank, transfer }).title).toBe("Thank You");

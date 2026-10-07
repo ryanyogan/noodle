@@ -324,6 +324,8 @@ export function ForCell({
 			</PopoverTrigger>
 			<PopoverContent
 				align="start"
+				// Kept a gutter inside the screen: on a phone it opens from the middle of the row.
+				collisionPadding={16}
 				className="w-80 max-w-[calc(100vw-2rem)]"
 				data-cell-editor=""
 				// Drawn outside the row, but its clicks still come up through it: not a click on the row.
