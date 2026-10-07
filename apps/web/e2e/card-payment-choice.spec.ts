@@ -165,7 +165,7 @@ test("“It’s a card payment” asks which card, names it on the Transfer, and
 	await expect(toast(page, "marked as a Transfer to Visa")).toHaveCount(0);
 	await answerVisa();
 	await expect(
-		page.getByText("Transfer · Checking → Visa").filter({ visible: true }).first(),
+		page.getByText("Checking → Visa", { exact: true }).filter({ visible: true }).first(),
 	).toBeVisible();
 
 	// The row offers it itself: its menu opens the row at the question. A card that isn't in
@@ -182,7 +182,7 @@ test("“It’s a card payment” asks which card, names it on the Transfer, and
 	await choice.getByRole("button", { name: "No, it’s a Transfer" }).click();
 	await expect(toast(page, "marked as a Transfer. Payments worded like it")).toBeVisible();
 	await expect(
-		page.getByText("Transfer out of Checking").filter({ visible: true }).first(),
+		page.getByText("out of Checking", { exact: true }).filter({ visible: true }).first(),
 	).toBeVisible();
 
 	// Yes: the card's Commitment is made in place, with this payment filed in it.

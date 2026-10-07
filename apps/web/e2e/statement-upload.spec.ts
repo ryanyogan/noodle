@@ -108,7 +108,7 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 	await expect(coffee).toHaveCount(2);
 	// Who it's For is in the row's name above: with the checkbox column the For column needs a
 	// wider table than this window's (64rem).
-	await says(page, coffee.first(), ["Unassigned", "Everyday Checking", "••3210"]);
+	await says(page, coffee.first(), ["Needs review", "Everyday Checking", "••3210"]);
 	// The bank's own text is kept as the note: rows open their detail once the page is hydrated.
 	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	await traderJoes.click();

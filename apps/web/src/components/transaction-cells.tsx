@@ -191,11 +191,14 @@ export function AssignedCell({
 	title,
 	assigned,
 	cells,
+	children,
 }: {
 	transaction: TransactionRow;
 	title: string;
 	assigned: string;
 	cells: CellEdits;
+	/** How the cell draws what it's assigned to (its colour, "Needs review"); `assigned` when left out. */
+	children?: ReactNode;
 }) {
 	const editing = cells.editing?.id === transaction.id && cells.editing.column === "assigned";
 	if (editing) {
@@ -238,7 +241,7 @@ export function AssignedCell({
 			className="-mx-2 max-w-full min-w-0 justify-start gap-1 px-2 font-normal max-lg:min-w-0"
 			onClick={() => cells.start(transaction, "assigned")}
 		>
-			<span className="truncate">{assigned}</span>
+			{children ?? <span className="truncate">{assigned}</span>}
 			<ChevronDown
 				aria-hidden="true"
 				className={`size-3.5 shrink-0 text-subtle-foreground ${quiet}`}

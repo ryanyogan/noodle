@@ -58,6 +58,14 @@ export type RowView = {
 	 */
 	aroundFor: { before: string; after: string } | null;
 	assignment: ReturnType<typeof assignmentOf>;
+	/** A split one's Buckets, Commitments and Goals by name, each once, in the Splits' order. */
+	splitNames: string[];
+	/** A side of a Transfer: its Accounts without the kind's word ("Checking → Visa", "out of Checking"). */
+	route: string;
+	/** Where it came from (the Account it was imported from, or "Matched in …"); empty for a Quick Add. */
+	source: string;
+	/** It waits in Review: the row says "Needs review" where its Bucket would be. */
+	needsReview: boolean;
 	/** The Assigned to column. */
 	assigned: string;
 	/** The For column: empty where For doesn't apply (a Transfer, Goal spending, money back). */
@@ -161,6 +169,7 @@ export function rowView(
 						? // The names when they fit; the cell cuts the rest off.
 							`Split · ${[...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name))].join(", ")}`
 						: assignment.name;
+	const splitNames = [...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name))];
 	const account = transaction.importedFrom ?? transaction.matchedIn ?? "Quick Add";
 	const [, accountName = account, accountDigits = ""] = /^(.*?)( ••\d{4})$/.exec(account) ?? [];
 	const label = transaction.goal
@@ -198,6 +207,16 @@ export function rowView(
 						after: from.replace(/^ · /, ""),
 					},
 		assignment,
+		splitNames,
+		route: transfer ? detail.replace(/^(Transfer|Between us)( · | |$)/, "") : "",
+		source: from.replace(/^ · /, ""),
+		needsReview:
+			Boolean(transaction.waits) &&
+			!transaction.goal &&
+			!transfer &&
+			!refund &&
+			!moneyBack &&
+			!split,
 		assigned,
 		who: transfer || transaction.goal || moneyBack ? "" : who,
 		accountName,
