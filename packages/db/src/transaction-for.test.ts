@@ -169,8 +169,8 @@ describe("setTransactionFor", () => {
 		expect((await row())?.for).toEqual(["maya"]);
 	});
 
-	it("sets For on every Split when they have none or the same", async () => {
-		await splitCostco(alex, split("s1", "groceries"), split("s2", "hockey", "leo"));
+	it("sets For on every Split when they are all For the same people", async () => {
+		await splitCostco(alex, split("s1", "groceries", "leo"), split("s2", "hockey", "leo"));
 		const before = await row();
 		const result = await setTransactionFor(db, {
 			...alex,
@@ -189,6 +189,17 @@ describe("setTransactionFor", () => {
 
 		await setTransactionFor(db, { ...alex, transactionId: "costco", forMemberIds: [] });
 		expect(await db.select().from(splitFor)).toEqual([]);
+	});
+
+	it("refuses a split one with a Split For Everyone beside one For somebody", async () => {
+		await splitCostco(alex, split("s1", "groceries"), split("s2", "hockey", "leo"));
+		const result = await setTransactionFor(db, {
+			...alex,
+			transactionId: "costco",
+			forMemberIds: ["leo"],
+		});
+		expect(result).toEqual({ ok: false, reason: "for-differs" });
+		expect((await row())?.splits.map((part) => part.for)).toEqual([[], ["leo"]]);
 	});
 
 	it("refuses a split one whose Splits are For different people", async () => {
