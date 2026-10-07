@@ -14,6 +14,7 @@ import { loadOwedBack, loadPaidBackSpending } from "./owed-back";
 import { loadPlanRecords } from "./plan";
 import { loadPlanChanges } from "./plan-log";
 import { privateTotalId, privateTotals, type Viewer } from "./privacy";
+import { loadRefundLinksForExport } from "./refund-links";
 import { loadHistoryStart } from "./reports";
 import { listRules, type RuleRow } from "./rules";
 import {
@@ -86,6 +87,13 @@ export type ExportData = {
 	paidBackMatches: {
 		incomeId: string;
 		owedBackId: string;
+		amountCents: number;
+		countsOn: string;
+	}[];
+	/** Each Refund that landed in checking and the purchase it is linked to (ADR-0057). */
+	refundLinks: {
+		incomeId: string;
+		transactionId: string;
 		amountCents: number;
 		countsOn: string;
 	}[];
@@ -311,6 +319,7 @@ export async function loadExportData(
 			paidBackCents: item.paid,
 		})),
 		paidBackMatches: matchRows.filter((match) => owedIds.has(match.owedBackId)),
+		refundLinks: await loadRefundLinksForExport(db, viewer),
 		files,
 	};
 }

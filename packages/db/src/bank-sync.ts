@@ -15,7 +15,15 @@ import { importStatement } from "./imports";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
 import { bankLinesNotHere } from "./same-lines";
-import { accounts, income, paidBackMatches, splits, transactions, transfers } from "./schema";
+import {
+	accounts,
+	income,
+	paidBackMatches,
+	refundLinks,
+	splits,
+	transactions,
+	transfers,
+} from "./schema";
 import { clearSplits, transactionDeletes } from "./transactions";
 import { detectTransfers } from "./transfers";
 
@@ -340,6 +348,16 @@ function removeWrites(
 				and(
 					eq(paidBackMatches.householdId, householdId),
 					eq(paidBackMatches.incomeId, row.id),
+					sql`exists (select 1 from ${income} where ${theRow})`,
+				),
+			),
+		// The purchase it was a Refund for is no longer given the money back.
+		db
+			.delete(refundLinks)
+			.where(
+				and(
+					eq(refundLinks.householdId, householdId),
+					eq(refundLinks.incomeId, row.id),
 					sql`exists (select 1 from ${income} where ${theRow})`,
 				),
 			),

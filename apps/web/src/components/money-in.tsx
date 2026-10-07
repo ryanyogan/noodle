@@ -21,6 +21,7 @@ import {
 import { moneyInShown, type TransactionShow } from "../transaction-summary";
 import { AccountPairOffer } from "./money-in-rules";
 import { PaidBackMatching } from "./owed-back";
+import { RefundLinking } from "./refund-link";
 import { WhosePayOffer } from "./whose-pay";
 
 // Money in and its kind (issue 131, ADR-0057): listed on Transactions with its kind in plain
@@ -167,9 +168,15 @@ export function MoneyInSection({
 								<div className="grid gap-4">
 									<MoneyInKindChoice
 										line={line}
-										// Paid back stays open: what it pays back is asked next (issue 132).
-										onDone={(now) => (now.kind === "paid-back" ? undefined : setOpen(null))}
+										// Paid back stays open: what it pays back is asked next (issue 132); so
+										// does a Refund, for the purchase it is for (issue 131).
+										onDone={(now) =>
+											now.kind === "paid-back" || now.kind === "refund" ? undefined : setOpen(null)
+										}
 									/>
+									{line.kind === "refund" && !line.needsReview ? (
+										<RefundLinking line={line} today={today} />
+									) : null}
 									{line.kind === "paid-back" && !line.needsReview ? (
 										<PaidBackMatching line={line} today={today} />
 									) : null}
@@ -190,10 +197,12 @@ export function MoneyInReview({ today, className }: { today: string; className?:
 	const lines = useQuery(moneyInReviewQuery()).data ?? [];
 	const accounts = useQuery(moneyInAccountsQuery()).data ?? [];
 	// A line a Parent has named has left Review: it stays here while what follows is asked (what
-	// it pays back, which Account a Transfer came from, whose pay Income is).
+	// it pays back, which purchase a Refund is for, which Account a Transfer came from, whose pay
+	// Income is).
 	const [named, setNamed] = useState<MoneyInLine[]>([]);
 	const asksMore = (line: MoneyInLine) =>
 		line.kind === "paid-back" ||
+		line.kind === "refund" ||
 		whosePayOffered(line) ||
 		(pairOffered(line) && accounts.some((account) => account.id !== line.accountId));
 	const forget = (lineId: string) => setNamed((was) => was.filter((one) => one.id !== lineId));
@@ -251,7 +260,9 @@ export function MoneyInReview({ today, className }: { today: string; className?:
 								<PaidBackMatching line={line} today={today} />
 							) : (
 								<div className="grid justify-items-start gap-3">
-									{line.kind === "transfer" ? (
+									{line.kind === "refund" ? (
+										<RefundLinking line={line} today={today} />
+									) : line.kind === "transfer" ? (
 										<AccountPairOffer line={line} onDone={() => forget(line.id)} />
 									) : (
 										<WhosePayOffer line={line} onDone={() => forget(line.id)} />

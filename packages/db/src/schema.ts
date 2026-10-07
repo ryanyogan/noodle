@@ -1651,6 +1651,33 @@ export const paidBackMatches = sqliteTable(
 	],
 );
 
+// A Refund that landed in checking, linked to the purchase it is money back for (refund-links.ts,
+// ADR-0057): the money-in line of kind Refund gives its amount back to that purchase's Bucket,
+// Commitment or Goal on `counts_on`. One link a line, so it restores once only.
+export const refundLinks = sqliteTable(
+	"refund_links",
+	{
+		incomeId: text("income_id")
+			.primaryKey()
+			.references(() => income.id),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		transactionId: text("transaction_id")
+			.notNull()
+			.references(() => transactions.id),
+		countsOn: text("counts_on").notNull(),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [
+		index("refund_links_household_idx").on(t.householdId),
+		index("refund_links_transaction_idx").on(t.transactionId),
+	],
+);
+
 // A one-time pass over a Household's rows that has run (money-in-pass.ts): the row is what stops
 // it running twice. Kept through a fresh start and left out of snapshots, so neither runs it again.
 export const householdPasses = sqliteTable(

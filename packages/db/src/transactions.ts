@@ -62,6 +62,7 @@ import {
 	owedBack,
 	paidBackMatches,
 	receipts,
+	refundLinks,
 	refunds,
 	splitFor,
 	splits,
@@ -1528,6 +1529,16 @@ export function transactionDeletes(
 					deletable,
 				),
 			),
+		// A Refund in checking linked to it is linked to nothing again.
+		db
+			.delete(refundLinks)
+			.where(
+				and(
+					eq(refundLinks.householdId, input.householdId),
+					eq(refundLinks.transactionId, input.transactionId),
+					deletable,
+				),
+			),
 		// What was Owed back on it goes with it; money Paid back on it waits unmatched again.
 		db.delete(paidBackMatches).where(
 			and(
@@ -1839,6 +1850,14 @@ export async function deleteTransactions(
 				})
 				.where(
 					and(eq(transactions.householdId, householdId), inArray(transactions.id, refunded())),
+				),
+			db
+				.delete(refundLinks)
+				.where(
+					and(
+						eq(refundLinks.householdId, householdId),
+						inArray(refundLinks.transactionId, theirs()),
+					),
 				),
 			db
 				.delete(paidBackMatches)

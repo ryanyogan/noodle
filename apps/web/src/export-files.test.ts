@@ -47,6 +47,7 @@ const data = (over: Partial<ExportData> = {}): ExportData => ({
 	rules: [],
 	owedBack: [],
 	paidBackMatches: [],
+	refundLinks: [],
 	files: [],
 	...over,
 });
