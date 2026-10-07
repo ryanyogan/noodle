@@ -186,6 +186,74 @@ export async function sayOwedBack(
 		changeableBy(viewer),
 		sql`${transactions.amountCents} > 0`,
 	) as SQL;
+	const ofThePurchase = and(
+		eq(owedBack.householdId, householdId),
+		eq(owedBack.transactionId, input.transactionId),
+	);
+	// An item still naming a Split that is gone (the purchase was split again) reads as the whole
+	// purchase. A Parent can change it where it is, or say it on the whole purchase, which moves
+	// it there: who, how much and what was Paid back on it stay one item (issue 141).
+	const orphans = await db
+		.select({
+			id: owedBack.id,
+			splitId: owedBack.splitId,
+			amount: owedBack.amountCents,
+			paid: paidSql.as("paid"),
+		})
+		.from(owedBack)
+		.where(
+			and(
+				ofThePurchase,
+				isNotNull(owedBack.splitId),
+				sql`not exists (select 1 from splits q where q.id = owed_back.split_id
+					and q.transaction_id = owed_back.transaction_id)`,
+			),
+		)
+		.orderBy(owedBack.id);
+	const orphan = splitId
+		? orphans.find((one) => one.splitId === splitId)
+		: (orphans.find((one) => one.id === input.owedBackId) ?? orphans[0]);
+	// Moved to the whole purchase only when nothing else is said on it: no whole item, no Split's.
+	const others =
+		orphan && !splitId
+			? (await db.select({ id: owedBack.id }).from(owedBack).where(ofThePurchase)).length -
+				orphans.length
+			: 0;
+	if (orphan && others === 0) {
+		const [whole] = await db
+			.select({ amount: transactions.amountCents })
+			.from(transactions)
+			.where(thePurchase);
+		if (!whole) return { ok: false, reason: "refused" };
+		const rest = orphans
+			.filter((one) => one.id !== orphan.id)
+			.reduce((sum, one) => sum + one.amount, 0);
+		const amount = input.amountCents ?? Math.min(orphan.amount, whole.amount);
+		if (!Number.isInteger(amount) || amount <= 0 || amount + rest > whole.amount)
+			return { ok: false, reason: "too-much" };
+		if (amount < orphan.paid) return { ok: false, reason: "paid-back" };
+		await db
+			.update(owedBack)
+			.set({
+				who,
+				memberId: input.memberId ?? null,
+				amountCents: amount,
+				...(splitId ? {} : { splitId: null }),
+			})
+			.where(
+				and(
+					eq(owedBack.id, orphan.id),
+					eq(owedBack.householdId, householdId),
+					sql`${amount} >= ${paidSql}`,
+					splitId
+						? undefined
+						: sql`not exists (select 1 from owed_back w
+							where w.transaction_id = ${input.transactionId} and w.split_id is null)`,
+				),
+			);
+		const [item] = await loadOwedBack(db, viewer, { id: orphan.id });
+		return item ? { ok: true, item } : { ok: false, reason: "refused" };
+	}
 	const [purchase] = await db
 		.select({
 			amount: splitId
@@ -202,10 +270,6 @@ export async function sayOwedBack(
 	if (!Number.isInteger(amount) || amount <= 0 || amount > purchase.amount)
 		return { ok: false, reason: "too-much" };
 
-	const ofThePurchase = and(
-		eq(owedBack.householdId, householdId),
-		eq(owedBack.transactionId, input.transactionId),
-	);
 	// The other way of saying it: on the whole purchase when this is for a Split, and back.
 	const [otherWay] = await db
 		.select({ id: owedBack.id })

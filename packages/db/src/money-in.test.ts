@@ -107,6 +107,30 @@ describe("money in on Import", () => {
 		expect((await byNote(PAY)).needsReview).toBe(false);
 	});
 
+	it("keeps money in that reads as a refund out of Income until a Parent says what it is", async () => {
+		await importInto("checking", "import-2", [
+			line("2026-09-12", 4_500, "AMAZON REFUND"),
+			line("2026-09-13", 90_000, "IRS TREAS 310 TAX REFUND"),
+			line("2026-09-14", 120, "INTEREST PAYMENT"),
+			line("2026-09-15", 5_000, "ACME CORP PAYROLL REVERSAL"),
+		]);
+		expect(await counted()).toEqual([
+			PAY,
+			CHECK,
+			"IRS TREAS 310 TAX REFUND",
+			"INTEREST PAYMENT",
+			"ACME CORP PAYROLL REVERSAL",
+		]);
+		const review = await loadMoneyInReview(db, householdId);
+		// Not a Refund yet: Review suggests it from the wording, and a Parent says so.
+		expect(review.map((row) => [row.note, row.kind, row.needsReview])).toEqual([
+			["AMAZON REFUND", "income", true],
+			[ZELLE, "income", true],
+		]);
+		expect((await change("AMAZON REFUND", "refund")).ok).toBe(true);
+		expect(await byNote("AMAZON REFUND")).toMatchObject({ kind: "refund", needsReview: false });
+	});
+
 	it("lists every line with its kind, newest first", async () => {
 		const rows = await loadMoneyIn(db, householdId, { from: "2026-09-01", until: "2026-10-01" });
 		expect(rows.map((row) => [row.note, row.kind])).toEqual([

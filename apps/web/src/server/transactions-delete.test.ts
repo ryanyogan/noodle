@@ -95,11 +95,11 @@ describe("deleteTransactionsWithSnapshot", () => {
 
 	it("takes none when nothing matches, and a retry after a delete takes none either", async () => {
 		const none = await deleteTransactionsWithSnapshot(deps(), viewer, { ids: ["nope"] }, now);
-		expect(none).toEqual({ deleted: 0, snapshotId: null });
+		expect(none).toEqual({ deleted: 0, kept: 0, snapshotId: null });
 		expect(changesAfterBulkDelete(none)).toEqual([]);
 		await deleteTransactionsWithSnapshot(deps(), viewer, upToSeptember, now);
 		const again = await deleteTransactionsWithSnapshot(deps(), viewer, upToSeptember, now);
-		expect(again).toEqual({ deleted: 0, snapshotId: null });
+		expect(again).toEqual({ deleted: 0, kept: 0, snapshotId: null });
 		expect(await listHouseholdSnapshots(db, householdId)).toHaveLength(1);
 	});
 });

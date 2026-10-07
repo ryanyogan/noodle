@@ -118,6 +118,13 @@ describe("what the Parent is told", () => {
 			"Deleted 412 Transactions. Noodle took a snapshot first, so you can put them back from Snapshots in Household settings.",
 		);
 		expect(bulkDeletedMessage({ deleted: 1, snapshot: true })).toMatch(/^Deleted 1 Transaction\. /);
+		// Purchases whose money back counted in an ended month stay, and the toast says so.
+		expect(bulkDeletedMessage({ deleted: 3, kept: 2, snapshot: false })).toBe(
+			"Deleted 3 Transactions. 2 Transactions stayed: money back on them counted in a month that has ended.",
+		);
+		expect(bulkDeletedMessage({ deleted: 0, kept: 1, snapshot: false })).toBe(
+			"Nothing was deleted. 1 Transaction stayed: money back on it counted in a month that has ended.",
+		);
 		expect(bulkDeletedMessage({ deleted: 0, snapshot: false })).toBe(
 			"Nothing was deleted: those Transactions had already gone.",
 		);

@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeftRight, Check, Sparkles, Split as SplitIcon, Target } from "lucide-react";
 import type { ComponentProps } from "react";
+import { BANK_TOOK_BACK_WORD, bankTookBackText } from "../bank-took-back";
 import { monogram } from "../buckets";
 import { shortDay } from "../format";
 import { useGoals } from "../goals";
@@ -99,6 +100,15 @@ export function TransactionItem({
 			{transaction.pending ? (
 				<Badge aria-hidden="true" dot className={pill}>
 					Pending
+				</Badge>
+			) : null}
+			{transaction.bankTookBackOn ? (
+				<Badge
+					data-testid="bank-took-back"
+					className={pill}
+					title={bankTookBackText(transaction, transaction.bankTookBackOn) ?? undefined}
+				>
+					{BANK_TOOK_BACK_WORD}
 				</Badge>
 			) : null}
 			{autoFiled ? (

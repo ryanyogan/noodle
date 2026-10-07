@@ -449,6 +449,8 @@ describe("Personal Allowance privacy: Splits", () => {
 		const seen = (await page(sam)).find((t) => t.id === "target");
 		expect(seen).toEqual({
 			id: "target",
+			bankTookBackOn: null,
+			bankAmount: null,
 			date: "2026-09-14",
 			amountCents: 7_000,
 			bucketId: null,

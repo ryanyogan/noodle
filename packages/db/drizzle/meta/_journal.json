@@ -327,14 +327,14 @@
     {
       "idx": 46,
       "version": "6",
-      "when": 1791092220624,
+      "when": 1791100000001,
       "tag": "0046_perk_uses",
       "breakpoints": true
     },
     {
       "idx": 47,
       "version": "6",
-      "when": 1791094009517,
+      "when": 1791100000002,
       "tag": "0047_perk_value_by_hand",
       "breakpoints": true
     },
@@ -467,14 +467,14 @@
     {
       "idx": 67,
       "version": "6",
-      "when": 1791700000000,
+      "when": 1791700000001,
       "tag": "0067_owed_back_rules",
       "breakpoints": true
     },
     {
       "idx": 68,
       "version": "6",
-      "when": 1791700000000,
+      "when": 1791700000002,
       "tag": "0068_whose_pay",
       "breakpoints": true
     },
@@ -504,6 +504,13 @@
       "version": "6",
       "when": 1792600000000,
       "tag": "0077_rule_statements",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "6",
+      "when": 1792700000000,
+      "tag": "0078_bank_took_back",
       "breakpoints": true
     },
     {

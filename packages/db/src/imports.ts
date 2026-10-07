@@ -225,6 +225,8 @@ export async function importStatement(
 						pending: sql<boolean>`${lineField("pending")}`.as("pending"),
 						merchant: sql<string | null>`null`.as("merchant"),
 						version: sql<number>`0`.as("version"),
+						bankTookBackOn: sql<string | null>`null`.as("bank_took_back_on"),
+						bankAmountCents: sql<number | null>`null`.as("bank_amount_cents"),
 					})
 					.from(sql`json_each(${JSON.stringify(spending)})`)
 					.where(theImport),
@@ -252,6 +254,8 @@ export async function importStatement(
 						payMemberId: sql<string | null>`(select m.id from members m
 							where m.id = ${lineField("pay")} and m.household_id = ${householdId}
 							and m.kind = 'parent')`.as("pay_member_id"),
+						bankTookBackOn: sql<string | null>`null`.as("bank_took_back_on"),
+						bankAmountCents: sql<number | null>`null`.as("bank_amount_cents"),
 					})
 					.from(sql`json_each(${JSON.stringify(received)})`)
 					.where(theImport),

@@ -56,6 +56,13 @@ export type MoneyInLine = {
 	otherAccountId: string | null;
 	/** Whose pay it is: a Parent's ID, or null for the Household. */
 	whosePay: string | null;
+	/**
+	 * The day the bank took it back, or changed it, after money back through it had counted in a
+	 * month that has ended: it is kept as it was so that month doesn't change (issue 141).
+	 */
+	bankTookBackOn: DayKey | null;
+	/** What the bank says it is now, when it only changed the amount; null when it took it back. */
+	bankAmount: Cents | null;
 };
 
 export type MoneyInFilter = {
@@ -86,6 +93,8 @@ export async function loadMoneyIn(
 			accountId: income.accountId,
 			createdBy: income.createdByMemberId,
 			whosePay: income.payMemberId,
+			bankTookBackOn: income.bankTookBackOn,
+			bankAmount: income.bankAmountCents,
 			transferId: transfers.id,
 			reason: transfers.reason,
 			outId: transfers.outTransactionId,
@@ -123,6 +132,8 @@ export async function loadMoneyIn(
 		paired: row.outId !== null,
 		otherAccountId: row.otherAccountId,
 		whosePay: row.whosePay,
+		bankTookBackOn: row.bankTookBackOn as DayKey | null,
+		bankAmount: row.bankAmount as Cents | null,
 	}));
 }
 
@@ -148,7 +159,11 @@ export type MoneyInKindResult =
 	 * that has ended, which never changes (ADR-0058); `matched`: the new amount is less than what
 	 * the line has already settled.
 	 */
-	| { ok: false; reason: "refused" | "extra-income" | "month-ended" | "matched" }
+	/** `over-purchase`: a linked Refund raised above what its purchase cost. */
+	| {
+			ok: false;
+			reason: "refused" | "extra-income" | "month-ended" | "matched" | "over-purchase";
+	  }
 	| { ok: false; reason: "changed-elsewhere"; current: MoneyInLine };
 
 /**
@@ -335,7 +350,13 @@ const isParent = async (db: Db, householdId: string, memberId: string) =>
 export async function editMoneyIn(
 	db: Db,
 	viewer: { householdId: string; memberId: string },
-	input: { incomeId: string; expectedVersion?: number; edit: MoneyInEdit },
+	input: {
+		incomeId: string;
+		expectedVersion?: number;
+		edit: MoneyInEdit;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
+	},
 ): Promise<MoneyInKindResult> {
 	const { householdId } = viewer;
 	const before = await loadMoneyInLine(db, householdId, input.incomeId);
@@ -382,6 +403,30 @@ export async function editMoneyIn(
 		return (row?.matched ?? 0) > (edit.amountCents as number);
 	};
 	if (await overMatched()) return { ok: false, reason: "matched" };
+
+	// A Refund linked to its purchase gives that purchase all of itself back: never more than the
+	// purchase cost, and nothing of it changes once it counted in a month that has ended.
+	if (edit.amountCents !== undefined && edit.amountCents !== before.amount) {
+		const [link] = await db
+			.select({
+				countsOn: refundLinks.countsOn,
+				cost: transactions.amountCents,
+				others: sql<number>`(select coalesce(sum(oi.amount_cents), 0) from refund_links ol
+					join income oi on oi.id = ol.income_id
+					where ol.transaction_id = ${transactions.id} and ol.income_id <> ${input.incomeId})`.as(
+					"others",
+				),
+			})
+			.from(refundLinks)
+			.innerJoin(transactions, eq(transactions.id, refundLinks.transactionId))
+			.where(
+				and(eq(refundLinks.incomeId, input.incomeId), eq(refundLinks.householdId, householdId)),
+			);
+		if (link && link.countsOn < endedBefore(input.today))
+			return { ok: false, reason: "month-ended" };
+		if (link && edit.amountCents > link.cost - link.others)
+			return { ok: false, reason: "over-purchase" };
+	}
 
 	// What its month's Income loses by this: all of it when it leaves the month.
 	const less =

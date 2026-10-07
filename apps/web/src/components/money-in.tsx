@@ -1,4 +1,9 @@
-import { MONEY_IN_KIND_LABELS, MONEY_IN_KINDS, type MonthKey } from "@noodle/domain";
+import {
+	MONEY_IN_KIND_LABELS,
+	MONEY_IN_KINDS,
+	type MonthKey,
+	suggestedMoneyInKind,
+} from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Checkbox } from "@noodle/ui/components/checkbox";
@@ -6,6 +11,7 @@ import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
+import { BANK_TOOK_BACK_WORD, bankTookBackText } from "../bank-took-back";
 import { dayName, formatMoney } from "../format";
 import {
 	type MoneyInLine,
@@ -46,6 +52,12 @@ export function MoneyInKindChoice({
 	const change = useMoneyInKindChange();
 	const accounts = useQuery(moneyInAccountsQuery()).data ?? [];
 	const [always, setAlways] = useState(false);
+	// While it waits in Review, wording that reads as a refund puts Refund first (issue 141). It
+	// is a suggestion: nothing is a Refund until the Parent presses it.
+	const suggested = line.needsReview ? suggestedMoneyInKind(line.note) : null;
+	const kinds = suggested
+		? [suggested, ...MONEY_IN_KINDS.filter((kind) => kind !== suggested)]
+		: MONEY_IN_KINDS;
 	return (
 		<div className="grid gap-3" data-testid="money-in-kind-choice">
 			<p id={`${id}-q`} className="text-sm text-muted-foreground">
@@ -53,15 +65,18 @@ export function MoneyInKindChoice({
 			</p>
 			{/* biome-ignore lint/a11y/useSemanticElements: a fieldset's legend can't sit in this grid. */}
 			<div role="group" aria-labelledby={`${id}-q`} className="flex flex-wrap gap-2">
-				{MONEY_IN_KINDS.map((kind) => {
+				{kinds.map((kind) => {
 					const current = !line.needsReview && line.kind === kind;
 					return (
 						<Button
 							key={kind}
 							type="button"
 							size="sm"
-							variant={current ? "default" : "outline"}
+							variant={current || kind === suggested ? "default" : "outline"}
 							aria-pressed={current}
+							{...(kind === suggested
+								? { "aria-describedby": `${id}-suggested`, "data-suggested": "" }
+								: {})}
 							disabled={change.isPending}
 							onClick={() =>
 								// Awaited, not a callback of this call: the lists are refetched before a callback
@@ -82,6 +97,16 @@ export function MoneyInKindChoice({
 					);
 				})}
 			</div>
+			{suggested ? (
+				<p
+					id={`${id}-suggested`}
+					className="text-sm text-muted-foreground"
+					data-testid="money-in-suggested"
+				>
+					This reads as a {MONEY_IN_KIND_LABELS[suggested]}, so it’s first. It isn’t one until you
+					say so.
+				</p>
+			) : null}
 			{line.note ? (
 				<div className="flex items-center gap-2">
 					<Checkbox
@@ -187,6 +212,15 @@ export function MoneyInSection({
 								>
 									{moneyInKindText(line)}
 								</Badge>
+								{line.bankTookBackOn ? (
+									<Badge
+										data-testid="bank-took-back"
+										className="h-4.5 px-1.5 text-[11px]"
+										title={bankTookBackText(line, today) ?? undefined}
+									>
+										{BANK_TOOK_BACK_WORD}
+									</Badge>
+								) : null}
 							</>
 						}
 						trailing={
@@ -207,6 +241,11 @@ export function MoneyInSection({
 						below={
 							open === line.id ? (
 								<div className="grid gap-4">
+									{line.bankTookBackOn ? (
+										<p className="text-sm text-muted-foreground" data-testid="bank-took-back-note">
+											{bankTookBackText(line, today)}
+										</p>
+									) : null}
 									{/* Closed at once when nothing more is asked; else by the follow-up's "Done". */}
 									<MoneyInKindChoice line={line} onDone={() => setOpen(null)} />
 									<MoneyInFollowUpAsk line={line} today={today} onDone={() => setOpen(null)} />
@@ -245,7 +284,8 @@ export function MoneyInReview({ today, className }: { today: string; className?:
 			/>
 			{lines.length > 0 ? (
 				<p className="text-sm text-muted-foreground">
-					Money a person sent you isn’t counted as Income until you say what it is.
+					Money a person sent you, or that reads as a refund, isn’t counted as Income until you say
+					what it is.
 				</p>
 			) : null}
 			<List>

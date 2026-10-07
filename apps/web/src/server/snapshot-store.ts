@@ -16,6 +16,7 @@ import {
 	type Viewer,
 } from "@noodle/db";
 import { households } from "@noodle/db/schema";
+import type { DayKey } from "@noodle/domain";
 import { ulid } from "ulid";
 import type { HouseholdChange } from "../household-changes";
 
@@ -272,9 +273,12 @@ export async function deleteTransactionsWithSnapshot(
 	viewer: Viewer,
 	selection: TransactionSelection,
 	now: Date,
+	/** The Household's day, for what counted in a month that has ended; UTC's when left out. */
+	today?: DayKey,
 ) {
 	const taken: { id: string | null } = { id: null };
 	const result = await deleteTransactions(deps.db, viewer, selection, {
+		...(today ? { today } : {}),
 		beforeDeleting: async () => {
 			try {
 				const row = await takeSnapshot(deps, {

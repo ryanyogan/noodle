@@ -252,6 +252,10 @@ async function changedElsewhere(
 	};
 }
 
+/** Said when a change would move a month that has ended (issue 141, ADR-0058). */
+const ENDED_MONTH_EDIT =
+	"Money back on this counted in a month that has ended, so its amount and where it’s filed stay as they are. You can still change its note and who it’s For.";
+
 /** The version of the Transaction the change was made on; left out by a caller that has none. */
 const versionSchema = z.number().int().min(0).optional();
 
@@ -281,6 +285,7 @@ export const updateTransaction = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
 		const result = await updateTransactionInDb(getDb(), {
+			today: dayKeyAt(new Date(), context.household.timeZone),
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			transactionId: data.transactionId,
@@ -292,6 +297,7 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			expectedVersion: data.expectedVersion,
 		});
 		if (!result.ok) {
+			if (result.reason === "month-ended") throw new Error(ENDED_MONTH_EDIT);
 			if (result.reason === "changed-elsewhere")
 				return changedElsewhere(viewerOf(context), data.transactionId);
 			throw new Error("That isn’t in the Plan for this Transaction’s month.");
@@ -382,6 +388,7 @@ export const splitTransaction = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
 		const result = await splitTransactionInDb(getDb(), {
+			today: dayKeyAt(new Date(), context.household.timeZone),
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			transactionId: data.transactionId,
@@ -392,6 +399,7 @@ export const splitTransaction = createServerFn({ method: "POST" })
 			expectedVersion: data.expectedVersion,
 		});
 		if (!result.ok) {
+			if (result.reason === "month-ended") throw new Error(ENDED_MONTH_EDIT);
 			if (result.reason === "changed-elsewhere")
 				return changedElsewhere(viewerOf(context), data.transactionId);
 			throw new Error(
@@ -529,17 +537,28 @@ export const getDeletionSummary = createServerFn({ method: "POST" })
 export const deleteTransactions = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(selectionSchema)
-	.handler(async ({ data, context }): Promise<{ deleted: number; snapshot: boolean }> => {
-		const result = await deleteTransactionsWithSnapshot(
-			{ db: getDb(), bucket: env.BACKUPS, migration: await newestMigration(env.DB) },
-			viewerOf(context),
+	.handler(
+		async ({
 			data,
-			new Date(),
-		);
-		const changes = changesAfterBulkDelete(result);
-		if (changes.length > 0) await notifyHousehold(context.household.id, changes);
-		return { deleted: result.deleted, snapshot: result.snapshotId !== null };
-	});
+			context,
+		}): Promise<{
+			deleted: number;
+			/** Left as they are: money back on them counted in a month that has ended. */
+			kept: number;
+			snapshot: boolean;
+		}> => {
+			const result = await deleteTransactionsWithSnapshot(
+				{ db: getDb(), bucket: env.BACKUPS, migration: await newestMigration(env.DB) },
+				viewerOf(context),
+				data,
+				new Date(),
+				dayKeyAt(new Date(), context.household.timeZone),
+			);
+			const changes = changesAfterBulkDelete(result);
+			if (changes.length > 0) await notifyHousehold(context.household.id, changes);
+			return { deleted: result.deleted, kept: result.kept, snapshot: result.snapshotId !== null };
+		},
+	);
 
 /** What "File in…" did: how many were filed, what was left and why, and what Undo puts back. */
 export type FilingAnswer = Extract<FilingResult, { ok: true }>;
