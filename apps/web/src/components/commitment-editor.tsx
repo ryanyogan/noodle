@@ -13,7 +13,6 @@ import {
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
-import { Card } from "@noodle/ui/components/card";
 import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
@@ -29,7 +28,7 @@ import {
 import { Tile } from "@noodle/ui/components/tile";
 import { useQueryClient } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
 import { monogram } from "../buckets";
@@ -625,80 +624,69 @@ export function AddCommitment({
 	}
 
 	return (
-		<Card>
-			<form
-				onSubmit={onSubmit}
-				noValidate
-				aria-label="Add a Commitment"
-				className="grid gap-3 p-(--card-pad)"
-			>
-				{/* Keyed like "Pays down": the next one starts empty, not from Review's line again. Each
+		// In the Add sheet, laid out as the Commitment sheet is (issue 146): the fields on the sheet
+		// itself, not on a card inside it, with Cancel and the filled button in the sheet's footer.
+		<form onSubmit={onSubmit} noValidate aria-label="Add a Commitment" className="grid gap-4">
+			{/* Keyed like "Pays down": the next one starts empty, not from Review's line again. Each
 				    keyed part of the form has its own word before the ID: two of them under the bare ID
 				    were two children with one key. */}
-				<div
-					key={`terms-${commitmentId}`}
-					className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] lg:grid-cols-1"
-				>
-					<Field label="New Commitment" htmlFor={`${id}-name`}>
-						<Input
-							id={`${id}-name`}
-							name="name"
-							defaultValue={prefill?.name}
-							maxLength={40}
-							autoComplete="off"
-							placeholder="Mortgage"
-							aria-invalid={errors.name || undefined}
-						/>
-					</Field>
-					<Field label="Amount due" htmlFor={`${id}-amount`}>
-						<Input
-							id={`${id}-amount`}
-							name="amount"
-							defaultValue={
-								prefill?.amount ? (prefill.amount / 100).toFixed(2).replace(/\.00$/, "") : undefined
-							}
-							inputMode="decimal"
-							autoComplete="off"
-							placeholder="0"
-							className="tabular-nums"
-							aria-invalid={errors.amount || undefined}
-						/>
-					</Field>
-				</div>
-				{/* Keyed like "Pays down": the next one starts at "The same each time" again. */}
-				<AmountKindField key={`kind-${commitmentId}`} id={id} />
-				<ScheduleFields
-					id={id}
-					cadence="monthly"
-					dueDate={`${month}-01` as DayKey}
-					inCard={false}
-					invalid={errors.dueDate}
-				/>
-				{/* Keyed by the Commitment being added, so the next one starts from Nothing again. */}
-				<PaysDownField
-					key={`pays-down-${commitmentId}`}
-					id={id}
-					invalid={errors.carried}
-					initial={
-						prefill?.paysDown && prefill.paysDown !== "add"
-							? { accountId: prefill.paysDown }
-							: undefined
-					}
-					startAdding={prefill?.paysDown === "add"}
-					suggest
-				/>
-				<CommitmentFormErrors errors={errors} />
-				<SaveFailed change={add} />
-				<Button
-					type="submit"
-					variant="secondary"
-					className="justify-self-start"
-					disabled={!hydrated || add.isPending}
-				>
-					<Plus />
+			<div key={`terms-${commitmentId}`} className="grid gap-4">
+				<Field label="New Commitment" htmlFor={`${id}-name`}>
+					<Input
+						id={`${id}-name`}
+						name="name"
+						defaultValue={prefill?.name}
+						maxLength={40}
+						autoComplete="off"
+						placeholder="Mortgage"
+						aria-invalid={errors.name || undefined}
+					/>
+				</Field>
+				<Field label="Amount due" htmlFor={`${id}-amount`}>
+					<Input
+						id={`${id}-amount`}
+						name="amount"
+						defaultValue={
+							prefill?.amount ? (prefill.amount / 100).toFixed(2).replace(/\.00$/, "") : undefined
+						}
+						inputMode="decimal"
+						autoComplete="off"
+						placeholder="0"
+						className="tabular-nums"
+						aria-invalid={errors.amount || undefined}
+					/>
+				</Field>
+			</div>
+			{/* Keyed like "Pays down": the next one starts at "The same each time" again. */}
+			<AmountKindField key={`kind-${commitmentId}`} id={id} />
+			<ScheduleFields
+				id={id}
+				cadence="monthly"
+				dueDate={`${month}-01` as DayKey}
+				inCard={false}
+				invalid={errors.dueDate}
+			/>
+			{/* Keyed by the Commitment being added, so the next one starts from Nothing again. */}
+			<PaysDownField
+				key={`pays-down-${commitmentId}`}
+				id={id}
+				invalid={errors.carried}
+				initial={
+					prefill?.paysDown && prefill.paysDown !== "add"
+						? { accountId: prefill.paysDown }
+						: undefined
+				}
+				startAdding={prefill?.paysDown === "add"}
+				suggest
+			/>
+			<CommitmentFormErrors errors={errors} />
+			<SaveFailed change={add} />
+			<SheetFooter>
+				<SheetCancel />
+				<Button type="submit" disabled={!hydrated || add.isPending}>
 					{add.isPending ? "Saving…" : "Add Commitment"}
 				</Button>
-			</form>
-		</Card>
+			</SheetFooter>
+		</form>
 	);
 }

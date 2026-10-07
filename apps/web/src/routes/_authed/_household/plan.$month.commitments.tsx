@@ -7,13 +7,14 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@noodle/ui/components/collapsible";
+import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Money } from "@noodle/ui/components/money";
 import { RowButton } from "@noodle/ui/components/row-button";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, linkOptions, useHydrated } from "@tanstack/react-router";
-import { ChevronRight, Plus } from "lucide-react";
+import { CalendarClock, ChevronRight, Plus } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { AddCommitment, useCommitmentChanges } from "../../../components/commitment-editor";
@@ -161,20 +162,33 @@ function PlanCommitments() {
 			}
 			aside={aside}
 		>
-			<div className="grid gap-5">
-				<div className="flex flex-wrap items-start justify-between gap-3">
-					<div className="grid gap-1">
-						<h2 className="text-lg font-semibold">Your commitments</h2>
-						<p className="text-sm text-muted-foreground">
-							Recurring bills, what’s due, and what you’ve paid.
-						</p>
-					</div>
-					{state.editable ? (
-						<Button disabled={!hydrated} onClick={() => setAdding(true)}>
-							<Plus />
-							Add Commitment
-						</Button>
-					) : null}
+			<div className="grid min-w-0 gap-5">
+				{/* The page's heading, as the Plan's Buckets have theirs (issue 146): the section heading
+				    with its count, and the filled Add button at the heading's size beside it. */}
+				<div className="grid gap-1">
+					<SectionHeader
+						id="plan-commitments"
+						title="Your commitments"
+						count={state.commitments.length}
+						action={
+							state.editable ? (
+								<Button
+									type="button"
+									size="sm"
+									// Beside the heading on a phone there is room for the words only.
+									className="max-sm:[&_svg]:hidden"
+									disabled={!hydrated}
+									onClick={() => setAdding(true)}
+								>
+									<Plus />
+									Add Commitment
+								</Button>
+							) : undefined
+						}
+					/>
+					<p className="text-[13px] text-muted-foreground">
+						Recurring bills, what’s due, and what you’ve paid.
+					</p>
 				</div>
 				<Sheet open={adding} onOpenChange={setAdding}>
 					<SheetContent>
@@ -197,7 +211,14 @@ function PlanCommitments() {
 					<>
 						{due.length > 0 ? (
 							<Section aria-labelledby="commitments-due">
-								<SectionHeader id="commitments-due" title="Due this month" count={due.length} />
+								{/* A quieter label than the page's heading over it, in the type of "Not this month". */}
+								<h3
+									id="commitments-due"
+									className="flex min-h-7 items-center gap-1.5 px-1 text-[13px] font-medium text-muted-foreground"
+								>
+									Due this month
+									<Badge variant="count">{due.length}</Badge>
+								</h3>
 								<CommitmentTable
 									month={month}
 									commitments={due}
@@ -216,7 +237,7 @@ function PlanCommitments() {
 									Not this month
 									<Badge variant="count">{notDue.length}</Badge>
 								</CollapsibleTrigger>
-								<CollapsibleContent>
+								<CollapsibleContent className="pt-1">
 									<CommitmentTable
 										month={month}
 										commitments={notDue}
@@ -228,11 +249,17 @@ function PlanCommitments() {
 						) : null}
 					</>
 				) : state.editable ? (
-					<p className="text-sm text-muted-foreground sm:px-1">
-						Recurring, predictable costs: the mortgage, insurance, daycare, subscriptions. What
-						they’re expected to take each month comes out before the Buckets.{" "}
-						<TermHelp term="commitment" />
-					</p>
+					<EmptyState
+						icon={<CalendarClock />}
+						title="No Commitments yet"
+						description={
+							<>
+								Recurring, predictable costs: the mortgage, insurance, daycare, subscriptions. What
+								they’re expected to take each month comes out before the Buckets.{" "}
+								<TermHelp term="commitment" />
+							</>
+						}
+					/>
 				) : (
 					<Card className="p-(--card-pad) text-sm text-muted-foreground">
 						No Commitments in this month’s Plan.

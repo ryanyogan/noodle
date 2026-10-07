@@ -6,10 +6,13 @@ import {
 	paymentsView,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
+import { Card } from "@noodle/ui/components/card";
 import { DataTable, type DataTableColumn } from "@noodle/ui/components/data-table";
+import { Tile } from "@noodle/ui/components/tile";
 import { useHydrated, useNavigate, useParams } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
+import { monogram } from "../buckets";
 import { cadenceNames } from "../commitments";
 import { formatMoney, fullDay, monthName, shortDay } from "../format";
 import { usePlanChanges } from "../plan-changes";
@@ -18,6 +21,19 @@ import { AboutNote, CommitmentLink } from "./commitment-list";
 import { PaysDownNote } from "./pays-down";
 import { ChangedNote } from "./plan-scope-field";
 
+/**
+ * In a stacked row (a phone) the lines under the name start with the name, past the letter tile
+ * (36px) and its gap, as the Buckets table's do. Not under 16rem (text twice its size), where the
+ * tile is gone (`NO_TILE`).
+ */
+const UNDER_NAME = "@max-2xl/dt:ps-12 @max-[16rem]/dt:ps-0";
+const NO_TILE = "@max-[16rem]/dt:hidden";
+
+/**
+ * A month's Commitments as a table (issue 146: drawn as the Plan's Buckets table is). On a Card,
+ * each row with its letter tile, the figures in fixed columns at the end of the name's, the
+ * quieter lines at 13px, and the pencil that opens the Commitment sheet in the last column.
+ */
 export function CommitmentTable({
 	month,
 	commitments,
@@ -39,18 +55,24 @@ export function CommitmentTable({
 		{
 			id: "name",
 			header: "Commitment",
-			min: 10,
+			// As the Buckets table's first column: a name reads beside its tile.
+			min: 12,
 			width: "minmax(0,2fr)",
 			stacked: "title",
 			cell: (c) => (
-				<div className="grid gap-1">
-					<CommitmentLink month={month} commitment={c} />
-					<span className="text-xs font-normal text-muted-foreground">
-						{c.about ? <AboutNote commitment={c} /> : formatMoney(c.amount)} ·{" "}
-						{cadenceNames[c.cadence]}
-					</span>
-					{c.accountId ? <PaysDownNote accountId={c.accountId} /> : null}
-					<ChangedNote was={previous.commitments[c.id]} />
+				<div className="flex min-w-0 items-center gap-3">
+					<Tile className={NO_TILE}>{monogram(c.name)}</Tile>
+					<div className="grid min-w-0 gap-0.5">
+						<span className="min-w-0 font-medium wrap-anywhere">
+							<CommitmentLink month={month} commitment={c} />
+						</span>
+						<span className="text-[13px] font-normal text-muted-foreground tabular-nums">
+							{c.about ? <AboutNote commitment={c} /> : formatMoney(c.amount)} ·{" "}
+							{cadenceNames[c.cadence]}
+						</span>
+						{c.accountId ? <PaysDownNote accountId={c.accountId} /> : null}
+						<ChangedNote was={previous.commitments[c.id]} />
+					</div>
 				</div>
 			),
 			footer: "Total",
@@ -59,7 +81,7 @@ export function CommitmentTable({
 			id: "schedule",
 			header: "Due date",
 			min: 7,
-			width: "minmax(0,1fr)",
+			width: "7rem",
 			priority: 2,
 			stacked: "hidden",
 			cell: (c) => (
@@ -74,13 +96,13 @@ export function CommitmentTable({
 			id: "expected",
 			header: "Expected",
 			min: 6,
-			width: "minmax(0,1fr)",
+			width: "6rem",
 			align: "end",
 			stacked: "value",
 			cell: (c) => (
 				<span className="font-medium tabular-nums">
 					{formatMoney(c.expected)}
-					<span className="@2xl/dt:hidden text-xs font-normal text-muted-foreground"> due</span>
+					<span className="@2xl/dt:hidden text-[13px] font-normal text-muted-foreground"> due</span>
 				</span>
 			),
 			footer: formatMoney(commitments.reduce((sum, c) => sum + c.expected, 0)),
@@ -89,10 +111,12 @@ export function CommitmentTable({
 			id: "paid",
 			header: "Paid",
 			min: 6,
-			width: "minmax(0,1fr)",
+			width: "6rem",
 			align: "end",
 			priority: 1,
 			stacked: "hidden",
+			// The quieter figure beside Expected, as Spent is beside a Bucket's allowance.
+			className: "text-muted-foreground",
 			cell: (c) => formatMoney(paymentsView(c).actual),
 			footer: formatMoney(commitments.reduce((sum, c) => sum + paymentsView(c).actual, 0)),
 		},
@@ -102,15 +126,17 @@ export function CommitmentTable({
 			min: 9,
 			width: "minmax(0,1.5fr)",
 			stacked: "secondary",
+			// Clear of the figure before it, which ends where this column begins.
+			headerClassName: "ps-4",
 			cell: (c) => (
-				<div className="grid gap-1">
+				<div className={`grid min-w-0 gap-1 @2xl/dt:ps-4 ${UNDER_NAME}`}>
 					<PaidState commitment={c} />
 					{c.dueDates.length === 0 ? (
-						<span className="text-xs text-muted-foreground @2xl/dt:hidden">
+						<span className="text-[13px] text-muted-foreground tabular-nums @2xl/dt:hidden">
 							Next {fullDay(nextDueDate(c, `${month}-01`))}
 						</span>
 					) : null}
-					<span className="text-xs text-muted-foreground @2xl/dt:hidden">
+					<span className="text-[13px] text-muted-foreground tabular-nums @2xl/dt:hidden">
 						{formatMoney(paymentsView(c).actual)} paid · {formatMoney(monthlyEquivalent(c))}/mo
 						average
 					</span>
@@ -121,8 +147,9 @@ export function CommitmentTable({
 			id: "edit",
 			header: "Edit",
 			headerHidden: true,
-			min: 2.75,
-			width: "2.75rem",
+			min: 2.25,
+			width: "2.25rem",
+			align: "end",
 			stacked: "trailing",
 			hidden: !editable,
 			cell: (c) => (
@@ -132,6 +159,7 @@ export function CommitmentTable({
 					size="icon"
 					disabled={!hydrated}
 					aria-label={`Edit ${c.name}`}
+					aria-haspopup="dialog"
 					onClick={() => setEditing(c.id)}
 				>
 					<Pencil />
@@ -141,20 +169,26 @@ export function CommitmentTable({
 	];
 	return (
 		<>
-			<DataTable
-				label={`Commitments in ${monthName(month)}`}
-				columns={columns}
-				data={commitments}
-				getRowId={(c) => c.id}
-				isOpen={(c) => c.id === picked}
-				onOpen={(c) =>
-					void navigate({
-						to: "/plan/$month/commitments/$id",
-						params: { month, id: c.id },
-						resetScroll: false,
-					})
-				}
-			/>
+			{/* Clipped to the card's corners, so a row's hover and the open row's ground follow them. */}
+			<Card className="overflow-clip">
+				<DataTable
+					label={`Commitments in ${monthName(month)}`}
+					columns={columns}
+					data={commitments}
+					getRowId={(c) => c.id}
+					surface="card"
+					// A short list on a card: the header scrolls with its rows.
+					stickyHeader={false}
+					isOpen={(c) => c.id === picked}
+					onOpen={(c) =>
+						void navigate({
+							to: "/plan/$month/commitments/$id",
+							params: { month, id: c.id },
+							resetScroll: false,
+						})
+					}
+				/>
+			</Card>
 			{open ? (
 				<CommitmentSheet
 					month={month}
