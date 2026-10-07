@@ -40,7 +40,12 @@ type ToastOptions = {
 			 * never leaves.
 			 */
 			onGone?: () => void;
-			action?: never;
+			/**
+			 * One more thing to do beside Undo (Edit, View, …), drawn before it: for an answer that
+			 * made something the Parent may want to open. Pressing it closes the toast and keeps what
+			 * was done, so `onGone` then happens; the toast still stays UNDO_TOAST_MS.
+			 */
+			action?: { label: string; onClick: () => void };
 			sticky?: never;
 			duration?: never;
 	  }
@@ -130,15 +135,29 @@ function toast(message: string, options: ToastOptions = { tone: "success" }): ()
 	};
 }
 
+/**
+ * A toast's buttons, in the order they're drawn: its `action` if it has one, then Undo, which is
+ * always the last, so it's in the same place on every toast that has it.
+ */
+function toastButtons({
+	undo,
+	action,
+}: {
+	undo?: () => void;
+	action?: { label: string; onClick: () => void };
+}): { label: string; onClick: () => void }[] {
+	return [...(action ? [action] : []), ...(undo ? [{ label: "Undo", onClick: undo }] : [])];
+}
+
 function ToastBody({
 	id,
 	message,
 	tone,
 	undo,
-	action: other,
+	action,
 	sticky,
 }: ToastOptions & { id: string | number; message: string }) {
-	const action = undo ? { label: "Undo", onClick: undo } : other;
+	const buttons = toastButtons({ undo, action });
 	return (
 		// Each toast is a status, so it's announced politely and found as one. From sm up every toast
 		// is the Toaster's width, so two or three stacked make one even pile (issue 73); on a phone
@@ -156,19 +175,22 @@ function ToastBody({
 					<CheckIcon strokeWidth={2.5} />
 				)}
 			</span>
-			<span className={cn("min-w-0 sm:flex-1", !action && !sticky && "pe-1")}>{message}</span>
-			{action ? (
+			<span className={cn("min-w-0 sm:flex-1", buttons.length === 0 && !sticky && "pe-1")}>
+				{message}
+			</span>
+			{buttons.map((button) => (
 				<button
+					key={button.label}
 					type="button"
 					className="h-7 shrink-0 rounded-lg bg-card/15 px-2.5 text-[13px] font-semibold transition-colors duration-(--duration-fast) hover:bg-card/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 					onClick={() => {
 						sonner.dismiss(id);
-						action.onClick();
+						button.onClick();
 					}}
 				>
-					{action.label}
+					{button.label}
 				</button>
-			) : null}
+			))}
 			{sticky ? (
 				<button
 					type="button"
@@ -274,4 +296,4 @@ function Toaster({ className }: { className?: string }) {
 	);
 }
 
-export { Toaster, toast, toastDuration, UNDO_TOAST_MS, undoOrGone };
+export { Toaster, toast, toastButtons, toastDuration, UNDO_TOAST_MS, undoOrGone };

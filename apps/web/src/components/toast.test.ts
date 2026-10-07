@@ -1,4 +1,9 @@
-import { toastDuration, UNDO_TOAST_MS, undoOrGone } from "@noodle/ui/components/toast";
+import {
+	toastButtons,
+	toastDuration,
+	UNDO_TOAST_MS,
+	undoOrGone,
+} from "@noodle/ui/components/toast";
 import { describe, expect, it, vi } from "vitest";
 
 // How long a toast stays (#78): by kind unless a time is asked for, and a sticky one always
@@ -74,5 +79,30 @@ describe("an Undo, or the toast going without it", () => {
 		latch.gone();
 		latch.undo();
 		expect(undo).not.toHaveBeenCalled();
+	});
+});
+
+describe("a toast's buttons", () => {
+	const edit = { label: "Edit", onClick: () => {} };
+
+	it("has none without Undo or an action", () => {
+		expect(toastButtons({})).toEqual([]);
+	});
+
+	it("has Undo alone, or its action alone", () => {
+		expect(toastButtons({ undo: () => {} }).map((button) => button.label)).toEqual(["Undo"]);
+		expect(toastButtons({ action: edit })).toEqual([edit]);
+	});
+
+	it("takes one action beside Undo, with Undo last (issue 136)", () => {
+		const undo = vi.fn();
+		const buttons = toastButtons({ undo, action: edit });
+		expect(buttons.map((button) => button.label)).toEqual(["Edit", "Undo"]);
+		buttons[1]?.onClick();
+		expect(undo).toHaveBeenCalledOnce();
+	});
+
+	it("still stays ten seconds with both", () => {
+		expect(toastDuration({ tone: "success", undo: () => {}, action: edit })).toBe(UNDO_TOAST_MS);
 	});
 });
