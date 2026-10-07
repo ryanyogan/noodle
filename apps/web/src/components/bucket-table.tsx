@@ -23,6 +23,13 @@ import { useBucketReorder } from "./bucket-reorder";
 import { masterDetailItem } from "./master-detail";
 
 /**
+ * The Spent column's figure. Below zero means more was Paid back or refunded than was spent (issue
+ * 132): "$45 back", which fits the narrow column and doesn't read as a debt the way "−$45" did.
+ */
+const spentFigure = (cents: number) =>
+	cents < 0 ? `${formatMoney(-cents)} back` : formatMoney(cents);
+
+/**
  * What is left in a Bucket. In its own column the heading says what the figure is; in a stacked row
  * (a phone, or a narrow list) the figure says it itself: "$120 left", "$20 over".
  */
@@ -366,8 +373,8 @@ export function BucketTable({
 				priority: 2,
 				stacked: "hidden",
 				className: "text-muted-foreground",
-				cell: (bucket) => formatMoney(bucket.spent),
-				footer: totals ? formatMoney(sum(buckets, (b) => b.spent)) : undefined,
+				cell: (bucket) => spentFigure(bucket.spent),
+				footer: totals ? spentFigure(sum(buckets, (b) => b.spent)) : undefined,
 			},
 			{
 				id: "left",
