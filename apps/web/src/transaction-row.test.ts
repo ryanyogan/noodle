@@ -54,6 +54,31 @@ describe("rowView", () => {
 		});
 	});
 
+	it("a payment to a card is called Card payment, unless a Parent named it", () => {
+		const transfer = { from: "Checking", to: "Visa", reason: null };
+		const bank = { merchantName: null, note: "PAYMENT THANK YOU - WEB", importedFrom: "Visa" };
+		expect(view({ ...bank, transfer, paysCard: true })).toMatchObject({
+			title: "Card payment",
+			kindWord: "Transfer",
+			label: `Card payment, ${money}, Transfer, Checking to Visa`,
+		});
+		expect(view({ ...bank, transfer, paysCard: true, merchantName: "Visa autopay" }).title).toBe(
+			"Visa autopay",
+		);
+		// Any other Transfer keeps the bank's wording, cleaned up.
+		expect(view({ ...bank, transfer }).title).toBe("Thank You");
+	});
+
+	it("says its second line either side of For, only where the line says For", () => {
+		expect(view({ importedFrom: "Visa ••1234" }).aroundFor).toEqual({
+			before: "Groceries",
+			after: "Visa ••1234",
+		});
+		expect(view().aroundFor).toEqual({ before: "Groceries", after: "" });
+		expect(view({ transfer: { from: "Checking", to: "Visa", reason: null } }).aroundFor).toBeNull();
+		expect(view({ amountCents: -500 }).aroundFor).toBeNull();
+	});
+
 	it("with no name it says what kind of thing it is", () => {
 		expect(view({ merchantName: null }).title).toBe("Quick Add");
 		expect(view({ merchantName: null, importedFrom: "Visa" }).title).toBe("Imported");

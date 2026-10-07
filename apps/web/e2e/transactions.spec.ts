@@ -53,8 +53,11 @@ const bucketRow = (page: Page, name: string) =>
 async function setUp(page: Page) {
 	await createPlannedHousehold(page, plan);
 	await page.goto("/household");
+	// Typed or pressed before the page is hydrated, the form does nothing.
+	const addChild = page.getByRole("button", { name: "Add Child" });
+	await hydrated(addChild);
 	await page.getByLabel("Add a Child").fill("Leo");
-	await page.getByRole("button", { name: "Add Child" }).click();
+	await addChild.click();
 	await expect(page.getByRole("button", { name: "Edit Leo" })).toBeVisible();
 	await quickAdd(page, "85.50", "Groceries", "Costco");
 	await quickAdd(page, "64.99", "Groceries", "Pro Hockey Life");
@@ -781,6 +784,40 @@ test("a Transaction is refiled in its Assigned to cell, Undo puts it back, and T
 	await page.reload();
 	await expect(bucketRow(page, "Hockey")).toContainText("$64.99 spent");
 	await page.context().close();
+});
+
+test("on a phone a row's For chips open the picker in place, and it offers only Members", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await setUp(page);
+	await openTransactions(page);
+	// Stacked rows: no For column, so the chips are in the row's second line, a control there too.
+	await page.setViewportSize({ width: 393, height: 852 });
+	const chips = list(page).getByRole("button", {
+		name: /^Change who Pro Hockey Life is For, now /,
+	});
+	await expect(chips).toHaveCount(1);
+	await expect(chips).toHaveText("Everyone");
+	expect((await chips.boundingBox())?.height).toBeGreaterThanOrEqual(24);
+	await hydrated(chips);
+	await chips.click();
+	const picker = page.getByRole("toolbar", { name: "For" });
+	await expect(picker.getByRole("button", { name: "Everyone" })).toBeVisible();
+	// Members only: nothing of anyone's Personal Allowance is offered (ADR-0003).
+	await expect(picker).not.toContainText(/Allowance/);
+	// The row did not open instead.
+	await expect(editSheet(page)).toBeHidden();
+	await picker.getByRole("button", { name: "Leo" }).click();
+	const saved = savedBy(page, "updateTransaction");
+	await page.keyboard.press("Escape");
+	await saved;
+	await expect(picker).toBeHidden();
+	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
+		"Pro Hockey Life, $64.99, Groceries, For Leo",
+	);
+	await expect(chips).toHaveText("Leo");
+	await expect(editSheet(page)).toBeHidden();
 });
 
 test("who a Transaction was For is changed from its chips, Undo puts it back, and Needs review narrows the list", async ({

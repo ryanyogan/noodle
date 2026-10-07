@@ -115,11 +115,15 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 	await expect(page.getByText("Transfer · Checking → Visa").filter({ visible: true })).toHaveCount(
 		2,
 	);
-	// Listed by the clean name once the background run has named it.
+	// A payment to a card is listed as that, not by the bank's wording for it.
 	const payment = page.getByRole("button", {
-		name: "Online Payment, $500, Transfer, Checking to Visa",
+		name: "Card payment, $500, Transfer, Checking to Visa",
 	});
 	await reloadUntil(page, page.url(), () => expect(payment).toBeVisible({ timeout: 2_000 }));
+	// Its row says the one word for what it is (issue 134).
+	await expect(
+		page.getByRole("row").filter({ has: payment }).first().locator("[data-slot=row-kind]"),
+	).toHaveText("Transfer");
 	// Rows open their detail once the page is hydrated.
 	await expect(page.getByLabel("Bucket")).toBeEnabled();
 	await payment.click();
@@ -272,6 +276,10 @@ test("money back linked as a Refund goes back to the purchase's Bucket", async (
 	});
 	await expect(refund).toBeVisible();
 	await says(page, refund, ["Refund · Gear", "Visa"]);
+	// The row says Refund in a word, and money back is green with its "+" (issue 134).
+	const refundRow = page.getByRole("row").filter({ has: refund }).first();
+	await expect(refundRow.locator("[data-slot=row-kind]")).toHaveText("Refund");
+	await expect(refundRow.locator(".text-money-in").filter({ visible: true })).toHaveText("+$24.99");
 
 	await page.goto(thisMonth);
 	await expect(bucketRow(page, "Gear")).toContainText("$55.01 spent");
