@@ -43,9 +43,18 @@ export function looksLikePayroll(text: string | null | undefined): boolean {
 }
 
 /** A Rule for money in: wording (a merchantKey, matched as whole words) that is always a kind. */
-export type MoneyInRule = { pattern: string; kind: MoneyInKind };
+export type MoneyInRule = {
+	pattern: string;
+	kind: MoneyInKind;
+	/** Set on a remembered pair of Accounts: it speaks only for money into this Account. */
+	intoAccountId?: string | null;
+};
 
-/** The Rule for a money-in line's wording: the longest pattern found in it as whole words. */
+/**
+ * The Rule for a money-in line's wording: the longest pattern found in it as whole words. Where
+ * a wording has both a plain Rule and a remembered pair of Accounts, the pair speaks: it is about
+ * this very Account. The caller passes only the pairs into the line's own Account.
+ */
 export function moneyInRuleFor<R extends MoneyInRule>(
 	rules: readonly R[],
 	description: string | null | undefined,
@@ -54,7 +63,11 @@ export function moneyInRuleFor<R extends MoneyInRule>(
 	const padded = ` ${merchantKey(description)} `;
 	return rules
 		.filter((rule) => rule.pattern.trim() && padded.includes(` ${rule.pattern.trim()} `))
-		.sort((a, b) => b.pattern.trim().length - a.pattern.trim().length)[0];
+		.sort(
+			(a, b) =>
+				b.pattern.trim().length - a.pattern.trim().length ||
+				Number(Boolean(b.intoAccountId)) - Number(Boolean(a.intoAccountId)),
+		)[0];
 }
 
 /**

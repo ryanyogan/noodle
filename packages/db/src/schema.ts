@@ -1089,6 +1089,40 @@ export const moneyInRules = sqliteTable(
 	(t) => [uniqueIndex("money_in_rules_household_pattern_idx").on(t.householdId, t.pattern)],
 );
 
+// A remembered pair of Accounts (ADR-0057, issue 141): money in with this wording into
+// `into_account_id` came from `other_account_id` and is always a Transfer. One per Household,
+// wording and Account it arrives in, so the same wording into two Accounts keeps two pairs
+// ("money from Gusto into Chase" and "…into Ally"); `money_in_rules` holds one Rule a wording.
+// Pairs remembered before this table are still read from `money_in_rules` (its
+// `into_account_id` set) until a Parent states them again or removes them.
+export const moneyInPairs = sqliteTable(
+	"money_in_pairs",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		pattern: text("pattern").notNull(),
+		intoAccountId: text("into_account_id")
+			.notNull()
+			.references(() => accounts.id),
+		otherAccountId: text("other_account_id")
+			.notNull()
+			.references(() => accounts.id),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [
+		uniqueIndex("money_in_pairs_household_pattern_into_idx").on(
+			t.householdId,
+			t.pattern,
+			t.intoAccountId,
+		),
+	],
+);
+
 // A card payment's wording, remembered (issue 136): once a Parent says money out is a payment to a
 // card, later lines with the same wording (a merchantKey, matched as whole words) are marked as a
 // Transfer on Import. `account_id` is the card it pays, null for a card that isn't in Noodle. A
