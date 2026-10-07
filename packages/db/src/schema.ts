@@ -1,4 +1,5 @@
 import {
+	type CheckInStarted,
 	type CsvMapping,
 	DEFAULT_CHECK_IN_DAY,
 	type DraftLabels,
@@ -1246,6 +1247,31 @@ export const checkIns = sqliteTable(
 	(t) => [
 		primaryKey({ columns: [t.memberId, t.week] }),
 		index("check_ins_household_week_idx").on(t.householdId, t.week),
+	],
+);
+
+// A card of a week's Check-in stack, as it joined: one row per Parent, week and card, written the
+// first time the card waits for that Parent (never by a read). `started` is what it held then,
+// read for that Parent alone (ADR-0003), so it is only ever read back for them; the Household's
+// order comes from when each kind first joined for anyone. A row is never changed: whether the
+// card still waits is read from what waits now.
+export const checkInCards = sqliteTable(
+	"check_in_cards",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		week: text("week").notNull(),
+		kind: text("kind", { enum: ["review", "insights", "sweeps", "windfalls"] }).notNull(),
+		started: text("started", { mode: "json" }).$type<CheckInStarted>().notNull(),
+		startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(t) => [
+		primaryKey({ columns: [t.memberId, t.week, t.kind] }),
+		index("check_in_cards_household_week_idx").on(t.householdId, t.week),
 	],
 );
 

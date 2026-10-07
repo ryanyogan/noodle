@@ -81,6 +81,7 @@ export const HOUSEHOLD_TABLES = {
 	balanceCheckAsks: s.balanceCheckAsks,
 	captureTokens: s.captureTokens,
 	checkIns: s.checkIns,
+	checkInCards: s.checkInCards,
 	perkSources: s.perkSources,
 	perks: s.perks,
 	perkUses: s.perkUses,

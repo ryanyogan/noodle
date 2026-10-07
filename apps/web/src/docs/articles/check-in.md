@@ -21,13 +21,22 @@ That day, each Parent who has not done it yet gets one Nudge at 9 AM, by your Ho
 
 ## Doing the Check-in
 
-1. Open **Check-in**. The page shows the week it is for, and the steps waiting for you.
+1. Open **Check-in**. The page shows the week it is for, and the week's steps.
 2. Work through the steps in order. There can be up to four: **Review** (spending Noodle was not sure where to file), **Insights** (suggestions to look at), **Sweeps** (leftovers from last month's Buckets that reset monthly) and **Extra income** (pay above your usual Take-home pay).
-3. On each step, read what is waiting. To go and deal with it, press **Open full page** on Review and Insights, or **Open** and the month's name on Sweeps and Extra income.
-4. Not now? Press **Skip for now**. On the last step it reads **Skip and finish**.
-5. At the end you see **You're done for this week**.
+3. On each step, read what is waiting. To go and deal with it, press **Open full page** on Review and Insights, or **Open** and the month's name on Sweeps and Extra income. Then come back to the Check-in.
+4. A step you have dealt with stays, as one line saying what was done, such as "3 Transactions cleared from Review" or "You decided $250 of Extra income". Press **Next** to go on.
+5. Not now? Press **Skip for now**. On the last step it reads **Skip and finish**.
+6. On the last step, when it has been dealt with, press **Finish**. You see **You're done for this week**.
 
-A step only shows while something in it is waiting. A week with nothing to do goes straight to the done page.
+Above the step, the page says where you are, such as "3 of 5". Steps that are dealt with still count, so the number does not shrink as you go.
+
+## The week's steps
+
+- The steps are fixed for the week the first time anything waits for you. A step joins only if something is in it; a week with nothing to do goes straight to the done page.
+- Something new that turns up later in the week, such as the first Transaction to reach Review, joins as a new step at the end.
+- If more arrives in a step that was dealt with, the step shows what is waiting again, in the same place.
+- Both Parents get the same steps in the same order, and see the same lines for what was done. The line names who did it where Noodle has a record: "Sam decided 2 Insights". Review lines do not name anyone.
+- Anything in the other Parent's Personal Allowance stays out of your Check-in, as it does everywhere else: it is not counted in your steps or their lines.
 
 ## Choosing your Check-in day
 
@@ -38,7 +47,7 @@ A step only shows while something in it is waiting. A week with nothing to do go
 ## Good to know
 
 - Each Parent does their own Check-in. The done page tells you whether the other Parent has finished this week's.
-- Skipping a step does not lose anything. If something is still waiting, the done page lists it under "Still waiting for you".
+- Skipping a step does not lose anything. The step reads "Skipped" in the week's steps, and if something is still waiting, the done page lists it under "Still waiting for you".
 - Nudges are turned on for each device in Household settings. On an iPhone or iPad, add Noodle to your Home Screen first.
 
 ## Related
