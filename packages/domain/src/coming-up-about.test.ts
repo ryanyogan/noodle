@@ -36,3 +36,49 @@ describe("Coming up for a bill that varies", () => {
 		expect("about" in (dues[1] ?? {})).toBe(false);
 	});
 });
+
+// A bill that varies is paid by its charge, whatever the charge came to (review of issue 135).
+describe("Coming up for a bill that varies, once its charge is in", () => {
+	const power = (charges: Parameters<typeof comingUp>[1]) =>
+		comingUp(records, charges, "2026-10-01", 30).find((due) => due.name === "Power");
+
+	it("is paid when the charge came in under what the Plan sets aside", () => {
+		expect(
+			power([{ commitmentId: "power", amount: 12_500 as never, date: "2026-10-14" }]),
+		).toMatchObject({ status: "paid", paid: 12_500, amount: 14_000 });
+	});
+
+	it("is paid when the charge came in over, and says what it came to", () => {
+		expect(
+			power([{ commitmentId: "power", amount: 17_500 as never, date: "2026-10-16" }]),
+		).toMatchObject({ status: "paid", paid: 17_500 });
+	});
+
+	it("is still due with no charge, or with only money Paid back", () => {
+		expect(power([])).toMatchObject({ status: "due", paid: 0 });
+		expect(
+			power([
+				{ commitmentId: "power", amount: -2_000 as never, date: "2026-10-03", paidBack: true },
+			]),
+		).toMatchObject({ status: "due", paid: 0 });
+	});
+
+	it("is still due when the charge was last month's", () => {
+		expect(
+			power([{ commitmentId: "power", amount: 12_500 as never, date: "2026-09-14" }]),
+		).toMatchObject({ status: "due", paid: 0 });
+	});
+
+	it("leaves a bill that is the same each time partly paid by part of it", () => {
+		const dues = comingUp(
+			records,
+			[{ commitmentId: "rent", amount: 50_000 as never, date: "2026-10-02" }],
+			"2026-10-01",
+			30,
+		);
+		expect(dues.find((due) => due.name === "Rent")).toMatchObject({
+			status: "partly-paid",
+			paid: 50_000,
+		});
+	});
+});

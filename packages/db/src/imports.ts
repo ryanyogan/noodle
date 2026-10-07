@@ -143,7 +143,8 @@ export async function importStatement(
 			// Income without asking only for payroll wording or a Rule; person-to-person money in
 			// waits in Review; the rest is Income as before (ADR-0057).
 			// A Rule may also say whose pay it is; interest a bank paid is the Household's Income
-			// without asking (issue 133).
+			// without asking (issue 133), unless its wording is person to person: `interestEarned`
+			// says no to that, so it waits in Review with the rest (issue 131).
 			const rule = moneyInRuleFor(moneyInRules, row.note);
 			const interest =
 				!rule && interestEarned({ text: row.note, amountCents: -line.amount as Cents }) !== null;

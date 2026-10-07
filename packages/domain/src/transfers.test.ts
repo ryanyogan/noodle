@@ -466,3 +466,120 @@ describe("a bank that is also a card issuer, on the paying side (issue 136)", ()
 		}
 	});
 });
+
+// Review of issue 136 (finding C2): a merchant's name before a payment word is the merchant
+// giving money back, never the Household paying the card. When unsure it stays money back.
+describe("the card's side of a payment against a merchant's credit", () => {
+	it("reads what the big issuers print for a payment to the card", () => {
+		for (const text of [
+			"AUTOPAY PAYMENT",
+			"PAYMENT RECEIVED",
+			"MOBILE PAYMENT",
+			"ACH PAYMENT",
+			"E-PAYMENT",
+			"EPAYMENT",
+			"ONLINE PAYMENT",
+			"ELECTRONIC PAYMENT",
+			"AUTOMATIC PAYMENT",
+			"PHONE PAYMENT",
+			// Chase
+			"Payment Thank You - Bill Pay",
+			"Payment Thank You-Mobile",
+			"AUTOMATIC PAYMENT - THANK",
+			"Payment Thank You Bill Pay Service",
+			// American Express
+			"ONLINE PAYMENT - THANK YOU",
+			"AUTOPAY PAYMENT RECEIVED - THANK YOU",
+			"MOBILE PAYMENT - THANK YOU",
+			// Citi
+			"ELECTRONIC PAYMENT-THANK YOU",
+			"AUTOPAY AUTO-PMT",
+			"ONLINE PAYMENT, THANK YOU XXXX1234",
+			// Capital One
+			"CAPITAL ONE PHONE PYMT",
+			"CAPITAL ONE AUTOPAY PYMT AuthDate 12-Oct",
+			"CAPITAL ONE MOBILE PYMT AuthDate 03-Sep",
+			// Discover
+			"INTERNET PAYMENT - THANK YOU",
+			"DIRECTPAY MINIMUM PAYMENT",
+			"DIRECTPAY STATEMENT BALANCE",
+			"PHONE PAYMENT - THANK YOU",
+			// Bank of America
+			"Online Banking payment from CHK 5678",
+			"PAYMENT - THANK YOU",
+			"BA ELECTRONIC PAYMENT 0912",
+			// Wells Fargo
+			"ONLINE PAYMENT THANK YOU",
+			"AUTOMATIC PAYMENT - THANK YOU",
+			"BRANCH PAYMENT - THANK YOU",
+			// US Bank
+			"INTERNET PAYMENT THANK YOU",
+			"PAYMENT THANK YOU",
+			"WEB AUTOMATIC PAYMENT",
+			// Apple Card (Goldman Sachs)
+			"ACH Deposit Internet transfer from account ending in 9876",
+			// Barclays
+			"Payment Received WELLS FARGO BANK",
+			"Payment Received CHASE",
+			// Synchrony
+			"ONLINE PAYMENT THANK YOU",
+			"PAYMENT - THANK YOU",
+			"AUTOMATIC PAYMENT THANK YOU",
+			"DISCOVER E-PAYMENT",
+			"AMEX EPAYMENT ACH PMT",
+			"CARDMEMBER SERV WEB PYMT",
+			"VISA ONLINE PAYMENT",
+			"CITI CARD ONLINE PAYMENT",
+			"DISCOVER E-PAYMENT 7731 WEB",
+		]) {
+			expect(readsAsPaymentReceived(text), text).toBe(true);
+		}
+	});
+
+	it("leaves a merchant's credit as money back, whatever payment words it has", () => {
+		for (const text of [
+			"COMCAST CABLE PYMT",
+			"NTTA ONLINE PAYMENT",
+			"VERIZON WIRELESS PAYMENT",
+			"GEICO PAYMENT REVERSAL",
+			"T-MOBILE AUTOPAY",
+			"T-MOBILE ONLINE PAYMENT",
+			"AT&T PAYMENT",
+			"ATT*BILL PAYMENT",
+			"SPECTRUM MOBILE PAYMENT",
+			"XFINITY MOBILE AUTOPAY",
+			"PROGRESSIVE INS PYMT",
+			"STATE FARM PAYMENT",
+			"DUKE ENERGY WEB PAYMENT",
+			"CITY OF AUSTIN ONLINE PAYMENT",
+			"AFFIRM PAYMENT",
+			"KLARNA PAYMENTS",
+			"PAYPAL *ONLINE PAYMENT",
+			"VENMO PAYMENT",
+			"APPLE.COM/BILL PAYMENT",
+			"AMAZON PRIME PMTS",
+			"SQ *PAYMENT",
+			"TXTAG AUTOPAY",
+			"TOLL ROAD E-PAYMENT",
+			"DIRECTV PAYMENT",
+			"NETFLIX.COM PAYMENT",
+			"WATER DEPT WEB PYMT",
+			"IRS USATAXPYMT",
+			"SIRIUS XM AUTOPAY THANK YOU",
+			"HULU ELECTRONIC PAYMENT",
+			"DR SMITH DDS PAYMENT RECEIVED",
+			"ONLINE PAYMENT REVERSAL",
+			"MOBILE PAYMENT RETURNED - INSUFFICIENT FUNDS",
+			"PAYMENT ADJUSTMENT",
+			"CREDIT BALANCE REFUND",
+			"MERCHANT CREDIT",
+			"CHASE TRAVEL CREDIT",
+			"DISCOVER CASHBACK BONUS",
+			"ONLINE",
+			"THANK YOU",
+			"CAPITAL ONE",
+		]) {
+			expect(readsAsPaymentReceived(text), text).toBe(false);
+		}
+	});
+});

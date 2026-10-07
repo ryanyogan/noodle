@@ -48,7 +48,8 @@ describe("payRanges", () => {
 	it("says nothing is usual until all three months had pay", () => {
 		const lines = [pay("2026-08-11", 2900, "cori"), pay("2026-09-09", 2500, "cori")];
 		expect(payRanges(lines, "2026-10")).toEqual([
-			{ whosePay: "cori", soFar: 0, usual: null, varies: false, countOn: 0 },
+			// Counted on for the lower of the two months she was paid, not for nothing.
+			{ whosePay: "cori", soFar: 0, usual: null, varies: false, countOn: cents(2500) },
 		]);
 	});
 
@@ -101,5 +102,69 @@ describe("countOnOffer", () => {
 		expect(countOnOffer({ baseline: cents(5500), ranges: payRanges(lines, "2026-10") })).toBe(
 			cents(6110),
 		);
+	});
+});
+
+// What each case offers, written down first (review of issue 133, finding C1). Months are the
+// three full ones before October, oldest first; "so far" is October's.
+describe("what a Parent's pay can be counted on for", () => {
+	const person = (who: string | null, months: [number, number, number], soFar = 0): PayLine[] =>
+		[
+			["2026-07-10", months[0]],
+			["2026-08-10", months[1]],
+			["2026-09-10", months[2]],
+			["2026-10-02", soFar],
+		].flatMap(([date, dollars]) =>
+			(dollars as number) > 0 ? [pay(date as string, dollars as number, who)] : [],
+		);
+	const countOn = (lines: PayLine[]) => payRanges(lines, "2026-10")[0]?.countOn;
+
+	it.each([
+		["steady", person("a", [4000, 4000, 4010]), 4000],
+		["varying", person("a", [2100, 2500, 2900]), 2100],
+		["started two months ago", person("a", [0, 4000, 4000]), 4000],
+		["started two months ago, not the same twice", person("a", [0, 3000, 4000]), 3000],
+		["started one month ago", person("a", [0, 0, 4000]), 4000],
+		["a month with no pay day in it", person("a", [4000, 0, 4000]), 4000],
+		["no pay last month, paid again this month", person("a", [4000, 4000, 0], 4000), 4000],
+		["stopped a month ago", person("a", [4000, 4000, 0]), 0],
+		["stopped two months ago", person("a", [4000, 0, 0]), 0],
+		["the Household's own, every month", person(null, [10, 12, 11]), 10],
+		["the Household's own, a one-off last month", person(null, [0, 0, 3000]), 0],
+		["the Household's own, two months of three", person(null, [0, 12, 11]), 0],
+	])("%s", (_name, lines, dollars) => {
+		expect(countOn(lines)).toBe(cents(dollars));
+	});
+
+	it("shows a range, and says pay varies, only with three full months of pay", () => {
+		const [started] = payRanges(person("a", [0, 3000, 4000]), "2026-10");
+		expect(started).toMatchObject({ usual: null, varies: false });
+	});
+
+	const a = person("a", [2100, 2500, 2900]);
+	const offer = (lines: PayLine[], baseline: number) =>
+		countOnOffer({ baseline: cents(baseline), ranges: payRanges(lines, "2026-10") });
+
+	it("counts the other Parent, who started two months ago, on what they've been paid", () => {
+		const lines = [...a, ...person("b", [0, 4000, 4000])];
+		expect(offer(lines, 6100)).toBeNull();
+		expect(offer(lines, 5500)).toBe(cents(6100));
+	});
+
+	it("counts a Parent whose pay stopped at nothing", () => {
+		expect(offer([...a, ...person("b", [4000, 4000, 0])], 6100)).toBe(cents(2100));
+	});
+
+	it("offers one Parent's low end when theirs is the only pay", () => {
+		expect(offer(a, 2500)).toBe(cents(2100));
+		expect(offer(a, 2110)).toBeNull();
+	});
+
+	it("offers nothing because somebody started or stopped, when nobody's pay varies", () => {
+		const steadyA = person("a", [3000, 3000, 3000]);
+		expect(offer([...steadyA, ...person("b", [0, 4000, 4000])], 3000)).toBeNull();
+		expect(offer([...steadyA, ...person("b", [4000, 4000, 0])], 7000)).toBeNull();
+		expect(offer(person("b", [0, 3000, 4000]), 5000)).toBeNull();
+		expect(offer(person(null, [0, 0, 3000]), 5000)).toBeNull();
 	});
 });
