@@ -280,7 +280,7 @@ export async function settleAssignment(
 	transactionId: string,
 ): Promise<{ teach: () => Promise<void> }> {
 	const correction = await loadCorrection(deps.db, viewer, transactionId);
-	await settleCategorization(deps.db, viewer.householdId, transactionId);
+	await settleCategorization(deps.db, viewer.householdId, transactionId, viewer.memberId);
 	return {
 		teach: async () => {
 			if (!correction) return;

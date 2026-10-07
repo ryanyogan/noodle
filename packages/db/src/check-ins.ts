@@ -5,10 +5,11 @@ import {
 	type DayKey,
 	type Weekday,
 } from "@noodle/domain";
-import { and, asc, eq, gte, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, gte, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import type { Viewer } from "./privacy";
 import {
+	categorizations,
 	checkInCards,
 	checkIns,
 	households,
@@ -16,6 +17,7 @@ import {
 	members,
 	monthCloses,
 	moves,
+	transactions,
 } from "./schema";
 
 // The weekly Check-in: the day it falls on, and which Parents have finished each week's. Every
@@ -119,6 +121,7 @@ export async function startCheckInStack(
 						kind: sql<CheckInCardKind>`${card.kind}`.as("kind"),
 						started: sql<CheckInStarted>`${JSON.stringify(card)}`.as("started"),
 						startedAt: sql<Date>`${input.now.getTime()}`.as("started_at"),
+						skippedAt: sql<Date | null>`null`.as("skipped_at"),
 					})
 					.from(members)
 					.where(
@@ -167,10 +170,85 @@ export async function loadCheckInStack(
 }
 
 /**
+ * Notes that a Parent skipped a card of their stack for `week`, while it's in the stack and not
+ * skipped already: coming back that week it still says so, and a new week starts clean (the row is
+ * that week's). Returns whether this call noted it.
+ */
+export async function skipCheckInCard(
+	db: Db,
+	input: { householdId: string; memberId: string; week: DayKey; kind: CheckInCardKind; now: Date },
+): Promise<boolean> {
+	const written = await db
+		.update(checkInCards)
+		.set({ skippedAt: input.now })
+		.where(
+			and(
+				eq(checkInCards.householdId, input.householdId),
+				eq(checkInCards.memberId, input.memberId),
+				eq(checkInCards.week, input.week),
+				eq(checkInCards.kind, input.kind),
+				isNull(checkInCards.skippedAt),
+			),
+		)
+		.returning({ kind: checkInCards.kind });
+	return written.length > 0;
+}
+
+/** The cards of `viewer`'s stack for `week` they skipped, in the fixed order. */
+export async function loadCheckInSkipped(
+	db: Db,
+	viewer: Viewer,
+	week: DayKey,
+): Promise<CheckInCardKind[]> {
+	const rows = await db
+		.select({ kind: checkInCards.kind })
+		.from(checkInCards)
+		.where(
+			and(
+				eq(checkInCards.householdId, viewer.householdId),
+				eq(checkInCards.memberId, viewer.memberId),
+				eq(checkInCards.week, week),
+				isNotNull(checkInCards.skippedAt),
+			),
+		);
+	const skipped = new Set(rows.map((row) => row.kind));
+	return CHECK_IN_ORDER.filter((kind) => skipped.has(kind));
+}
+
+/**
+ * How many Transactions each Parent has taken out of Review since `since` (when the week's Review
+ * card joined), by Member ID: only ones on record (filed by hand since issue 142), and not one
+ * that waits there again. Only counts leave here, whatever Bucket each went to (ADR-0003).
+ */
+export async function loadReviewCleared(
+	db: Db,
+	viewer: Viewer,
+	since: Date,
+): Promise<Record<string, number>> {
+	const rows = await db
+		.select({ by: transactions.reviewClearedByMemberId, count: count() })
+		.from(transactions)
+		.where(
+			and(
+				eq(transactions.householdId, viewer.householdId),
+				isNotNull(transactions.reviewClearedByMemberId),
+				// Noted in whole seconds, the card's start to the millisecond: since the start's own
+				// second, as for Extra income below.
+				gte(transactions.reviewClearedAt, new Date(Math.floor(since.getTime() / 1000) * 1000)),
+				sql`not exists (select 1 from ${categorizations} where ${categorizations.transactionId} = ${transactions.id}
+					and ${categorizations.outcome} = 'review')`,
+			),
+		)
+		.groupBy(transactions.reviewClearedByMemberId)
+		.orderBy(asc(transactions.reviewClearedByMemberId));
+	return Object.fromEntries(rows.flatMap((row) => (row.by ? [[row.by, row.count]] : [])));
+}
+
+/**
  * Who is on record as having dealt with each of `cards`, as Member IDs in order: whoever closed
  * the month for Sweeps, whoever decided Extra income since the card joined, whoever decided the
- * card's Insights (only those `viewer` may read). A card with nobody on record is left out, as
- * Review always is: filing a Transaction keeps no record of who did it.
+ * card's Insights (only those `viewer` may read), whoever cleared a Transaction from Review since
+ * the card joined (loadReviewCleared has how many each). A card with nobody on record is left out.
  */
 export async function loadCheckInDoers(
 	db: Db,
@@ -181,7 +259,7 @@ export async function loadCheckInDoers(
 		cards.map(async (card): Promise<[CheckInCardKind, (string | null)[]]> => {
 			switch (card.kind) {
 				case "review":
-					return [card.kind, []];
+					return [card.kind, Object.keys(await loadReviewCleared(db, viewer, card.startedAt))];
 				case "insights": {
 					if (card.ids.length === 0) return [card.kind, []];
 					const rows = await db

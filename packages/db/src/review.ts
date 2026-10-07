@@ -7,6 +7,7 @@ import { purchaseMayMove } from "./ended-months";
 import type { Db } from "./index";
 import { owedBackOffGoneSplits } from "./owed-back";
 import { changeableBy, type Viewer, visibleTo } from "./privacy";
+import { reviewCleared } from "./review-cleared";
 import {
 	accounts,
 	buckets,
@@ -393,6 +394,8 @@ export async function fileWithoutBucket(
 						and ${categorizations.outcome} = 'review')`,
 				),
 			),
+		// Who cleared it from Review, noted while its marker still says it waits (issue 142).
+		reviewCleared(db, viewer.householdId, viewer.memberId, sql`${transactions.id} in ${theFiled}`),
 		db
 			.delete(categorizations)
 			.where(

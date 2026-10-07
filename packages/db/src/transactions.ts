@@ -50,6 +50,7 @@ import {
 	visibleSplitsSum,
 	visibleTo,
 } from "./privacy";
+import { reviewCleared } from "./review-cleared";
 import {
 	accounts,
 	buckets,
@@ -390,6 +391,8 @@ export async function addQuickAdd(
 					version: sql<number>`0`.as("version"),
 					bankTookBackOn: sql<string | null>`null`.as("bank_took_back_on"),
 					bankAmountCents: sql<number | null>`null`.as("bank_amount_cents"),
+					reviewClearedByMemberId: sql<string | null>`null`.as("review_cleared_by_member_id"),
+					reviewClearedAt: sql<Date | null>`null`.as("review_cleared_at"),
 				})
 				.from(buckets)
 				.where(
@@ -2392,6 +2395,8 @@ export function commitmentFiling(
 			.update(transactions)
 			.set({ bucketId: null, commitmentId, version: sql`${transactions.version} + 1` })
 			.where(and(fileable, inPlan)),
+		// Who cleared from Review the ones that waited there, noted before the marker goes.
+		reviewCleared(db, householdId, memberId, landed),
 		// A Parent has decided these now: categorization's marker goes, as when one is filed by hand.
 		db
 			.delete(categorizations)
@@ -2573,6 +2578,8 @@ export async function fileTransactions(
 						sql`((${transactions.bucketId} is ${bucketId} and ${transactions.commitmentId} is ${commitmentId}) or ${mayMove})`,
 					),
 				),
+			// Who cleared from Review the ones that waited there, noted before the marker goes.
+			reviewCleared(db, householdId, memberId, landed),
 			// A Parent has decided these now: categorization's marker goes, as when one is filed by hand.
 			db
 				.delete(categorizations)

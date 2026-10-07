@@ -2,15 +2,19 @@ import {
 	completeCheckIn as completeCheckInInDb,
 	type Db,
 	loadCheckInDoers,
+	loadCheckInSkipped,
 	loadCheckInStack,
 	loadCheckIns,
 	loadInsights,
 	loadReview,
+	loadReviewCleared,
 	setCheckInDay as setCheckInDayInDb,
+	skipCheckInCard as skipCheckInCardInDb,
 	startCheckInStack as startCheckInStackInDb,
 } from "@noodle/db";
 import {
 	addMonths,
+	CHECK_IN_ORDER,
 	type CheckInCard,
 	type CheckInCardKind,
 	type CheckInDoer,
@@ -107,10 +111,11 @@ export const getCheckIn = createServerFn({ method: "GET" })
 		const now = new Date();
 		const week = thisWeek(context, now);
 		const viewer = viewerOf(context);
-		const [waiting, parents, rows] = await Promise.all([
+		const [waiting, parents, rows, skipped] = await Promise.all([
 			loadCheckInWaiting(db, context.household, context.parent.id, now),
 			loadCheckIns(db, context.household.id, week),
 			loadCheckInStack(db, viewer, week),
+			loadCheckInSkipped(db, viewer, week),
 		]);
 		const cards = checkInCards(waiting);
 		// Who dealt with each card nothing waits on any more, by name, where there's a record.
@@ -122,6 +127,15 @@ export const getCheckIn = createServerFn({ method: "GET" })
 				.filter((parent) => ids.includes(parent.memberId))
 				.map((parent) => ({ memberId: parent.memberId, name: parent.name }));
 		}
+		// Review's line says how many each Parent cleared, where filing kept who.
+		const review = dealt.find((row) => row.kind === "review");
+		if (review && named.review) {
+			const cleared = await loadReviewCleared(db, viewer, review.startedAt);
+			named.review = named.review.map((doer) => ({
+				...doer,
+				count: cleared[doer.memberId] ?? 0,
+			}));
+		}
 		// Each card as it started, without when: the page has no use for it.
 		const started = rows.map(({ startedAt: _, ...start }): CheckInStarted => start);
 		const me = parents.find((parent) => parent.memberId === context.parent.id);
@@ -130,7 +144,7 @@ export const getCheckIn = createServerFn({ method: "GET" })
 			week,
 			checkInDay: context.household.checkInDay,
 			me: context.parent.id,
-			stack: checkInStack(started, cards, named),
+			stack: checkInStack(started, cards, named, skipped),
 			unstarted: checkInUnstarted(started, cards).length > 0,
 			completedAt: me?.completedAt?.getTime() ?? null,
 			otherParent: other
@@ -182,6 +196,23 @@ export const startCheckInStack = createServerFn({ method: "POST" })
 		);
 		if (joined.some((count) => count > 0))
 			await notifyHousehold(context.household.id, ["check-in"]);
+	});
+
+/**
+ * Notes that the signed-in Parent skipped a card of this week's stack, so it still says "Skipped"
+ * when they come back this week. Idempotent; a card that hasn't joined the stack is left alone.
+ */
+export const skipCheckInCard = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ kind: z.enum(CHECK_IN_ORDER as [CheckInCardKind, ...CheckInCardKind[]]) }))
+	.handler(async ({ data, context }) => {
+		const now = new Date();
+		await skipCheckInCardInDb(getDb(), {
+			...viewerOf(context),
+			week: thisWeek(context, now),
+			kind: data.kind,
+			now,
+		});
 	});
 
 /** Whether the signed-in Parent has done this week's Check-in, for the sidebar and This Month. */

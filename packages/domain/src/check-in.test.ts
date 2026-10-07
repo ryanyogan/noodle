@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	type CheckInCard,
+	type CheckInStarted,
 	type CheckInWaiting,
 	checkInCards,
 	checkInCount,
+	checkInDealtBefore,
 	checkInNudgeTime,
+	checkInPast,
 	checkInStack,
 	checkInStarted,
 	checkInStep,
@@ -211,5 +214,51 @@ describe("stepping through the Check-in", () => {
 
 	it("is done straight away when nothing waits", () => {
 		expect(checkInStep([], [])).toEqual({ kind: "done" });
+	});
+});
+
+describe("a stack met after it was all dealt with", () => {
+	const started: CheckInStarted[] = [
+		{ kind: "review", count: 3 },
+		{ kind: "insights", count: 1, ids: ["a"] },
+	];
+	const cori = { memberId: "cori", name: "Cori" };
+
+	it("is every line at once when nothing waits and the Parent hasn't passed a card", () => {
+		const stack = checkInStack(started, [], { review: [{ ...cori, count: 3 }] });
+		expect(checkInDealtBefore(stack, [])?.map((card) => card.kind)).toEqual(["review", "insights"]);
+	});
+
+	it("is not for a stack where something waits, one already begun, or a single line", () => {
+		const some = checkInStack(started, [{ kind: "review", count: 1 }]);
+		expect(checkInDealtBefore(some, [])).toBeNull();
+		expect(checkInDealtBefore(checkInStack(started, []), ["review"])).toBeNull();
+		expect(checkInDealtBefore(checkInStack(started.slice(0, 1), []), [])).toBeNull();
+		expect(checkInDealtBefore([], [])).toBeNull();
+	});
+});
+
+describe("a card skipped earlier in the week", () => {
+	const started: CheckInStarted[] = [
+		{ kind: "review", count: 3 },
+		{ kind: "insights", count: 1, ids: ["a"] },
+	];
+	const cards: CheckInCard[] = [
+		{ kind: "review", count: 3 },
+		{ kind: "insights", titles: ["A"] },
+	];
+
+	it("still says so while it waits, and is past: the next card is the one after", () => {
+		const stack = checkInStack(started, cards, {}, ["review"]);
+		expect(stack[0]).toEqual({ state: "waiting", kind: "review", card: cards[0], skipped: true });
+		expect(stack[1]).toEqual({ state: "waiting", kind: "insights", card: cards[1] });
+		expect(checkInStep(stack, checkInPast(stack, []))).toMatchObject({ position: 2, of: 2 });
+		expect(checkInPast(stack, ["insights"])).toEqual(["insights", "review"]);
+	});
+
+	it("says what was done once it's dealt with, skipped or not", () => {
+		const stack = checkInStack(started, cards.slice(1), {}, ["review"]);
+		expect(stack[0]).toEqual({ state: "dealt", kind: "review", started: started[0], by: [] });
+		expect(checkInPast(stack, [])).toEqual([]);
 	});
 });

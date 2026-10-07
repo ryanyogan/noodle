@@ -161,27 +161,33 @@ export function checkInStarted(card: CheckInCard): CheckInStarted {
 	}
 }
 
-/** A Parent who dealt with a card. */
-export type CheckInDoer = { memberId: string; name: string };
+/**
+ * A Parent who dealt with a card; `count` is how many of its things they did, where the record
+ * counts them (the Transactions they cleared from Review).
+ */
+export type CheckInDoer = { memberId: string; name: string; count?: number };
 
 /**
  * One card of the week's stack: still waiting, or dealt with (it joined the stack and nothing
  * on it waits any more), with who is on record as having done it; nobody when no record says.
+ * `skipped` on a waiting card: this Parent skipped it earlier this week.
  */
 export type CheckInStackCard =
-	| { state: "waiting"; kind: CheckInCardKind; card: CheckInCard }
+	| { state: "waiting"; kind: CheckInCardKind; card: CheckInCard; skipped?: true }
 	| { state: "dealt"; kind: CheckInCardKind; started: CheckInStarted; by: CheckInDoer[] };
 
 /**
  * The week's stack: the cards it started with, in the order they joined, then any card waiting
  * now that hasn't joined yet (in the fixed order), so a card that first appears mid-week is at
  * the end. A card that joined stays for the week: waiting while something on it waits (again),
- * dealt with otherwise.
+ * dealt with otherwise. `skipped` are the cards this Parent skipped this week: one that still waits
+ * says so; one dealt with since says what was done.
  */
 export function checkInStack(
 	started: readonly CheckInStarted[],
 	cards: readonly CheckInCard[],
 	doers: Partial<Record<CheckInCardKind, CheckInDoer[]>> = {},
+	skipped: readonly CheckInCardKind[] = [],
 ): CheckInStackCard[] {
 	const waiting = new Map(cards.map((card) => [card.kind, card]));
 	const stack: CheckInStackCard[] = [];
@@ -192,7 +198,12 @@ export function checkInStack(
 		const card = waiting.get(start.kind);
 		stack.push(
 			card
-				? { state: "waiting", kind: card.kind, card }
+				? {
+						state: "waiting",
+						kind: card.kind,
+						card,
+						...(skipped.includes(card.kind) ? { skipped: true as const } : {}),
+					}
 				: { state: "dealt", kind: start.kind, started: start, by: doers[start.kind] ?? [] },
 		);
 	}
@@ -237,4 +248,33 @@ export function checkInStep(
 		of: stack.length,
 		last: index === stack.length - 1,
 	};
+}
+
+/**
+ * The cards a Parent is past: those they moved past on this visit (`past`), then any they skipped
+ * earlier this week that still wait, so coming back they aren't asked about those again.
+ */
+export function checkInPast(
+	stack: readonly CheckInStackCard[],
+	past: readonly CheckInCardKind[],
+): CheckInCardKind[] {
+	const skipped = stack.flatMap((card) =>
+		card.state === "waiting" && card.skipped && !past.includes(card.kind) ? [card.kind] : [],
+	);
+	return [...past, ...skipped];
+}
+
+/**
+ * The whole stack, when a Parent arrives to find every card of it already dealt with: its lines
+ * are shown together, with one Finish, rather than one Next each. Null when anything waits, when
+ * they've already moved past a card on this visit, or when there is only the one line (which is
+ * one screen with Finish as it is).
+ */
+export function checkInDealtBefore(
+	stack: readonly CheckInStackCard[],
+	past: readonly CheckInCardKind[],
+): Extract<CheckInStackCard, { state: "dealt" }>[] | null {
+	if (past.length > 0 || stack.length < 2) return null;
+	const dealt = stack.flatMap((card) => (card.state === "dealt" ? [card] : []));
+	return dealt.length === stack.length ? dealt : null;
 }

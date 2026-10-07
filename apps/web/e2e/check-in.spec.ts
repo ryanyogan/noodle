@@ -236,17 +236,16 @@ test("cards dealt with stay in the week's stack as a line each, counted, with Ne
 	await expect(page.getByText("1 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 Transaction in Review" })).toBeVisible();
 
-	// Elsewhere in the app: the Transaction leaves Review, Sam dismisses the Insight, and this
-	// Parent puts the Extra income in Groceries.
+	// Elsewhere in the app: the Transaction leaves Review (with no record of who, as one filed
+	// before that was kept) and Sam dismisses the Insight. The Extra income still waits.
 	await seedSql([
 		`delete from categorizations where household_id = ${household};`,
 		`delete from transactions where household_id = ${household};`,
 		`update insights set status = 'dismissed', decided_by_member_id = ${sam} where household_id = ${household};`,
-		`insert into moves (id, household_id, kind, month, to_bucket_id, amount_cents, created_by_member_id) values (${q(ulid())}, ${household}, 'windfall', ${q(day.slice(0, 7))}, (select id from buckets where household_id = ${household} and name = 'Groceries'), 25000, ${me});`,
 	]);
 	await page.reload();
 
-	// Nothing waits, and the stack is still three cards: each says what was done.
+	// The stack is still three cards: the two dealt with each say what was done.
 	await expect(page.getByText("1 of 3")).toBeVisible();
 	await expect(
 		page.getByRole("heading", { name: "1 Transaction cleared from Review" }),
@@ -262,6 +261,14 @@ test("cards dealt with stay in the week's stack as a line each, counted, with Ne
 	const steps = page.getByRole("navigation", { name: "Check-in steps" });
 	await expect(steps).toContainText("1 Transaction cleared from Review");
 	await expect(steps).toContainText("Sam decided 1 Insight");
+	// Meanwhile this Parent puts the Extra income in Groceries. Every card is dealt with now, but
+	// they are part-way through: the lines keep their Next, and the last one its Finish.
+	await seedSql([
+		`insert into moves (id, household_id, kind, month, to_bucket_id, amount_cents, created_by_member_id) values (${q(ulid())}, ${household}, 'windfall', ${q(day.slice(0, 7))}, (select id from buckets where household_id = ${household} and name = 'Groceries'), 25000, ${me});`,
+	]);
+	await page.reload();
+	await expect(page.getByText("2 of 3")).toBeVisible();
+	await hydrated(next);
 	await next.click();
 
 	await expect(page.getByText("3 of 3")).toBeVisible();
@@ -324,5 +331,92 @@ test("a card that first appears mid-week joins the end of the week's stack", asy
 	await skip.click();
 	await expect(page.getByText("3 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 Transaction in Review" })).toBeVisible();
+	await expect(steps.nth(0)).toContainText("Skipped");
+});
+
+test("a Parent arriving after the other cleared everything sees who did, every line, and one Finish", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	const day = await householdOnCheckInDay(page);
+	await seedCheckIn(parent.userId, day);
+	const household = `(select household_id from members where clerk_user_id = ${q(parent.userId)})`;
+	const sam = `(select id from members where household_id = ${household} and name = 'Sam')`;
+
+	await openCheckIn(page);
+	await expect(page.getByText("1 of 3")).toBeVisible();
+
+	// Sam goes through all of it: files the Transaction from Review (filing notes who), dismisses
+	// the Insight, and puts the Extra income in Groceries.
+	await seedSql([
+		`update transactions set review_cleared_by_member_id = ${sam}, review_cleared_at = unixepoch() * 1000 where household_id = ${household};`,
+		`delete from categorizations where household_id = ${household};`,
+		`update insights set status = 'dismissed', decided_by_member_id = ${sam} where household_id = ${household};`,
+		`insert into moves (id, household_id, kind, month, to_bucket_id, amount_cents, created_by_member_id) values (${q(ulid())}, ${household}, 'windfall', ${q(day.slice(0, 7))}, (select id from buckets where household_id = ${household} and name = 'Groceries'), 25000, ${sam});`,
+	]);
+	await page.reload();
+
+	// One summary: who cleared it, each card's line, and Finish. No Next to press through.
+	await expect(page.getByRole("heading", { name: "Sam cleared these 3" })).toBeVisible();
+	const lines = page.getByRole("list", { name: "Dealt with this week" }).getByRole("listitem");
+	await expect(lines).toHaveCount(3);
+	await expect(lines.nth(0)).toContainText("Sam cleared 1 Transaction from Review");
+	await expect(lines.nth(1)).toContainText("Sam decided 1 Insight");
+	await expect(lines.nth(2)).toContainText("Sam decided $250 of Extra income");
+	await expect(page.getByText("1 of 3")).toBeHidden();
+	await expect(page.getByRole("button", { name: "Next", exact: true })).toBeHidden();
+	await expect(page.getByRole("button", { name: /^Skip/ })).toBeHidden();
+
+	const finish = page.getByRole("button", { name: "Finish", exact: true });
+	await hydrated(finish);
+	const finished = savedBy(page, "completeCheckIn");
+	await finish.click();
+	await finished;
+	await expect(page.getByText("You’re done for this week")).toBeVisible();
+	await expect(page.getByText(/Still waiting for you/)).toBeHidden();
+});
+
+test("a skipped card is still skipped on coming back the same week", async ({ browser }) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	const day = await householdOnCheckInDay(page);
+	await seedCheckIn(parent.userId, day);
+
+	await openCheckIn(page);
+	await expect(page.getByText("1 of 3")).toBeVisible();
+	await expect(page.getByRole("heading", { name: "1 Transaction in Review" })).toBeVisible();
+	const skip = page.getByRole("button", { name: "Skip for now" });
+	await hydrated(skip);
+	const skipped = savedBy(page, "skipCheckInCard");
+	await skip.click();
+	await skipped;
+	await expect(page.getByText("2 of 3")).toBeVisible();
+
+	// Leaving and coming back (nothing in the address says what was passed): Review is still
+	// skipped, and the Check-in picks up at the card after it.
+	await page.getByRole("link", { name: "This Month", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Main" })
+		.getByRole("link", { name: /^Check-in/ })
+		.click();
+	await expect(page).not.toHaveURL(/past=/);
+	await expect(page.getByText("2 of 3")).toBeVisible();
+	await expect(page.getByRole("heading", { name: "1 new Insight" })).toBeVisible();
+	const steps = page.getByRole("navigation", { name: "Check-in steps" }).getByRole("listitem");
+	await expect(steps.nth(0)).toContainText("Skipped");
+	await expect(steps.nth(1)).toContainText("1 new Insight");
+
+	// And after a reload, and once the week's Check-in is finished.
+	await page.reload();
+	await expect(steps.nth(0)).toContainText("Skipped");
+	await hydrated(skip);
+	await skip.click();
+	const finished = savedBy(page, "completeCheckIn");
+	await page.getByRole("button", { name: "Skip and finish" }).click();
+	await finished;
+	await expect(page.getByText("You’re done for this week")).toBeVisible();
+	await expect(page.getByText(/Still waiting for you: 1 Transaction in Review/)).toBeVisible();
+	await page.reload();
 	await expect(steps.nth(0)).toContainText("Skipped");
 });
