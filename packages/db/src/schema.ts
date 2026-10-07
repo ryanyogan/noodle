@@ -652,6 +652,12 @@ export const transactions = sqliteTable(
 		// says which version it was made on, and is refused once that isn't the one any more, so two
 		// screens never quietly overwrite each other (ADR-0041).
 		version: integer("version").notNull().default(0),
+		// The day the bank took this line back, or lowered it, after money back on it had counted
+		// in a month that has ended (issue 141): the row is kept as it was so that month doesn't
+		// change, and says so. `bank_amount_cents` is what the bank says it is now, when it only
+		// lowered it; null when it took the whole line back. Last, as inserts here go by position.
+		bankTookBackOn: text("bank_took_back_on"),
+		bankAmountCents: integer("bank_amount_cents"),
 	},
 	(t) => [
 		index("transactions_household_date_idx").on(t.householdId, t.date),
@@ -995,6 +1001,9 @@ export const income = sqliteTable(
 		// Whose pay it is (issue 133, ADR-0057): a Parent, or null for the Household. Last, as
 		// imports.ts inserts by position.
 		payMemberId: text("pay_member_id").references(() => members.id),
+		// As on `transactions`: the bank took it back, or changed it, after its month ended.
+		bankTookBackOn: text("bank_took_back_on"),
+		bankAmountCents: integer("bank_amount_cents"),
 	},
 	(t) => [
 		index("income_household_date_idx").on(t.householdId, t.date),

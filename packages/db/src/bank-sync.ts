@@ -20,6 +20,7 @@ import { bankLinesNotHere } from "./same-lines";
 import {
 	accounts,
 	income,
+	owedBack,
 	paidBackMatches,
 	refundLinks,
 	splits,
@@ -89,12 +90,11 @@ export async function syncBankLines(
 		...input.removed,
 	]);
 	const plan = planBankSync(rows, input.lines, input.removed, holdsMoney(account.kind));
+	const day = input.today ?? (new Date().toISOString().slice(0, 10) as DayKey);
 
 	const writes = [
-		...plan.change.flatMap((change) => changeWrites(db, householdId, accountId, change)),
-		...plan.remove.flatMap((row) =>
-			removeWrites(db, householdId, accountId, row, endedBefore(input.today)),
-		),
+		...plan.change.flatMap((change) => changeWrites(db, householdId, accountId, change, day)),
+		...plan.remove.flatMap((row) => removeWrites(db, householdId, accountId, row, day)),
 	];
 	if (writes.length > 0) {
 		await db.batch(writes as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
@@ -270,35 +270,173 @@ const stillAsRead = (householdId: string, accountId: string, row: BankRow): SQL 
 				eq(transactions.pending, row.pending),
 			) as SQL);
 
+// The bank changing an amount under money back (issue 141, ADR-0058). Nothing ever restores more
+// than it is: where the new amount is below what a line has Paid back, or a purchase's below what
+// was Paid back on it or refunded to it, the newest matches and links give way in the running
+// month, and what was owed is owed again. Once some of that counted in a month that has ended,
+// the row keeps its amount and date instead (as a withdrawn one keeps its row) and is marked
+// with the day and what the bank says now.
+
+/** A match made before this one on the same `side` (its line, or its Owed back item). */
+const earlierMatches = (side: "income_id" | "owed_back_id") =>
+	sql`(select coalesce(sum(e.amount_cents), 0) from paid_back_matches e
+		where e.${sql.raw(side)} = paid_back_matches.${sql.raw(side)}
+		and (e.created_at < paid_back_matches.created_at
+			or (e.created_at = paid_back_matches.created_at and e.id < paid_back_matches.id)))`;
+
+/** Deletes, then lowers, the newest matches on `side` until they come to no more than `cap`. */
+function trimMatches(
+	db: Db,
+	householdId: string,
+	side: "income_id" | "owed_back_id",
+	these: SQL,
+	cap: SQL,
+	from: DayKey,
+): BatchItem<"sqlite">[] {
+	const running = and(
+		eq(paidBackMatches.householdId, householdId),
+		these,
+		// What counted in a month that has ended is never taken away.
+		sql`paid_back_matches.counts_on >= ${from}`,
+	);
+	return [
+		db.delete(paidBackMatches).where(and(running, sql`${earlierMatches(side)} >= ${cap}`)),
+		db
+			.update(paidBackMatches)
+			.set({ amountCents: sql`${cap} - ${earlierMatches(side)}` })
+			.where(and(running, sql`${earlierMatches(side)} + paid_back_matches.amount_cents > ${cap}`)),
+	];
+}
+
+/** Takes the newest Refund links off the purchase `transactionId` while they come to more than it cost. */
+function trimRefundLinks(db: Db, householdId: string, these: SQL, from: DayKey) {
+	return db.delete(refundLinks).where(
+		and(
+			eq(refundLinks.householdId, householdId),
+			these,
+			sql`refund_links.counts_on >= ${from}`,
+			sql`(select coalesce(sum(oi.amount_cents), 0) from refund_links ol
+					join income oi on oi.id = ol.income_id
+					where ol.transaction_id = refund_links.transaction_id
+					and (ol.created_at < refund_links.created_at
+						or (ol.created_at = refund_links.created_at and ol.income_id <= refund_links.income_id)))
+				> (select pt.amount_cents from transactions pt where pt.id = refund_links.transaction_id)`,
+		),
+	);
+}
+
 function changeWrites(
 	db: Db,
 	householdId: string,
 	accountId: string,
 	change: BankRowChange,
+	today: DayKey,
 ): BatchItem<"sqlite">[] {
 	const { row } = change;
+	const from = endedBefore(today);
+	const asRead = stillAsRead(householdId, accountId, row);
+	const mark = {
+		externalId: change.externalId,
+		// The first day it was seen: a later sync saying the same again keeps it.
+		bankTookBackOn: sql<string>`coalesce(bank_took_back_on, ${today})`,
+		bankAmountCents: change.amount,
+	};
 	if (row.kind === "income") {
+		const set = { externalId: change.externalId, date: change.date, amountCents: change.amount };
+		if (change.amount === row.amount) return [db.update(income).set(set).where(asRead)];
+		// What it restored would move: less than it has Paid back, or a linked Refund of another amount.
+		const kept = sql`((${change.amount} < (select coalesce(sum(pm.amount_cents), 0)
+				from paid_back_matches pm where pm.income_id = ${row.id})
+			or exists (select 1 from refund_links rl where rl.income_id = ${row.id}))
+			and ${lineEndedRestores(row.id, from)})`;
+		const theLine = sql`(select li.amount_cents from income li where li.id = ${row.id})`;
 		return [
+			db.update(income).set(mark).where(and(asRead, kept)),
 			db
 				.update(income)
-				.set({ externalId: change.externalId, date: change.date, amountCents: change.amount })
-				.where(stillAsRead(householdId, accountId, row)),
+				.set(set)
+				.where(and(asRead, sql`not ${kept}`)),
+			...trimMatches(
+				db,
+				householdId,
+				"income_id",
+				eq(paidBackMatches.incomeId, row.id),
+				theLine,
+				from,
+			),
+			// A Refund now larger than the purchase it was linked to cost is no longer linked.
+			trimRefundLinks(db, householdId, eq(refundLinks.incomeId, row.id), from),
 		];
 	}
-	const writes: BatchItem<"sqlite">[] = [
-		db
-			.update(transactions)
-			.set({
-				externalId: change.externalId,
-				date: change.date,
-				amountCents: change.amount,
-				pending: change.pending,
-				// A Parent's change made on what the bank said before is refused, not this (ADR-0041).
-				version: sql`${transactions.version} + 1`,
-			})
-			.where(stillAsRead(householdId, accountId, row)),
-	];
-	if (change.splits === null) return writes;
+	const set = {
+		externalId: change.externalId,
+		date: change.date,
+		amountCents: change.amount,
+		pending: change.pending,
+		// A Parent's change made on what the bank said before is refused, not this (ADR-0041).
+		version: sql`${transactions.version} + 1`,
+	};
+	// Only a purchase the bank lowered can end up below the money back on it.
+	const lowered = row.amount > 0 && change.amount < row.amount;
+	// Below what was Paid back on it (on any of its Splits, at their new amounts) or refunded to it.
+	const paidOn = (owed: SQL) =>
+		sql`(select coalesce(sum(pm.amount_cents), 0) from paid_back_matches pm
+			join owed_back po on po.id = pm.owed_back_id where po.transaction_id = ${row.id} and ${owed})`;
+	const kept = sql`((${change.amount} < ${paidOn(sql`1`)}
+		or ${change.amount} < (select coalesce(sum(ri.amount_cents), 0) from refund_links rl
+			join income ri on ri.id = rl.income_id where rl.transaction_id = ${row.id})
+		${sql.join(
+			(change.splits ?? []).map(
+				(split) => sql` or ${split.amount} < ${paidOn(sql`po.split_id = ${split.id}`)}`,
+			),
+			sql``,
+		)})
+		and ${purchaseEndedRestores(from)})`;
+	const writes: BatchItem<"sqlite">[] = lowered
+		? [
+				db
+					.update(transactions)
+					.set({ ...mark, pending: change.pending, version: sql`${transactions.version} + 1` })
+					.where(and(asRead, kept)),
+				db
+					.update(transactions)
+					.set(set)
+					.where(and(asRead, sql`not ${kept}`)),
+			]
+		: [db.update(transactions).set(set).where(asRead)];
+	const ofThePurchase = sql`paid_back_matches.owed_back_id in
+		(select ob.id from owed_back ob where ob.transaction_id = ${row.id})`;
+	// What an Owed back item can be at most: its Split's amount, or the purchase's.
+	const most = sql`coalesce((select q.amount_cents from splits q where q.id = owed_back.split_id
+			and q.transaction_id = owed_back.transaction_id),
+		(select pt.amount_cents from transactions pt where pt.id = owed_back.transaction_id))`;
+	const trims: BatchItem<"sqlite">[] = lowered
+		? [
+				db
+					.update(owedBack)
+					.set({ amountCents: most })
+					.where(
+						and(
+							eq(owedBack.householdId, householdId),
+							eq(owedBack.transactionId, row.id),
+							sql`owed_back.amount_cents > ${most}`,
+							// Its Owed back stays as it was with the purchase, when that is kept.
+							sql`not exists (select 1 from paid_back_matches km
+								where km.owed_back_id = owed_back.id and km.counts_on < ${from})`,
+						),
+					),
+				...trimMatches(
+					db,
+					householdId,
+					"owed_back_id",
+					ofThePurchase,
+					sql`(select ob.amount_cents from owed_back ob where ob.id = paid_back_matches.owed_back_id)`,
+					from,
+				),
+				trimRefundLinks(db, householdId, eq(refundLinks.transactionId, row.id), from),
+			]
+		: [];
+	if (change.splits === null) return [...writes, ...trims];
 	// Its Splits follow only the change this sync made, so they add up to its amount.
 	const changed = sql`exists (select 1 from ${transactions} where ${and(
 		eq(transactions.id, row.id),
@@ -311,6 +449,7 @@ function changeWrites(
 			...writes,
 			...clearSplits(db, householdId, row.id, changed),
 			owedBackOffGoneSplits(db, householdId, row.id),
+			...trims,
 		];
 	return [
 		...writes,
@@ -327,6 +466,7 @@ function changeWrites(
 					),
 				),
 		),
+		...trims,
 	];
 }
 
@@ -335,8 +475,22 @@ function removeWrites(
 	householdId: string,
 	accountId: string,
 	row: BankRow,
-	from: DayKey,
+	today: DayKey,
 ): BatchItem<"sqlite">[] {
+	const from = endedBefore(today);
+	const asRead = stillAsRead(householdId, accountId, row);
+	// Kept, it says the day the bank took it back (issue 141): the first day, if said again.
+	const tookBack = { bankTookBackOn: sql<string>`coalesce(bank_took_back_on, ${today})` };
+	const marked =
+		row.kind === "transaction"
+			? db
+					.update(transactions)
+					.set({ ...tookBack, version: sql`${transactions.version} + 1` })
+					.where(and(asRead, purchaseEndedRestores(from), isNull(transactions.bankTookBackOn)))
+			: db
+					.update(income)
+					.set(tookBack)
+					.where(and(asRead, lineEndedRestores(row.id, from)));
 	// A line whose money back counted in a month that has ended is kept as it is, with what it
 	// restored: the bank can't be refused, and an ended month never changes (ADR-0058).
 	const theRow = and(
@@ -344,9 +498,13 @@ function removeWrites(
 		sql`not ${row.kind === "transaction" ? purchaseEndedRestores(from) : lineEndedRestores(income.id, from)}`,
 	) as SQL;
 	if (row.kind === "transaction") {
-		return transactionDeletes(db, { householdId, transactionId: row.id, theTransaction: theRow });
+		return [
+			marked,
+			...transactionDeletes(db, { householdId, transactionId: row.id, theTransaction: theRow }),
+		];
 	}
 	return [
+		marked,
 		// The Transfer it arrived by goes, marked or unmarked, and the money it came from counts again.
 		db
 			.delete(transfers)

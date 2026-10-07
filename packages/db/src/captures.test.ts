@@ -228,6 +228,7 @@ describe("deleting a capture that named a Wallet card", () => {
 		await captureWithCard("tap-2");
 		expect(await deleteTransactions(db, viewer, { ids: ["tap-1", "tap-2"] })).toEqual({
 			deleted: 2,
+			kept: 0,
 		});
 		expect(await left()).toEqual({ transactions: 0, cards: 0 });
 	});

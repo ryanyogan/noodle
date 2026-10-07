@@ -49,7 +49,9 @@ export const moneyInKindText = (line: Pick<MoneyInLine, "kind" | "needsReview">)
 
 /** The server's answer that a change to a money-in line can't be made; sending it again won't help. */
 export class MoneyInRefused extends Error {
-	constructor(readonly reason: "refused" | "extra-income" | "month-ended" | "matched") {
+	constructor(
+		readonly reason: "refused" | "extra-income" | "month-ended" | "matched" | "over-purchase",
+	) {
 		super(reason);
 	}
 }
@@ -65,7 +67,9 @@ const refusedText = (error: unknown, otherwise: string) => {
 			? "This money went back to a purchase in a month that has ended, so it stays as it is."
 			: reason === "matched"
 				? "That’s less than this has already Paid back on purchases, so the amount stays."
-				: otherwise;
+				: reason === "over-purchase"
+					? "That’s more than the purchase this is a Refund for cost, so the amount stays."
+					: otherwise;
 };
 
 export type MoneyInKindChange = {

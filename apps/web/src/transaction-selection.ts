@@ -232,9 +232,20 @@ export function stayingFacts(summary: DeletionSummary): string[] {
 }
 
 /** What the toast says after a bulk delete. */
-export function bulkDeletedMessage(result: { deleted: number; snapshot: boolean }): string {
-	if (result.deleted === 0) return "Nothing was deleted: those Transactions had already gone.";
-	const deleted = `Deleted ${transactionsCount(result.deleted)}.`;
+export function bulkDeletedMessage(result: {
+	deleted: number;
+	/** Left as they are: money back on them counted in a month that has ended. */
+	kept?: number;
+	snapshot: boolean;
+}): string {
+	const stayed = result.kept
+		? ` ${transactionsCount(result.kept)} stayed: money back on ${result.kept === 1 ? "it" : "them"} counted in a month that has ended.`
+		: "";
+	if (result.deleted === 0)
+		return stayed
+			? `Nothing was deleted.${stayed}`
+			: "Nothing was deleted: those Transactions had already gone.";
+	const deleted = `Deleted ${transactionsCount(result.deleted)}.${stayed}`;
 	return result.snapshot
 		? `${deleted} Noodle took a snapshot first, so you can put them back from Snapshots in Household settings.`
 		: deleted;

@@ -24,10 +24,12 @@ import {
 	loadCharges,
 	loadExportData,
 	loadIncome,
+	loadMoneyIn,
 	loadOwedBack,
 	loadPaidBack,
 	loadPlanRecords,
 	loadSpending,
+	loadTransactionsPage,
 	loadUnmatchedPaidBack,
 	offerPaidBackFor,
 	removeChild,
@@ -910,17 +912,75 @@ describe("what counted in a month that has ended stays as it was", () => {
 		expect(await bucketSpent(october)).toHaveLength(1);
 	});
 
+	it("refuses an edit or a split that would move the ended month, and lets its note and For change", async () => {
+		const [was] = await db.select().from(transactions).where(sql`${transactions.id} = 'skates'`);
+		if (!was) throw new Error("no skates");
+		const filed = was.bucketId
+			? { bucketId: was.bucketId }
+			: { commitmentId: was.commitmentId as string };
+		const edit = (over: Record<string, unknown>) =>
+			updateTransaction(db, {
+				householdId,
+				memberId: parentId,
+				transactionId: "skates",
+				amountCents: was.amountCents as Cents,
+				assignment: filed,
+				note: was.note,
+				forMemberIds: [],
+				today: november,
+				...over,
+			});
+		const spentBefore = await bucketSpent(october);
+		expect(await edit({ amountCents: 4_000 })).toEqual({ ok: false, reason: "month-ended" });
+		expect(
+			await edit({ assignment: { bucketId: was.bucketId === "hockey" ? "health" : "hockey" } }),
+		).toEqual({ ok: false, reason: "month-ended" });
+		expect(
+			await splitTransaction(db, {
+				householdId,
+				memberId: parentId,
+				transactionId: "skates",
+				amountCents: was.amountCents as Cents,
+				note: was.note,
+				splits: [
+					{
+						id: "s-1",
+						amountCents: 3_000 as Cents,
+						assignment: { bucketId: "hockey" },
+						forMemberIds: [],
+					},
+					{
+						id: "s-2",
+						amountCents: 1_500 as Cents,
+						assignment: { bucketId: "health" },
+						forMemberIds: [],
+					},
+				],
+				today: november,
+			}),
+		).toEqual({ ok: false, reason: "month-ended" });
+		expect(await bucketSpent(october)).toEqual(spentBefore);
+		expect(await matches()).toEqual(settled);
+		// Harmless: the note and who it's For.
+		expect((await edit({ note: "new skates", forMemberIds: ["leo"] })).ok).toBe(true);
+		expect(await bucketSpent(october)).toEqual(spentBefore);
+		// While its month runs, the same change of amount is an ordinary edit.
+		expect((await edit({ amountCents: 4_600, note: "new skates", today })).ok).toBe(true);
+	});
+
 	it("leaves such a purchase out when several are deleted at once", async () => {
 		expect(
 			await deleteTransactions(db, viewer, { ids: ["skates", "dentist"] }, { today: november }),
-		).toEqual({ deleted: 1 });
+		).toEqual({ deleted: 1, kept: 1 });
 		expect(await matches()).toEqual(settled);
 		expect(
 			(await db.select({ id: transactions.id }).from(transactions)).map((row) => row.id),
 		).toContain("skates");
 	});
 
-	it("keeps a line the bank withdraws, and a purchase it withdraws, once they counted in an ended month", async () => {
+	// A bank line of $80 in and a $30 purchase, the $80 Paid back on the dentist ($50) and on the
+	// purchase ($30), both confirmed in October.
+	const bankSetup = async () => {
 		await addBankConnection(db, {
 			householdId,
 			connectionId: "conn-1",
@@ -1017,6 +1077,19 @@ describe("what counted in a month that has ended stays as it was", () => {
 				today,
 			}),
 		).toMatchObject({ ok: true });
+		return { sync, bankLine, arrived, bought };
+	};
+	const lineNow = async (id: string) =>
+		(await db.select().from(income).where(sql`${income.id} = ${id}`))[0];
+	const purchaseNow = async (id: string) =>
+		(await db.select().from(transactions).where(sql`${transactions.id} = ${id}`))[0];
+	const matchAmounts = async () =>
+		Object.fromEntries(
+			(await db.select().from(paidBackMatches)).map((row) => [row.id, row.amountCents]),
+		);
+
+	it("keeps a line the bank withdraws, and a purchase it withdraws, once they counted in an ended month", async () => {
+		const { sync, arrived, bought } = await bankSetup();
 		const spentBefore = await bucketSpent(october);
 
 		await sync("imp-2", [], ["in-1", "out-1"], november);
@@ -1028,6 +1101,97 @@ describe("what counted in a month that has ended stays as it was", () => {
 		]);
 		expect(await bucketSpent(october)).toEqual(spentBefore);
 		expect(await db.select().from(income).where(sql`${income.id} = ${arrived.id}`)).toHaveLength(1);
+		// And they say so: the day the bank took them back (issue 141).
+		expect(await lineNow(arrived.id)).toMatchObject({
+			bankTookBackOn: november,
+			bankAmountCents: null,
+		});
+		expect(await purchaseNow(bought.id)).toMatchObject({
+			bankTookBackOn: november,
+			bankAmountCents: null,
+		});
+		expect((await loadMoneyIn(db, householdId)).find((row) => row.id === arrived.id)).toMatchObject(
+			{ bankTookBackOn: november, bankAmount: null },
+		);
+		// A later sync naming them again keeps the first day.
+		await sync("imp-3", [], ["in-1", "out-1"], "2026-11-20");
+		expect((await lineNow(arrived.id))?.bankTookBackOn).toBe(november);
+	});
+
+	it("trims the newest matches when the bank lowers a Paid back line in the running month", async () => {
+		const { sync, bankLine, arrived } = await bankSetup();
+		await sync(
+			"imp-2",
+			[bankLine("in-1", "2026-10-06", 60_00, "ACH CREDIT CASEY LOWE")],
+			[],
+			today,
+		);
+		expect(await lineNow(arrived.id)).toMatchObject({ amountCents: 6_000, bankTookBackOn: null });
+		// $50 + $30 was more than $60: the newest match gives up $20, which is owed again.
+		expect(await matchAmounts()).toMatchObject({ "m-bank": 5_000, "m-shop": 1_000 });
+		expect(
+			(await loadOwedBack(db, viewer, { open: true })).find((item) => item.id === "ob-shop"),
+		).toMatchObject({ owed: 3_000, paid: 1_000 });
+		// Lower than its first match: that one is trimmed and the newer one goes.
+		await sync(
+			"imp-3",
+			[bankLine("in-1", "2026-10-06", 40_00, "ACH CREDIT CASEY LOWE")],
+			[],
+			today,
+		);
+		const left = await matchAmounts();
+		expect(left["m-bank"]).toBe(4_000);
+		expect(left["m-shop"]).toBeUndefined();
+	});
+
+	it("keeps a Paid back line as it was when the bank lowers it after its month ended, and says so", async () => {
+		const { sync, bankLine, arrived } = await bankSetup();
+		const spentBefore = await bucketSpent(october);
+		await sync(
+			"imp-2",
+			[bankLine("in-1", "2026-10-06", 60_00, "ACH CREDIT CASEY LOWE")],
+			[],
+			november,
+		);
+		expect(await lineNow(arrived.id)).toMatchObject({
+			amountCents: 8_000,
+			bankTookBackOn: november,
+			bankAmountCents: 6_000,
+		});
+		expect(await matchAmounts()).toMatchObject({ "m-bank": 5_000, "m-shop": 3_000 });
+		expect(await bucketSpent(october)).toEqual(spentBefore);
+	});
+
+	it("trims what was Paid back on a purchase the bank lowers in the running month", async () => {
+		const { sync, bankLine, bought } = await bankSetup();
+		await sync("imp-2", [bankLine("out-1", "2026-10-02", -20_00, "Rink Shop")], [], today);
+		expect(await purchaseNow(bought.id)).toMatchObject({
+			amountCents: 2_000,
+			bankTookBackOn: null,
+		});
+		const [item] = await loadOwedBack(db, viewer, { id: "ob-shop" });
+		expect(item).toMatchObject({ owed: 2_000, paid: 2_000 });
+		expect((await matchAmounts())["m-shop"]).toBe(2_000);
+	});
+
+	it("keeps a purchase as it was when the bank lowers it below its money back after the month ended", async () => {
+		const { sync, bankLine, bought } = await bankSetup();
+		const spentBefore = await bucketSpent(october);
+		await sync("imp-2", [bankLine("out-1", "2026-10-02", -20_00, "Rink Shop")], [], november);
+		expect(await purchaseNow(bought.id)).toMatchObject({
+			amountCents: 3_000,
+			bankTookBackOn: november,
+			bankAmountCents: 2_000,
+		});
+		expect((await matchAmounts())["m-shop"]).toBe(3_000);
+		expect(await bucketSpent(october)).toEqual(spentBefore);
+		const row = (
+			await loadTransactionsPage(db, viewer, { month: october, limit: 200 } as never)
+		).transactions.find((one) => one.id === bought.id);
+		expect(row).toMatchObject({ bankTookBackOn: november, bankAmount: 2_000 });
+		// Lowered, but still at least its money back: the amount follows the bank.
+		await sync("imp-3", [bankLine("out-1", "2026-10-02", -30_00, "Rink Shop")], [], november);
+		expect((await purchaseNow(bought.id))?.amountCents).toBe(3_000);
 	});
 
 	it("still lets all of it go while the month is running", async () => {
@@ -1042,6 +1206,120 @@ describe("what counted in a month that has ended stays as it was", () => {
 			).ok,
 		).toBe(true);
 		expect(await matches()).toEqual([]);
+	});
+});
+
+describe("a typed, linked Refund's amount", () => {
+	it("can't go above what its purchase cost, or change once it counted in an ended month", async () => {
+		await caseyOwes();
+		await addIncome(db, {
+			householdId,
+			incomeId: "refund",
+			date: "2026-10-04",
+			amountCents: 1_000 as Cents,
+			note: "Refund",
+			createdByMemberId: parentId,
+		});
+		expect(
+			(
+				await changeMoneyInKind(db, viewer, {
+					incomeId: "refund",
+					kind: "refund",
+					transferId: "unused",
+					today,
+				})
+			).ok,
+		).toBe(true);
+		await db.insert(refundLinks).values({
+			incomeId: "refund",
+			householdId,
+			transactionId: "dentist",
+			countsOn: "2026-10-04",
+			createdByMemberId: parentId,
+		});
+		const [dentist] = await db
+			.select()
+			.from(transactions)
+			.where(sql`${transactions.id} = 'dentist'`);
+		if (!dentist) throw new Error("no dentist");
+		expect(
+			await editMoneyIn(db, viewer, {
+				incomeId: "refund",
+				edit: { amountCents: (dentist.amountCents + 1) as Cents },
+				today,
+			}),
+		).toEqual({ ok: false, reason: "over-purchase" });
+		expect(
+			(
+				await editMoneyIn(db, viewer, {
+					incomeId: "refund",
+					edit: { amountCents: 2_000 as Cents },
+					today,
+				})
+			).ok,
+		).toBe(true);
+		expect(
+			await editMoneyIn(db, viewer, {
+				incomeId: "refund",
+				edit: { amountCents: 1_500 as Cents },
+				today: "2026-11-03",
+			}),
+		).toEqual({ ok: false, reason: "month-ended" });
+		// Its note is still its own.
+		expect(
+			(
+				await editMoneyIn(db, viewer, {
+					incomeId: "refund",
+					edit: { note: "Dentist refund" },
+					today: "2026-11-03",
+				})
+			).ok,
+		).toBe(true);
+	});
+});
+
+describe("an Owed back item whose Split is gone", () => {
+	beforeEach(async () => {
+		await caseyOwes();
+		// As an older re-split left it: still naming a Split the purchase no longer has.
+		await db.update(owedBack).set({ splitId: "gone" }).where(sql`${owedBack.id} = 'ob-skates'`);
+	});
+	const skates = async () => (await loadOwedBack(db, viewer, { transactionId: "skates" }))[0];
+
+	it("can be changed where it is", async () => {
+		const was = await skates();
+		expect(
+			await sayOwedBack(db, viewer, {
+				owedBackId: "ob-skates",
+				transactionId: "skates",
+				splitId: "gone",
+				who: "Robin",
+				amountCents: 1_500 as Cents,
+			}),
+		).toMatchObject({ ok: true, item: { id: "ob-skates", who: "Robin", owed: 1_500 } });
+		expect(
+			await sayOwedBack(db, viewer, {
+				owedBackId: "ob-skates",
+				transactionId: "skates",
+				splitId: "gone",
+				who: "Robin",
+				amountCents: ((was?.purchaseAmount ?? 0) + 1) as Cents,
+			}),
+		).toEqual({ ok: false, reason: "too-much" });
+	});
+
+	it("moves to the whole purchase when a Parent says it there, as the one item it was", async () => {
+		expect(
+			await sayOwedBack(db, viewer, {
+				owedBackId: "ob-new",
+				transactionId: "skates",
+				who: "Casey",
+				amountCents: 2_500 as Cents,
+			}),
+		).toMatchObject({ ok: true, item: { id: "ob-skates", splitId: null, owed: 2_500 } });
+		expect(
+			(await db.select().from(owedBack)).filter((row) => row.transactionId === "skates"),
+		).toHaveLength(1);
 	});
 });
 

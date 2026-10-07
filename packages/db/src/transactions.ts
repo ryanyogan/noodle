@@ -387,6 +387,8 @@ export async function addQuickAdd(
 					pending: sql<boolean>`0`.as("pending"),
 					merchant: sql<string | null>`null`.as("merchant"),
 					version: sql<number>`0`.as("version"),
+					bankTookBackOn: sql<string | null>`null`.as("bank_took_back_on"),
+					bankAmountCents: sql<number | null>`null`.as("bank_amount_cents"),
 				})
 				.from(buckets)
 				.where(
@@ -480,6 +482,13 @@ export type TransactionRow = {
 	byHand?: boolean;
 	/** Reported by the bank but not yet posted: it may change, or go, until its posted copy lands. */
 	pending: boolean;
+	/**
+	 * The day the bank took it back, or lowered it, after money back on it had counted in a month
+	 * that has ended: it is kept as it was so that month doesn't change (issue 141).
+	 */
+	bankTookBackOn?: DayKey | null;
+	/** What the bank says it is now, when it only lowered it; null when it took it back. */
+	bankAmount?: Cents | null;
 	/** For a Quick Add Matched to its bank copy: the Account the copy was imported into. */
 	matchedIn: string | null;
 	/**
@@ -796,6 +805,8 @@ export async function loadTransactionsPage(
 			>`case when ${partly} then null else ${transactions.merchant} end`,
 			partlyPrivate: sql<boolean>`${partly}`.mapWith(Boolean),
 			pending: transactions.pending,
+			bankTookBackOn: transactions.bankTookBackOn,
+			bankAmount: transactions.bankAmountCents,
 			byHand:
 				sql<boolean>`coalesce(${accounts.purchases} = 'hand' and ${accounts.bankConnectionId} is null, 0)`.mapWith(
 					Boolean,
@@ -956,7 +967,14 @@ export type TransactionEditResult =
 	/** `version` is the Transaction's once the change landed: what the next change is made on. */
 	| { ok: true; version: number }
 	/** "changed-elsewhere": it is no longer at the version the change was made on, or is gone. */
-	| { ok: false; reason: "not-in-plan" | "splits-unbalanced" | "changed-elsewhere" };
+	/**
+	 * "month-ended": money back on it counted in a month that has ended, and the change would move
+	 * that month (its amount, or where it is filed). Its note and For can still change.
+	 */
+	| {
+			ok: false;
+			reason: "not-in-plan" | "splits-unbalanced" | "changed-elsewhere" | "month-ended";
+	  };
 
 /** How a guarded write that sets no new values ended (a delete, a return to Review). */
 export type TransactionWriteResult =
@@ -1129,6 +1147,70 @@ const namedAs = (name: string | undefined) =>
 		: sql`(${transactions.source} <> 'import' or ${transactions.merchant} is ${name})`;
 
 /**
+ * True when a change to a purchase would move a month that has ended (issue 141, ADR-0058): money
+ * Paid back on it, or a Refund linked to it, counted there, restoring whatever the purchase (or
+ * its Split) is filed in, and the change gives it another amount or files any of it elsewhere.
+ * A change that leaves those as they are (its note, its For) moves nothing.
+ */
+async function movesEndedMonth(
+	db: Db,
+	input: {
+		householdId: string;
+		transactionId: string;
+		amountCents: Cents;
+		whole?: Assignment;
+		parts?: SplitInput[];
+		today?: DayKey;
+	},
+): Promise<boolean> {
+	const thePurchase = and(
+		eq(transactions.id, input.transactionId),
+		eq(transactions.householdId, input.householdId),
+	);
+	const [row] = await db
+		.select({
+			amount: transactions.amountCents,
+			bucketId: transactions.bucketId,
+			commitmentId: transactions.commitmentId,
+		})
+		.from(transactions)
+		.where(and(thePurchase, purchaseEndedRestores(endedBefore(input.today))));
+	if (!row) return false;
+	if (row.amount !== input.amountCents) return true;
+	const parts = await db
+		.select({
+			id: splits.id,
+			amountCents: splits.amountCents,
+			bucketId: splits.bucketId,
+			commitmentId: splits.commitmentId,
+			goalId: splits.goalId,
+		})
+		.from(splits)
+		.where(
+			and(eq(splits.transactionId, input.transactionId), eq(splits.householdId, input.householdId)),
+		);
+	if (input.whole) {
+		const to = assignmentColumns(input.whole);
+		return parts.length > 0 || row.bucketId !== to.bucketId || row.commitmentId !== to.commitmentId;
+	}
+	const next = input.parts ?? [];
+	return (
+		parts.length !== next.length ||
+		next.some((split) => {
+			const to = assignmentColumns(split.assignment);
+			return !parts.some(
+				(part) =>
+					part.id === split.id &&
+					part.amountCents === split.amountCents &&
+					part.bucketId === to.bucketId &&
+					part.commitmentId === to.commitmentId &&
+					part.goalId === to.goalId,
+			);
+		})
+	);
+}
+
+/**
  * Changes a Transaction's amount, assignment, note, and For, all at once, assigning it as a whole
  * (so any Splits it had are removed), for the Parent `memberId`. Idempotent: it sets values, so a
  * retry lands the same. The Transaction only changes if, at write time, it is the Household's and
@@ -1153,8 +1235,13 @@ export async function updateTransaction(
 		expectedVersion?: number;
 		/** The name a Parent gave an imported line; its note (the bank's wording) is kept. */
 		name?: string;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
 	},
 ): Promise<TransactionEditResult> {
+	// The one ended-month check (issue 141): before anything is written.
+	if (await movesEndedMonth(db, { ...input, whole: input.assignment }))
+		return { ok: false, reason: "month-ended" };
 	const bucketId = "bucketId" in input.assignment ? input.assignment.bucketId : null;
 	const commitmentId = "commitmentId" in input.assignment ? input.assignment.commitmentId : null;
 	// The month of the Transaction being updated (a correlated reference inside the guards).
@@ -1328,9 +1415,14 @@ export async function splitTransaction(
 		expectedVersion?: number;
 		/** The name a Parent gave an imported line; its note (the bank's wording) is kept. */
 		name?: string;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
 	},
 ): Promise<TransactionEditResult> {
 	const { householdId, memberId, transactionId } = input;
+	// The one ended-month check (issue 141): before anything is written.
+	if (await movesEndedMonth(db, { ...input, parts: input.splits }))
+		return { ok: false, reason: "month-ended" };
 	if (
 		!splitsBalance(
 			input.amountCents,
@@ -1835,8 +1927,20 @@ export async function deleteTransactions(
 		/** The Household's day; UTC's when left out. */
 		today?: DayKey;
 	} = {},
-): Promise<{ deleted: number }> {
+): Promise<{ deleted: number; kept: number }> {
 	const { householdId } = viewer;
+	// How many of them stay because money back on them counted in a month that has ended.
+	const [stay] = await db
+		.select({ count: sql<number>`count(*)`.mapWith(Number) })
+		.from(transactions)
+		.where(
+			and(
+				selectedBy(viewer, selection),
+				editableBy(householdId, viewer.memberId),
+				purchaseEndedRestores(endedBefore(options.today)),
+			),
+		);
+	const kept = stay?.count ?? 0;
 	// One whose money back counted in a month that has ended stays, with that money (ADR-0058).
 	const editable = and(
 		editableBy(householdId, viewer.memberId),
@@ -1848,7 +1952,7 @@ export async function deleteTransactions(
 		.where(and(selectedBy(viewer, selection), editable))
 		.orderBy(asc(transactions.id))
 		.limit(BULK_DELETE_MAX);
-	if (targets.length === 0) return { deleted: 0 };
+	if (targets.length === 0) return { deleted: 0, kept };
 	await options.beforeDeleting?.(targets.length);
 	let deleted = 0;
 	for (let start = 0; start < targets.length; start += BULK_DELETE_CHUNK) {
@@ -1990,7 +2094,7 @@ export async function deleteTransactions(
 			);
 		deleted += chunk.length - (left?.count ?? 0);
 	}
-	return { deleted };
+	return { deleted, kept };
 }
 
 /** The most Transactions one "File in…" takes; a second run takes the rest. */

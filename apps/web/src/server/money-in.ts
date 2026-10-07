@@ -155,6 +155,7 @@ export const editMoneyInLine = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data, context }): Promise<MoneyInKindResult> => {
 		const result = await editMoneyIn(getDb(), viewerOf(context), {
+			today: dayKeyAt(new Date(), context.household.timeZone),
 			incomeId: data.incomeId,
 			expectedVersion: data.expectedVersion,
 			edit: {

@@ -287,6 +287,7 @@ describe("deleting many at once", () => {
 		};
 		expect(await deleteTransactions(db, viewer, upToSeptember, { beforeDeleting })).toEqual({
 			deleted: 4,
+			kept: 0,
 		});
 		expect(await kept()).toEqual(["id:e", "id:r"]);
 		expect(await db.select().from(splits)).toEqual([]);
@@ -301,6 +302,7 @@ describe("deleting many at once", () => {
 
 		expect(await deleteTransactions(db, viewer, upToSeptember, { beforeDeleting })).toEqual({
 			deleted: 0,
+			kept: 0,
 		});
 		expect(told).toEqual([4]);
 
@@ -332,7 +334,7 @@ describe("deleting many at once", () => {
 	it("deletes the ones picked by hand", async () => {
 		await history();
 		const picked = { ids: [await idOf("d"), await idOf("e"), "not-one"] };
-		expect(await deleteTransactions(db, viewer, picked)).toEqual({ deleted: 2 });
+		expect(await deleteTransactions(db, viewer, picked)).toEqual({ deleted: 2, kept: 0 });
 		expect(await kept()).toEqual(["id:a", "id:b", "id:c", "id:r"]);
 	});
 
@@ -344,7 +346,7 @@ describe("deleting many at once", () => {
 		await db.delete(transfers);
 		const all = { all: { month: "2026-09" as const } };
 		expect((await summarizeDeletion(db, viewer, all)).count).toBe(230);
-		expect(await deleteTransactions(db, viewer, all)).toEqual({ deleted: 230 });
+		expect(await deleteTransactions(db, viewer, all)).toEqual({ deleted: 230, kept: 0 });
 		expect(await kept()).toEqual([]);
 		expect(await remembered()).toHaveLength(230);
 	});

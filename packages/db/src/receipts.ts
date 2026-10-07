@@ -197,6 +197,8 @@ export async function addReceipt(
 						pending: sql<boolean>`0`.as("pending"),
 						merchant: sql<string | null>`null`.as("merchant"),
 						version: sql<number>`0`.as("version"),
+						bankTookBackOn: sql<string | null>`null`.as("bank_took_back_on"),
+						bankAmountCents: sql<number | null>`null`.as("bank_amount_cents"),
 					})
 					.from(members)
 					.where(
