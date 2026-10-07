@@ -2,7 +2,13 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { createPlannedHousehold, hydrated, signedInPage, uploadStatement } from "./session";
+import {
+	createPlannedHousehold,
+	hydrated,
+	savedBy,
+	signedInPage,
+	uploadStatement,
+} from "./session";
 
 // Paid back and Owed back (issue 132, ADR-0058), the ticket's scenario from end to end: tuition
 // of $1,200 last month with half Owed back by Casey, skates ($45) and the dentist ($80) Owed back
@@ -119,7 +125,10 @@ test("$700 Paid back settles tuition and skates, leaves $25 of the dentist owed,
 	const sheet = page.getByRole("dialog", { name: "Add income" });
 	await sheet.getByLabel("Amount").fill("700");
 	await sheet.getByLabel("Note").fill("Casey");
+	// Kept before the page is left for another: a page that goes takes an unsent write with it.
+	const recorded = savedBy(page, "recordIncome");
 	await sheet.getByRole("button", { name: "Add income" }).click();
+	await recorded;
 	await expect(sheet).toBeHidden();
 	// Nothing is restored yet, and the Commitment says what is owed on it.
 	await expect(income).toContainText("$700 received");
