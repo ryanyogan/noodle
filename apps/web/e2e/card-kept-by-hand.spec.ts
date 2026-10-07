@@ -6,11 +6,13 @@ import {
 	createPlannedHousehold,
 	hydrated,
 	pickQuickAddBucket,
+	savedBy,
 	signedInPage,
 } from "./session";
 
 // A card kept by hand (issue 136): adding a card asks how its purchases get into Noodle; one kept
-// by hand has a statement day, a Nudge on Accounts when its statement's balance is due, and the
+// by hand has a statement day, an ask on Accounts when its statement's balance is due (put away
+// for the whole Household by "Not now"), and the
 // check itself: "… higher than what's recorded", then "That matches." once the two agree.
 // SHOT_DIR (and SHOT_WIDTH) save the add-card question and the Nudge as pictures to look at.
 
@@ -80,19 +82,21 @@ test("a card kept by hand is asked about when added, and has its statement balan
 	await expect(nudge).toHaveCount(1, { timeout: 30_000 });
 	await expect(nudge).toContainText("Type its balance to check nothing’s missing.");
 	await shot(page, "balance-check-nudge");
-	// "Not now" puts it away on this device until the next statement; the card's page still asks.
+	await expect(nudge.getByRole("link", { name: "Check its balance" })).toBeVisible();
+	// "Not now" puts it away for the Household until the next statement; the card's page still asks.
 	await hydrated(nudge.getByRole("button", { name: /^Not now/ }));
+	const putAway = savedBy(page, "putAwayBalanceCheck");
 	await nudge.getByRole("button", { name: /^Not now/ }).click();
 	await expect(nudge).toHaveCount(0);
+	await putAway;
+	// The Household's, not this device's: still away once the device has forgotten everything.
+	await page.evaluate(() => window.localStorage.clear());
 	await page.reload();
 	await expect(page.getByRole("link", { name: /^Apple Card, / })).toBeVisible();
 	await hydrated(page.getByRole("button", { name: "Add Account" }).first());
 	await expect(nudge).toHaveCount(0);
-	await page.evaluate(() => window.localStorage.removeItem("noodle:balance-check:dismissed"));
-	await page.reload();
-	await expect(nudge).toHaveCount(1, { timeout: 30_000 });
 	await expect(async () => {
-		await nudge.getByRole("link", { name: "Check its balance" }).click();
+		await page.getByRole("link", { name: /^Apple Card, / }).click();
 		await expect(page.getByLabel("Statement balance")).toBeVisible({ timeout: 2000 });
 	}).toPass();
 
