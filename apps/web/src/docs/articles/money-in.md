@@ -22,9 +22,12 @@ Open **Transactions**. Money in for the month is listed under **Money in**, each
 ## What Noodle decides for you
 
 - A deposit that reads as payroll is Income without asking.
-- Money a person sent you (Zelle, Venmo, PayPal, Cash App, Apple Cash) is not counted as Income until you say what it is. It waits under **Money in to look at**.
-- Money that reads as a refund or a reversal ("AMAZON REFUND", "PURCHASE RETURN", "FEE REVERSAL", "MERCHANT CREDIT", "CHARGEBACK") waits there too, with **Refund** first. Choose it and Noodle asks which purchase it is a Refund for.
-- A tax refund and interest your bank paid you are Income.
+- Money a person sent you (Zelle, Venmo, PayPal, Cash App, Apple Cash) is not counted as Income until you say what it is. It waits under **Money in to look at**. That holds whatever its memo says. When the memo says they are paying you back ("refund for tickets", "paying you back", "what I owe you"), **Paid back** is first. Noodle never suggests Refund for money from a person: there is no purchase at a store to link it to.
+- Money that reads as a store's refund or a reversal waits there too, with **Refund** first. Choose it and Noodle asks which purchase it is a Refund for. That covers "AMAZON REFUND", a return with the store's name ("TARGET RETURN 0423", "PURCHASE RETURN COSTCO"), "MERCHANT CREDIT", "CHARGEBACK", the short forms "RFND", "RFD" and "REFND", sales tax a store gives back ("SALES TAX REFUND TARGET"), and a fee your bank gives back ("OVERDRAFT FEE REVERSAL").
+- A payment that failed and came back ("ACH RETURN", "RETURNED ITEM", "RETURN CHECK") waits there too, with nothing suggested. It is your own money coming back, so it is not a Refund for a purchase and it is not Income. Say what it is when you look at it.
+- A tax refund is Income, federal or state, whether or not the bank writes the word tax: "IRS TREAS 310 TAX REF", "GA DOR REFUND", "STATE OF COLO REFUND", "FRANCHISE TAX BD", "NYS DTF PIT".
+- Interest your bank paid you is Income of the Household.
+- Wording that says too little stays Income: "CREDIT" or "CASH BACK" alone, "RETURN" with no store beside it, "RETURN OF PREMIUM", and "REF #1234", which is a reference number.
 - Any other deposit is Income, as before.
 - A Rule you stated always wins.
 

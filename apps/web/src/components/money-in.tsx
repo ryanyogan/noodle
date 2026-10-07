@@ -52,8 +52,9 @@ export function MoneyInKindChoice({
 	const change = useMoneyInKindChange();
 	const accounts = useQuery(moneyInAccountsQuery()).data ?? [];
 	const [always, setAlways] = useState(false);
-	// While it waits in Review, wording that reads as a refund puts Refund first (issue 141). It
-	// is a suggestion: nothing is a Refund until the Parent presses it.
+	// While it waits in Review, wording that reads as a store's refund puts Refund first, and a
+	// person's memo that says they're paying back puts Paid back first (issue 141). It is a
+	// suggestion: the line is neither until the Parent presses it.
 	const suggested = line.needsReview ? suggestedMoneyInKind(line.note) : null;
 	const kinds = suggested
 		? [suggested, ...MONEY_IN_KINDS.filter((kind) => kind !== suggested)]
@@ -103,8 +104,9 @@ export function MoneyInKindChoice({
 					className="text-sm text-muted-foreground"
 					data-testid="money-in-suggested"
 				>
-					This reads as a {MONEY_IN_KIND_LABELS[suggested]}, so it’s first. It isn’t one until you
-					say so.
+					{suggested === "paid-back"
+						? "This reads as money Paid back, so it’s first. It isn’t until you say so."
+						: `This reads as a ${MONEY_IN_KIND_LABELS[suggested]}, so it’s first. It isn’t one until you say so.`}
 				</p>
 			) : null}
 			{line.note ? (

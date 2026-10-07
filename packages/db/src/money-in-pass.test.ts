@@ -133,6 +133,24 @@ describe("the one-time pass over October 2026's money in", () => {
 		]);
 	});
 
+	it("sends back what a person sent even when its memo mentions a refund, and leaves a store's refund alone", async () => {
+		await imported([
+			line("2026-10-03", 8_000, "ZELLE FROM JOHN refund for tickets"),
+			line("2026-10-04", 4_210, "AMAZON REFUND 42.10"),
+			line("2026-10-06", 5_000, "Zelle payment from CASEY LOWE paying you back"),
+			line("2026-10-08", 9_900, "ACH RETURN COMCAST CABLE"),
+			line("2026-10-10", 31_000, "GA DOR REFUND"),
+		]);
+
+		expect(await run()).toEqual({ ran: true, changed: 2, snapshotId: "snapshot-1" });
+
+		expect(await waiting()).toEqual(["2026-10-06", "2026-10-03"]);
+		// Income under the old rules, and the lines already here are not touched.
+		expect((await on("2026-10-04")).needsReview).toBe(false);
+		expect((await on("2026-10-08")).needsReview).toBe(false);
+		expect((await on("2026-10-10")).needsReview).toBe(false);
+	});
+
 	it("does nothing the second time, even for a line a Parent has since called Income", async () => {
 		await imported([line("2026-10-05", 30_000, ZELLE), line("2026-10-07", 4_000, VENMO)]);
 		await run();
