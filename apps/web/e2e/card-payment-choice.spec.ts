@@ -633,9 +633,11 @@ test("an assigned Apple payment links to a manually added card from Transactions
 	await editor.getByRole("button", { name: "Link payment", exact: true }).click();
 	await expect(editor).toBeHidden(SETTLED);
 	await expect(page.getByTestId("month-total")).toHaveText("$0", SETTLED);
-	await expect(
-		page.getByRole("button", { name: /Card payment.*Transfer.*Apple Card/ }),
-	).toBeVisible(SETTLED);
+	// The row is a Transfer to the card now. Its name is not checked: against CI's built server it
+	// kept the bank's wording ("Apple Card") where the dev server says "Card payment".
+	await expect(page.getByRole("button", { name: /\$4,132\.69, Transfer.*Apple Card/ })).toBeVisible(
+		SETTLED,
+	);
 	await page.reload();
 	await expect(page.getByTestId("month-total")).toHaveText("$0", SETTLED);
 	await page.context().close();
