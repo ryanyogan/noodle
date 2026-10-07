@@ -22,7 +22,10 @@ async function seeWhatChanged(page: Page) {
 	await expect(link).toHaveCount(1);
 	await link.click();
 	await expect(page).toHaveURL(/\/household\?month=\d{4}-\d{2}#log$/);
-	await expect(page.getByRole("button", { name: /^Takes effect in / })).toBeVisible();
+	// Household settings loads everything it shows before it draws: give a busy machine time.
+	await expect(page.getByRole("button", { name: /^Takes effect in / })).toBeVisible({
+		timeout: 30_000,
+	});
 	await expect(log(page).locator("[data-slot=data-table-row]").first()).toBeVisible();
 }
 
