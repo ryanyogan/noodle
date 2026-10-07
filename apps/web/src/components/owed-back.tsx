@@ -272,6 +272,8 @@ export function OwedBackOnPurchase({
 	const splits = (transaction.splits ?? []).filter((split) => split.amountCents > 0 && !split.goal);
 	const whole = items.find((one) => one.splitId === null);
 	// Said on a Split that a later re-split replaced: still owed, so still shown.
+	// On the whole purchase or on its Splits, never both: once it's on the whole, no Split offers it.
+	const offered = splits.filter((split) => !whole || items.some((one) => one.splitId === split.id));
 	const loose = items.filter(
 		(one) => one.splitId !== null && !splits.some((split) => split.id === one.splitId),
 	);
@@ -287,7 +289,7 @@ export function OwedBackOnPurchase({
 					people={children}
 				/>
 			) : null}
-			{splits.map((split) => (
+			{offered.map((split) => (
 				<OwedBackOn
 					key={split.id}
 					transactionId={transaction.id}

@@ -256,6 +256,7 @@ describe("a Refund lands in checking in October", () => {
 			incomeId: "back",
 			kind: "income",
 			transferId: "unused",
+			today,
 		});
 		expect(changed.ok).toBe(true);
 		expect(await db.select().from(refundLinks)).toEqual([]);
@@ -268,6 +269,7 @@ describe("a Refund lands in checking in October", () => {
 			householdId,
 			memberId: parentId,
 			transactionId: "skates",
+			today,
 		});
 		expect(deleted.ok).toBe(true);
 		expect(await db.select().from(refundLinks)).toEqual([]);

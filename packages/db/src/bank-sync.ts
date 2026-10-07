@@ -11,6 +11,7 @@ import { and, asc, eq, inArray, isNull, type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { markCardPayments } from "./card-payments";
 import { bankLinesNotDeleted } from "./deleted-lines";
+import { endedBefore, lineEndedRestores, purchaseEndedRestores } from "./ended-months";
 import { importStatement } from "./imports";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
@@ -61,6 +62,8 @@ export async function syncBankLines(
 		removed: string[];
 		createdByMemberId: string;
 		newId: () => string;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
 	},
 ): Promise<BankSyncResult | null> {
 	const { householdId, accountId } = input;
@@ -88,7 +91,9 @@ export async function syncBankLines(
 
 	const writes = [
 		...plan.change.flatMap((change) => changeWrites(db, householdId, accountId, change)),
-		...plan.remove.flatMap((row) => removeWrites(db, householdId, accountId, row)),
+		...plan.remove.flatMap((row) =>
+			removeWrites(db, householdId, accountId, row, endedBefore(input.today)),
+		),
 	];
 	if (writes.length > 0) {
 		await db.batch(writes as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
@@ -325,8 +330,14 @@ function removeWrites(
 	householdId: string,
 	accountId: string,
 	row: BankRow,
+	from: DayKey,
 ): BatchItem<"sqlite">[] {
-	const theRow = stillAsRead(householdId, accountId, row);
+	// A line whose money back counted in a month that has ended is kept as it is, with what it
+	// restored: the bank can't be refused, and an ended month never changes (ADR-0058).
+	const theRow = and(
+		stillAsRead(householdId, accountId, row),
+		sql`not ${row.kind === "transaction" ? purchaseEndedRestores(from) : lineEndedRestores(income.id, from)}`,
+	) as SQL;
 	if (row.kind === "transaction") {
 		return transactionDeletes(db, { householdId, transactionId: row.id, theTransaction: theRow });
 	}

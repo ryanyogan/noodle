@@ -10,6 +10,7 @@ import {
 } from "@noodle/domain";
 import { type AnyColumn, and, eq, gte, isNull, lt, ne, type SQL, sql } from "drizzle-orm";
 import { incomeCounts } from "./counting";
+import { endedBefore, lineEndedRestores } from "./ended-months";
 import { decidedSql, extraIncomeSql } from "./extra-income";
 import type { Db } from "./index";
 import {
@@ -141,9 +142,12 @@ export type MoneyInKindResult =
 	| { ok: true; line: MoneyInLine; months: string[] }
 	/**
 	 * `extra-income`: its month's Extra income already went somewhere and needs this Income
-	 * (ADR-0052); `changed-elsewhere`: it was changed on another screen, `current` is how it is now.
+	 * (ADR-0052); `changed-elsewhere`: it was changed on another screen, `current` is how it is now;
+	 * `month-ended`: what it Paid back, or the purchase it is a Refund for, got the money in a month
+	 * that has ended, which never changes (ADR-0058); `matched`: the new amount is less than what
+	 * the line has already settled.
 	 */
-	| { ok: false; reason: "refused" | "extra-income" }
+	| { ok: false; reason: "refused" | "extra-income" | "month-ended" | "matched" }
 	| { ok: false; reason: "changed-elsewhere"; current: MoneyInLine };
 
 /**
@@ -152,12 +156,21 @@ export type MoneyInKindResult =
  * month's Extra income would no longer be covered without it (ADR-0052). `expectedVersion` is the
  * version the Parent was looking at (ADR-0041); without it the change is made on the line as it
  * is. `transferId` is the Transfer written when the kind is Transfer or Between us; a Transfer it
- * was a side of before is unmarked. Saying the kind it already has changes nothing.
+ * was a side of before is unmarked. Saying the kind it already has changes nothing, except that
+ * a line nobody had touched is from then on one a Parent decided (`decide`). Refused
+ * (`month-ended`) once what the line restored counted in a month that has ended as of `today`.
  */
 export async function changeMoneyInKind(
 	db: Db,
 	viewer: { householdId: string; memberId: string },
-	input: { incomeId: string; kind: MoneyInKind; transferId: string; expectedVersion?: number },
+	input: {
+		incomeId: string;
+		kind: MoneyInKind;
+		transferId: string;
+		expectedVersion?: number;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
+	},
 ): Promise<MoneyInKindResult> {
 	const { householdId } = viewer;
 	const before = await loadMoneyInLine(db, householdId, input.incomeId);
@@ -170,9 +183,14 @@ export async function changeMoneyInKind(
 			return { ok: true, line: before, months: [month] };
 		return { ok: false, reason: "changed-elsewhere", current: before };
 	}
-	if (settled) return { ok: true, line: before, months: [month] };
-
 	const own = and(eq(income.id, input.incomeId), eq(income.householdId, householdId)) as SQL;
+	if (settled) return { ok: true, line: await decide(db, householdId, before), months: [month] };
+
+	// Its matches, or its link to a purchase, would go with the kind: never from an ended month.
+	const ended = lineEndedRestores(income.id, endedBefore(input.today));
+	const frozen = async () =>
+		(await db.select({ id: income.id }).from(income).where(and(own, ended))).length > 0;
+	if (await frozen()) return { ok: false, reason: "month-ended" };
 	const next = before.version + 1;
 	const landed = sql`exists (select 1 from income n where n.id = ${input.incomeId}
 		and n.household_id = ${householdId} and n.version = ${next})`;
@@ -190,7 +208,7 @@ export async function changeMoneyInKind(
 				needsReview: false,
 				version: sql`${income.version} + 1`,
 			})
-			.where(and(own, eq(income.version, before.version), covered)),
+			.where(and(own, eq(income.version, before.version), covered, sql`not ${ended}`)),
 		db
 			.update(transfers)
 			.set({ removedAt: sql`(unixepoch() * 1000)`, removedByMemberId: viewer.memberId })
@@ -261,7 +279,22 @@ export async function changeMoneyInKind(
 		return { ok: true, line: after, months: [month] };
 	if (after.version !== before.version)
 		return { ok: false, reason: "changed-elsewhere", current: after };
-	return { ok: false, reason: "extra-income" };
+	return { ok: false, reason: (await frozen()) ? "month-ended" : "extra-income" };
+}
+
+/**
+ * A Parent looked at a line and left it as it is (confirmed it is Income, or said whose pay it
+ * already was): from then on it is one a Parent decided, which its version says (ADR-0041), so
+ * the one-time October pass leaves it alone (money-in-pass.ts). Only a line nobody had touched
+ * moves on, once; a repeat changes nothing.
+ */
+async function decide(db: Db, householdId: string, line: MoneyInLine): Promise<MoneyInLine> {
+	if (line.version !== 0) return line;
+	await db
+		.update(income)
+		.set({ version: 1 })
+		.where(and(eq(income.id, line.id), eq(income.householdId, householdId), eq(income.version, 0)));
+	return (await loadMoneyInLine(db, householdId, line.id)) ?? line;
 }
 
 /** What a Parent may change on a money-in line besides its kind. Only what is given changes. */
@@ -294,7 +327,9 @@ const isParent = async (db: Db, householdId: string, memberId: string) =>
  * amount or date (issue 133). Made on the version the Parent was looking at (`expectedVersion`,
  * ADR-0041): a repeat of a change that landed is answered as saved, one made on a line that has
  * moved on is left alone. Refused (`extra-income`) while Extra income already decided in its
- * month would no longer be covered by the lower amount or without the line (ADR-0052's guard).
+ * month would no longer be covered by the lower amount or without the line (ADR-0052's guard),
+ * and (`matched`) when the new amount is less than what the line has already Paid back on
+ * purchases. Saving it with nothing changed makes an untouched line one a Parent decided.
  */
 export async function editMoneyIn(
 	db: Db,
@@ -320,7 +355,7 @@ export async function editMoneyIn(
 			return { ok: true, line: before, months };
 		return { ok: false, reason: "changed-elsewhere", current: before };
 	}
-	if (same) return { ok: true, line: before, months };
+	if (same) return { ok: true, line: await decide(db, householdId, before), months };
 	const typedOnly =
 		(edit.amountCents !== undefined && edit.amountCents !== before.amount) ||
 		(edit.date !== undefined && edit.date !== before.date);
@@ -332,6 +367,20 @@ export async function editMoneyIn(
 		return { ok: false, reason: "refused" };
 	if (edit.whosePay && !(await isParent(db, householdId, edit.whosePay)))
 		return { ok: false, reason: "refused" };
+
+	// It never restores more than it is: a lower amount stops at what it has settled already.
+	const matchedSql = sql<number>`(select coalesce(sum(pm.amount_cents), 0) from paid_back_matches pm
+		where pm.income_id = ${input.incomeId} and pm.household_id = ${householdId})`;
+	const lower = edit.amountCents !== undefined && edit.amountCents < before.amount;
+	const overMatched = async () => {
+		if (!lower) return false;
+		const [row] = await db
+			.select({ matched: matchedSql.as("matched") })
+			.from(income)
+			.where(and(eq(income.id, input.incomeId), eq(income.householdId, householdId)));
+		return (row?.matched ?? 0) > (edit.amountCents as number);
+	};
+	if (await overMatched()) return { ok: false, reason: "matched" };
 
 	// What its month's Income loses by this: all of it when it leaves the month.
 	const less =
@@ -356,6 +405,7 @@ export async function editMoneyIn(
 				eq(income.householdId, householdId),
 				eq(income.version, before.version),
 				covered,
+				lower ? sql`${edit.amountCents} >= ${matchedSql}` : undefined,
 			),
 		);
 	const after = await loadMoneyInLine(db, householdId, input.incomeId);
@@ -363,7 +413,7 @@ export async function editMoneyIn(
 	if (after.version === next) return { ok: true, line: after, months };
 	if (after.version !== before.version)
 		return { ok: false, reason: "changed-elsewhere", current: after };
-	return { ok: false, reason: "extra-income" };
+	return { ok: false, reason: (await overMatched()) ? "matched" : "extra-income" };
 }
 
 /**

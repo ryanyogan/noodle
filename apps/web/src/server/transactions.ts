@@ -416,22 +416,27 @@ export const deleteTransaction = createServerFn({ method: "POST" })
 			expectedVersion: versionSchema,
 		}),
 	)
-	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
-		const result = await deleteTransactionInDb(getDb(), {
-			householdId: context.household.id,
-			memberId: context.parent.id,
-			transactionId: data.transactionId,
-			expectedVersion: data.expectedVersion,
-		});
-		if (!result.ok) return changedElsewhere(viewerOf(context), data.transactionId);
-		await notifyHousehold(context.household.id, [
-			// Every month: what's left can roll into later ones.
-			"months",
-			"for-earlier",
-			"bucket-uses",
-		]);
-		return saved(null);
-	});
+	.handler(
+		async ({ data, context }): Promise<TransactionWriteAnswer | { status: "month-ended" }> => {
+			const result = await deleteTransactionInDb(getDb(), {
+				householdId: context.household.id,
+				memberId: context.parent.id,
+				transactionId: data.transactionId,
+				expectedVersion: data.expectedVersion,
+				today: dayKeyAt(new Date(), context.household.timeZone),
+			});
+			// Money back on it counted in a month that has ended: it stays, and the screen says why.
+			if (!result.ok && result.reason === "month-ended") return { status: "month-ended" };
+			if (!result.ok) return changedElsewhere(viewerOf(context), data.transactionId);
+			await notifyHousehold(context.household.id, [
+				// Every month: what's left can roll into later ones.
+				"months",
+				"for-earlier",
+				"bucket-uses",
+			]);
+			return saved(null);
+		},
+	);
 
 const sameMerchantSchema = z.object({
 	transactionId: ulidSchema,

@@ -17,13 +17,18 @@
 import { toast } from "@noodle/ui/components/toast";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { sendMoneyInEdit } from "./money-in";
+import { MoneyInRefused, sendMoneyInEdit, sendMoneyInKind } from "./money-in";
 import { MAX_TRIES, openOutbox, type Resend, type Store, type Waiting, type Who } from "./outbox";
 import { monthChangeKey } from "./plan-changes";
 import { sendDecision, sendDecisions, sendFileWithoutBucket, sendReturnToReview } from "./review";
 import { reviewWrites } from "./review-stack";
 import { ChangedElsewhere, carryVersions, leftAsTheyAre } from "./transaction-versions";
-import { refetchAfterChange, saveTransactionChange, sayChangedElsewhere } from "./transactions";
+import {
+	MonthEnded,
+	refetchAfterChange,
+	saveTransactionChange,
+	sayChangedElsewhere,
+} from "./transactions";
 
 /** By the `meta.outbox` its mutation says: how each kind is sent. */
 const senders: Record<string, (variables: never) => Promise<unknown>> = {
@@ -34,6 +39,10 @@ const senders: Record<string, (variables: never) => Promise<unknown>> = {
 	"return-to-review": sendReturnToReview,
 	// An edit of a money-in line (whose pay, note, amount, date): made on a version too (issue 133).
 	"money-in-edit": sendMoneyInEdit,
+	// A change of a money-in line's kind, made on a version as well. Sent again without the Rule
+	// it may have stated ("…and money like it from now on"): a Rule names no version (see above).
+	"money-in-kind": (change: Parameters<typeof sendMoneyInKind>[0]) =>
+		sendMoneyInKind({ ...change, always: false }),
 };
 
 /** Said once when something written down was too old to send (outbox.ts, `MAX_AGE_MS`). */
@@ -121,7 +130,10 @@ export function useWaitingWrites({ householdId, parentId }: Who) {
 			who: { householdId, parentId },
 			store: deviceStore(),
 			resend: resendWith(queryClient),
-			refused: (error) => error instanceof ChangedElsewhere,
+			refused: (error) =>
+				error instanceof ChangedElsewhere ||
+				error instanceof MoneyInRefused ||
+				error instanceof MonthEnded,
 			leaving: () => leaving,
 			carry: carryVersions,
 			expired: (count) => toast(tooOldToSave(count), { tone: "error", id: "saved-too-old" }),

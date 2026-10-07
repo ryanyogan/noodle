@@ -144,7 +144,11 @@ export function useSayOwedBack() {
 						? "That’s more than the purchase."
 						: reason === "paid-back"
 							? "More than that has been Paid back on it already."
-							: "Couldn’t save it, so it’s as it was.",
+							: reason === "on-whole"
+								? "It’s already Owed back on the whole purchase. Take that off to say it for a Split."
+								: reason === "on-splits"
+									? "It’s already Owed back on its Splits. Take those off to say it for the whole purchase."
+									: "Couldn’t save it, so it’s as it was.",
 				{ tone: "error" },
 			);
 		},
