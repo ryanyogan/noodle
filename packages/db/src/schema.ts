@@ -1698,3 +1698,28 @@ export const householdPasses = sqliteTable(
 	},
 	(t) => [primaryKey({ columns: [t.householdId, t.pass] })],
 );
+
+// A Rule stated from a Review card, noted by the ID the card made for it (rules.ts `stateRule`,
+// ADR-0056): the same ID sent again is answered with what the first one did and changes nothing,
+// even after the Rule was removed or pointed elsewhere. `rule_id` is the Rule it landed as (the
+// merchant's own when it replaced one) and carries no foreign key, so removing a Rule never hangs
+// on it. Rows older than a month are cleared as new ones are noted.
+export const ruleStatements = sqliteTable(
+	"rule_statements",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		ruleId: text("rule_id").notNull(),
+		filed: integer("filed").notNull().default(0),
+		snapshot: integer("snapshot", { mode: "boolean" }).notNull().default(false),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("rule_statements_household_idx").on(t.householdId)],
+);

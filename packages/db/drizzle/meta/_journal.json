@@ -491,6 +491,13 @@
       "when": 1791900000000,
       "tag": "0070_refund_links",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "6",
+      "when": 1792200000000,
+      "tag": "0073_rule_statements",
+      "breakpoints": true
     }
   ]
 }

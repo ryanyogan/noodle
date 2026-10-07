@@ -848,10 +848,13 @@ export {
 	editRule,
 	listRules,
 	loadRules,
+	noteRuleStated,
 	type RuleEditResult,
 	type RuleRow,
+	type RuleStated,
 	type StoredRule,
 	saveRule,
+	stateRule,
 } from "./rules";
 export {
 	applyChanges,
