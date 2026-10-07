@@ -101,6 +101,15 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	// The Bucket is in a panel on the window's right edge (issue 107), the height of the window;
 	// with no rail to lie over, the page gives it a rail's width, so it covers none of the list.
 	await expect(detail(page)).toHaveAttribute("aria-label", "Bucket details");
+	// The list makes room while the panel slides in (issue 141): both are measured at rest.
+	await page.locator("[data-slot=master-detail]").evaluate(async (grid) => {
+		await Promise.allSettled(
+			[
+				...grid.getAnimations(),
+				...(grid.querySelector("[data-slot=master-detail-detail]")?.getAnimations() ?? []),
+			].map((animation) => animation.finished),
+		);
+	});
 	const panelBox = await detail(page).boundingBox();
 	expect(panelBox?.y).toBe(0);
 	const listBox = await list(page).boundingBox();

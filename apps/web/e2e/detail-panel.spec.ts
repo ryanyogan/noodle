@@ -72,10 +72,35 @@ async function settled(page: Page, windowWidth: number) {
 			return box ? box.x + box.width : -1;
 		})
 		.toBe(windowWidth);
+	// A list with no rail makes room while the panel slides in (issue 141): measured once it has.
+	await gridSettled(page);
 	const box = await panel(page).boundingBox();
 	if (!box) throw new Error("no panel");
 	return box;
 }
+
+/** Waits until the list's column has stopped moving. */
+async function gridSettled(page: Page) {
+	await page.locator("[data-slot=master-detail]").evaluate(async (grid) => {
+		await Promise.allSettled(grid.getAnimations().map((animation) => animation.finished));
+	});
+}
+
+/** How long the list's column and the panel take to move, and along which curve. */
+const motion = (page: Page) =>
+	page.evaluate(() => {
+		const style = (slot: string) => {
+			const part = document.querySelector(`[data-slot=${slot}]`);
+			if (!part) throw new Error(`no ${slot}`);
+			return getComputedStyle(part);
+		};
+		const grid = style("master-detail");
+		const side = style("master-detail-detail");
+		return {
+			list: [grid.transitionProperty, grid.transitionDuration, grid.transitionTimingFunction],
+			panel: [side.animationName, side.animationDuration, side.animationTimingFunction],
+		};
+	});
 
 /**
  * Nothing of the list is under the panel: the list column ends where the panel starts, and every
@@ -459,6 +484,17 @@ test("a Bucket's row opens it in the panel and the table keeps its width and eve
 	await expect(title(page)).toHaveText("Gas");
 	await expect(page.getByRole("region", { name: "Bucket details" })).toBeVisible();
 	await expect(page.getByRole("dialog")).toHaveCount(0);
+	// The list makes room as the panel slides in, over the same time and along the same curve, so
+	// the two move as one (issue 141); with reduced motion both are there at once.
+	const curve = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+	expect(await motion(page)).toEqual({
+		list: ["grid-template-columns", "0.32s", curve],
+		panel: ["side-in", "0.32s", curve],
+	});
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	const still = await motion(page);
+	expect([still.list[1], still.panel[1]]).toEqual(["0s", "0s"]);
+	await page.emulateMedia({ reducedMotion: "no-preference" });
 	const box = await settled(page, 1440);
 	expect(box.width).toBe(436);
 	// The panel covers none of the table's columns (ADR-0047). With no rail to lie over, the page

@@ -57,9 +57,37 @@ export function shareSession(email: string, shared: SharedSession | null) {
 	else sharedSessions.delete(email);
 }
 
+/**
+ * React's warning that two items of one list were given the same key: a row drawn twice for a
+ * moment (an optimistic one beside the server's), or two different things keyed by one id.
+ */
+const DUPLICATE_KEY = /Encountered two children with the same key/;
+
+/**
+ * Fails the running test, without stopping it, when a page of `context` prints React's
+ * duplicate-key warning (issue 141). React only says it in a development build, so this guards
+ * runs against the dev server (every local run); CI's built Worker never prints it.
+ */
+function noDuplicateKeys(context: BrowserContext) {
+	context.on("console", (message) => {
+		if (message.type() !== "error") return;
+		const text = message.text();
+		if (!DUPLICATE_KEY.test(text)) return;
+		const where = message.page()?.url() ?? "a page";
+		try {
+			expect
+				.soft(text, `React drew two children with the same key on ${where}`)
+				.not.toMatch(DUPLICATE_KEY);
+		} catch {
+			// Printed between tests (no test to fail): the worker's own signed-in page is not the app.
+		}
+	});
+}
+
 /** A new browser context that keeps Clerk's cookies in every engine. */
 export async function openContext(browser: Browser, options: BrowserContextOptions = {}) {
 	const context = await browser.newContext(options);
+	noDuplicateKeys(context);
 	// Clerk's dev instance writes `__client_uat` with `Domain=localhost`, which Playwright's WebKit
 	// rejects, so the Worker saw a session token without it, sent every page to Clerk's handshake
 	// (session-token-but-no-client-uat) and no one got in. A host-only cookie on localhost is the

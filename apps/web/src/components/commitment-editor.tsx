@@ -617,9 +617,11 @@ export function AddCommitment({ month, start }: { month: MonthKey; start?: Commi
 				aria-label="Add a Commitment"
 				className="grid gap-3 p-(--card-pad)"
 			>
-				{/* Keyed like "Pays down": the next one starts empty, not from Review's line again. */}
+				{/* Keyed like "Pays down": the next one starts empty, not from Review's line again. Each
+				    keyed part of the form has its own word before the ID: two of them under the bare ID
+				    were two children with one key. */}
 				<div
-					key={commitmentId}
+					key={`terms-${commitmentId}`}
 					className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] lg:grid-cols-1"
 				>
 					<Field label="New Commitment" htmlFor={`${id}-name`}>
@@ -659,7 +661,7 @@ export function AddCommitment({ month, start }: { month: MonthKey; start?: Commi
 				/>
 				{/* Keyed by the Commitment being added, so the next one starts from Nothing again. */}
 				<PaysDownField
-					key={commitmentId}
+					key={`pays-down-${commitmentId}`}
 					id={id}
 					invalid={errors.carried}
 					initial={

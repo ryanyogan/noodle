@@ -385,6 +385,13 @@ function DetailPanel({
 }
 
 /**
+ * How a list with no rail makes room as its panel slides in: the time and curve of `side-in`
+ * (`--animate-side-in` in globals.css, which a test compares), so the two move as one.
+ */
+const OPENS_WITH_PANEL =
+	"transition-[grid-template-columns] duration-[320ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]";
+
+/**
  * A list, its rail and the item picked from the list (the list route's `<Outlet />`). From lg the
  * list and the rail are laid out as with nothing picked, whether or not an item is open, and the
  * item is a `DetailPanel` over them. Below lg it shows one level at a time: the list and then the
@@ -392,7 +399,8 @@ function DetailPanel({
  *
  * A list with no rail has the page's whole width with nothing picked. While an item is open beside
  * it (not as a drawer), the list gives up a rail's width, so the panel has the same room as on a
- * page with a rail and covers none of the list's columns.
+ * page with a rail and covers none of the list's columns. It gives it up while the panel slides
+ * in, over the same time and curve.
  *
  * A row's link to its item carries `data-md-item` (the app's `masterDetailItem`), as in
  * MasterDetail; the router's `aria-current` on it is how the open item's row is known.
@@ -456,14 +464,27 @@ function ListWithPanel({
 							: "lg:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
 						: // No rail (issue 139): the list has the page's whole width, and a panel beside it
 							// would lie over its right-hand columns. So while an item is open beside the list,
-							// the rail's column is kept empty for the panel, exactly as wide as a rail would
-							// be: the list is one column narrower, a table drops the columns that no longer
-							// fit, and nothing that is left is covered. As a drawer the list keeps its width.
-							picked
-							? besideFrom === "late"
-								? "min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
-								: "xl:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
-							: null,
+							// a second, empty column as wide as a rail and its gap is kept for the panel: the
+							// list is that much narrower, a table drops the columns that no longer fit, and
+							// nothing that is left is covered. As a drawer the list keeps its width.
+							//
+							// The column is there with nothing picked too, 0px wide (and the grid has no column
+							// gap of its own from that width: the open column carries it), so opening is one
+							// track growing, which the browser can animate: the list makes room over the same
+							// time and curve as the panel slides in (`OPENS_WITH_PANEL`), in one layout of the
+							// grid per frame. The transition is on the picked grid only, so closing is at once,
+							// as the panel's going is. Reduced motion makes both instant (globals.css).
+							[
+								besideFrom === "late"
+									? "min-[90rem]:gap-x-0 min-[90rem]:grid-cols-[minmax(0,1fr)_0px]"
+									: "xl:gap-x-0 xl:grid-cols-[minmax(0,1fr)_0px]",
+								picked && [
+									besideFrom === "late"
+										? "min-[90rem]:grid-cols-[minmax(0,1fr)_calc(var(--rail-width)+var(--layout-gap))]"
+										: "xl:grid-cols-[minmax(0,1fr)_calc(var(--rail-width)+var(--layout-gap))]",
+									OPENS_WITH_PANEL,
+								],
+							],
 				className,
 			)}
 			{...props}
