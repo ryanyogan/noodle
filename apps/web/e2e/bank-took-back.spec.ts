@@ -102,8 +102,10 @@ test("a purchase the bank takes back after its money back counted in an ended mo
 	await hydrated(chipotle);
 	await chipotle.click();
 	const note = page.getByTestId("bank-took-back-note");
+	// It names the month its money back counted in as well as its own: neither changes.
+	const endedMonth = new Date(chipotleDay.getFullYear(), chipotleDay.getMonth() - 1, 15);
 	await expect(note).toHaveText(
-		`The bank took this back today. It stays here so ${monthName(chipotleDay)} doesn’t change.`,
+		`The bank took this back today. It stays here so ${monthName(endedMonth)} and ${monthName(chipotleDay)} don’t change.`,
 	);
 
 	// On a phone the list says "Kept" too, and the sheet says the same sentence.

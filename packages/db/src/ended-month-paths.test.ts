@@ -1,5 +1,5 @@
 import type { Cents, DayKey, MonthKey } from "@noodle/domain";
-import { inArray } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
@@ -13,6 +13,7 @@ import {
 	fileCardPayment,
 	fileTransactions,
 	linkMoneyInRefund,
+	loadRestoreMonths,
 	loadSpending,
 	markTransfer,
 	returnToReview,
@@ -229,5 +230,45 @@ describe("a purchase whose money back counted in a month that has ended", () => 
 		expect(await answer(later)).toEqual({ ok: false, reason: "month-ended" });
 		expect(await filedIn()).toEqual({ skates: "hockey", tape: "hockey" });
 		expect(await answer(today)).toMatchObject({ ok: true, filed: 1 });
+	});
+});
+
+describe("the months money back counted in, for the sentence on a line the bank took back", () => {
+	it("are the months of the Refunds linked to a purchase, which can be later than its own", async () => {
+		// Skates were bought in September; the Refund counted in October.
+		expect(await loadRestoreMonths(db, viewer, { transactionId: "skates" })).toEqual(["2026-10"]);
+		expect(await loadRestoreMonths(db, viewer, { incomeId: "back" })).toEqual(["2026-10"]);
+	});
+
+	it("are each month once, oldest first, with what was Paid back on it too", async () => {
+		await db.run(
+			sql`insert into owed_back (id, household_id, transaction_id, who, amount_cents)
+				values ('owed', 'household', 'skates', 'Sam', 1500)`,
+		);
+		for (const [id, countsOn] of [
+			["m-1", "2026-11-02"],
+			["m-2", "2026-10-20"],
+			["m-3", "2026-11-28"],
+		]) {
+			await db.run(
+				sql`insert into paid_back_matches (id, household_id, income_id, owed_back_id, amount_cents, counts_on)
+					values (${id}, 'household', 'back', 'owed', 500, ${countsOn})`,
+			);
+		}
+		expect(await loadRestoreMonths(db, viewer, { transactionId: "skates" })).toEqual([
+			"2026-10",
+			"2026-11",
+		]);
+	});
+
+	it("are none for a purchase with no money back, or for another Household", async () => {
+		expect(await loadRestoreMonths(db, viewer, { transactionId: "tape" })).toEqual([]);
+		expect(
+			await loadRestoreMonths(
+				db,
+				{ householdId: "other", memberId: "someone" },
+				{ transactionId: "skates" },
+			),
+		).toEqual([]);
 	});
 });

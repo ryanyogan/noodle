@@ -558,6 +558,7 @@ export {
 	type PaymentHistory,
 	updateCommitment,
 } from "./commitments";
+export { loadRestoreMonths } from "./ended-months";
 export {
 	type ExportAccount,
 	type ExportData,

@@ -1,6 +1,8 @@
-import { type DayKey, monthOfDay } from "@noodle/domain";
-import { type AnyColumn, type SQL, sql } from "drizzle-orm";
-import { transactions } from "./schema";
+import { type DayKey, type MonthKey, monthOfDay } from "@noodle/domain";
+import { type AnyColumn, and, eq, type SQL, sql } from "drizzle-orm";
+import type { Db } from "./index";
+import { type Viewer, visibleTo } from "./privacy";
+import { owedBack, paidBackMatches, refundLinks, transactions } from "./schema";
 
 // "Ended months don't change" (ADR-0058): money Paid back, or a Refund linked to its purchase,
 // counts on a day (`counts_on`), and once that day's month has ended nothing takes it away again.
@@ -45,3 +47,52 @@ export const lineEndedRestores = (incomeId: AnyColumn | string, from: DayKey): S
 			where em.income_id = ${incomeId} and em.counts_on < ${from})
 		or exists (select 1 from refund_links el
 			where el.income_id = ${incomeId} and el.counts_on < ${from}))`;
+
+/**
+ * The months money back counted in for one row, oldest first, each once: for a purchase
+ * (`transactionId`) what was Paid back on it and the Refunds linked to it; for a money-in line
+ * (`incomeId`) what it Paid back and the purchase it refunds. They are the months a line the bank
+ * took back is kept for, beside its own (issue 141). None for a row the viewer can't see.
+ */
+export async function loadRestoreMonths(
+	db: Db,
+	viewer: Viewer,
+	row: { transactionId: string } | { incomeId: string },
+): Promise<MonthKey[]> {
+	const { householdId } = viewer;
+	const seen =
+		"transactionId" in row
+			? sql`exists (select 1 from ${transactions} where ${and(
+					eq(transactions.id, row.transactionId),
+					visibleTo(viewer),
+				)})`
+			: undefined;
+	const [refunds, matches] = await Promise.all([
+		db
+			.selectDistinct({ month: sql<string>`substr(${refundLinks.countsOn}, 1, 7)` })
+			.from(refundLinks)
+			.where(
+				and(
+					eq(refundLinks.householdId, householdId),
+					"transactionId" in row
+						? eq(refundLinks.transactionId, row.transactionId)
+						: eq(refundLinks.incomeId, row.incomeId),
+					seen,
+				),
+			),
+		db
+			.selectDistinct({ month: sql<string>`substr(${paidBackMatches.countsOn}, 1, 7)` })
+			.from(paidBackMatches)
+			.innerJoin(owedBack, eq(owedBack.id, paidBackMatches.owedBackId))
+			.where(
+				and(
+					eq(paidBackMatches.householdId, householdId),
+					"transactionId" in row
+						? eq(owedBack.transactionId, row.transactionId)
+						: eq(paidBackMatches.incomeId, row.incomeId),
+					seen,
+				),
+			),
+	]);
+	return [...new Set([...refunds, ...matches].map((found) => found.month as MonthKey))].sort();
+}
