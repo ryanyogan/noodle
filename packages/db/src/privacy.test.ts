@@ -337,7 +337,7 @@ describe("Personal Allowance privacy: writes", () => {
 			await unfileTransactions(db, alex, [
 				{ id: "milk", bucketId: "sam-pa", commitmentId: null, version: 1, for: ["sam"] },
 			]),
-		).toEqual({ restored: 0 });
+		).toEqual({ restored: 0, kept: 0 });
 		expect((await forOf("milk")).map((row) => row.memberId)).toEqual(["alex"]);
 	});
 

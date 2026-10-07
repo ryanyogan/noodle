@@ -140,6 +140,7 @@ describe("what File in… says", () => {
 		private: 0,
 		changed: 0,
 		otherMonth: 0,
+		monthEnded: 0,
 	};
 	it("says who they were filed For when the filing set it", () => {
 		const skipped = {
@@ -150,6 +151,7 @@ describe("what File in… says", () => {
 			private: 0,
 			changed: 0,
 			otherMonth: 0,
+			monthEnded: 0,
 		};
 		expect(filedMessage({ filed: 3, already: 0, skipped }, "Groceries", "Mia & Leo")).toBe(
 			"Filed 3 in Groceries, For Mia & Leo.",
@@ -180,6 +182,7 @@ describe("what File in… says", () => {
 						private: 1,
 						changed: 1,
 						otherMonth: 1,
+						monthEnded: 0,
 					},
 				},
 				"Fun",
@@ -200,5 +203,20 @@ describe("what File in… says", () => {
 		expect(unfiledMessage(3, 3)).toBe("Put back where they were.");
 		expect(unfiledMessage(1, 1)).toBe("Put back where it was.");
 		expect(unfiledMessage(2, 3)).toBe("2 put back. 1 has changed since and stayed.");
+		// Left where the filing put them: their money back counted in a month that ended since.
+		expect(unfiledMessage(2, 3, 1)).toBe(
+			"2 put back. 1 stayed: money back on it counted in a month that has ended.",
+		);
+		expect(unfiledMessage(0, 2, 2)).toBe(
+			"Nothing was put back. 2 stayed: money back on them counted in a month that has ended.",
+		);
+		expect(unfiledMessage(1, 4, 2)).toBe(
+			"1 put back. 2 stayed: money back on them counted in a month that has ended. 1 has changed since and stayed.",
+		);
+		expect(
+			filedMessage({ filed: 1, already: 0, skipped: { ...none, monthEnded: 1 } }, "Health"),
+		).toBe(
+			"Filed 1 in Health. 1 skipped: 1 with money back that counted in a month that has ended.",
+		);
 	});
 });

@@ -190,8 +190,8 @@ export function SelectionBar({
 			const said = filedMessage(result, name, forPick ? forLabel(members, forPick) : undefined);
 			const put = async () => {
 				try {
-					const { restored } = await undoFiling({ data: { entries: result.undo } });
-					toast(unfiledMessage(restored, result.undo.length));
+					const { restored, kept } = await undoFiling({ data: { entries: result.undo } });
+					toast(unfiledMessage(restored, result.undo.length, kept));
 				} catch {
 					toast("Couldn’t undo that. They are still filed.", { tone: "error" });
 				} finally {

@@ -260,6 +260,11 @@ const SKIPPED: [keyof FilingSkips, one: string, many: string][] = [
 	["private", "partly the other Parent’s", "partly the other Parent’s"],
 	["changed", "changed on another screen", "changed on another screen"],
 	["otherMonth", "in another month", "in another month"],
+	[
+		"monthEnded",
+		"with money back that counted in a month that has ended",
+		"with money back that counted in a month that has ended",
+	],
 ];
 
 /**
@@ -292,9 +297,18 @@ export function filedMessage(
 }
 
 /** What the message says after that filing's Undo. */
-export function unfiledMessage(restored: number, filed: number): string {
+export function unfiledMessage(restored: number, filed: number, kept = 0): string {
 	if (restored >= filed)
 		return filed === 1 ? "Put back where it was." : "Put back where they were.";
-	const left = filed - restored;
+	const n = (count: number) => count.toLocaleString("en-US");
+	// Left where the filing put them: money back on them counted in a month that has ended since.
+	const stayed = kept
+		? ` ${n(kept)} stayed: money back on ${kept === 1 ? "it" : "them"} counted in a month that has ended.`
+		: "";
+	if (kept >= filed - restored)
+		return `${restored === 0 ? "Nothing was put back." : `${n(restored)} put back.`}${stayed}`;
+	const left = filed - restored - kept;
+	if (kept)
+		return `${n(restored)} put back.${stayed} ${left === 1 ? "1 has" : `${n(left)} have`} changed since and stayed.`;
 	return `${restored.toLocaleString("en-US")} put back. ${left === 1 ? "1 has" : `${left.toLocaleString("en-US")} have`} changed since and stayed.`;
 }

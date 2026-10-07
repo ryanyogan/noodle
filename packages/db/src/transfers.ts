@@ -28,6 +28,7 @@ import {
 } from "drizzle-orm";
 import { accountLabelSql } from "./account-label";
 import { counts, incomeInTransfer, inTransfer } from "./counting";
+import { purchaseMayMove } from "./ended-months";
 import type { Db } from "./index";
 import { bucketInPlan } from "./moves";
 import { changeableBy, type Viewer, visibleTo } from "./privacy";
@@ -92,7 +93,9 @@ export type RefundView =
 
 export type MoneyResult =
 	/** `paired`: a mark found its other side, so it is a plain Transfer between two Accounts. */
-	{ ok: true; months: string[]; paired?: true } | { ok: false; reason: "refused" };
+	| { ok: true; months: string[]; paired?: true }
+	/** `month-ended`: money back on the purchase counted in a month that has ended (ADR-0058). */
+	| { ok: false; reason: "refused" | "month-ended" };
 
 /** Money back (the enclosing query's Transaction) is linked to a purchase as its Refund. */
 const inRefund = () =>
@@ -323,6 +326,8 @@ export async function detectTransfers(
 				.where(
 					and(
 						stillTransferable(householdId, field("outId"), ">"),
+						// A purchase whose money back counted in a month that has ended keeps counting.
+						purchaseMayMove(undefined, field("outId")),
 						sql`(${field("inTransactionId")} is null or ${stillTransferable(householdId, field("inTransactionId"), "<")})`,
 						sameAmount(householdId, field("outId"), field("inTransactionId"), field("inIncomeId")),
 					),
@@ -479,13 +484,32 @@ export async function loadTransfer(
  * money back as the side arriving. It's paired with its other side when exactly one fits
  * (transferPairs); otherwise it's marked alone, and only then keeps the `reason` a Parent gave
  * (money that has both its sides in Noodle is a plain Transfer, whoever it went to). Idempotent
- * per `transferId`.
+ * per `transferId`. A purchase whose money back counted in a month that has ended can't become
+ * one, as itself or as the other side: a Transfer doesn't count, so that month would move.
  */
 export async function markTransfer(
 	db: Db,
 	viewer: Viewer,
-	input: { transferId: string; transactionId: string; reason?: TransferReason },
+	input: {
+		transferId: string;
+		transactionId: string;
+		reason?: TransferReason;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
+	},
 ): Promise<MoneyResult> {
+	const [ended] = await db
+		.select({ id: transactions.id })
+		.from(transactions)
+		.where(
+			and(
+				eq(transactions.id, input.transactionId),
+				visibleTo(viewer),
+				sql`not ${purchaseMayMove(input.today)}`,
+				sql`not exists (select 1 from ${transfers} where ${transfers.id} = ${input.transferId})`,
+			),
+		);
+	if (ended) return { ok: false, reason: "month-ended" };
 	const self = await loadSelf(db, viewer, input.transactionId);
 	if (!self?.transferable || !self.changeable || self.amount === 0) {
 		return transferOutcome(db, viewer, input.transferId, false);
@@ -533,6 +557,9 @@ export async function markTransfer(
 						eq(transactions.id, self.id),
 						changeableBy(viewer),
 						transferable,
+						purchaseMayMove(input.today),
+						// The other side too, when it is a purchase.
+						outId && outId !== self.id ? purchaseMayMove(input.today, sql`${outId}`) : undefined,
 						outId ? stillTransferable(householdId, outId, ">") : undefined,
 						inTransactionId ? stillTransferable(householdId, inTransactionId, "<") : undefined,
 						inIncomeId

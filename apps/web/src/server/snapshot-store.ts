@@ -231,9 +231,12 @@ export async function applyRuleWithSnapshot(
 	viewer: Viewer,
 	ruleId: string,
 	now: Date,
+	/** The Household's day; UTC's when left out. */
+	today?: DayKey,
 ) {
 	const taken: { id: string | null } = { id: null };
 	const result = await applyRule(deps.db, viewer, ruleId, {
+		today,
 		beforeFiling: async (matched) => {
 			if (matched < BULK_RULE_APPLY) return;
 			try {
@@ -316,12 +319,18 @@ export const changesAfterBulkDelete = (result: {
 	...(result.snapshotId ? (["snapshots"] as const) : []),
 ];
 
-type RuleApplied = { filed: number; snapshotId: string | null };
+type RuleApplied = { filed: number; snapshotId: string | null; kept?: number };
 
 /** What an apply tells the page: how many it filed, and whether a snapshot was taken first. */
-export const ruleApplyOutcome = ({ filed, snapshotId }: RuleApplied) => ({
+export const ruleApplyOutcome = ({
+	filed,
+	snapshotId,
+	kept,
+}: RuleApplied): { filed: number; snapshot: boolean; kept?: number } => ({
 	filed,
 	snapshot: snapshotId !== null,
+	// Left unassigned: money back on them counted in a month that has ended (issue 141).
+	...(kept ? { kept } : {}),
 });
 
 /**

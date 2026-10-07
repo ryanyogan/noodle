@@ -3,6 +3,7 @@ import { and, asc, count, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle
 import { accountLabelSql } from "./account-label";
 import type { Uncategorized } from "./categorize";
 import { counts } from "./counting";
+import { purchaseMayMove } from "./ended-months";
 import type { Db } from "./index";
 import { owedBackOffGoneSplits } from "./owed-back";
 import { changeableBy, type Viewer, visibleTo } from "./privacy";
@@ -225,10 +226,28 @@ export async function returnToReview(
 		forMemberIds: string[];
 		/** The version the Parent last had of it: left alone if it has moved on (ADR-0041). */
 		expectedVersion?: number;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
 	},
 ): Promise<TransactionWriteResult> {
 	const { householdId } = viewer;
 	const { transactionId } = input;
+	// Unfiling it (or dropping its Splits) would move a month that has ended (ADR-0058): refused,
+	// and every write below carries the same test. One that is in nothing and unsplit moves nothing.
+	const moves = sql`(${transactions.bucketId} is not null or ${transactions.commitmentId} is not null
+		or exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id}))`;
+	const mayReturn = sql`(${purchaseMayMove(input.today)} or not ${moves})`;
+	const [ended] = await db
+		.select({ id: transactions.id })
+		.from(transactions)
+		.where(
+			and(
+				eq(transactions.id, transactionId),
+				eq(transactions.householdId, householdId),
+				sql`not ${mayReturn}`,
+			),
+		);
+	if (ended) return { ok: false, reason: "month-ended" };
 	const asExpected =
 		input.expectedVersion === undefined
 			? undefined
@@ -238,6 +257,7 @@ export async function returnToReview(
 		changeableBy(viewer),
 		isNull(transactions.goalId),
 		asExpected,
+		mayReturn,
 	)})`;
 	const guess = input.guess
 		? sql`(select ${buckets.id} from ${buckets} where ${buckets.id} = ${input.guess.bucketId}
@@ -313,6 +333,7 @@ export async function returnToReview(
 					changeableBy(viewer),
 					isNull(transactions.goalId),
 					asExpected,
+					mayReturn,
 				),
 			),
 	]);

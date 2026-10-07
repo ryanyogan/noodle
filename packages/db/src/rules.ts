@@ -8,6 +8,7 @@ import {
 import { and, asc, eq, gt, isNull, lt, ne, or, type SQL, sql } from "drizzle-orm";
 import { type CategorizationDecision, fileCategorizations } from "./categorize";
 import { counts } from "./counting";
+import { purchaseMayMove } from "./ended-months";
 import type { Db } from "./index";
 import { ruleRemovedEvents } from "./log-events";
 import { assignableBy, type Viewer, visibleTo } from "./privacy";
@@ -475,7 +476,8 @@ export async function deleteRule(db: Db, viewer: Viewer, ruleId: string): Promis
  * counted, unsplit and in no Bucket, Commitment or Goal, whose merchant it matches (as
  * categorized, else from its note), whether waiting in Review or never categorized. Done for
  * `viewer`, so only into a Bucket they may assign, in each Transaction's own month's Plan.
- * Returns how many it filed and their months.
+ * Returns how many it filed and their months, and how many it left (`kept`) because money back
+ * on them counted in a month that has ended (ADR-0058).
  */
 export async function applyRule(
 	db: Db,
@@ -486,16 +488,21 @@ export async function applyRule(
 	 * is (never with 0). If it throws, nothing is filed: the snapshot taken before a bulk apply
 	 * (ADR-0035) hangs off it.
 	 */
-	options: { beforeFiling?: (matched: number) => Promise<void> } = {},
-): Promise<{ filed: number; months: string[] }> {
+	options: {
+		beforeFiling?: (matched: number) => Promise<void>;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
+	} = {},
+): Promise<{ filed: number; months: string[]; kept: number }> {
 	const rule = (await loadRules(db, viewer)).find((r) => r.id === ruleId);
-	if (!rule) return { filed: 0, months: [] };
+	if (!rule) return { filed: 0, months: [], kept: 0 };
 	const rows = await db
 		.select({
 			id: transactions.id,
 			date: transactions.date,
 			note: transactions.note,
 			merchant: categorizations.merchant,
+			ended: sql<boolean>`(not ${purchaseMayMove(options.today)})`.mapWith(Boolean),
 		})
 		.from(transactions)
 		.leftJoin(categorizations, eq(categorizations.transactionId, transactions.id))
@@ -512,6 +519,7 @@ export async function applyRule(
 			),
 		);
 	const decisions: (CategorizationDecision & { date: DayKey })[] = [];
+	let kept = 0;
 	for (const row of rows) {
 		const merchant = row.merchant ?? (row.note ? merchantKey(row.note) : null);
 		// A Rule stated for the raw text ("costco whse") still matches once the line is named
@@ -522,6 +530,11 @@ export async function applyRule(
 			!(matchingRule([rule], merchant) || raws.some((raw) => matchingRule([rule], raw)))
 		)
 			continue;
+		// It matches, and stays unassigned: filing it would move the ended month.
+		if (row.ended) {
+			kept++;
+			continue;
+		}
 		decisions.push({
 			transactionId: row.id,
 			date: row.date as DayKey,
@@ -537,9 +550,9 @@ export async function applyRule(
 			},
 		});
 	}
-	if (decisions.length === 0) return { filed: 0, months: [] };
+	if (decisions.length === 0) return { filed: 0, months: [], kept };
 	await options.beforeFiling?.(decisions.length);
-	await fileCategorizations(db, viewer, decisions);
+	await fileCategorizations(db, viewer, decisions, options.today);
 	const filed = await db
 		.select({ date: transactions.date })
 		.from(transactions)
@@ -558,5 +571,6 @@ export async function applyRule(
 	return {
 		filed: filed.length,
 		months: [...new Set(filed.map((row) => row.date.slice(0, 7)))].sort(),
+		kept,
 	};
 }

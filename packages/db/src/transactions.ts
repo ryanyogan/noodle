@@ -34,7 +34,7 @@ import {
 import type { BatchItem } from "drizzle-orm/batch";
 import { accountLabelSql } from "./account-label";
 import { counts } from "./counting";
-import { endedBefore, purchaseEndedRestores } from "./ended-months";
+import { endedBefore, purchaseEndedRestores, purchaseMayMove } from "./ended-months";
 import { setAsideSql } from "./goals";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
@@ -2312,6 +2312,8 @@ export type FilingSkips = {
 	private: number;
 	/** No longer at the version this screen showed (ADR-0041), or changed while this ran. */
 	changed: number;
+	/** Money back on it counted in a month that has ended: it stays where it is (ADR-0058). */
+	monthEnded: number;
 	/** Not in the month being filed in. */
 	otherMonth: number;
 };
@@ -2357,7 +2359,8 @@ const inPairs = (pairs: string, ahead: 0 | 1) =>
  * `month`, whose Plan the target must be in. Left as they are, and counted: Splits, sides of a
  * Transfer, money back, Goal spending, anything partly in the other Parent's Personal Allowance,
  * and any whose version is not the one in `versions` (the rows the screen had loaded; others are
- * filed as they are). Only the assignment changes: amount and name stay, and so does For unless
+ * filed as they are), and any whose money back counted in a month that has ended (ADR-0058: it
+ * stays where it is, counted as `monthEnded`). Only the assignment changes: amount and name stay, and so does For unless
  * `forMemberIds` is given (issue 138): then each one filed is For those Members (none: Everyone),
  * one already in the target included when its For differs. A Transaction filed here leaves
  * categorization, as one filed by hand does; no merchant is learned from it.
@@ -2375,6 +2378,8 @@ export async function fileTransactions(
 		versions?: Record<string, number>;
 		/** Who they are For from now on; left out, For stays as it is. */
 		forMemberIds?: string[];
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
 	},
 ): Promise<FilingResult> {
 	const { householdId, memberId } = viewer;
@@ -2393,6 +2398,7 @@ export async function fileTransactions(
 	if (!inPlan) return { ok: false, reason: "not-in-plan" };
 
 	const editable = editableBy(householdId, memberId);
+	const mayMove = purchaseMayMove(input.today);
 	const flag = (when: SQL) => sql<boolean>`(${when})`.mapWith(Boolean);
 	const rows = await db
 		.select({
@@ -2407,6 +2413,7 @@ export async function fileTransactions(
 			split: flag(hasSplits),
 			transfer: flag(transferSide),
 			refund: flag(refundMoney),
+			ended: flag(sql`not ${mayMove}`),
 		})
 		.from(transactions)
 		.where(selectedBy(viewer, selection))
@@ -2458,6 +2465,7 @@ export async function fileTransactions(
 		goal: 0,
 		private: 0,
 		changed: 0,
+		monthEnded: 0,
 		otherMonth: 0,
 	};
 	let already = 0;
@@ -2472,6 +2480,9 @@ export async function fileTransactions(
 		else if (row.split) skipped.split++;
 		else if (row.bucketId === bucketId && row.commitmentId === commitmentId && sameFor(row.id))
 			already++;
+		// Filing it elsewhere would move the ended month its money back restored; its For may change.
+		else if (row.ended && (row.bucketId !== bucketId || row.commitmentId !== commitmentId))
+			skipped.monthEnded++;
 		else if (sent !== undefined && sent !== row.version) skipped.changed++;
 		else toFile.push(row);
 	}
@@ -2495,7 +2506,18 @@ export async function fileTransactions(
 			db
 				.update(transactions)
 				.set({ bucketId, commitmentId, version: sql`${transactions.version} + 1` })
-				.where(and(editable, inMonth, fileableWhole, target, inPairs(pairs, 0))),
+				.where(
+					and(
+						editable,
+						inMonth,
+						fileableWhole,
+						target,
+						inPairs(pairs, 0),
+						// Read again by the write itself: already in the target (only its For changes), or
+						// still free to move.
+						sql`((${transactions.bucketId} is ${bucketId} and ${transactions.commitmentId} is ${commitmentId}) or ${mayMove})`,
+					),
+				),
 			// A Parent has decided these now: categorization's marker goes, as when one is filed by hand.
 			db
 				.delete(categorizations)
@@ -2567,16 +2589,20 @@ function forWrites(db: Db, householdId: string, these: SQL | undefined, memberId
  * (or none), only while it is still at the version the filing left it at, still the Parent's to
  * change, and what it goes back to is the Household's and theirs to assign to. Says how many went
  * back. One whose filing set a For too goes back to who it was For before. Safe to retry: one
- * already put back is one version on and is not touched again.
+ * already put back is one version on and is not touched again. One whose money back counted in a
+ * month that has ended since stays where the filing put it, counted as `kept` (ADR-0058).
  */
 export async function unfileTransactions(
 	db: Db,
 	viewer: Viewer,
 	entries: FiledBefore[],
-): Promise<{ restored: number }> {
+	options: { today?: DayKey } = {},
+): Promise<{ restored: number; kept: number }> {
 	const { householdId, memberId } = viewer;
-	const editable = editableBy(householdId, memberId);
+	const mayMove = purchaseMayMove(options.today);
+	const editable = and(editableBy(householdId, memberId), mayMove) as SQL;
 	let restored = 0;
+	let kept = 0;
 	for (let start = 0; start < entries.length; start += BULK_DELETE_CHUNK) {
 		const chunk = entries.slice(start, start + BULK_DELETE_CHUNK);
 		const pairs = JSON.stringify(
@@ -2594,6 +2620,19 @@ export async function unfileTransactions(
 			.select({ id: transactions.id })
 			.from(transactions)
 			.where(and(editable, fileableWhole, inPairs(pairs, 0), theirs));
+		const [stay] = await db
+			.select({ count: sql<number>`count(*)`.mapWith(Number) })
+			.from(transactions)
+			.where(
+				and(
+					editableBy(householdId, memberId),
+					fileableWhole,
+					inPairs(pairs, 0),
+					theirs,
+					sql`not ${mayMove}`,
+				),
+			);
+		kept += stay?.count ?? 0;
 		// For goes back in the same write, only on those this very write puts back: they were at the
 		// filing's version just now and are one on after it.
 		const versions = new Map(chunk.map((entry) => [entry.id, entry.version]));
@@ -2660,5 +2699,5 @@ export async function unfileTransactions(
 			.where(and(editable, fileableWhole, inPairs(pairs, 0), theirs));
 		restored += Math.max(0, going.length - (after?.count ?? 0));
 	}
-	return { restored };
+	return { restored, kept };
 }
