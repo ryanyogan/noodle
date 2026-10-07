@@ -11,6 +11,11 @@ import { isDocsPath } from "./src/docs-path";
 // needs no Cloudflare account at all. Production builds never set it.
 const aiStub = process.env.AI_MODEL === "stub";
 
+// Names this build (issue 140): the same in the Worker and in the page's own script, so an open
+// page can tell that a newer one was deployed (src/build-id.ts). The commit where CI builds and
+// deploys; anywhere else the moment the build (or the dev server) started.
+const buildId = process.env.GITHUB_SHA?.slice(0, 12) ?? `local-${Date.now().toString(36)}`;
+
 // The Docs (issue 126) are built ahead of time: a build renders /docs and each article once and
 // writes the HTML beside the client's files (docs.html, docs/<slug>.html), which the Worker's
 // static assets answer with before any code runs. To render them the build starts the built Worker
@@ -35,7 +40,7 @@ export default defineConfig({
 		strictPort: true,
 		host: prerendering ? "127.0.0.1" : undefined,
 	},
-	define: { __AI_STUB__: JSON.stringify(aiStub) },
+	define: { __AI_STUB__: JSON.stringify(aiStub), __BUILD_ID__: JSON.stringify(buildId) },
 	plugins: [
 		cloudflare({
 			viteEnvironment: { name: "ssr" },

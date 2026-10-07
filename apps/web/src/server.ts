@@ -1,4 +1,6 @@
 import handler from "@tanstack/react-start/server-entry";
+import { VERSION_PATH } from "./app-update";
+import { handleVersion } from "./build-id";
 import { CAPTURE_PATH } from "./capture-path";
 import { HOUSEHOLD_AGENT_PATH } from "./household-changes";
 import { startBalanceCheckNudges } from "./server/balance-check-nudges";
@@ -61,6 +63,8 @@ export default {
 			return handleIntroFile(request, () => handler.fetch(request));
 		}
 		if (pathname === HOUSEHOLD_AGENT_PATH) return connectToHouseholdAgent(request);
+		// Which build this is, so an open page can tell it has gone stale (app-update.ts).
+		if (pathname === VERSION_PATH) return handleVersion(request);
 		if (pathname === CAPTURE_PATH) return handleCapture(request);
 		if (pathname.startsWith(EXPORT_PATH)) return handleExportDownload(request);
 		if (pathname === PLAID_WEBHOOK_PATH) return handlePlaidWebhook(request);

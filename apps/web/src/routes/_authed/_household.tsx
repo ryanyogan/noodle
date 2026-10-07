@@ -3,6 +3,7 @@ import { Toaster } from "@noodle/ui/components/toast";
 import { TooltipProvider } from "@noodle/ui/components/tooltip";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { z } from "zod";
+import { useAppUpdate } from "../../app-update-watch";
 import { AppShell } from "../../components/app-shell";
 import { FreshStartBanner, FreshStartScreen } from "../../components/fresh-start";
 import { GlossaryDialog } from "../../components/glossary";
@@ -41,6 +42,8 @@ function AppLayout() {
 	useKeepPushSubscription();
 	// A change the last page left unsent is sent now (ADR-0056).
 	useWaitingWrites({ householdId: household.id, parentId });
+	// A newer build was deployed: refresh when nothing is being typed or waiting (issue 140).
+	useAppUpdate({ householdId: household.id, parentId });
 	return (
 		<TooltipProvider>
 			<AppShell householdName={household.name}>

@@ -14,7 +14,9 @@ export type NudgeKind =
 	| "windfall"
 	| "balance-check"
 	| "check-in"
-	| "test";
+	| "test"
+	/** The app was updated (issue 140): about the app itself, so always wanted, once a deploy. */
+	| "app-update";
 
 /**
  * A daily window when a Parent gets no Nudges, as minutes after local midnight (0–1439). It
@@ -63,6 +65,7 @@ export function wantsNudge(preferences: NudgePreferences, kind: NudgeKind): bool
 			return preferences.balanceChecks;
 		case "check-in":
 		case "test":
+		case "app-update":
 			return true;
 	}
 }

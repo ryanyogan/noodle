@@ -10,6 +10,7 @@ import {
 	wantsNudge,
 } from "@noodle/domain";
 import type { HouseholdChange } from "../household-changes";
+import { appUpdateNudges, buildChanged, type ToldBuild } from "./app-update-nudge";
 import { getDb } from "./db";
 import { loadMonth } from "./month";
 import {
@@ -39,6 +40,7 @@ const SCHEDULED_KEY = "nudges:scheduled";
 const PAST_PACE_PREFIX = "nudges:past-pace:";
 const EXTRA_INCOME_PREFIX = "nudges:windfall:";
 const CHECK_IN_KEY = "nudges:check-in-week";
+const APP_BUILD_KEY = "nudges:app-build";
 
 /**
  * The Household Agent's Nudges (ADR-0007). After a write, it looks at what changed a moment
@@ -119,6 +121,32 @@ export class HouseholdNudges {
 		this.kv.put(HOUSEHOLD_KEY, householdId);
 		// Handed to the alarm, the only thing that changes what's held.
 		this.addPending({ checkPace: false, events: [], checkIns: nudges });
+		await this.wakeBy(Date.now());
+	}
+
+	/**
+	 * The Agent finds itself running `build` as a Parent's screen connects (issue 140). When that is
+	 * another build than last time, the Household's other Parents are Nudged that the app was
+	 * updated: once a build, not within an hour of the last time, after their quiet hours. The
+	 * Parent connecting (`except`) is told on that screen. Costs one read of storage otherwise.
+	 */
+	async appUpdated(householdId: string, build: string, except: string, now = new Date()) {
+		const told = this.kv.get<ToldBuild>(APP_BUILD_KEY);
+		if (!buildChanged(told, build)) return;
+		// Nobody to read the first time, or within the hour.
+		const household = await loadNudgeRecipients(getDb(), householdId);
+		const next = appUpdateNudges({
+			told,
+			build,
+			recipients: household?.recipients ?? [],
+			except,
+			now,
+		});
+		this.kv.put(APP_BUILD_KEY, next.told);
+		if (next.nudges.length === 0) return;
+		this.kv.put(HOUSEHOLD_KEY, householdId);
+		// Handed to the alarm, the only thing that changes what's held.
+		this.addPending({ checkPace: false, events: [], checkIns: next.nudges });
 		await this.wakeBy(Date.now());
 	}
 

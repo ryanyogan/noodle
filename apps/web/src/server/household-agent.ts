@@ -95,6 +95,14 @@ export class HouseholdAgent extends DurableObject<Env> {
 		return this.nudges.checkIn(householdId, week, nudges);
 	}
 
+	/**
+	 * A Parent's screen is connecting: if this Agent now runs another build than it last did, the
+	 * app was updated, and the Household's other Parents are Nudged so (issue 140).
+	 */
+	async sawBuild(householdId: string, parentId: string): Promise<void> {
+		await this.nudges.appUpdated(householdId, __BUILD_ID__, parentId);
+	}
+
 	/** Holds an event for the next background AI run (queueAi). */
 	async queueAi(event: AiEvent): Promise<void> {
 		await this.ai.queue(event);
@@ -181,5 +189,12 @@ export async function connectToHouseholdAgent(request: Request): Promise<Respons
 	if (!userId) return new Response("Not signed in", { status: 401 });
 	const membership = await findMembershipByClerkUser(getDb(), userId);
 	if (!membership) return new Response("No Household for this Parent", { status: 403 });
-	return env.HOUSEHOLD_AGENT.getByName(membership.household.id).fetch(request);
+	const agent = env.HOUSEHOLD_AGENT.getByName(membership.household.id);
+	try {
+		await agent.sawBuild(membership.household.id, membership.parent.id);
+	} catch (error) {
+		// Never keeps a screen from connecting.
+		console.error("Couldn’t tell the Household Agent which build this is", error);
+	}
+	return agent.fetch(request);
 }
