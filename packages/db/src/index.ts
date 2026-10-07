@@ -548,7 +548,6 @@ export {
 	type CommitmentLinkResult,
 	type CommitmentPaymentResult,
 	commitmentLink,
-	mayPayDown,
 	endCommitment,
 	FOLLOWED_WITHIN_DAYS,
 	followedCards,
@@ -556,6 +555,7 @@ export {
 	loadCharges,
 	loadChargesBetween,
 	loadPaymentHistory,
+	mayPayDown,
 	type PaymentHistory,
 	updateCommitment,
 } from "./commitments";
