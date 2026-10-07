@@ -57,13 +57,16 @@ export const incomeCountsRaw = (id: string) =>
 /**
  * The FROM of every read of what Paid back restores, in raw SQL: one row per match (`m`), with
  * its Owed back item (`o`), the purchase (`t`) and, when the purchase is split, the Split it
- * restores (`p`: the one the item names, else the largest).
+ * restores (`p`: the one the item names, else the largest). The item is only named in a `where`:
+ * SQLite before 3.52 can't find `o` from the `order by` of a subquery here ("no such column").
  */
 export const PAID_BACK_RESTORES_FROM = `paid_back_matches m
 	join owed_back o on o.id = m.owed_back_id
 	join transactions t on t.id = o.transaction_id
-	left join splits p on p.id = (select q.id from splits q where q.transaction_id = t.id
-		order by coalesce(q.id = o.split_id, 0) desc, q.amount_cents desc, q.position limit 1)`;
+	left join splits p on p.id = coalesce(
+		(select q.id from splits q where q.transaction_id = t.id and q.id = o.split_id),
+		(select q.id from splits q where q.transaction_id = t.id
+			order by q.amount_cents desc, q.position limit 1))`;
 
 /** With PAID_BACK_RESTORES_FROM: the Bucket, Commitment or Goal (`column`) a match restores. */
 export const paidBackRestoresRaw = (column: "bucket_id" | "commitment_id" | "goal_id") =>

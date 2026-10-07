@@ -56,9 +56,15 @@ export type OwedBackItem = OwedBack & {
 	commitmentId: string | null;
 };
 
-/** The Split an item restores when its purchase is split: the one it names, else the largest. */
-const restoredSplit = sql`(select q.id from splits q where q.transaction_id = ${transactions.id}
-	order by coalesce(q.id = ${owedBack.splitId}, 0) desc, q.amount_cents desc, q.position limit 1)`;
+/**
+ * The Split an item restores when its purchase is split: the one it names, else the largest. The
+ * item and its purchase are only named in `where`: SQLite before 3.52 (CI's)
+ * can't find the enclosing query's `owed_back` from the `order by` of a subquery.
+ */
+const restoredSplit = sql`coalesce(
+	(select q.id from splits q where q.transaction_id = ${transactions.id} and q.id = ${owedBack.splitId}),
+	(select q.id from splits q where q.transaction_id = ${transactions.id}
+		order by q.amount_cents desc, q.position limit 1))`;
 
 const restored = (column: "bucket_id" | "commitment_id" | "goal_id", whole: SQL) =>
 	sql<string | null>`(case when ${restoredSplit} is null then ${whole}

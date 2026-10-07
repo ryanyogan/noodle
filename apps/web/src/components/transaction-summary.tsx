@@ -36,7 +36,7 @@ function Figure({
 			aria-pressed={pressed}
 			disabled={disabled}
 			data-testid={`summary-${show}`}
-			className="flex min-w-0 flex-col items-start justify-start gap-0.5 px-3 py-2 text-start aria-pressed:border-brand aria-pressed:bg-brand-soft"
+			className="flex min-w-0 flex-col items-start justify-start gap-0.5 whitespace-normal px-3 py-2 text-start aria-pressed:border-brand aria-pressed:bg-brand-soft"
 			onClick={() => onShow(pressed ? undefined : show)}
 		>
 			<span className="text-xs font-normal text-muted-foreground">{label}</span>
@@ -72,7 +72,9 @@ export function MonthSummary({
 			role="group"
 			aria-label="The month at a glance"
 			data-testid="month-summary"
-			className="grid grid-cols-3 gap-2 sm:gap-3 lg:max-w-3xl"
+			// Three across down to a 320 px phone; the floor is in rem, so at large text they stack
+			// instead of pushing the page sideways.
+			className="grid grid-cols-[repeat(auto-fit,minmax(5.6rem,1fr))] gap-2 sm:gap-3 lg:max-w-3xl"
 		>
 			<Figure show="in" label="Money in" {...shared}>
 				<span className={cn(figure, inCents > 0 && "text-money-in")} data-testid="month-in">
