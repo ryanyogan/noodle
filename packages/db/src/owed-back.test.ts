@@ -10,6 +10,7 @@ import {
 	addIncome,
 	addQuickAdd,
 	changeMoneyInKind,
+	clearHouseholdRows,
 	confirmPaidBack,
 	createHouseholdForParent,
 	type Db,
@@ -27,8 +28,11 @@ import {
 	offerPaidBackFor,
 	removeChild,
 	removeOwedBack,
+	returnToReview,
 	sayOwedBack,
 	setTakeHomePay,
+	splitTransaction,
+	updateTransaction,
 } from "./index";
 import { bucketLeftSql } from "./moves";
 import {
@@ -40,7 +44,7 @@ import {
 import { setCarriesOver } from "./plan";
 import { loadRolledOver } from "./rollover";
 import { applyRule, saveRule } from "./rules";
-import { owedBack, paidBackMatches, transactions } from "./schema";
+import { owedBack, paidBackMatches, refundLinks, transactions } from "./schema";
 import { testDb } from "./test-db";
 
 // Paid back and Owed back (issue 132, ADR-0058). The ticket's scenario: tuition of $1,200 in
@@ -679,5 +683,178 @@ describe("around Owed back", () => {
 			amountCents: 5_500,
 			countsOn: "2026-10-02",
 		});
+	});
+});
+
+describe("splitting again a purchase with Owed back on one of its Splits", () => {
+	const split = (parts: [id: string, amount: number, bucketId: string][]) =>
+		splitTransaction(db, {
+			householdId,
+			memberId: parentId,
+			transactionId: "skates",
+			amountCents: 4_500 as Cents,
+			note: "skates",
+			splits: parts.map(([id, amount, bucketId]) => ({
+				id,
+				amountCents: amount as Cents,
+				assignment: { bucketId },
+				forMemberIds: ["leo"],
+			})),
+		});
+	const onSkates = async () =>
+		(await loadOwedBack(db, viewer, { transactionId: "skates" })).map((item) => ({
+			id: item.id,
+			splitId: item.splitId,
+			who: item.who,
+			owed: item.owed,
+			paid: item.paid,
+			purchaseAmount: item.purchaseAmount,
+		}));
+	const stored = async () =>
+		(await db.select().from(owedBack))
+			.filter((row) => row.transactionId === "skates")
+			.map((row) => [row.id, row.splitId, row.amountCents]);
+
+	beforeEach(async () => {
+		expect(
+			(
+				await split([
+					["blade", 3_000, "hockey"],
+					["laces", 1_500, "health"],
+				])
+			).ok,
+		).toBe(true);
+		const said = await sayOwedBack(db, viewer, {
+			owedBackId: "ob-blade",
+			transactionId: "skates",
+			splitId: "blade",
+			who: "Casey",
+			amountCents: 2_000 as Cents,
+		});
+		expect(said).toMatchObject({ ok: true, item: { splitId: "blade", purchaseAmount: 3_000 } });
+		await paidBack("zelle", "2026-10-05", 1_200);
+		expect(
+			await confirmPaidBack(db, viewer, {
+				incomeId: "zelle",
+				matches: [{ id: "m-blade", owedBackId: "ob-blade", amount: 1_200 as Cents }],
+				today,
+			}),
+		).toMatchObject({ ok: true });
+	});
+
+	const onTheWholePurchase = [
+		{
+			id: "ob-blade",
+			splitId: null,
+			who: "Casey",
+			owed: 2_000,
+			paid: 1_200,
+			purchaseAmount: 4_500,
+		},
+	];
+
+	it("moves it to the whole purchase: who, how much and what was Paid back stay", async () => {
+		expect(
+			(
+				await split([
+					["boots", 2_500, "hockey"],
+					["tape", 2_000, "health"],
+				])
+			).ok,
+		).toBe(true);
+		expect(await stored()).toEqual([["ob-blade", null, 2_000]]);
+		expect(await onSkates()).toEqual(onTheWholePurchase);
+		// Said again on the whole purchase, it is the same item, not a second one.
+		const again = await sayOwedBack(db, viewer, {
+			owedBackId: "ob-again",
+			transactionId: "skates",
+			who: "Casey",
+			amountCents: 2_500 as Cents,
+		});
+		expect(again).toMatchObject({ ok: true, item: { id: "ob-blade", owed: 2_500, paid: 1_200 } });
+		expect(await stored()).toEqual([["ob-blade", null, 2_500]]);
+	});
+
+	it("stays on its Split when the same Split is written again", async () => {
+		await split([
+			["blade", 3_000, "hockey"],
+			["tape", 1_500, "health"],
+		]);
+		expect(await stored()).toEqual([["ob-blade", "blade", 2_000]]);
+		expect(await onSkates()).toMatchObject([{ splitId: "blade", purchaseAmount: 3_000 }]);
+	});
+
+	it("moves it when the purchase is filed whole again", async () => {
+		const edited = await updateTransaction(db, {
+			householdId,
+			memberId: parentId,
+			transactionId: "skates",
+			amountCents: 4_500 as Cents,
+			assignment: { bucketId: "hockey" },
+			note: "skates",
+			forMemberIds: ["leo"],
+		});
+		expect(edited.ok).toBe(true);
+		expect(await stored()).toEqual([["ob-blade", null, 2_000]]);
+		expect(await onSkates()).toEqual(onTheWholePurchase);
+	});
+
+	it("moves it when the purchase is put back in Review", async () => {
+		await returnToReview(db, viewer, {
+			transactionId: "skates",
+			merchant: "skates",
+			guess: null,
+			forMemberIds: ["leo"],
+		});
+		expect(await stored()).toEqual([["ob-blade", null, 2_000]]);
+		expect(await onSkates()).toEqual(onTheWholePurchase);
+	});
+
+	it("moves the first of two, and still reads the second against the whole purchase", async () => {
+		await sayOwedBack(db, viewer, {
+			owedBackId: "ob-laces",
+			transactionId: "skates",
+			splitId: "laces",
+			who: "Leo",
+			memberId: "leo",
+			amountCents: 500 as Cents,
+		});
+		await split([
+			["boots", 2_500, "hockey"],
+			["tape", 2_000, "health"],
+		]);
+		expect(await onSkates()).toMatchObject([
+			{ id: "ob-blade", splitId: null, owed: 2_000, paid: 1_200, purchaseAmount: 4_500 },
+			// One item a purchase is on the whole of it; the other still names its gone Split.
+			{ id: "ob-laces", splitId: "laces", owed: 500, paid: 0, purchaseAmount: 4_500 },
+		]);
+	});
+});
+
+describe("a Fresh start with Owed back, Paid back and a linked Refund", () => {
+	it("clears them all, children first", async () => {
+		await caseyOwes();
+		await paidBack("zelle", "2026-10-05", 70_000);
+		await confirmOffer("zelle");
+		await addIncome(db, {
+			householdId,
+			incomeId: "refund",
+			date: "2026-10-04",
+			amountCents: 1_000 as Cents,
+			note: "Refund",
+			createdByMemberId: parentId,
+		});
+		await db.insert(refundLinks).values({
+			incomeId: "refund",
+			householdId,
+			transactionId: "dentist",
+			countsOn: "2026-10-04",
+			createdByMemberId: parentId,
+		});
+		await clearHouseholdRows(db, householdId, "fresh-start");
+		expect(await db.select().from(owedBack)).toEqual([]);
+		expect(await db.select().from(paidBackMatches)).toEqual([]);
+		expect(await db.select().from(refundLinks)).toEqual([]);
+		expect(await db.select().from(transactions)).toEqual([]);
 	});
 });

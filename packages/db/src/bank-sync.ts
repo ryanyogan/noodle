@@ -14,6 +14,7 @@ import { bankLinesNotDeleted } from "./deleted-lines";
 import { importStatement } from "./imports";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
+import { owedBackOffGoneSplits } from "./owed-back";
 import { bankLinesNotHere } from "./same-lines";
 import {
 	accounts,
@@ -301,7 +302,11 @@ function changeWrites(
 		eq(transactions.amountCents, change.amount),
 	)})`;
 	if (change.splits.length === 0)
-		return [...writes, ...clearSplits(db, householdId, row.id, changed)];
+		return [
+			...writes,
+			...clearSplits(db, householdId, row.id, changed),
+			owedBackOffGoneSplits(db, householdId, row.id),
+		];
 	return [
 		...writes,
 		...change.splits.map((split) =>

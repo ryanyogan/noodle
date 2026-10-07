@@ -36,7 +36,7 @@ export type MoneyInRefund = {
 	likely: RefundPurchase[];
 };
 
-const runningFrom = (today: DayKey) => `${monthOfDay(today)}-01` as DayKey;
+export const runningFrom = (today: DayKey) => `${monthOfDay(today)}-01` as DayKey;
 
 const assigned = () =>
 	or(

@@ -4,6 +4,7 @@ import { accountLabelSql } from "./account-label";
 import type { Uncategorized } from "./categorize";
 import { counts } from "./counting";
 import type { Db } from "./index";
+import { owedBackOffGoneSplits } from "./owed-back";
 import { changeableBy, type Viewer, visibleTo } from "./privacy";
 import {
 	accounts,
@@ -249,6 +250,8 @@ export async function returnToReview(
 	await db.batch([
 		db.delete(splitFor).where(and(sql`${splitFor.splitId} in ${ownSplits}`, theirs)),
 		db.delete(splits).where(and(eq(splits.transactionId, transactionId), theirs)),
+		// Owed back on one of those Splits is on the whole purchase now.
+		owedBackOffGoneSplits(db, householdId, transactionId),
 		db.delete(transactionFor).where(and(eq(transactionFor.transactionId, transactionId), theirs)),
 		db
 			.insert(transactionFor)

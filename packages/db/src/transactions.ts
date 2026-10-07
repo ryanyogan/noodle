@@ -36,7 +36,7 @@ import { counts } from "./counting";
 import { setAsideSql } from "./goals";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
-import { loadPaidBackSpending } from "./owed-back";
+import { loadPaidBackSpending, owedBackOffGoneSplits } from "./owed-back";
 import {
 	asPrivateSpending,
 	assignableBy,
@@ -51,6 +51,7 @@ import {
 import {
 	accounts,
 	buckets,
+	captureCards,
 	categorizations,
 	commitments,
 	deletedBankLines,
@@ -1179,7 +1180,11 @@ export async function updateTransaction(
 				edited,
 			),
 		);
-	const cleared = clearSplits(db, input.householdId, input.transactionId, edited);
+	const cleared = [
+		...clearSplits(db, input.householdId, input.transactionId, edited),
+		// Owed back on one of those Splits is on the whole purchase now.
+		owedBackOffGoneSplits(db, input.householdId, input.transactionId),
+	] as const;
 	if (input.forMemberIds.length > 0) {
 		const setFor = db
 			.insert(transactionFor)
@@ -1413,6 +1418,8 @@ export async function splitTransaction(
 		clearFor,
 		...clearSplits(db, householdId, transactionId, splitNow),
 		...writes,
+		// After the new Splits: Owed back on a Split that is gone is on the whole purchase now.
+		owedBackOffGoneSplits(db, householdId, transactionId),
 	]);
 	const written = await db
 		.select({
@@ -1578,6 +1585,16 @@ export function transactionDeletes(
 						eq(transfers.outTransactionId, input.transactionId),
 						eq(transfers.inTransactionId, input.transactionId),
 					),
+					deletable,
+				),
+			),
+		// The Wallet card a capture named goes with it.
+		db
+			.delete(captureCards)
+			.where(
+				and(
+					eq(captureCards.householdId, input.householdId),
+					eq(captureCards.transactionId, input.transactionId),
 					deletable,
 				),
 			),
@@ -1899,6 +1916,14 @@ export async function deleteTransactions(
 							inArray(transfers.outTransactionId, theirs()),
 							inArray(transfers.inTransactionId, theirs()),
 						),
+					),
+				),
+			db
+				.delete(captureCards)
+				.where(
+					and(
+						eq(captureCards.householdId, householdId),
+						inArray(captureCards.transactionId, theirs()),
 					),
 				),
 			db
