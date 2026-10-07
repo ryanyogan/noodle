@@ -19,7 +19,6 @@ import {
 	monthEnded,
 	monthOfDay,
 	nothingToDecide,
-	whatChanged,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { BudgetBar, BudgetBarKey } from "@noodle/ui/components/budget-bar";
@@ -55,6 +54,7 @@ import {
 	ExtraIncomeSheet,
 	MonthIncome,
 } from "../../../components/extra-income";
+import { LOG_HASH } from "../../../components/household-log";
 import { LowerTakeHomePayNote, useLowerTakeHomePay } from "../../../components/lower-take-home-pay";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthGlance, monthSentence } from "../../../components/month-glance";
@@ -465,7 +465,7 @@ function ThisMonth() {
 
 /**
  * Chips above Free to Spend: "3 to review", when imported Transactions wait in Review, and in the
- * month's first week "2 Plan changes this month", linking to the Plan's What changed, "2 new
+ * month's first week "2 Plan changes this month", linking to the Log narrowed to the month, "2 new
  * Insights" when the nightly look found some, and "4 things to check in the Plan" when Plan
  * health has warnings (shown in full only on the Plan). Nothing when none applies.
  */
@@ -479,7 +479,7 @@ function useChipCounts(month: MonthKey, asOf: DayKey, current: boolean): ChipCou
 	const waiting = useReviewWaiting();
 	const firstWeek = current && Number(asOf.slice(8)) <= 7;
 	const history = useQuery({ ...planHistoryQuery(month), enabled: firstWeek }).data;
-	const changes = firstWeek && history ? whatChanged(history.changes, month).length : 0;
+	const changes = firstWeek && history ? history.changes.length : 0;
 	const insights = useQuery(insightsQuery()).data?.filter((i) => i.status === "new").length ?? 0;
 	const health = useQuery(planHealthQuery()).data?.warnings.length ?? 0;
 	return { waiting, changes, insights, health };
@@ -500,7 +500,7 @@ function Chips({ month, counts }: { month: MonthKey; counts: ChipCounts }) {
 				</Chip>
 			) : null}
 			{changes > 0 ? (
-				<Chip to="/plan/$month" params={{ month }} hash="what-changed" icon={History}>
+				<Chip to="/household" search={{ month }} hash={LOG_HASH} icon={History}>
 					{changes === 1 ? "1 Plan change" : `${changes} Plan changes`} this month
 				</Chip>
 			) : null}
@@ -526,8 +526,9 @@ function Chip({
 	icon: typeof History;
 	children: ReactNode;
 } & (
-	| { to: "/review" | "/insights"; params?: undefined; hash?: undefined }
-	| { to: "/plan/$month"; params: { month: MonthKey }; hash: string }
+	| { to: "/review" | "/insights"; params?: undefined; search?: undefined; hash?: undefined }
+	| { to: "/plan/$month"; params: { month: MonthKey }; search?: undefined; hash: string }
+	| { to: "/household"; params?: undefined; search: { month: MonthKey }; hash: string }
 )) {
 	return (
 		<Link

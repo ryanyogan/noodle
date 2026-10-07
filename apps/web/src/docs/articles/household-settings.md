@@ -19,6 +19,7 @@ Household settings is one page for everything about your Household that is not m
 - **Setup.** **Run setup again** walks you through the Setup steps once more. It changes what is there. Nothing is added twice.
 - **Reminders.** Your Check-in day, and Nudges.
 - **Your data.** Download your data, and Snapshots.
+- **Log.** Every change to the Plan in one table, newest first: when, who, what, the change and the month it takes effect, along with Rules made, snapshots, Fresh starts and Bank Connections. Narrow it to one Parent or one kind of item. "See what changed" on the Plan opens it at that month. The other Parent's Personal Allowance only ever shows as "Personal Allowance changed".
 - **Danger zone.** Start fresh and Delete Household.
 
 ## Turn on Nudges

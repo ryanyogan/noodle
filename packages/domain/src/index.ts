@@ -277,6 +277,16 @@ export {
 	quickAddChoices,
 } from "./likely";
 export {
+	LOG_ITEM_KINDS,
+	type LogCursor,
+	type LogFreshStartStatus,
+	type LogItemKind,
+	type LogRow,
+	type LogSnapshotKind,
+	type LogSort,
+	logItemOfPlanChange,
+} from "./log";
+export {
 	autoMatches,
 	clearPairs,
 	MATCH_WINDOW,
@@ -471,11 +481,9 @@ export {
 export {
 	PLAN_CHANGE_KINDS,
 	type PlanChange,
-	type PlanChangeGroup,
 	type PlanChangeKind,
 	type PlanChangeSource,
 	type PlanChangeValue,
-	whatChanged,
 } from "./plan-history";
 export { type PlanChanges, type PlanScope, planChanges, restoreAfterJust } from "./plan-scope";
 export {

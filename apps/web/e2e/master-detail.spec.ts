@@ -69,8 +69,10 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	const page = await signedInPage(browser, parent.email, desktop);
 	await household(page);
 
-	// Nothing picked: the rail is beside the list, and there is no panel.
-	await expect(rail(page)).toHaveAttribute("aria-label", "What changed in the Plan");
+	// Nothing picked: the Plan has the page's width, with no rail (what changed is the Log, issue
+	// 139) and no panel.
+	await expect(rail(page)).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "See what changed" })).toHaveCount(1);
 	await expect(detail(page)).toHaveCount(0);
 	const widthBefore = (await list(page).boundingBox())?.width;
 	// The list pane is the Plan's first page: the take-home split with the Buckets under it.
@@ -129,7 +131,7 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 		.getByRole("link", { name: "Overview", exact: true })
 		.click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${month}$`));
-	await expect(rail(page)).toHaveAttribute("aria-label", "What changed in the Plan");
+	await expect(rail(page)).toHaveCount(0);
 	await expect(detail(page)).toHaveCount(0);
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 	await page.context().close();

@@ -16,7 +16,7 @@ A Personal Allowance is a Bucket that belongs to one Parent. You see every purch
 - **On This Month and the Plan:** the allowance and how much has been spent. Not the purchases.
 - **On the Bucket's own page:** a note that it is a Personal Allowance and only its Parent sees what is spent from it.
 - **In Reports:** the total, shown with a lock. It cannot be opened to see the Transactions behind it.
-- **In "What changed" on the Plan:** only "Personal Allowance changed".
+- **In the Log in Household settings:** only "Personal Allowance changed", and none of the Rules that file into it.
 - **In a data download:** only the total for each month.
 - **In Ask:** Ask can use the total, never the purchases. See [Ask](/docs/ask).
 

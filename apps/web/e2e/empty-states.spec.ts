@@ -39,7 +39,7 @@ test("a new Household's pages say where to start", async ({ browser }) => {
 	const waterfall = page.getByRole("region", { name: "Where take-home pay goes" });
 	await expect(page.getByRole("region", { name: "Set up the Plan" })).toBeVisible();
 	await expect(waterfall).toHaveCount(0);
-	await expect(page.getByRole("region", { name: "What changed" })).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "See what changed" })).toHaveCount(0);
 	await expect(page.getByRole("link", { name: "Add an Account first" })).toHaveAttribute(
 		"href",
 		"/accounts",

@@ -21,7 +21,7 @@ The Overview is the whole Plan on one page, top to bottom.
 - **Things to check.** Shown only when something needs you. See below.
 - **Buckets.** Every Bucket with its allowance, what is spent and what is left. This is where you add and change them.
 - **Personal Allowances.** Each Parent's own, in a short list of their own.
-- **What changed.** The changes made to the Plan since the month before.
+- **See what changed.** A link to the Log in Household settings, showing the changes that take effect in this month.
 
 A brand-new Household sees **Set up the Plan** here: a short list that takes you through Take-home pay, Commitments, Buckets and a Goal.
 
@@ -69,7 +69,7 @@ The Year page shows every month of the year in one table, from Take-home pay dow
 - To try a change before you make it, use [Explore](/docs/explore). It works on a copy of the Plan.
 - Free to Spend is one number with one name everywhere on the Plan.
 - If Commitments and Buckets add up to more than your Take-home pay, the Overview says by how much.
-- Either Parent can change the Plan. The other Parent's Personal Allowance only ever shows in What changed as "Personal Allowance changed".
+- Either Parent can change the Plan. The other Parent's Personal Allowance only ever shows in the Log as "Personal Allowance changed".
 
 ## Related
 

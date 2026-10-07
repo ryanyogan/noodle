@@ -25,8 +25,12 @@ An amount in a month's Plan that differs from the month before's, shown with wha
 _Avoid_: Modified, edited, overridden
 
 **Plan change**:
-One change a Parent made to the Plan (the Take-home pay, an allowance, Resets monthly or Carries over, new Commitment terms, a Goal’s target; a Bucket, Commitment or Goal added; a Bucket or Commitment renamed, archived or ended), kept with who made it, when, the month it takes effect and what it was before. "What changed" on the Plan nets a month's Plan changes per item; the other Parent's Personal Allowance only ever reads as "Personal Allowance changed".
+One change a Parent made to the Plan (the Take-home pay, an allowance, Resets monthly or Carries over, new Commitment terms, a Goal’s target; a Bucket, Commitment or Goal added; a Bucket or Commitment renamed, archived or ended), kept with who made it, when, the month it takes effect and what it was before. Every Plan change is a row of the Log, and a Bucket's or Commitment's own are its History; the other Parent's Personal Allowance only ever reads as "Personal Allowance changed".
 _Avoid_: Edit, audit entry, revision
+
+**Log**:
+Every change made to the Household that is on record, in one table in Household settings, newest first: when, who, what (the item), the change (before → after) and the month it takes effect. It holds each Plan change, each Rule as it was made, each Household snapshot a Parent or an action took (not the nightly ones), each Fresh start and each Bank Connection as it was added; changes to single Transactions are not in it. It can be narrowed to who, to a kind of item, and to a month, which shows the Plan changes taking effect in it. Pages don't list changes themselves: they link to it with "See what changed". The other Parent's Personal Allowance only ever reads as "Personal Allowance changed", and a Rule that files into it isn't shown.
+_Avoid_: What changed, audit log, activity, history (an item's own is its History)
 
 **Commitment**:
 A fixed obligation the Household has signed up to and pays on a schedule, usually monthly: rent or mortgage, a car payment or other loan, insurance, utilities (electric, gas, water, trash), phone, internet and TV, childcare and tuition, memberships and subscriptions. It is not day-to-day spending that happens to repeat, like fast food, coffee, groceries, fuel or small shop purchases: those belong in Buckets. A Commitment may **pay down** one credit card or loan (ADR-0050): each payment filed in it then brings **what's owed** on that Account down, when the Account is kept by hand. A card Noodle follows (it syncs with its bank, or its purchases were imported in the last 60 days) can only be paid down this way as a balance the Household is carrying, since paying such a card is a Transfer.
@@ -302,7 +306,7 @@ _Avoid_: Calculator, affordability calculator
 
 **Household**:
 The family unit that shares one Plan and one pool of money.
-Its name, time zone, Members, Check-in day, Nudges and ways of bringing in spending are set on **Household settings**, a page of settings only; reports about the Household live in Reports.
+Its name, time zone, Members, Check-in day, Nudges and ways of bringing in spending are set on **Household settings**, a page of settings and the Log; reports about the Household live in Reports.
 _Avoid_: Account, family, workspace
 
 **Member**:

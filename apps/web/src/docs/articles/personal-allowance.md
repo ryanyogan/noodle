@@ -43,7 +43,7 @@ What you buy from your Personal Allowance is yours alone to see.
 
 - That you have a Personal Allowance, and its allowance.
 - Its totals: how much has been spent and how much is left.
-- In What changed on the Plan, only "Personal Allowance changed".
+- In the Log in Household settings, only "Personal Allowance changed".
 
 So the Plan still adds up for both of you. The amounts are shared. The purchases are not.
 

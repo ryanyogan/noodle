@@ -1,4 +1,4 @@
-import type { Cents, MonthKey, PlanChange, PlanChangeGroup, PlanChangeValue } from "@noodle/domain";
+import type { Cents, MonthKey, PlanChange, PlanChangeValue } from "@noodle/domain";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -10,10 +10,10 @@ import { ChevronRight } from "lucide-react";
 import { cadenceNames } from "../commitments";
 import { formatMoney, fullDay, monthName, shortDay } from "../format";
 import { planHistoryQuery } from "../queries";
-import type { DatedPlanChange } from "../server/plan";
 
 // The Plan's history in words (ADR-0014): what a Plan change moved from and to, when it takes
-// effect, who made it and when. The other Parent's Personal Allowance only ever reads as
+// effect, who made it and when. An item's own History is drawn here; every change together is the
+// Log in Household settings (household-log.tsx). The other Parent's Personal Allowance only ever reads as
 // "Personal Allowance changed" (ADR-0003).
 
 const PERSONAL_ALLOWANCE = "Personal Allowance changed";
@@ -29,7 +29,7 @@ const fromTo = <T,>(was: T | undefined, now: T, text: (value: T) => string) =>
  * “Food”", "Every two weeks, due Oct 9", "Target $12,000 by Jun 30, 2027". Without `before`,
  * just what they are now.
  */
-export function describeValues(before: PlanChangeValue | null, after: PlanChangeValue): string[] {
+function describeValues(before: PlanChangeValue | null, after: PlanChangeValue): string[] {
 	const was = before ?? {};
 	const parts: string[] = [];
 	if (was.name !== undefined && after.name !== undefined) parts.push(`Renamed from “${was.name}”`);
@@ -94,21 +94,6 @@ export function describeChange(change: PlanChange): string {
 	}
 }
 
-/** One item's net change over a month, in words. */
-export function describeGroup(group: PlanChangeGroup): string {
-	if (group.kind === "personal-allowance") return PERSONAL_ALLOWANCE;
-	if (group.removed) return group.kind === "commitment" ? "Ended" : "Archived";
-	if (group.restored) {
-		return ["Back in the Plan", ...describeValues(null, { ...group.after, name: undefined })].join(
-			" · ",
-		);
-	}
-	if (group.added) {
-		return ["Added", ...describeValues(null, { ...group.after, name: undefined })].join(" · ");
-	}
-	return describeValues(group.before, group.after).join(" · ");
-}
-
 /** "Just October", "From October on", or "From October until December". */
 export function scopeText(change: Pick<PlanChange, "month" | "scope" | "after">): string {
 	if (change.scope === "just") return `Just ${monthName(change.month)}`;
@@ -118,34 +103,16 @@ export function scopeText(change: Pick<PlanChange, "month" | "scope" | "after">)
 		: `From ${monthName(change.month)} on`;
 }
 
-/** What a group or change is about: the Bucket, Commitment or Goal, or take-home pay. */
-export const groupTitle = (group: Pick<PlanChangeGroup, "kind" | "targetName">) =>
-	group.kind === "baseline"
-		? "Take-home pay"
-		: group.kind === "personal-allowance"
-			? PERSONAL_ALLOWANCE
-			: (group.targetName ?? "Removed item");
-
-const people = new Intl.ListFormat("en-US", { style: "long", type: "conjunction" });
-
 /** "from “Tighter groceries”" for a change applied from a Scenario, else null. */
-const fromScenario = (change: Pick<PlanChange, "source" | "scenarioName">) =>
+export const fromScenario = (change: Pick<PlanChange, "source" | "scenarioName">) =>
 	change.source !== "scenario"
 		? null
 		: change.scenarioName === null
 			? "from a Scenario"
 			: `from “${change.scenarioName}”`;
 
-/** "Alex and Sam · Oct 2 · from “Tighter groceries”": who made a group's changes, and when last. */
-export function groupMeta(group: PlanChangeGroup<DatedPlanChange>): string {
-	const names = people.format([...new Set(group.changes.map((c) => c.memberName))]);
-	const latest = group.changes[0];
-	const scenario = group.changes.map(fromScenario).find((s) => s !== null);
-	return `${names}${latest ? ` · ${shortDay(latest.day)}` : ""}${scenario ? ` · ${scenario}` : ""}`;
-}
-
 /** "History starts Sep 30": no Plan changes were kept before the first one logged. */
-export function HistoryStart({ day }: { day: string | null }) {
+function HistoryStart({ day }: { day: string | null }) {
 	return (
 		<p className="text-[13px] text-muted-foreground">
 			{day === null ? "No Plan changes yet." : `History starts ${fullDay(day)}.`}

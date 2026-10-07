@@ -30,6 +30,16 @@ import {
 /** The snapshot history in Household settings (`snapshotsQuery`, which lives beside its page). */
 export const snapshotsKey = ["snapshots"] as const;
 
+/**
+ * The Log in Household settings (`logQuery`, beside its table). Under the months' key, so every
+ * Plan change refetches it; `changesLog` names what else it lists.
+ */
+export const logKey = [...monthsKey, "log"] as const;
+
+/** Changes the Log lists that are not the Plan's: a Rule, a snapshot, a Bank Connection, a Fresh start. */
+const changesLog = (change: HouseholdChange) =>
+	["rules", "snapshots", "bank-connections", "fresh-start"].includes(change);
+
 /** Where a Parent's open screen connects to their Household Agent. */
 export const HOUSEHOLD_AGENT_PATH = "/api/household-agent";
 
@@ -146,5 +156,7 @@ export function queryKeysFor(changes: readonly HouseholdChange[]): QueryKey[] {
 		keys.set(JSON.stringify(planOutlookKey), planOutlookKey);
 	}
 	if (changes.some(changesReports)) keys.set(JSON.stringify(reportsKey), reportsKey);
+	// A Rule made or a snapshot taken on another screen is in the Log without a reload.
+	if (!everyMonth && changes.some(changesLog)) keys.set(JSON.stringify(logKey), logKey);
 	return [...keys.values()];
 }
