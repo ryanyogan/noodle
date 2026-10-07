@@ -16,11 +16,13 @@ import { DetailPending, panelKeys, selectedRow } from "./master-detail";
  * list on the left, and the total, the add form and the explainer beside it.
  */
 export function PlanSubPage({
+	wide = false,
 	editable,
 	summary,
 	aside,
 	children,
 }: {
+	wide?: boolean;
 	editable: boolean;
 	/** A line beside the list, e.g. what this part of the Plan takes. */
 	summary?: ReactNode;
@@ -31,7 +33,14 @@ export function PlanSubPage({
 	return (
 		// At lg the list takes the left; the total, the add form and the explainer sit in the rail.
 		// On phones the rail's parts fall in line: the total first, the rest last.
-		<SplitLayout stack="children" className="max-w-2xl lg:max-w-none">
+		<SplitLayout
+			stack="children"
+			className={cn(
+				"max-w-2xl lg:max-w-none",
+				wide &&
+					"max-w-none lg:grid-cols-[minmax(0,1fr)] min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]",
+			)}
+		>
 			<SplitMain>
 				<div className="grid min-w-0 gap-8">{children}</div>
 			</SplitMain>

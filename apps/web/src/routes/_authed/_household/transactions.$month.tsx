@@ -69,6 +69,7 @@ import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
 import { forFilterSchema, SEARCH_MAX, transactionSortSchema } from "../../../server/transactions";
 import { ShownFilters } from "../../../transaction-filters-shown";
+import { animateTransactionClose } from "../../../transaction-motion";
 import {
 	RANGE_OPTIONS,
 	rangeName,
@@ -223,12 +224,15 @@ function TransactionsPage() {
 		if (picking && tableIsStacked()) return setPicking(togglePicked(picking, transaction.id));
 		if (window.matchMedia("(min-width: 1024px)").matches) {
 			if (transaction.id === picked) {
-				return void navigate({
-					to: "/transactions/$month",
-					params: { month },
-					search: true,
-					resetScroll: false,
-				});
+				return animateTransactionClose(
+					() =>
+						void navigate({
+							to: "/transactions/$month",
+							params: { month },
+							search: true,
+							resetScroll: false,
+						}),
+				);
 			}
 			void navigate({
 				to: "/transactions/$month/$transactionId",
@@ -261,12 +265,15 @@ function TransactionsPage() {
 			if (step === "unselect") setPicking(null);
 			if (step !== "close") return;
 			document.querySelector<HTMLElement>('[data-slot="list-row"] button[aria-current]')?.focus();
-			void navigate({
-				to: "/transactions/$month",
-				params: { month },
-				search: true,
-				resetScroll: false,
-			});
+			animateTransactionClose(
+				() =>
+					void navigate({
+						to: "/transactions/$month",
+						params: { month },
+						search: true,
+						resetScroll: false,
+					}),
+			);
 		};
 		// Before a picker's own Esc handler runs, while it is still in the page.
 		window.addEventListener("keydown", onKey, true);
@@ -467,6 +474,7 @@ function TransactionsPage() {
 				}}
 			/>
 			<TransactionEditor
+				paymentOptions
 				transaction={editingPlan ? editing : null}
 				today={asOf}
 				plan={editingPlan ?? plan}
@@ -571,7 +579,7 @@ function Filters({
 					<Input
 						id="filter-search"
 						type="search"
-						placeholder="Search"
+						placeholder="Search transactions"
 						autoComplete="off"
 						maxLength={SEARCH_MAX}
 						disabled={!hydrated}
@@ -584,7 +592,7 @@ function Filters({
 					variant="outline"
 					disabled={!hydrated}
 					onClick={() => setSheetOpen(true)}
-					className="lg:hidden"
+					aria-haspopup="dialog"
 				>
 					<ListFilter />
 					Filters
@@ -650,50 +658,9 @@ function Filters({
 					</Button>
 				) : null}
 			</div>
-			<div className="gap-3 max-lg:hidden lg:order-3 lg:grid lg:flex-[3_1_100%] min-[90rem]:flex-[3_1_36rem] lg:auto-cols-fr lg:grid-flow-col">
-				{/* How many months the list shows (issue 99), each ending at the month in the header. */}
-				<FilterSelect
-					id="filter-range"
-					label="Months"
-					all="This month"
-					value={filters.range ?? ""}
-					disabled={!hydrated}
-					onChange={(value) => onChange({ range: (value || undefined) as TransactionRange })}
-					options={RANGE_OPTIONS}
-				/>
-				<FilterSelect
-					id="filter-bucket"
-					label="Bucket"
-					all="All Buckets"
-					value={filters.bucket ?? ""}
-					disabled={!hydrated}
-					onChange={(value) => onChange({ bucket: value || undefined })}
-					options={bucketOptions}
-				/>
-				<FilterSelect
-					id="filter-for"
-					label="For"
-					all="Anyone"
-					value={filters.for ?? ""}
-					disabled={!hydrated}
-					onChange={(value) => onChange({ for: value || undefined })}
-					options={forOptions}
-				/>
-				{accounts.length > 0 ? (
-					<FilterSelect
-						id="filter-account"
-						label="Account"
-						all="All Accounts"
-						value={filters.account ?? ""}
-						disabled={!hydrated}
-						onChange={(value) => onChange({ account: value || undefined })}
-						options={accountOptions}
-					/>
-				) : null}
-			</div>
-			{/* Phones and tablets: the selects sit in a Filters sheet and the active ones show as chips, so the list starts high (#48). */}
+			{/* Active filters stay visible; less-used controls live in the Filters sheet. */}
 			{chips.length ? (
-				<ul className="flex flex-wrap gap-1.5 lg:hidden" aria-label="Filters">
+				<ul className="flex basis-full flex-wrap gap-1.5" aria-label="Filters">
 					{chips.map((chip) => (
 						<li key={chip.key}>
 							<Button
@@ -801,7 +768,9 @@ function FiltersForm({
 				<Button
 					type="button"
 					variant="ghost"
-					onClick={() => onApply({ bucket: undefined, for: undefined, account: undefined })}
+					onClick={() =>
+						onApply({ range: undefined, bucket: undefined, for: undefined, account: undefined })
+					}
 				>
 					Clear all
 				</Button>

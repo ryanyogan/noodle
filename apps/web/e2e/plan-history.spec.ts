@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import {
@@ -99,7 +100,7 @@ test("the Log shows each Plan change, who made it and when; the other Parent's P
 		await backToPlan(page);
 
 		await openPart(page, "Commitments");
-		const add = page.getByRole("form", { name: "Add a Commitment" });
+		const add = await openCommitmentForm(page);
 		await add.getByLabel("New Commitment").fill("Daycare");
 		await add.getByLabel("Amount due").fill("1,400");
 		await add.getByRole("button", { name: "Add Commitment" }).click();

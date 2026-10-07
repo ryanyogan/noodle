@@ -533,6 +533,7 @@ export async function markCardPayment(
 		transferId: input.transferId,
 		transactionId: input.transactionId,
 		today: input.today,
+		cardPayment: { accountId: input.cardAccountId },
 	});
 	// `month-ended` among them: money back on it counted in a month that has ended.
 	if (!result.ok) return result;

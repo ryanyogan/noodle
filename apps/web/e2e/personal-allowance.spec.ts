@@ -221,6 +221,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		await expect(shown.getByRole("textbox")).toHaveCount(0);
 		await sam.keyboard.press("Escape");
 		await expect(shown).toBeHidden();
+		await sam.getByRole("button", { name: /^Filters/ }).click();
 		await sam.getByRole("combobox", { name: "Bucket", exact: true }).click();
 		await expect(sam.getByRole("listbox").getByRole("option")).toHaveText([
 			"All Buckets",
@@ -228,6 +229,10 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 			SAM_PA,
 		]);
 		await sam.keyboard.press("Escape");
+		await sam
+			.getByRole("dialog", { name: "Filters", exact: true })
+			.getByRole("button", { name: "Apply", exact: true })
+			.click();
 		await list(sam)
 			.getByRole("button", { name: /^Milk,/ })
 			.click();

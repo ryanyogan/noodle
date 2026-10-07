@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import {
 	chooseKind,
@@ -108,7 +109,7 @@ async function addPayingCommitment(
 	card: string,
 ) {
 	await page.goto(commitments);
-	const form = page.getByRole("form", { name: "Add a Commitment" });
+	const form = await openCommitmentForm(page);
 	const paysDown = form.getByRole("combobox", { name: "Pays down", exact: true });
 	await hydrated(paysDown);
 	await form.getByLabel("New Commitment").fill(name);
@@ -228,7 +229,7 @@ test("the Commitment form suggests an amount from the last three months of payme
 	await expect(toast(page, "checking.csv")).toBeVisible();
 
 	await page.goto(new URL(`/plan/${month}/commitments`, thisMonth).href);
-	const form = page.getByRole("form", { name: "Add a Commitment" });
+	const form = await openCommitmentForm(page);
 	const paysDown = form.getByRole("combobox", { name: "Pays down", exact: true });
 	const suggestion = form.getByTestId("payment-suggestion");
 	await hydrated(paysDown);
@@ -252,6 +253,7 @@ test("the Commitment form suggests an amount from the last three months of payme
 	await expect(page.getByText("$1,970").first()).toBeVisible();
 
 	// A card with no payments to go on gets no suggestion.
+	await openCommitmentForm(page);
 	await paysDown.click();
 	await page
 		.getByRole("listbox")

@@ -44,3 +44,19 @@
 	--clerk-font-family: var(--font-sans);
 	--clerk-border-radius: 0.75rem;
 }
+
+/* Inline transaction details: a distinct surface, with motion limited to this page. */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+	[data-slot="transactions-table"] [data-slot="transaction-detail"] {
+		interpolate-size: allow-keywords;
+		height: auto;
+		overflow: clip;
+		transition:
+			height 220ms ease,
+			opacity 180ms ease;
+		@starting-style {
+			height: 0;
+			opacity: 0;
+		}
+	}
+}

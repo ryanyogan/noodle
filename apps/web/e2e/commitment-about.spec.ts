@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import { choose, createPlannedHousehold, savedBy, signedInPage, switchTo } from "./session";
 
@@ -18,7 +19,7 @@ test.afterEach(async () => {
 const edit = (page: Page, commitment: string) =>
 	page.getByRole("button", { name: `Edit ${commitment}` });
 const planRow = (page: Page, commitment: string) =>
-	page.getByRole("listitem").filter({ has: edit(page, commitment) });
+	page.getByRole("row").filter({ has: edit(page, commitment) });
 const commitmentRow = (page: Page, name: string) =>
 	page.getByRole("listitem", { name: new RegExp(`^${name}: `) });
 
@@ -44,7 +45,7 @@ test("a Parent sets a bill that varies to About, and a month over says where it 
 	const month = /\/plan\/(\d{4}-\d{2})\//.exec(page.url())?.[1];
 	if (!month) throw new Error(`No month in ${page.url()}`);
 
-	const form = page.getByRole("form", { name: "Add a Commitment" });
+	const form = await openCommitmentForm(page);
 	await form.getByLabel("New Commitment").fill("Power");
 	await form.getByLabel("Amount due").fill("140");
 	await expect(form.getByRole("combobox", { name: "The amount is", exact: true })).toHaveText(
@@ -59,11 +60,13 @@ test("a Parent sets a bill that varies to About, and a month over says where it 
 	// Before its first charge, "about" what the Plan sets aside.
 	await expect(planRow(page, "Power")).toContainText("About $140");
 	// The next one starts at "The same each time" again.
+	await openCommitmentForm(page);
 	await expect(form.getByRole("combobox", { name: "The amount is", exact: true })).toHaveText(
 		"The same each time",
 	);
 
 	// It is kept: the edit form opens on "About".
+	await page.keyboard.press("Escape");
 	await page.reload();
 	await expect(planRow(page, "Power")).toContainText("About $140");
 	await edit(page, "Power").click();

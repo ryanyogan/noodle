@@ -53,11 +53,14 @@ export function MonthIncome({
 	baseline,
 	income,
 	renderList,
+	showBetweenUs = true,
 }: {
 	month: MonthKey;
+	/** The Income page lists these with the other inbound deposits. */
+	showBetweenUs?: boolean;
 	/** Today: income is recorded on it, so only this month takes it. */
 	asOf: DayKey;
-	baseline: Cents;
+	baseline: Cents | null;
 	/** This month's income. */
 	income: IncomeRecord[];
 	/** Plan › Income draws the entries as a table of its own, with the same actions. */
@@ -77,7 +80,7 @@ export function MonthIncome({
 				renderList={renderList}
 				baseline={baseline}
 				income={income}
-				betweenUs={betweenUs}
+				betweenUs={showBetweenUs ? betweenUs : []}
 				onBetweenUs={(entry) => between.mark.mutate({ transferId: ulid(), month, entry })}
 				onCountAgain={(entry) =>
 					between.unmark.mutate({ transferId: entry.transferId, month, entry })
@@ -136,7 +139,7 @@ export function IncomeSection({
 	onBetweenUs,
 	onCountAgain,
 }: {
-	baseline: Cents;
+	baseline: Cents | null;
 	/** This month's income. */
 	income: IncomeRecord[];
 	/** This month's income marked as money between the two Parents: not in the total. */
@@ -173,8 +176,16 @@ export function IncomeSection({
 			<div className="max-sm:@container">
 				<p className="pb-2 text-sm text-muted-foreground">
 					<span className="font-medium text-foreground tabular-nums">{formatMoney(received)}</span>{" "}
-					received of {formatMoney(baseline)} usual{" "}
-					<span className="whitespace-nowrap @max-[12rem]:whitespace-normal">take-home pay</span>
+					{baseline === null ? (
+						"received. Set your take-home pay to compare it with your plan."
+					) : (
+						<>
+							received of {formatMoney(baseline)} usual{" "}
+							<span className="whitespace-nowrap @max-[12rem]:whitespace-normal">
+								take-home pay
+							</span>
+						</>
+					)}
 				</p>
 			</div>
 			{renderList ? (

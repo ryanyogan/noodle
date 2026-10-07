@@ -84,11 +84,13 @@ export function CardPaymentQuestion({
 	onCancel,
 	onTransfer,
 	filing,
+	initialStep = "which",
 }: {
 	transaction: CardPaymentLine;
 	label: string;
 	onDone: (answer: CardPaymentAnswer) => void;
 	onCancel: () => void;
+	initialStep?: "which" | "spending";
 	/** Marks the Transfer instead of this (Review's own mark); `id` null: a card not in Noodle. */
 	onTransfer?: (card: { id: string | null; name: string | null }) => void;
 	/** What follows an answer filed in a Commitment: its Undo, a failure, a line that stays. */
@@ -98,7 +100,7 @@ export function CardPaymentQuestion({
 	>;
 }) {
 	const id = useId();
-	const [step, setStep] = useState<"which" | "spending">("which");
+	const [step, setStep] = useState<"which" | "spending">(initialStep);
 	const cards = useQuery(cardPaymentCardsQuery()).data;
 	const change = useMoneyChange();
 	const file = useCardPaymentFiling();

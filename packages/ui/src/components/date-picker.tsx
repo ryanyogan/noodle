@@ -120,8 +120,8 @@ function DatePicker({
 							disabled={disabledDays}
 							autoFocus
 							onSelect={(day) => {
-								if (!day) return;
-								set(toIso(day));
+								// Choosing the selected day keeps it and closes, just like choosing another day.
+								if (day) set(toIso(day));
 								setOpen(false);
 							}}
 						/>

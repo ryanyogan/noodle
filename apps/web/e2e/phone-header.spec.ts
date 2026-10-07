@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import {
@@ -211,7 +212,7 @@ test("an item's page has the same header: Back, title and arrows on one row, one
 
 	// A Commitment.
 	await page.goto(`/plan/${month}/commitments`);
-	const form = page.getByRole("form", { name: "Add a Commitment" });
+	const form = await openCommitmentForm(page);
 	await form.getByLabel("New Commitment").fill("Phones");
 	await form.getByLabel("Amount due").fill("120");
 	await form.getByRole("button", { name: "Add Commitment" }).click();

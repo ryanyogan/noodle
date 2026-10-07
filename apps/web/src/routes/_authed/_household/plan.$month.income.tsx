@@ -7,6 +7,7 @@ import { createFileRoute, useHydrated } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { MonthIncome } from "../../../components/extra-income";
+import { OtherMoneyIn } from "../../../components/income-inbound";
 import { CountOnOffer, IncomeTable } from "../../../components/income-table";
 import { LowerTakeHomePayNote, useLowerTakeHomePay } from "../../../components/lower-take-home-pay";
 import { SaveFailed } from "../../../components/plan-editing";
@@ -29,7 +30,9 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/income")({
 function PlanIncome() {
 	const { month } = Route.useRouteContext();
 	const state = useMonthState(month);
-	const _current = monthOfDay(state.asOf);
+	const total = state.income
+		.filter((i) => monthOfDay(i.date) === month)
+		.reduce((sum, i) => sum + i.amount, 0);
 	const received = state.income.filter((i) => monthOfDay(i.date) === month);
 	// A low month: always here for the current month, quietly; This Month says it in its last days.
 	const lowering = useLowerTakeHomePay(month);
@@ -37,35 +40,94 @@ function PlanIncome() {
 		? lowerTakeHomePay({ baseline: state.baseline, income: state.income, month, asOf: state.asOf })
 		: null;
 	return (
-		<PlanSubPage editable={state.editable} aside={<TakeHomePayNote />}>
-			<TakeHomePayEditor month={month} baseline={state.baseline} editable={state.editable} />
-			{lower ? (
-				<Card className="p-(--card-pad)">
-					<LowerTakeHomePayNote
-						quiet
-						month={month}
-						step={lower}
-						freeToSpend={state.freeToSpend}
-						pending={lowering.pending}
-						onLower={() => lowering.lower(lower, state.freeToSpend)}
-					/>
+		<PlanSubPage
+			wide
+			editable={state.editable}
+			aside={
+				<>
+					<TakeHomePayEditor month={month} baseline={state.baseline} editable={state.editable} />
+					<TakeHomePayNote />
+					{lower ? (
+						<Card className="p-(--card-pad)">
+							<LowerTakeHomePayNote
+								quiet
+								month={month}
+								step={lower}
+								freeToSpend={state.freeToSpend}
+								pending={lowering.pending}
+								onLower={() => lowering.lower(lower, state.freeToSpend)}
+							/>
+						</Card>
+					) : null}
+					{/* When a Parent's pay varies and its low end has moved: one Household figure still. */}
+					{state.editable && state.baseline !== null ? (
+						<CountOnOffer month={month} baseline={state.baseline} />
+					) : null}
+				</>
+			}
+		>
+			<div className="grid gap-5">
+				<div className="grid gap-1">
+					<h2 className="text-lg font-semibold">Income this month</h2>
+					<p className="text-sm text-muted-foreground">
+						See what’s arrived, what counts as income, and how it compares with your plan.
+					</p>
+				</div>
+				<Card className="overflow-hidden">
+					<dl className="grid grid-cols-2 divide-x divide-y sm:grid-cols-3 sm:divide-y-0">
+						{[
+							{ label: "Received", value: formatMoney(total), note: "Money counted as income" },
+							{
+								label: "Planned income",
+								value: state.baseline === null ? "Not set" : formatMoney(state.baseline),
+								note: "Your usual take-home pay",
+							},
+							{
+								label:
+									state.baseline !== null && total > state.baseline
+										? "Above plan"
+										: "Still expected",
+								value:
+									state.baseline === null ? "—" : formatMoney(Math.abs(state.baseline - total)),
+								note:
+									state.baseline !== null && total > state.baseline
+										? "Extra income to give a purpose"
+										: "Remaining to reach your plan",
+							},
+						].map((stat, index) => (
+							<div
+								key={stat.label}
+								className={
+									index === 0 ? "col-span-2 grid gap-1 p-5 sm:col-span-1" : "grid gap-1 p-5"
+								}
+							>
+								<dt className="text-xs font-medium text-muted-foreground">{stat.label}</dt>
+								<dd className="text-2xl font-semibold tracking-tight tabular-nums">{stat.value}</dd>
+								<p
+									className={
+										index === 0
+											? "text-xs text-muted-foreground"
+											: "hidden text-xs text-muted-foreground sm:block"
+									}
+								>
+									{stat.note}
+								</p>
+							</div>
+						))}
+					</dl>
 				</Card>
-			) : null}
-			{/* When a Parent's pay varies and its low end has moved: one Household figure still. */}
-			{state.editable && state.baseline !== null ? (
-				<CountOnOffer month={month} baseline={state.baseline} />
-			) : null}
+			</div>
 			{/* This Month's Income section, with Add income and the same row actions; here the
 			    entries are a table a Parent works in (issue 133). */}
-			{state.baseline !== null ? (
-				<MonthIncome
-					month={month}
-					asOf={state.asOf}
-					baseline={state.baseline}
-					income={received}
-					renderList={(actions) => <IncomeTable month={month} income={received} {...actions} />}
-				/>
-			) : null}
+			<MonthIncome
+				showBetweenUs={false}
+				month={month}
+				asOf={state.asOf}
+				baseline={state.baseline}
+				income={received}
+				renderList={(actions) => <IncomeTable month={month} income={received} {...actions} />}
+			/>
+			<OtherMoneyIn month={month} today={state.asOf} />
 		</PlanSubPage>
 	);
 }

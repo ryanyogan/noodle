@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import { choose, createPlannedHousehold, pickDate, signedInPage, switchTo } from "./session";
 
@@ -14,7 +15,6 @@ test.afterEach(async () => {
 
 const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-home pay goes" });
 const bills = (page: Page) => page.getByRole("region", { name: /^Bills/ });
-const addForm = (page: Page) => page.getByRole("form", { name: "Add a Commitment" });
 
 const monthName = (month: string) =>
 	new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-US", {
@@ -29,7 +29,7 @@ function addMonths(month: string, count: number) {
 }
 
 async function addYearly(page: Page, name: string, due: string, dueDate: string) {
-	const form = addForm(page);
+	const form = await openCommitmentForm(page);
 	await form.getByLabel("New Commitment").fill(name);
 	await form.getByLabel("Amount due").fill(due);
 	await choose(form, "How often", "Yearly");

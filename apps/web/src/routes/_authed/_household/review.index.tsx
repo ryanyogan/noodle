@@ -99,6 +99,7 @@ import { Suggested } from "../../../components/suggested";
 import { SwipeCard } from "../../../components/swipe-card";
 import { TermHelp } from "../../../components/term-help";
 import { TransactionEditor } from "../../../components/transaction-editor";
+import { TransactionTreatment } from "../../../components/transaction-treatment";
 import { dayName, formatMoney, monthName } from "../../../format";
 import { forLabel, type MemberSummary } from "../../../members";
 import { moneyInReviewQuery } from "../../../money-in";
@@ -209,6 +210,17 @@ function ReviewPage() {
 	const queue = useSuspenseQuery(reviewQuery()).data;
 	const members = useSuspenseQuery(membersQuery()).data;
 	const today = useSuspenseQuery(monthQuery(current)).data.asOf;
+	const [alternativeTreatments, setAlternativeTreatments] = useState<ReadonlySet<string>>(
+		new Set(),
+	);
+	function setTreatment(id: string, alternative: boolean) {
+		setAlternativeTreatments((current) => {
+			const next = new Set(current);
+			if (alternative) next.add(id);
+			else next.delete(id);
+			return next;
+		});
+	}
 	const [cursor, setCursor] = useState<string | null>(null);
 	const [changing, setChanging] = useState<ReviewItem | null>(null);
 	/** A Bucket being made from a card's picker, to file that card in (#90). */
@@ -924,11 +936,11 @@ function ReviewPage() {
 	// → or Enter confirms, ← changes, ↓ skips, Z (or ⌘Z) undoes in Sort, and S splits, P files in
 	// the Parent's Personal Allowance, R makes a Rule; not while typing or a sheet is open.
 	useEffect(() => {
-		if (changing || ruling) return;
+		if (changing || ruling || (active && alternativeTreatments.has(active.id))) return;
 		function onKey(event: KeyboardEvent) {
 			const target = event.target as HTMLElement | null;
 			const typing = target?.closest(
-				"input, select, textarea, [role=dialog], [contenteditable=true]",
+				"input, select, textarea, [role=dialog], [role=menu], [role=listbox], [contenteditable=true]",
 			);
 			if (sorting && !typing && event.key.toLowerCase() === "z" && !event.altKey) {
 				if (event.shiftKey || (event.metaKey && event.ctrlKey)) return;
@@ -1159,7 +1171,7 @@ function ReviewPage() {
 							<SwipeCard
 								// A fresh card, undragged, for each Transaction on top.
 								key={order[0].id}
-								enabled={hydrated && !reduced}
+								enabled={hydrated && !reduced && !alternativeTreatments.has(order[0].id)}
 								rightLabel={
 									betweenOf(order[0]) ? "Between us ✓" : rightLabelOf(order[0], paymentOf(order[0]))
 								}
@@ -1182,6 +1194,9 @@ function ReviewPage() {
 									>
 										<ReviewCard
 											item={order[0]}
+											onTreatmentChange={(alternative) =>
+												order[0] && setTreatment(order[0].id, alternative)
+											}
 											today={today}
 											members={members}
 											parentId={parentId}
@@ -1378,6 +1393,7 @@ function ReviewPage() {
 												{item.id === top.id ? <ReviewMatchOffer transaction={item} /> : null}
 												<ReviewCard
 													item={item}
+													onTreatmentChange={(alternative) => setTreatment(item.id, alternative)}
 													today={today}
 													members={members}
 													parentId={parentId}
@@ -1757,6 +1773,7 @@ function suggestionWhy(guess: NonNullable<ReviewItem["guess"]>) {
  */
 function ReviewCard({
 	item,
+	onTreatmentChange,
 	today,
 	members,
 	parentId,
@@ -1781,6 +1798,7 @@ function ReviewCard({
 	actions,
 }: {
 	item: ReviewItem;
+	onTreatmentChange?: (alternative: boolean) => void;
 	/**
 	 * It reads as a payment to a card or loan: its Commitment, a Transfer, or (a card Noodle
 	 * doesn't follow) a Commitment to make, is offered first, and a Bucket second.
@@ -1856,384 +1874,406 @@ function ReviewCard({
 			onFocusCapture={onFocus}
 			className={cn(
 				// Its rows shrink with it: a row that can't (a long button beside the picker) wraps instead.
-				"grid min-w-0 gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border *:min-w-0 compact:gap-1.5 compact:p-3 squat:py-2 sm:gap-4 sm:p-5",
+				"grid min-w-0 gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border *:min-w-0 compact:gap-1.5 compact:p-3 squat:py-1.5 sm:gap-4 sm:p-5",
 				// On a phone the card knows its width in text sizes: under 15rem (text at about 200%) its
 				// rows stack, so no word is broken to fit beside a tile or a button (issue 74).
 				"max-sm:@container/card",
 				current && "ring-2 ring-ring",
 			)}
 		>
-			<div className="flex items-start justify-between gap-3 @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-y-1">
-				<div className="grid min-w-0 gap-0.5 @max-[15rem]/card:basis-full">
-					{/* On a phone a long Account name goes to a second line rather than being cut mid-word;
+			<TransactionTreatment
+				key={item.id}
+				transaction={item}
+				defaultLabel="Suggested"
+				renderHeader={(choices) => (
+					<div className="flex items-start justify-between gap-3 @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-y-1">
+						<div className="grid min-w-0 gap-0.5 @max-[15rem]/card:basis-full">
+							{/* On a phone a long Account name goes to a second line rather than being cut mid-word;
 					    the narrowest have no height to spare for it. */}
-					<p className="text-xs text-muted-foreground compact:truncate roomy:max-sm:line-clamp-2 sm:truncate">
-						{dayName(item.date, today)}
-						{item.importedFrom ? ` · ${item.importedFrom}` : ""}
-					</p>
-					<h3
-						id={headingId}
-						className={cn(
-							"text-base font-semibold max-sm:wrap-anywhere sm:truncate",
-							// A payment card has more on it: on the shortest phones its name keeps to one line.
-							// Each width has one rule of its own, so neither depends on which is written last.
-							payment ? "compact:line-clamp-1 roomy:max-sm:line-clamp-2" : "max-sm:line-clamp-2",
-						)}
-					>
-						{labelOf(item)}
-					</h3>
-					{item.for.length > 0 ? (
-						// With the For chips below, only where they have no room (the narrowest phones).
-						<p className={cn("text-sm text-muted-foreground", forChips && "hidden compact:block")}>
-							For {forLabel(members, item.for)}
-						</p>
-					) : null}
-				</div>
-				<div className="grid shrink-0 justify-items-end gap-1 @max-[15rem]/card:flex @max-[15rem]/card:basis-full @max-[15rem]/card:flex-wrap @max-[15rem]/card:items-center @max-[15rem]/card:justify-between">
-					<p className="text-xl font-semibold tracking-tight tabular-nums">
-						{formatMoney(item.amountCents)}
-					</p>
-					<Badge className="@max-[15rem]/card:h-auto @max-[15rem]/card:max-w-full @max-[15rem]/card:rounded-xl @max-[15rem]/card:whitespace-normal">
-						{payment?.kind === "commitment"
-							? "Payment"
-							: payment?.kind === "followed"
-								? "Not spending?"
-								: payment
-									? "Card payment"
-									: between
-										? "Not spending?"
-										: isFeesGuess(item.guess)
-											? "Fee or interest"
-											: item.guess
-												? "We weren’t sure"
-												: "New merchant"}
-					</Badge>
-				</div>
-			</div>
-			{/* At large text the tile goes and the words have the whole row; what follows them wraps under. */}
-			<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 compact:py-1.5 @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-y-1 @max-[15rem]/card:*:first:hidden @max-[15rem]/card:*:nth-2:basis-full">
-				{payment?.kind === "commitment" ? (
-					<>
-						{/* The narrowest phones are the shortest: the words get the tile's width there. */}
-						<div className="shrink-0 compact:hidden">
-							<Tile aria-hidden="true">{monogram(payment.commitment)}</Tile>
-						</div>
-						<div className="grid min-w-0 flex-1">
-							<span className="text-sm font-medium wrap-anywhere">
-								Payment to {payment.account}
-							</span>
-							<span className="text-xs text-muted-foreground wrap-anywhere">
-								Files in {payment.commitment}
-								<span className="compact:sr-only"> · pays down what’s owed</span>
-							</span>
-						</div>
-					</>
-				) : payment ? (
-					<>
-						{/* The narrowest phones are the shortest: there the why says it alone, in the tile's
-						    width as well, and the title is only read out. */}
-						<div className="shrink-0 compact:hidden">
-							<Tile aria-hidden="true">
-								{payment.kind === "followed" ? <ArrowLeftRight /> : <Wallet />}
-							</Tile>
-						</div>
-						<div className="grid min-w-0 flex-1">
-							<span className="text-sm font-medium wrap-anywhere compact:sr-only">
-								{payment.kind === "followed"
-									? "Card payment — not spending"
-									: "Payment to a card Noodle doesn’t follow"}
-							</span>
-							<span
-								className="text-xs text-muted-foreground wrap-anywhere"
-								data-testid="review-payment-why"
+							<p className="text-xs text-muted-foreground compact:truncate roomy:max-sm:line-clamp-2 sm:truncate">
+								{dayName(item.date, today)}
+								{item.importedFrom ? ` · ${item.importedFrom}` : ""}
+							</p>
+							<h3
+								id={headingId}
+								className={cn(
+									"text-base font-semibold max-sm:wrap-anywhere sm:truncate",
+									// A payment card has more on it: on the shortest phones its name keeps to one line.
+									// Each width has one rule of its own, so neither depends on which is written last.
+									payment
+										? "compact:line-clamp-1 roomy:max-sm:line-clamp-2"
+										: "max-sm:line-clamp-2",
+								)}
 							>
-								{paymentWhy(payment)}
-								{payment.kind === "not-followed" ? (
-									// On the narrowest phones this choice is here, not on a row of its own.
-									<>
-										{" "}
-										<Link
-											to="/accounts"
-											className="-my-1 inline-block py-1 font-medium whitespace-nowrap text-foreground underline underline-offset-2 roomy:hidden @max-[15rem]/card:whitespace-normal"
-										>
-											Connect the card
-										</Link>
-									</>
-								) : null}
-							</span>
-						</div>
-						<TermHelp term="card-payment" />
-					</>
-				) : between ? (
-					<BetweenUsSuggestion offer={between} />
-				) : item.guess ? (
-					<>
-						<Tile aria-hidden="true" bucket={bucket ? asBucketColor(bucket.color) : undefined}>
-							{monogram(item.guess.name)}
-						</Tile>
-						<div className="grid min-w-0 flex-1">
-							<span className="truncate text-sm font-medium">{item.guess.name}</span>
-							<span className="text-xs text-muted-foreground wrap-anywhere">
-								{suggestionWhy(item.guess)}
-							</span>
-						</div>
-						{item.guess.confidence !== null ? (
-							<span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-								{Math.round(item.guess.confidence * 100)}% sure
-							</span>
-						) : null}
-					</>
-				) : (
-					<>
-						<Tile aria-hidden="true">
-							<Sparkles />
-						</Tile>
-						<p className="min-w-0 text-sm font-medium">
-							{empty ? "No suggestion" : "No suggestion — pick where it goes"}
-						</p>
-					</>
-				)}
-			</div>
-			{between ? (
-				// The narrowest phones are the shortest: there the tile says it alone.
-				<p
-					className="text-[13px] text-muted-foreground wrap-anywhere compact:hidden"
-					data-testid="review-between-us-why"
-				>
-					{BETWEEN_US_WHY}
-				</p>
-			) : null}
-			{caution ? (
-				// A Bucket was picked for a payment to a card Noodle follows: asked before it's filed.
-				<div data-testid="review-payment-caution" className="grid gap-2">
-					<p className="text-sm wrap-anywhere">
-						<span className="font-medium">File a card payment in {caution.place}?</span> What was
-						bought on the card is already counted, so this counts it twice.
-					</p>
-					<div className="flex flex-wrap gap-2">
-						<Button className="max-sm:flex-1" disabled={!hydrated} onClick={caution.onTransfer}>
-							<ArrowLeftRight />
-							Mark as Transfer
-						</Button>
-						<Button
-							variant="outline"
-							className="max-sm:flex-1"
-							disabled={!hydrated}
-							onClick={caution.onAnyway}
-						>
-							File anyway
-						</Button>
-					</div>
-				</div>
-			) : empty && !payment && !between ? (
-				<div className="grid gap-2 text-sm sm:flex sm:items-center sm:justify-between">
-					<p>
-						{plan?.baseline === null
-							? `${name} has no Plan yet, so there’s no Bucket to file this in. Filing it without one changes nothing in ${name}.`
-							: `${name}’s Plan has no Buckets yet, so there’s no Bucket to file this in.`}
-					</p>
-					<div className="flex flex-wrap items-center gap-2">
-						{/* A month that is over can't be given a Plan now (issue 117): no way there. */}
-						{month >= thisMonth ? (
-							<Button variant="ghost" size="sm" asChild>
-								<Link to="/plan/$month" params={{ month }} hash={PLAN_BUCKETS_HASH}>
-									Set up {name}’s Plan
-								</Link>
-							</Button>
-						) : null}
-						{onFileWithout ? (
-							<Button size="sm" disabled={!hydrated} onClick={onFileWithout}>
-								<Archive />
-								File without a Bucket
-							</Button>
-						) : null}
-					</div>
-				</div>
-			) : (
-				<div
-					className={cn(
-						"flex items-center gap-2 compact:flex-wrap @max-[15rem]/card:flex-wrap",
-						// Issue 138: who it is For, on a line over the picker (a real card with somewhere to file it).
-						forChips && "flex-wrap",
-						// "It’s a card payment" is long: on any phone it has the first row with Edit, and the
-						// picker the whole row under them, so the card is never wider than the screen.
-						(payment || between) && "max-sm:flex-wrap",
-					)}
-				>
-					{forChips ? (
-						<ReviewFor
-							item={item}
-							label={labelOf(item)}
-							members={members}
-							disabled={!hydrated}
-							className="order-first basis-full compact:hidden"
-						/>
-					) : null}
-					<BucketPicker
-						id={pickerId(item)}
-						// On the narrowest phones, with a suggestion, the picker has the row under Confirm and Edit.
-						className={cn(
-							"min-w-0 flex-1",
-							// A stacked card (text at 200%): a line to itself, as beside Edit it read "Pi…".
-							"@max-[15rem]/card:basis-full!",
-							largeTextPicker,
-							item.guess && "compact:order-last compact:basis-full",
-							(payment || between) && "max-sm:order-last",
-							// On the narrowest phones "It’s a card payment" shares the picker's row. Each
-							// width has one rule of its own, so neither depends on which is written last.
-							payment?.kind === "not-followed"
-								? "compact:basis-[30%] roomy:max-sm:basis-full"
-								: (payment || between) && "max-sm:basis-full",
-						)}
-						aria-label={`Where ${labelOf(item)} goes`}
-						disabled={!hydrated || !places}
-						placeholder={
-							payment?.kind === "commitment"
-								? "Pick another…"
-								: payment?.kind === "not-followed"
-									? notFollowedPlaceholder
-									: payment || between
-										? "Or pick a Bucket…"
-										: item.guess
-											? "Pick another…"
-											: "Pick where it goes"
-						}
-						searchPlaceholder="Find a Bucket"
-						choices={choices}
-						onValueChange={(value) => plan && onPick(value, plan)}
-						onCreate={onCreate && plan ? (name) => onCreate(name, plan) : undefined}
-						empty={pastPlanSentence(month, thisMonth) ?? undefined}
-						// Issue 98: where Buckets are renamed, grouped and put in order is one tap from here.
-						foot={
-							plan && month >= thisMonth ? (
-								<Link
-									to="/plan/$month"
-									params={{ month: plan.month }}
-									hash={PLAN_BUCKETS_HASH}
-									className="flex min-h-9 items-center rounded-md px-2 text-[13px] font-medium text-muted-foreground hover:bg-surface-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring max-lg:min-h-11"
+								{labelOf(item)}
+							</h3>
+							{item.for.length > 0 ? (
+								// With the For chips below, only where they have no room (the narrowest phones).
+								<p
+									className={cn(
+										"text-sm text-muted-foreground",
+										forChips && "hidden compact:block",
+									)}
 								>
-									Edit Buckets
-								</Link>
-							) : undefined
-						}
-					/>
-					<Button
-						variant="ghost"
-						size="icon"
-						aria-label={`Edit ${labelOf(item)}`}
-						disabled={!hydrated}
-						onClick={onEdit}
-					>
-						<Pencil />
-					</Button>
-					{between ? <BetweenUsButton disabled={!hydrated} onClick={onBetweenUs} /> : null}
-					{payment?.kind === "followed" ? (
-						<Button
-							className={cn("max-sm:order-first max-sm:min-w-0 max-sm:flex-1", largeTextButton)}
-							disabled={!hydrated}
-							onClick={onPayment}
-						>
-							<Check />
-							It’s a card payment
-						</Button>
-					) : null}
-					{payment?.kind === "commitment" ? (
-						// Like every payment card on a phone: Confirm and Edit, then the picker under them.
-						<Button
-							className={cn("max-sm:order-first max-sm:min-w-0 max-sm:flex-1", largeTextButton)}
-							disabled={!hydrated}
-							onClick={onConfirm}
-						>
-							<Check />
-							Confirm
-						</Button>
-					) : null}
-					{payment?.kind === "not-followed" ? (
-						// The payment is the spending, so it's planned like a bill: its Commitment is made
-						// here, at this line's amount, and the line filed in it, with Undo and Edit. For a
-						// card that is an Account here the Commitment pays that Account down.
-						<Button
-							className={cn(
-								"max-sm:order-first max-sm:min-w-0 max-sm:grow max-sm:shrink compact:basis-[70%] roomy:max-sm:basis-0",
-								largeTextButton,
+									For {forLabel(members, item.for)}
+								</p>
+							) : null}
+						</div>
+						<div className="grid shrink-0 justify-items-end gap-1 squat:gap-0 @max-[15rem]/card:flex @max-[15rem]/card:basis-full @max-[15rem]/card:flex-wrap @max-[15rem]/card:items-center @max-[15rem]/card:justify-between">
+							<p className="text-xl font-semibold tracking-tight tabular-nums squat:leading-6">
+								{formatMoney(item.amountCents)}
+							</p>
+							{choices ?? (
+								<Badge className="@max-[15rem]/card:h-auto @max-[15rem]/card:max-w-full @max-[15rem]/card:rounded-xl @max-[15rem]/card:whitespace-normal">
+									{payment?.kind === "commitment"
+										? "Payment"
+										: payment?.kind === "followed"
+											? "Not spending?"
+											: payment
+												? "Card payment"
+												: between
+													? "Not spending?"
+													: isFeesGuess(item.guess)
+														? "Fee or interest"
+														: item.guess
+															? "We weren’t sure"
+															: "New merchant"}
+								</Badge>
 							)}
-							disabled={!hydrated}
-							onClick={onCommitment}
+						</div>
+					</div>
+				)}
+				review={item}
+				onModeChange={onTreatmentChange}
+				onDone={() => onTreatmentChange?.(false)}
+			>
+				<div className="grid gap-3 compact:gap-1.5 squat:gap-1 sm:gap-4">
+					{/* At large text the tile goes and the words have the whole row; what follows them wraps under. */}
+					<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 compact:py-1.5 @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-y-1 @max-[15rem]/card:*:first:hidden @max-[15rem]/card:*:nth-2:basis-full">
+						{payment?.kind === "commitment" ? (
+							<>
+								{/* The narrowest phones are the shortest: the words get the tile's width there. */}
+								<div className="shrink-0 compact:hidden">
+									<Tile aria-hidden="true">{monogram(payment.commitment)}</Tile>
+								</div>
+								<div className="grid min-w-0 flex-1">
+									<span className="text-sm font-medium wrap-anywhere">
+										Payment to {payment.account}
+									</span>
+									<span className="text-xs text-muted-foreground wrap-anywhere">
+										Files in {payment.commitment}
+										<span className="compact:sr-only"> · pays down what’s owed</span>
+									</span>
+								</div>
+							</>
+						) : payment ? (
+							<>
+								{/* The narrowest phones are the shortest: there the why says it alone, in the tile's
+						    width as well, and the title is only read out. */}
+								<div className="shrink-0 compact:hidden">
+									<Tile aria-hidden="true">
+										{payment.kind === "followed" ? <ArrowLeftRight /> : <Wallet />}
+									</Tile>
+								</div>
+								<div className="grid min-w-0 flex-1">
+									<span className="text-sm font-medium wrap-anywhere compact:sr-only">
+										{payment.kind === "followed"
+											? "Card payment — not spending"
+											: "Payment to a card Noodle doesn’t follow"}
+									</span>
+									<span
+										className="text-xs text-muted-foreground wrap-anywhere"
+										data-testid="review-payment-why"
+									>
+										{paymentWhy(payment)}
+										{payment.kind === "not-followed" ? (
+											// On the narrowest phones this choice is here, not on a row of its own.
+											<>
+												{" "}
+												<Link
+													to="/accounts"
+													className="-my-1 inline-block py-1 font-medium whitespace-nowrap text-foreground underline underline-offset-2 roomy:hidden @max-[15rem]/card:whitespace-normal"
+												>
+													Connect the card
+												</Link>
+											</>
+										) : null}
+									</span>
+								</div>
+								<TermHelp term="card-payment" />
+							</>
+						) : between ? (
+							<BetweenUsSuggestion offer={between} />
+						) : item.guess ? (
+							<>
+								<Tile aria-hidden="true" bucket={bucket ? asBucketColor(bucket.color) : undefined}>
+									{monogram(item.guess.name)}
+								</Tile>
+								<div className="grid min-w-0 flex-1">
+									<span className="truncate text-sm font-medium">{item.guess.name}</span>
+									<span className="text-xs text-muted-foreground wrap-anywhere">
+										{suggestionWhy(item.guess)}
+									</span>
+								</div>
+								{item.guess.confidence !== null ? (
+									<span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+										{Math.round(item.guess.confidence * 100)}% sure
+									</span>
+								) : null}
+							</>
+						) : (
+							<>
+								<Tile aria-hidden="true">
+									<Sparkles />
+								</Tile>
+								<p className="min-w-0 text-sm font-medium">
+									{empty ? "No suggestion" : "No suggestion — pick where it goes"}
+								</p>
+							</>
+						)}
+					</div>
+					{between ? (
+						// The narrowest phones are the shortest: there the tile says it alone.
+						<p
+							className="text-[13px] text-muted-foreground wrap-anywhere compact:hidden"
+							data-testid="review-between-us-why"
 						>
-							Make it a Commitment
+							{BETWEEN_US_WHY}
+						</p>
+					) : null}
+					{caution ? (
+						// A Bucket was picked for a payment to a card Noodle follows: asked before it's filed.
+						<div data-testid="review-payment-caution" className="grid gap-2">
+							<p className="text-sm wrap-anywhere">
+								<span className="font-medium">File a card payment in {caution.place}?</span> What
+								was bought on the card is already counted, so this counts it twice.
+							</p>
+							<div className="flex flex-wrap gap-2">
+								<Button className="max-sm:flex-1" disabled={!hydrated} onClick={caution.onTransfer}>
+									<ArrowLeftRight />
+									Mark as Transfer
+								</Button>
+								<Button
+									variant="outline"
+									className="max-sm:flex-1"
+									disabled={!hydrated}
+									onClick={caution.onAnyway}
+								>
+									File anyway
+								</Button>
+							</div>
+						</div>
+					) : empty && !payment && !between ? (
+						<div className="grid gap-2 text-sm sm:flex sm:items-center sm:justify-between">
+							<p>
+								{plan?.baseline === null
+									? `${name} has no Plan yet, so there’s no Bucket to file this in. Filing it without one changes nothing in ${name}.`
+									: `${name}’s Plan has no Buckets yet, so there’s no Bucket to file this in.`}
+							</p>
+							<div className="flex flex-wrap items-center gap-2">
+								{/* A month that is over can't be given a Plan now (issue 117): no way there. */}
+								{month >= thisMonth ? (
+									<Button variant="ghost" size="sm" asChild>
+										<Link to="/plan/$month" params={{ month }} hash={PLAN_BUCKETS_HASH}>
+											Set up {name}’s Plan
+										</Link>
+									</Button>
+								) : null}
+								{onFileWithout ? (
+									<Button size="sm" disabled={!hydrated} onClick={onFileWithout}>
+										<Archive />
+										File without a Bucket
+									</Button>
+								) : null}
+							</div>
+						</div>
+					) : (
+						<div
+							className={cn(
+								"flex items-center gap-2 compact:flex-wrap @max-[15rem]/card:flex-wrap",
+								// Issue 138: who it is For, on a line over the picker (a real card with somewhere to file it).
+								forChips && "flex-wrap",
+								// "It’s a card payment" is long: on any phone it has the first row with Edit, and the
+								// picker the whole row under them, so the card is never wider than the screen.
+								(payment || between) && "max-sm:flex-wrap",
+							)}
+						>
+							{forChips ? (
+								<ReviewFor
+									item={item}
+									label={labelOf(item)}
+									members={members}
+									disabled={!hydrated}
+									className="order-first basis-full compact:hidden"
+								/>
+							) : null}
+							<BucketPicker
+								id={pickerId(item)}
+								// On the narrowest phones, with a suggestion, the picker has the row under Confirm and Edit.
+								className={cn(
+									"min-w-0 flex-1",
+									// A stacked card (text at 200%): a line to itself, as beside Edit it read "Pi…".
+									"@max-[15rem]/card:basis-full!",
+									largeTextPicker,
+									item.guess && "compact:order-last compact:basis-full",
+									(payment || between) && "max-sm:order-last",
+									// On the narrowest phones "It’s a card payment" shares the picker's row. Each
+									// width has one rule of its own, so neither depends on which is written last.
+									payment?.kind === "not-followed"
+										? "compact:basis-[30%] roomy:max-sm:basis-full"
+										: (payment || between) && "max-sm:basis-full",
+								)}
+								aria-label={`Where ${labelOf(item)} goes`}
+								disabled={!hydrated || !places}
+								placeholder={
+									payment?.kind === "commitment"
+										? "Pick another…"
+										: payment?.kind === "not-followed"
+											? notFollowedPlaceholder
+											: payment || between
+												? "Or pick a Bucket…"
+												: item.guess
+													? "Pick another…"
+													: "Pick where it goes"
+								}
+								searchPlaceholder="Find a Bucket"
+								choices={choices}
+								onValueChange={(value) => plan && onPick(value, plan)}
+								onCreate={onCreate && plan ? (name) => onCreate(name, plan) : undefined}
+								empty={pastPlanSentence(month, thisMonth) ?? undefined}
+								// Issue 98: where Buckets are renamed, grouped and put in order is one tap from here.
+								foot={
+									plan && month >= thisMonth ? (
+										<Link
+											to="/plan/$month"
+											params={{ month: plan.month }}
+											hash={PLAN_BUCKETS_HASH}
+											className="flex min-h-9 items-center rounded-md px-2 text-[13px] font-medium text-muted-foreground hover:bg-surface-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring max-lg:min-h-11"
+										>
+											Edit Buckets
+										</Link>
+									) : undefined
+								}
+							/>
+							<Button
+								variant="ghost"
+								size="icon"
+								aria-label={`Edit ${labelOf(item)}`}
+								disabled={!hydrated}
+								onClick={onEdit}
+							>
+								<Pencil />
+							</Button>
+							{between ? <BetweenUsButton disabled={!hydrated} onClick={onBetweenUs} /> : null}
+							{payment?.kind === "followed" ? (
+								<Button
+									className={cn("max-sm:order-first max-sm:min-w-0 max-sm:flex-1", largeTextButton)}
+									disabled={!hydrated}
+									onClick={onPayment}
+								>
+									<Check />
+									It’s a card payment
+								</Button>
+							) : null}
+							{payment?.kind === "commitment" ? (
+								// Like every payment card on a phone: Confirm and Edit, then the picker under them.
+								<Button
+									className={cn("max-sm:order-first max-sm:min-w-0 max-sm:flex-1", largeTextButton)}
+									disabled={!hydrated}
+									onClick={onConfirm}
+								>
+									<Check />
+									Confirm
+								</Button>
+							) : null}
+							{payment?.kind === "not-followed" ? (
+								// The payment is the spending, so it's planned like a bill: its Commitment is made
+								// here, at this line's amount, and the line filed in it, with Undo and Edit. For a
+								// card that is an Account here the Commitment pays that Account down.
+								<Button
+									className={cn(
+										"max-sm:order-first max-sm:min-w-0 max-sm:grow max-sm:shrink compact:basis-[70%] roomy:max-sm:basis-0",
+										largeTextButton,
+									)}
+									disabled={!hydrated}
+									onClick={onCommitment}
+								>
+									Make it a Commitment
+								</Button>
+							) : null}
+							{payment?.kind === "not-followed" ? (
+								// The narrowest phones are the shortest too: there the card's last choice sits beside
+								// the picker, so Skip and Undo stay above the bottom bar. Wider, it has its own row.
+								// It reads "Card payment" there, so the picker beside it has room for its words
+								// (issue 110: it read "Or pick a …"); a row of its own pushed Skip under the bar.
+								<Button
+									variant="outline"
+									className="order-last shrink-0 px-1.5 text-xs roomy:hidden"
+									aria-label="It’s a card payment"
+									disabled={!hydrated}
+									onClick={onPayment}
+								>
+									Card payment
+								</Button>
+							) : null}
+							{item.guess ? (
+								<Button
+									// On a phone Confirm comes first. On the narrowest it shares its row with Edit and
+									// the picker goes under them, so no button is left on a row alone.
+									className={cn("max-sm:order-first compact:flex-1", largeTextButton)}
+									disabled={!hydrated}
+									onClick={onConfirm}
+								>
+									<Check />
+									Confirm
+								</Button>
+							) : null}
+						</div>
+					)}
+					{payment?.kind === "not-followed" && !caution ? (
+						// Its other two ways out: see into the card, or say the payment isn't spending after all.
+						// The narrowest phones have no height for this row: there "Connect the card" ends the why
+						// above and "It’s a card payment" sits beside the picker.
+						<div className="flex flex-wrap gap-2 compact:hidden">
+							<Button variant="outline" className={cn("max-sm:flex-auto", largeTextButton)} asChild>
+								<Link to="/accounts">Connect the card</Link>
+							</Button>
+							<Button
+								variant="outline"
+								className={cn("max-sm:flex-auto", largeTextButton)}
+								disabled={!hydrated}
+								onClick={onPayment}
+							>
+								It’s a card payment
+							</Button>
+						</div>
+					) : null}
+					{onFileWithout && (!empty || payment || between) ? (
+						<Button
+							variant="link"
+							// Wraps on a narrow phone rather than running off the card.
+							size="wrap"
+							className="justify-self-start px-0"
+							disabled={!hydrated}
+							onClick={onFileWithout}
+						>
+							{name} is over: file without a Bucket
 						</Button>
 					) : null}
-					{payment?.kind === "not-followed" ? (
-						// The narrowest phones are the shortest too: there the card's last choice sits beside
-						// the picker, so Skip and Undo stay above the bottom bar. Wider, it has its own row.
-						// It reads "Card payment" there, so the picker beside it has room for its words
-						// (issue 110: it read "Or pick a …"); a row of its own pushed Skip under the bar.
+					{sameMerchant.length > 1 ? (
 						<Button
-							variant="outline"
-							className="order-last shrink-0 px-1.5 text-xs roomy:hidden"
-							aria-label="It’s a card payment"
+							variant="link"
+							// Wraps on a narrow phone rather than running off the card.
+							size="wrap"
+							className="justify-self-start px-0"
 							disabled={!hydrated}
-							onClick={onPayment}
+							onClick={() => onConfirmAll(sameMerchant)}
 						>
-							Card payment
-						</Button>
-					) : null}
-					{item.guess ? (
-						<Button
-							// On a phone Confirm comes first. On the narrowest it shares its row with Edit and
-							// the picker goes under them, so no button is left on a row alone.
-							className={cn("max-sm:order-first compact:flex-1", largeTextButton)}
-							disabled={!hydrated}
-							onClick={onConfirm}
-						>
-							<Check />
-							Confirm
+							Confirm all {sameMerchant.length} from “{item.merchant}”
 						</Button>
 					) : null}
 				</div>
-			)}
-			{payment?.kind === "not-followed" && !caution ? (
-				// Its other two ways out: see into the card, or say the payment isn't spending after all.
-				// The narrowest phones have no height for this row: there "Connect the card" ends the why
-				// above and "It’s a card payment" sits beside the picker.
-				<div className="flex flex-wrap gap-2 compact:hidden">
-					<Button variant="outline" className={cn("max-sm:flex-auto", largeTextButton)} asChild>
-						<Link to="/accounts">Connect the card</Link>
-					</Button>
-					<Button
-						variant="outline"
-						className={cn("max-sm:flex-auto", largeTextButton)}
-						disabled={!hydrated}
-						onClick={onPayment}
-					>
-						It’s a card payment
-					</Button>
-				</div>
-			) : null}
-			{onFileWithout && (!empty || payment || between) ? (
-				<Button
-					variant="link"
-					// Wraps on a narrow phone rather than running off the card.
-					size="wrap"
-					className="justify-self-start px-0"
-					disabled={!hydrated}
-					onClick={onFileWithout}
-				>
-					{name} is over: file without a Bucket
-				</Button>
-			) : null}
-			{sameMerchant.length > 1 ? (
-				<Button
-					variant="link"
-					// Wraps on a narrow phone rather than running off the card.
-					size="wrap"
-					className="justify-self-start px-0"
-					disabled={!hydrated}
-					onClick={() => onConfirmAll(sameMerchant)}
-				>
-					Confirm all {sameMerchant.length} from “{item.merchant}”
-				</Button>
-			) : null}
+			</TransactionTreatment>
 			{actions}
 		</article>
 	);
@@ -2264,6 +2304,7 @@ function ChangeSheet({
 		<TransactionEditor
 			// Starts on the guess, so changing it is one pick.
 			transaction={{ ...item, bucketId: item.guess?.bucketId ?? null }}
+			review={item}
 			today={today}
 			plan={plan}
 			members={members}
@@ -2273,6 +2314,7 @@ function ChangeSheet({
 			splitting={splitting}
 			// Centred from lg: Review has no list to keep beside it.
 			layout="wide"
+			paymentOptions
 		/>
 	);
 }

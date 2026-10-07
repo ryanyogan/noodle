@@ -78,7 +78,7 @@ test("imported Transactions are filed automatically, marked, and a Parent can ch
 	await reloadUntil(page, thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/transactions/$1"), () =>
 		expect(shell).toBeVisible({ timeout: 2_000 }),
 	);
-	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	const costco = page.getByRole("button", {
 		name: "Costco, $61.20, Groceries (filed automatically), For Everyone, from Visa",
 	});

@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import { currentTab, expectSectionHeaderKept, markSectionHeader } from "./section";
 import {
@@ -142,7 +143,7 @@ test("a long Commitment name keeps every field of the form in its column", async
 		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Commitments", exact: true })
 		.click();
-	const addCommitment = page.getByRole("form", { name: "Add a Commitment" });
+	const addCommitment = await openCommitmentForm(page);
 	await addCommitment.getByLabel("New Commitment").fill(longName);
 	await addCommitment.getByLabel("Amount due").fill("210");
 	await addCommitment.getByRole("button", { name: "Add Commitment" }).click();

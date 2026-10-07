@@ -492,7 +492,12 @@ function ListWithPanel({
 			<MasterDetailPane
 				data-slot="master-detail-list"
 				aria-label={listLabel}
-				className={cn(picked && "max-lg:hidden")}
+				className={cn(
+					// While the rail is below the list, both must scroll in the page's flow;
+					// a sticky list would let the rail slide underneath it.
+					besideFrom === "late" && !asideFills && "lg:max-[90rem]:static!",
+					picked && "max-lg:hidden",
+				)}
 			>
 				{list}
 			</MasterDetailPane>

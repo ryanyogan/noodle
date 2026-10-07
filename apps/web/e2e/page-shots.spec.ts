@@ -1112,12 +1112,11 @@ test.beforeAll(async ({ browser }) => {
 			path: `/transactions/${month}`,
 			window: true,
 			ready: async (page) => {
-				// Under 1024 the selects are in the Filters sheet.
-				if ((page.viewportSize()?.width ?? 0) < 1024)
-					await pressFor(
-						page.getByRole("button", { name: /^Filters/ }),
-						page.getByRole("dialog", { name: "Filters" }),
-					);
+				// The less-used controls are in the Filters sheet at every width.
+				await pressFor(
+					page.getByRole("button", { name: /^Filters/ }),
+					page.getByRole("dialog", { name: "Filters" }),
+				);
 				await page
 					.getByRole("combobox", { name: "Account", exact: true })
 					.click({ timeout: 15_000 });
@@ -2286,7 +2285,7 @@ test.beforeAll(async ({ browser }) => {
 				[
 					"51-commitment-add",
 					`/plan/${month}/commitments`,
-					{ role: "textbox", name: "New Commitment" },
+					{ role: "button", name: "Add Commitment" },
 				],
 			] as const
 		).map(
@@ -2302,8 +2301,7 @@ test.beforeAll(async ({ browser }) => {
 						window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 120);
 					});
 					await page.waitForTimeout(300);
-					// A text field is only brought into view: tapping it would not bring a keyboard up here.
-					if (target.role !== "textbox") await control.click({ timeout: 15_000 });
+					await control.click({ timeout: 15_000 });
 					await page.waitForTimeout(500);
 				},
 			}),

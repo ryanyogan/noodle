@@ -11,6 +11,7 @@ import { TransactionBody } from "../../../components/transaction-editor";
 import { dayName } from "../../../format";
 import { membersQuery, monthQuery } from "../../../queries";
 import { ShownFilters } from "../../../transaction-filters-shown";
+import { animateTransactionClose } from "../../../transaction-motion";
 import {
 	monthOfTransaction,
 	nameOf,
@@ -66,12 +67,15 @@ function TransactionPane() {
 	// to the row, as it does when a sheet closes. Esc does the same from the list's route.
 	const close = useCallback(() => {
 		document.querySelector<HTMLElement>('[data-slot="list-row"] button[aria-current]')?.focus();
-		void navigate({
-			to: "/transactions/$month",
-			params: { month },
-			search: true,
-			resetScroll: false,
-		});
+		animateTransactionClose(
+			() =>
+				void navigate({
+					to: "/transactions/$month",
+					params: { month },
+					search: true,
+					resetScroll: false,
+				}),
+		);
 	}, [navigate, month]);
 	// A link, as the other details' Back is: it works before the pane has hydrated.
 	const back = (
@@ -102,11 +106,10 @@ function TransactionPane() {
 				search
 				resetScroll={false}
 				aria-label="Close"
-				onClick={() =>
-					document
-						.querySelector<HTMLElement>('[data-slot="list-row"] button[aria-current]')
-						?.focus()
-				}
+				onClick={(event) => {
+					event.preventDefault();
+					close();
+				}}
 			>
 				<X className="size-5" />
 			</Link>
@@ -157,6 +160,7 @@ function TransactionPane() {
 	return (
 		<Card className={inTable}>
 			<TransactionBody
+				paymentOptions
 				inline
 				wide
 				transaction={transaction}
@@ -207,7 +211,9 @@ function TransactionPane() {
 				}}
 			/>
 			{/* Someone outside the Household paying part of it back (issue 132). */}
-			<OwedBackOnPurchase transaction={transaction} members={members} />
+			<div className="[[data-slot=card]:has([data-payment-mode=true])_&]:hidden">
+				<OwedBackOnPurchase transaction={transaction} members={members} />
+			</div>
 		</Card>
 	);
 }

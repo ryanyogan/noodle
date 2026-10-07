@@ -8,6 +8,7 @@ import { seedSql } from "./seed-sql";
 import {
 	choose,
 	chooseKind,
+	chooseTransactionFilter,
 	clientRendered,
 	createPlannedHousehold,
 	hydrated,
@@ -196,30 +197,30 @@ test("the list filters by Bucket and by who it was For", async ({ browser }) => 
 	await expect(page.getByText(/^Spent in /)).toBeVisible();
 	await expect(page.getByTestId("month-total")).toHaveText("$190.49");
 
-	await choose(page, "Bucket", "Hockey");
+	await chooseTransactionFilter(page, "Bucket", "Hockey");
 	await expect(page).toHaveURL(/bucket=/);
 	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(1);
 	await expect(row(page, "Ice time")).toBeVisible();
 	await expect(page.getByText("Total for these filters")).toBeVisible();
 	await expect(page.getByTestId("month-total")).toHaveText("$40");
 
-	await choose(page, "Bucket", "All Buckets");
-	await choose(page, "For", "Leo");
+	await chooseTransactionFilter(page, "Bucket", "All Buckets");
+	await chooseTransactionFilter(page, "For", "Leo");
 	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(1);
 	await expect(row(page, "Ice time")).toBeVisible();
 
-	await choose(page, "For", "Everyone (shared)");
+	await chooseTransactionFilter(page, "For", "Everyone (shared)");
 	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(2);
 	await expect(row(page, "Ice time")).toHaveCount(0);
 
 	// The filters are in the URL, so a reload keeps them.
 	await page.reload();
-	await expect(page.getByRole("combobox", { name: "For", exact: true })).toHaveText(
+	await expect(page.getByRole("button", { name: "Remove filter Everyone (shared)" })).toHaveText(
 		"Everyone (shared)",
 	);
 	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(2);
 
-	await choose(page, "Bucket", "Hockey");
+	await chooseTransactionFilter(page, "Bucket", "Hockey");
 	await expect(page.getByText("Nothing matches")).toBeVisible();
 	await page.context().close();
 });
@@ -503,11 +504,11 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 	// Matching keeps what was typed in the editor: the note is saved with the Match.
 	await page.getByRole("link", { name: "All in Transactions" }).click();
 	await expect(page).toHaveURL(/account=/);
-	await expect(page.getByRole("combobox", { name: "Account", exact: true })).not.toHaveText(
+	await expect(page.getByRole("list", { name: "Filters", exact: true })).not.toHaveText(
 		"All Accounts",
 	);
 	await expect(list(page).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(3);
-	await choose(page, "Account", "All Accounts");
+	await chooseTransactionFilter(page, "Account", "All Accounts");
 	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
 		"Pro Hockey Life, $64.99, Groceries, For Everyone, waiting for the bank’s copy",
 	);
@@ -641,7 +642,7 @@ test("a Transaction from the bank is renamed, its others follow when asked, and 
 		expect(called("Stumptown Coffee")).toHaveCount(2, { timeout: 2_000 }),
 	);
 	// Rows open their detail once the page is hydrated.
-	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 
 	// The name is the first field; the bank's own wording stays underneath once it differs.
 	await called("Stumptown Coffee").first().click();
@@ -674,7 +675,7 @@ test("a Transaction from the bank is renamed, its others follow when asked, and 
 	await page.getByLabel("Search notes and merchants").fill("");
 
 	// "Use the bank's name" puts one back; the other keeps the Parent's.
-	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	await page
 		.getByRole("button", { name: /^Morning coffee, \$4\.50, Groceries/ })
 		.first()
@@ -995,8 +996,8 @@ test("more than a month: the range changes the rows, their month headings and th
 	await expect(headings).toHaveCount(0);
 
 	// The last 3 months, ending at the month in the address: each month under its name.
-	await hydrated(page.getByLabel("Months"));
-	await choose(page, "Months", "Last 3 months");
+	await hydrated(page.getByLabel("Search notes and merchants"));
+	await chooseTransactionFilter(page, "Months", "Last 3 months");
 	await expect(page).toHaveURL(/range=3m/);
 	await expect(rows).toHaveCount(4);
 	await expect(headings).toHaveCount(3);
@@ -1005,7 +1006,7 @@ test("more than a month: the range changes the rows, their month headings and th
 	// A row of another month names its Bucket.
 	await expect(row(page, "Last C")).toHaveAccessibleName(/^Last C, \$5, Hockey/);
 
-	await choose(page, "Months", "All time");
+	await chooseTransactionFilter(page, "Months", "All time");
 	await expect(page).toHaveURL(/range=all/);
 	await expect(rows).toHaveCount(5);
 	await expect(page.getByText("Spent, all time")).toBeVisible();
@@ -1015,8 +1016,8 @@ test("more than a month: the range changes the rows, their month headings and th
 	await page.goto(`/transactions/${month}?range=3m`);
 	await expect(rows).toHaveCount(4);
 	await expect(page.getByTestId("month-total")).toHaveText("$75");
-	await hydrated(page.getByLabel("Bucket"));
-	await choose(page, "Bucket", "Hockey");
+	await hydrated(page.getByLabel("Search notes and merchants"));
+	await chooseTransactionFilter(page, "Bucket", "Hockey");
 	await expect(rows).toHaveCount(1);
 	await expect(row(page, "Last C")).toBeVisible();
 	await expect(page.getByText(/^These filters, /)).toBeVisible();
@@ -1043,7 +1044,7 @@ test("more than a month: a row of another month is refiled where it is, in its o
 	await page.setViewportSize({ width: 1440, height: 900 });
 	const { month } = await setUpMonths(page);
 	await page.goto(`/transactions/${month}?range=3m`);
-	await hydrated(page.getByLabel("Months"));
+	await hydrated(page.getByLabel("Search notes and merchants"));
 	await refileButton(page, "Last B", "Groceries").click();
 	const saved = savedBy(page, "updateTransaction");
 	await page.getByRole("option", { name: "Hockey", exact: true }).click();
@@ -1065,7 +1066,7 @@ test("a month that is over: its row's picker finds its Buckets but offers no new
 	await page.setViewportSize({ width: 1440, height: 900 });
 	const { month } = await setUpMonths(page);
 	await page.goto(`/transactions/${month}?range=3m`);
-	await hydrated(page.getByLabel("Months"));
+	await hydrated(page.getByLabel("Search notes and merchants"));
 	const refile = (title: string) =>
 		list(page).getByRole("button", { name: new RegExp(`^Refile ${title}, now `) });
 
@@ -1093,7 +1094,7 @@ test("more than a month: all in the range are selected and deleted across its mo
 	await page.setViewportSize({ width: 1440, height: 900 });
 	const { month } = await setUpMonths(page);
 	await page.goto(`/transactions/${month}?range=3m`);
-	await hydrated(page.getByLabel("Months"));
+	await hydrated(page.getByLabel("Search notes and merchants"));
 	const rows = list(page).locator("button:not([role=checkbox]):not([data-cell])");
 	await expect(rows).toHaveCount(4);
 	const bar = page.getByRole("region", { name: "Selecting Transactions" });
@@ -1165,7 +1166,7 @@ test("a Transaction from before the first Plan: its picker says the month had no
 	await page.setViewportSize({ width: 1440, height: 900 });
 	const { month } = await setUpBeforePlan(page);
 	await page.goto(`/transactions/${month}?range=all`);
-	await hydrated(page.getByLabel("Months"));
+	await hydrated(page.getByLabel("Search notes and merchants"));
 	const waits = nav(page).getByRole("link", { name: "1 to review" });
 	await expect(waits).toBeVisible();
 	const refile = (title: string) =>

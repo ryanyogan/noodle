@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import {
 	accountKindLabel,
@@ -111,7 +112,7 @@ async function openLine(page: Page, amount: string) {
 async function openTransactions(page: Page, thisMonth: string) {
 	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/transactions/$1"));
 	// A cold dev server builds the page first: rows open once it is hydrated.
-	await expect(page.getByLabel("Bucket")).toBeEnabled({ timeout: 30_000 });
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled({ timeout: 30_000 });
 }
 
 test("“It’s a card payment” asks which card, names it on the Transfer, and remembers the wording", async ({
@@ -289,6 +290,7 @@ test("a payment to a card kept by hand is filed in the Commitment that pays it d
 	);
 	// The Commitment that pays the card down.
 	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/plan/$1/commitments"));
+	await openCommitmentForm(page);
 	await expect(page.getByLabel("New Commitment")).toBeEnabled({ timeout: 30_000 });
 	await page.getByLabel("New Commitment").fill("Apple Card bill");
 	await page.getByLabel("Amount due").fill("300");
@@ -456,7 +458,9 @@ for (const view of ["?view=list", ""] as const) {
 		await expect(cards.first()).toBeVisible(SETTLED);
 		await expect(said).toHaveCount(0);
 		await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/plan/$1/commitments"));
-		await expect(page.getByLabel("New Commitment")).toBeEnabled({ timeout: 30_000 });
+		await expect(page.getByRole("button", { name: "Add Commitment", exact: true })).toBeEnabled({
+			timeout: 30_000,
+		});
 		await expect(page.getByRole("main").getByText(/discover/i)).toHaveCount(0);
 
 		// Again, and kept: it's in the Plan once, and Review has nothing left of it.
@@ -519,6 +523,7 @@ for (const view of ["?view=list", ""] as const) {
 /** A Commitment, "Apple Card bill", that pays the Apple Card down. */
 async function payDown(page: Page, thisMonth: string) {
 	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/plan/$1/commitments"));
+	await openCommitmentForm(page);
 	await expect(page.getByLabel("New Commitment")).toBeEnabled({ timeout: 30_000 });
 	await page.getByLabel("New Commitment").fill("Apple Card bill");
 	await page.getByLabel("Amount due").fill("300");
@@ -561,4 +566,77 @@ test("a card whose purchases won’t come into Noodle says so where its payment 
 	if (process.env.CARD_PAYMENT_SHOTS) {
 		await page.screenshot({ path: `${process.env.CARD_PAYMENT_SHOTS}/they-wont-hint.png` });
 	}
+});
+
+test("an assigned Apple payment links to a manually added card from Transactions", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [["Apple Temp Holder", "4,500"]],
+	});
+	const thisMonth = page.url();
+	await addAccount(page, { name: "Apple Card", kind: "credit-card", balance: "4,132.69" });
+	await uploadStatement(
+		page,
+		{ name: "Checking", kind: "checking", balance: "5,000" },
+		"apple-payment.csv",
+		[HEADER, `DEBIT,${await today(page)},"Apple Card",-4132.69,ACH_DEBIT,,`],
+	);
+	await openTransactions(page, thisMonth);
+	await unassigned(page, "4,132.69").click();
+	const editor = page.locator('[data-slot="transaction-detail"]');
+	await choose(editor, "Assigned to", "Apple Temp Holder");
+	await editor.getByRole("button", { name: "Save", exact: true }).click();
+	await expect(editor).toBeHidden();
+	const apple = page.getByRole("button", { name: /Apple.*\$4,132.69, Apple Temp Holder/ });
+	await expect(apple).toBeVisible(SETTLED);
+	await expect(page.getByLabel("Bucket", { exact: true })).toBeHidden();
+	await page.getByRole("button", { name: /^Filters/ }).click();
+	await expect(page.getByRole("dialog", { name: "Filters", exact: true })).toBeVisible();
+	await page
+		.getByRole("dialog", { name: "Filters", exact: true })
+		.getByRole("button", { name: "Apply", exact: true })
+		.click();
+	await apple.click();
+	await expect(editor.getByLabel("Amount", { exact: true })).toBeVisible();
+	await editor.getByRole("link", { name: "Close", exact: true }).click();
+	await expect(editor).toBeHidden();
+	await apple.click();
+	await expect(editor.getByLabel("Amount", { exact: true })).toBeEditable();
+	await page.screenshot({
+		path: "/tmp/noodle-transactions-spending.png",
+		fullPage: true,
+		animations: "disabled",
+	});
+	await editor.getByRole("button", { name: "Credit card payment", exact: true }).click();
+	await choose(editor, "Payment to", "Apple Card");
+	await expect(editor).toContainText("won’t count as spending in a bucket");
+	await page.screenshot({
+		path: "/tmp/noodle-transactions-payment.png",
+		fullPage: true,
+		animations: "disabled",
+	});
+	await page.setViewportSize({ width: 393, height: 852 });
+	await expect(editor.getByLabel("Payment to")).toBeVisible();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
+	await page.screenshot({
+		path: "/tmp/noodle-transactions-payment-phone.png",
+		fullPage: true,
+		animations: "disabled",
+	});
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await editor.getByRole("button", { name: "Link payment", exact: true }).click();
+	await expect(editor).toBeHidden(SETTLED);
+	await expect(page.getByTestId("month-total")).toHaveText("$0", SETTLED);
+	await expect(
+		page.getByRole("button", { name: /Card payment.*Transfer.*Apple Card/ }),
+	).toBeVisible(SETTLED);
+	await page.reload();
+	await expect(page.getByTestId("month-total")).toHaveText("$0", SETTLED);
+	await page.context().close();
 });

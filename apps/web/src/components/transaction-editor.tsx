@@ -27,6 +27,7 @@ import { ulid } from "ulid";
 import { cantSaveSentence, isUnassigned, noSplitSentence, nothingToFileIn } from "../before-plan";
 import { dayName, formatMoney, formatMoneyInput } from "../format";
 import { forLabel, type MemberSummary } from "../members";
+import type { ReviewItem } from "../review";
 import type {
 	Assignment,
 	SplitEdit,
@@ -43,6 +44,7 @@ import { MoneyDetail, TransferSection } from "./money-sections";
 import { NoBuckets, useFileWithout } from "./no-buckets";
 import { Confirm } from "./plan-editing";
 import { ReceiptSection } from "./receipt-section";
+import { TransactionTreatment } from "./transaction-treatment";
 
 /** Why an imported Transaction is in its Bucket, when categorization put it there. */
 const AUTO_FILED: Record<NonNullable<TransactionRow["autoFiled"]>, string> = {
@@ -100,6 +102,8 @@ export function TransactionEditor({
 	onClose,
 	splitting = false,
 	layout = "side",
+	paymentOptions = false,
+	review,
 }: {
 	/** The Transaction being edited; the sheet is open while there is one. */
 	transaction: TransactionRow | null;
@@ -117,6 +121,8 @@ export function TransactionEditor({
 	 * centred dialog where there is no list to keep in view (Review, issue 107).
 	 */
 	layout?: "side" | "wide";
+	paymentOptions?: boolean;
+	review?: Pick<ReviewItem, "merchant" | "guess" | "for">;
 }) {
 	return (
 		<Sheet open={transaction !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
@@ -131,6 +137,8 @@ export function TransactionEditor({
 						onChange={onChange}
 						onClose={onClose}
 						splitting={splitting}
+						paymentOptions={paymentOptions}
+						review={review}
 						heading={(title, description) => (
 							<SheetHeader title={title} description={description} />
 						)}
@@ -156,6 +164,8 @@ export function TransactionBody({
 	heading,
 	inline = false,
 	wide = false,
+	paymentOptions = false,
+	review,
 	splitting = false,
 }: {
 	transaction: TransactionRow;
@@ -169,6 +179,8 @@ export function TransactionBody({
 	inline?: boolean;
 	/** Under its row in the Transactions table (issue 99): two columns once there is room. */
 	wide?: boolean;
+	paymentOptions?: boolean;
+	review?: Pick<ReviewItem, "merchant" | "guess" | "for">;
 	/** Opens on splitting it, as Review's card's Split does. */
 	splitting?: boolean;
 }) {
@@ -202,6 +214,21 @@ export function TransactionBody({
 			</>
 		);
 	}
+	const editor = (
+		<EditForm
+			// A fresh form for each Transaction opened.
+			key={formKey}
+			transaction={transaction}
+			plan={plan}
+			members={members}
+			onChange={onChange}
+			onClose={onClose}
+			inline={inline}
+			wide={wide}
+			today={today}
+			splitting={splitting}
+		/>
+	);
 	return (
 		<>
 			{heading("Edit Transaction", day)}
@@ -211,19 +238,18 @@ export function TransactionBody({
 				today={today}
 				className="mb-4"
 			/>
-			<EditForm
-				// A fresh form for each Transaction opened.
-				key={formKey}
-				transaction={transaction}
-				plan={plan}
-				members={members}
-				onChange={onChange}
-				onClose={onClose}
-				inline={inline}
-				wide={wide}
-				today={today}
-				splitting={splitting}
-			/>
+			{paymentOptions && transaction.importedFrom && transaction.splits.length === 0 ? (
+				<TransactionTreatment
+					key={formKey}
+					transaction={transaction}
+					onDone={onClose}
+					review={review}
+				>
+					{editor}
+				</TransactionTreatment>
+			) : (
+				editor
+			)}
 		</>
 	);
 }
@@ -589,8 +615,8 @@ function EditForm({
 									disabled={!hydrated}
 									value={assignment}
 									onValueChange={setAssignment}
-									placeholder="Choose a Bucket"
-									searchPlaceholder="Search"
+									placeholder="Choose a bucket or commitment"
+									searchPlaceholder="Search buckets and commitments…"
 									aria-invalid={invalid === "assignment" || undefined}
 									choices={choices}
 								/>
@@ -664,7 +690,13 @@ function EditForm({
 					</div>
 				) : (
 					<>
-						<ForPicker members={members} value={forMemberIds} onChange={setForMemberIds} multiple />
+						<ForPicker
+							members={members}
+							value={forMemberIds}
+							onChange={setForMemberIds}
+							multiple
+							className={wide ? "max-w-2xl" : undefined}
+						/>
 						{none ? (
 							// Nothing to split between (issue 117): said, not found out on Save.
 							<p className="text-muted-foreground text-sm" data-testid="no-split">

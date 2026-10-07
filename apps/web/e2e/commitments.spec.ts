@@ -1,4 +1,5 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import {
 	choose,
@@ -28,8 +29,7 @@ const expected = (page: Page, total: string) => page.getByText(`${total} expecte
 const edit = (page: Page, commitment: string) =>
 	page.getByRole("button", { name: `Edit ${commitment}` });
 const planRow = (page: Page, commitment: string) =>
-	page.getByRole("listitem").filter({ has: edit(page, commitment) });
-const addForm = (page: Page) => page.getByRole("form", { name: "Add a Commitment" });
+	page.getByRole("row").filter({ has: edit(page, commitment) });
 const commitmentRow = (page: Page, name: string) =>
 	page.getByRole("listitem", { name: new RegExp(`^${name}: `) });
 
@@ -90,7 +90,7 @@ async function addCommitment(
 		dueDate,
 	}: { name: string; due: string; cadence?: string; dueDate?: string },
 ) {
-	const form = addForm(page);
+	const form = await openCommitmentForm(page);
 	await form.getByLabel("New Commitment").fill(name);
 	await form.getByLabel("Amount due").fill(due);
 	if (cadence) await choose(form, "How often", cadence);
@@ -129,7 +129,7 @@ test("a Parent adds, edits, and ends Commitments, and Free to Spend follows", as
 		dueDate: `${month}-01`,
 	});
 	await expect(planRow(page, "Daycare")).toContainText(
-		`$${(500 * daycareCharges).toLocaleString("en-US")} this month`,
+		`$${(500 * daycareCharges).toLocaleString("en-US")}`,
 	);
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText(
@@ -142,8 +142,8 @@ test("a Parent adds, edits, and ends Commitments, and Free to Spend follows", as
 	await expect(planRow(page, "Mortgage")).toContainText("$2,600");
 	await editCommitment(page, "Car insurance", { dueDate: `${nextMonth(month)}-15` });
 	// Not due this month now: it shows what it takes a month, and when it's next due.
-	await expect(planRow(page, "Car insurance")).toContainText("A month’s share of");
-	await expect(planRow(page, "Car insurance")).toContainText("yearly · next due");
+	await expect(planRow(page, "Car insurance")).toContainText("$75/mo average");
+	await expect(planRow(page, "Car insurance")).toContainText("Next");
 	const afterEdits = 9_000 - 1_200 - 2_600 - 500 * daycareCharges;
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText(`Free to Spend$${afterEdits.toLocaleString("en-US")}`);
@@ -154,7 +154,7 @@ test("a Parent adds, edits, and ends Commitments, and Free to Spend follows", as
 	await openCommitments(page);
 	await expect(planRow(page, "Mortgage")).toContainText("$2,600");
 	await page.getByText("Not this month").click();
-	await expect(planRow(page, "Car insurance")).toContainText("yearly · next due");
+	await expect(planRow(page, "Car insurance")).toContainText("Next");
 
 	// This Month shows what's expected against what's been paid.
 	await backToPlan(page);
@@ -232,7 +232,7 @@ test("a failed save is undone and can be retried", async ({ browser }) => {
 
 	const add = serverFn("addCommitment");
 	await page.route(add, (route) => route.fulfill({ status: 500, body: "Server error" }));
-	const form = addForm(page);
+	const form = await openCommitmentForm(page);
 	await form.getByLabel("New Commitment").fill("Netflix");
 	await form.getByLabel("Amount due").fill("15.99");
 	await form.getByRole("button", { name: "Add Commitment" }).click();

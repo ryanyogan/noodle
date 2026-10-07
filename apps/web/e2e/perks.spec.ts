@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import { expectSectionHeaderKept, markSectionHeader } from "./section";
 import {
@@ -55,7 +56,7 @@ async function addSource(page: Page, name: string, pageUrl?: string) {
 }
 
 async function addCommitment(page: Page, name: string, due: string) {
-	const form = page.getByRole("form", { name: "Add a Commitment" });
+	const form = await openCommitmentForm(page);
 	await form.getByLabel("New Commitment").fill(name);
 	await form.getByLabel("Amount due").fill(due);
 	await form.getByRole("button", { name: "Add Commitment" }).click();

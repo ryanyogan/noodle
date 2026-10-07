@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { settledAxe } from "./axe";
+import { openCommitmentForm } from "./commitment-form";
 import { measure } from "./overflow";
 import { createTestParent } from "./parents";
 import {
@@ -32,7 +33,7 @@ const plan = { baseline: "6,000", buckets: [["Groceries", "1,200"]] as [string, 
 const addForm = (page: Page) => page.getByRole("form", { name: "Add a Commitment" });
 const owedCard = (page: Page) => page.getByRole("region", { name: "Owed", exact: true });
 const payments = (page: Page) => page.getByRole("region", { name: /^Payments/ });
-const row = (page: Page, name: string) => page.getByRole("listitem").filter({ hasText: name });
+const row = (page: Page, name: string) => page.getByRole("row").filter({ hasText: name });
 
 /** A day `back` days before today, in the browser's time zone, which is the Household's. */
 const daysAgo = (page: Page, back: number) =>
@@ -83,7 +84,7 @@ const openAccount = async (page: Page, name: string) => {
 
 const openCommitments = async (page: Page, month: string) => {
 	await page.goto(new URL(`/plan/${month}/commitments`, page.url()).href);
-	await expect(addForm(page)).toBeVisible();
+	await expect(page.getByRole("button", { name: "Add Commitment", exact: true })).toBeVisible();
 };
 
 /** Picks a card or loan under "Pays down": its option also carries what's owed. */
@@ -121,6 +122,7 @@ test("a Commitment pays down a card kept by hand: a payment brings what's owed d
 
 	// The Commitment: "Pays down" offers the card with what's owed, and says what linking means.
 	await openCommitments(page, month);
+	await openCommitmentForm(page);
 	await addForm(page).getByLabel("New Commitment").fill("Amex payment");
 	await addForm(page).getByLabel("Amount due").fill("500");
 	await paysDown(addForm(page), page, /^American Express/);
@@ -255,6 +257,7 @@ test("a card Noodle follows needs the balance-I'm-carrying tick", async ({ brows
 	).toBeVisible();
 
 	await openCommitments(page, month);
+	await openCommitmentForm(page);
 	await addForm(page).getByLabel("New Commitment").fill("Card minimum");
 	await addForm(page).getByLabel("Amount due").fill("90");
 	await paysDown(addForm(page), page, /^Chase Freedom/);
@@ -306,6 +309,7 @@ test("a payment out of checking to a card a Commitment pays down is offered in R
 	await expect(upload).toBeHidden();
 
 	await openCommitments(page, month);
+	await openCommitmentForm(page);
 	await addForm(page).getByLabel("New Commitment").fill("Amex payment");
 	await addForm(page).getByLabel("Amount due").fill("2,300");
 	await paysDown(addForm(page), page, /^American Express/);

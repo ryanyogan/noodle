@@ -1,31 +1,28 @@
 import { lumpyMonths, monthlyEquivalent, monthOfDay, yearlyCost } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
+import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@noodle/ui/components/collapsible";
-import { List } from "@noodle/ui/components/list";
 import { Money } from "@noodle/ui/components/money";
 import { RowButton } from "@noodle/ui/components/row-button";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, linkOptions } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { createFileRoute, Link, linkOptions, useHydrated } from "@tanstack/react-router";
+import { ChevronRight, Plus } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
-import {
-	AddCommitment,
-	CommitmentEditor,
-	useCommitmentChanges,
-} from "../../../components/commitment-editor";
+import { AddCommitment, useCommitmentChanges } from "../../../components/commitment-editor";
+import { CommitmentTable } from "../../../components/commitment-table";
 import { PlanMasterDetail, TotalsCard } from "../../../components/plan-page";
 import { SectionPending } from "../../../components/section-layout";
 import { Suggested } from "../../../components/suggested";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
-import { usePlanChanges } from "../../../plan-changes";
 import { commitmentsQuery, goalsQuery, suggestionsQuery, useMonthState } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/commitments")({
@@ -48,10 +45,12 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/commitment
 });
 
 function PlanCommitments() {
+	const hydrated = useHydrated();
 	const { month } = Route.useRouteContext();
 	const start = Route.useSearch();
+	const [prefill, setPrefill] = useState(start);
 	const state = useMonthState(month);
-	const changes = usePlanChanges(month);
+	const [adding, setAdding] = useState(Boolean(start.name || start.amount || start.paysDown));
 	const all = useSuspenseQuery(commitmentsQuery()).data;
 	const lumpy = lumpyMonths(all, month, 12);
 	// Owned here: ending a Commitment removes its row, which must not take the error with it.
@@ -69,19 +68,8 @@ function PlanCommitments() {
 		setNotDueCount(notDue.length);
 		if (notDue.length > notDueCount) setShowNotDue(true);
 	}
-	const row = (commitment: (typeof state.commitments)[number]) => (
-		<CommitmentEditor
-			key={commitment.id}
-			month={month}
-			commitment={commitment}
-			editable={state.editable}
-			was={changes.commitments[commitment.id]}
-			changes={writes}
-		/>
-	);
 	const aside = (
 		<>
-			{state.editable ? <AddCommitment month={month} start={start} /> : null}
 			{state.commitments.length > 0 ? (
 				<>
 					<p className="text-sm text-muted-foreground sm:px-1">
@@ -136,6 +124,7 @@ function PlanCommitments() {
 			// A Commitment opens in a panel from the right; the list keeps its width and columns.
 			panel={{
 				size: "wide",
+				besideFrom: "late",
 				close: linkOptions({ to: "/plan/$month/commitments", params: { month } }),
 			}}
 			editable={state.editable}
@@ -172,14 +161,49 @@ function PlanCommitments() {
 			}
 			aside={aside}
 		>
-			<div className="grid gap-3">
+			<div className="grid gap-5">
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div className="grid gap-1">
+						<h2 className="text-lg font-semibold">Your commitments</h2>
+						<p className="text-sm text-muted-foreground">
+							Recurring bills, what’s due, and what you’ve paid.
+						</p>
+					</div>
+					{state.editable ? (
+						<Button disabled={!hydrated} onClick={() => setAdding(true)}>
+							<Plus />
+							Add Commitment
+						</Button>
+					) : null}
+				</div>
+				<Sheet open={adding} onOpenChange={setAdding}>
+					<SheetContent>
+						<SheetHeader
+							title="Add a Commitment"
+							description="Set up a recurring bill or regular payment."
+						/>
+						<AddCommitment
+							month={month}
+							start={prefill}
+							onAdded={() => {
+								setAdding(false);
+								setPrefill({});
+							}}
+						/>
+					</SheetContent>
+				</Sheet>
 				{writes.failed}
 				{state.commitments.length > 0 ? (
 					<>
 						{due.length > 0 ? (
 							<Section aria-labelledby="commitments-due">
 								<SectionHeader id="commitments-due" title="Due this month" count={due.length} />
-								<List>{due.map(row)}</List>
+								<CommitmentTable
+									month={month}
+									commitments={due}
+									editable={state.editable}
+									changes={writes}
+								/>
 							</Section>
 						) : null}
 						{notDue.length > 0 ? (
@@ -193,7 +217,12 @@ function PlanCommitments() {
 									<Badge variant="count">{notDue.length}</Badge>
 								</CollapsibleTrigger>
 								<CollapsibleContent>
-									<List>{notDue.map(row)}</List>
+									<CommitmentTable
+										month={month}
+										commitments={notDue}
+										editable={state.editable}
+										changes={writes}
+									/>
 								</CollapsibleContent>
 							</Collapsible>
 						) : null}

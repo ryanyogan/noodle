@@ -11,7 +11,14 @@ import {
 } from "@noodle/ui/components/tooltip";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeftRight, Check, Sparkles, Split as SplitIcon, Target } from "lucide-react";
+import {
+	ArrowLeftRight,
+	Check,
+	ChevronRight,
+	Sparkles,
+	Split as SplitIcon,
+	Target,
+} from "lucide-react";
 import { BANK_TOOK_BACK_WORD } from "../bank-took-back";
 import { monogram } from "../buckets";
 import { askCardPayment } from "../card-payments";
@@ -181,6 +188,13 @@ function NameCell({
 						onClick={() => onEdit(transaction)}
 					>
 						<span className="truncate">{view.title}</span>
+						<ChevronRight
+							aria-hidden="true"
+							className={cn(
+								"size-3.5 shrink-0 text-subtle-foreground transition-transform motion-reduce:transition-none max-lg:hidden",
+								open && "rotate-90 text-primary",
+							)}
+						/>
 					</Button>
 				)}
 				<span className="peer/badges col-start-1 row-start-2 me-1.5 flex shrink-0 items-center gap-1.5 empty:hidden sm:col-start-2 sm:row-start-1 sm:ms-1.5 sm:me-0">

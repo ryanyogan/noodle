@@ -288,13 +288,14 @@ test("beside the list the panel covers the rail and none of the list's columns",
 	browser,
 }) => {
 	test.slow();
-	// The rail, the gap and the gutter, less 16 px: 360 + 32 + 40 - 16 at 1280, 440 + 32 + 40 - 16 at 1920.
+	// Commitments keeps its rail below the table until 1440. Beside it, the panel is the
+	// rail, gap and gutter less 16 px: 380 + 32 + 40 - 16 at 1440, 440 + 32 + 40 - 16 at 1920.
 	for (const [width, wide] of [
-		[1280, 416],
+		[1440, 436],
 		[1920, 496],
 	] as const) {
 		const page = await signedInPage(browser, parent.email, at(width));
-		if (width === 1280) await household(page);
+		if (width === 1440) await household(page);
 		else {
 			await page.goto(`/plan/${month}/commitments`);
 			await expect(row(page, "Rent")).toBeVisible();

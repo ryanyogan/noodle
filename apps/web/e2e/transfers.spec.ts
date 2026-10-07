@@ -80,7 +80,7 @@ async function uploadStatement(
 /** Opens this month's Transactions, once rows can be opened (the page is hydrated). */
 async function openTransactions(page: Page, thisMonth: string) {
 	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/transactions/$1"));
-	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 }
 
 test("paying the card from checking is one Transfer, which counts nowhere", async ({ browser }) => {
@@ -124,7 +124,7 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 		page.getByRole("row").filter({ has: payment }).first().locator("[data-slot=row-kind]"),
 	).toHaveText("Transfer");
 	// Rows open their detail once the page is hydrated.
-	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	await payment.click();
 	let sheet = page
 		.locator("[role=dialog], [data-slot=transaction-detail]")
@@ -262,7 +262,7 @@ test("money back linked as a Refund goes back to the purchase's Bucket", async (
 	const moneyBack = page.getByRole("button", { name: "REI, +$24.99, Money back, from Visa" });
 	await reloadUntil(page, page.url(), () => expect(moneyBack).toBeVisible({ timeout: 2_000 }));
 	// Rows open their detail once the page is hydrated.
-	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	await moneyBack.click();
 	const sheet = page
 		.locator("[role=dialog], [data-slot=transaction-detail]")

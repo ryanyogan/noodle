@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, signedInPage, switchTo } from "./session";
 
@@ -46,7 +47,7 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Commitments", exact: true })
 		.click();
-	const addCommitment = page.getByRole("form", { name: "Add a Commitment" });
+	const addCommitment = await openCommitmentForm(page);
 	await addCommitment.getByLabel("New Commitment").fill("Daycare");
 	await addCommitment.getByLabel("Amount due").fill("1,400");
 	await addCommitment.getByRole("button", { name: "Add Commitment" }).click();

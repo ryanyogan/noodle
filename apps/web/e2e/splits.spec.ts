@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
 	choose,
+	chooseTransactionFilter,
 	clientRendered,
 	createPlannedHousehold,
 	hydrated,
@@ -119,13 +120,13 @@ test("splitting a Quick Add spends each Split from its own Bucket, For its own M
 	);
 
 	// Filters match the Splits: Hockey's Split is For Leo; Groceries' is For everyone.
-	await choose(page, "Bucket", "Hockey");
+	await chooseTransactionFilter(page, "Bucket", "Hockey");
 	await expect(costco(page)).toBeVisible();
-	await choose(page, "For", "Leo");
+	await chooseTransactionFilter(page, "For", "Leo");
 	await expect(costco(page)).toBeVisible();
-	await choose(page, "Bucket", "Groceries");
+	await chooseTransactionFilter(page, "Bucket", "Groceries");
 	await expect(page.getByText("Nothing matches")).toBeVisible();
-	await choose(page, "For", "Everyone (shared)");
+	await chooseTransactionFilter(page, "For", "Everyone (shared)");
 	await expect(costco(page)).toBeVisible();
 
 	await nav(page).getByRole("link", { name: "This Month" }).click();

@@ -290,7 +290,12 @@ export function IncomeTable({
 		},
 	];
 
-	if (rows.length === 0) return null;
+	if (rows.length === 0)
+		return (
+			<Card className="p-5 text-sm text-muted-foreground">
+				No income recorded this month. Add income, or mark a deposit below as income.
+			</Card>
+		);
 	return (
 		<div className="grid gap-4">
 			<DataTable

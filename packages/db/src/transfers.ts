@@ -102,17 +102,22 @@ const inRefund = () =>
 	sql`exists (select 1 from ${refunds} where ${refunds.refundTransactionId} = ${transactions.id} and ${refunds.removedAt} is null)`;
 
 /**
- * An imported Transaction that could be a side of a Transfer: not already one, not a Refund, and
- * nothing a Parent has assigned or split.
+ * An explicit card payment may correct an existing assignment, but never a Split or Goal.
+ * The assignment stays on the row for Undo; counting excludes it while it is a Transfer.
  */
-export const transferable = and(
+const paymentMarkable = and(
 	eq(transactions.source, "import"),
 	sql`not ${inTransfer()}`,
 	sql`not ${inRefund()}`,
-	isNull(transactions.bucketId),
-	isNull(transactions.commitmentId),
 	isNull(transactions.goalId),
 	sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
+) as SQL;
+
+/** Automatic pairing and ordinary Transfer marking still leave assigned spending alone. */
+export const transferable = and(
+	paymentMarkable,
+	isNull(transactions.bucketId),
+	isNull(transactions.commitmentId),
 ) as SQL;
 
 /** Income that could be the arriving side of a Transfer: imported, and not already one. */
@@ -418,6 +423,7 @@ async function loadSelf(db: Db, viewer: Viewer, transactionId: string) {
 			account: accountLabelSql,
 			changeable: sql<boolean>`${changeableBy(viewer)}`.mapWith(Boolean),
 			transferable: sql<boolean>`${transferable}`.mapWith(Boolean),
+			paymentMarkable: sql<boolean>`${paymentMarkable}`.mapWith(Boolean),
 		})
 		.from(transactions)
 		.leftJoin(accounts, eq(accounts.id, transactions.accountId))
@@ -494,6 +500,8 @@ export async function markTransfer(
 		transferId: string;
 		transactionId: string;
 		reason?: TransferReason;
+		/** Explicit card payment: allow a mistaken filing, preserved for Undo. Restrict pairing to this card. */
+		cardPayment?: { accountId: string | null };
 		/** The Household's day; UTC's when left out. */
 		today?: DayKey;
 	},
@@ -511,7 +519,12 @@ export async function markTransfer(
 		);
 	if (ended) return { ok: false, reason: "month-ended" };
 	const self = await loadSelf(db, viewer, input.transactionId);
-	if (!self?.transferable || !self.changeable || self.amount === 0) {
+	if (
+		!self ||
+		!(input.cardPayment ? self.paymentMarkable : self.transferable) ||
+		!self.changeable ||
+		self.amount === 0
+	) {
 		return transferOutcome(db, viewer, input.transferId, false);
 	}
 	const isOut = self.amount > 0;
@@ -529,7 +542,10 @@ export async function markTransfer(
 		accountId: self.accountId ?? "",
 		income: false,
 	};
-	const [pair] = isOut ? transferPairs([me], ins) : transferPairs(outs, [me]);
+	const destinations = input.cardPayment
+		? ins.filter((side) => side.accountId === input.cardPayment?.accountId)
+		: ins;
+	const [pair] = isOut ? transferPairs([me], destinations) : transferPairs(outs, [me]);
 	const peer =
 		pair && [...outs, ...ins].find((side) => side.id === (isOut ? pair.inId : pair.outId));
 	const outId = isOut ? self.id : (peer?.id ?? null);
@@ -556,11 +572,13 @@ export async function markTransfer(
 					and(
 						eq(transactions.id, self.id),
 						changeableBy(viewer),
-						transferable,
+						input.cardPayment ? paymentMarkable : transferable,
 						purchaseMayMove(input.today),
 						// The other side too, when it is a purchase.
 						outId && outId !== self.id ? purchaseMayMove(input.today, sql`${outId}`) : undefined,
-						outId ? stillTransferable(householdId, outId, ">") : undefined,
+						outId && !(input.cardPayment && outId === self.id)
+							? stillTransferable(householdId, outId, ">")
+							: undefined,
 						inTransactionId ? stillTransferable(householdId, inTransactionId, "<") : undefined,
 						inIncomeId
 							? sql`exists (select 1 from income i where i.id = ${inIncomeId} and i.household_id = ${householdId}

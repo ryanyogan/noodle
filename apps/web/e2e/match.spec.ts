@@ -90,7 +90,7 @@ test("the bank's copy of a Quick Add is Matched, so it counts once", async ({ br
 		}),
 	);
 	// Rows open their detail once the page is hydrated, as the filters are.
-	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	const groceries = page.getByRole("button", {
 		name: "Trader Joe's, $42.17, Groceries, For Everyone, Matched in Visa",
 	});
@@ -172,7 +172,7 @@ test("Review asks whether a tipped bank line is a Quick Add's copy, and Matches 
 
 	// Target's bank copy hasn't come in yet: its Match section says it's waiting for it.
 	await page.goto(new URL("/transactions", page.url()).href);
-	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	await page.getByRole("button", { name: /^Target, \$45, Groceries/ }).click();
 	await expect(editSheet(page).getByRole("region", { name: "Waiting for bank" })).toContainText(
 		"When the bank's copy comes in",

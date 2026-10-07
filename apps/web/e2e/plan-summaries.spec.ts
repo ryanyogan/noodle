@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, signedInPage } from "./session";
 
@@ -58,7 +59,7 @@ test("Plan summaries show Money, a whole history has no History starts, a Commit
 
 		// A Commitment: its summary is Money, its page's stats in equal columns.
 		await page.goto(`/plan/${month}/commitments`);
-		const add = page.getByRole("form", { name: "Add a Commitment" });
+		const add = await openCommitmentForm(page);
 		await add.getByLabel("New Commitment").fill("Daycare");
 		await add.getByLabel("Amount due").fill("1,400");
 		await add.getByRole("button", { name: "Add Commitment" }).click();

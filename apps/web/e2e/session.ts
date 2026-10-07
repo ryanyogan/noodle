@@ -420,6 +420,15 @@ export async function choose(scope: Page | Locator, label: string, option: strin
 	await expect(page.getByRole("listbox")).toBeHidden();
 }
 
+/** Changes a Transactions filter through its sheet, on desktop and phone alike. */
+export async function chooseTransactionFilter(page: Page, label: string, option: string) {
+	await page.getByRole("button", { name: /^Filters/ }).click();
+	const sheet = page.getByRole("dialog", { name: "Filters", exact: true });
+	await choose(sheet, label, option);
+	await sheet.getByRole("button", { name: "Apply", exact: true }).click();
+	await expect(sheet).toBeHidden();
+}
+
 /**
  * Picks a day (yyyy-mm-dd) in a DatePicker: opens it by its label, sets the calendar's year and
  * month dropdowns, then clicks the day. No typing, as a person would.

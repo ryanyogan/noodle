@@ -164,7 +164,7 @@ export function CommitmentEditor({
 }
 
 /** Where a Commitment stands this month, for its column in a wide list. */
-function PaidState({ commitment: given }: { commitment: CommitmentState }) {
+export function PaidState({ commitment: given }: { commitment: CommitmentState }) {
 	// Money Paid back into it this month is its own line, never "$600 less" (issue 132).
 	const commitment = paymentsView(given);
 	const paidBack = paidBackIntoText(commitment.paidBack);
@@ -581,7 +581,15 @@ export type CommitmentStart = {
 	paysDown?: string | undefined;
 };
 
-export function AddCommitment({ month, start }: { month: MonthKey; start?: CommitmentStart }) {
+export function AddCommitment({
+	month,
+	start,
+	onAdded,
+}: {
+	month: MonthKey;
+	start?: CommitmentStart;
+	onAdded?: () => void;
+}) {
 	const hydrated = useHydrated();
 	const id = useId();
 	// Only the first Commitment added starts from what Review passed.
@@ -592,7 +600,12 @@ export function AddCommitment({ month, start }: { month: MonthKey; start?: Commi
 	const refreshOwed = useRefreshOwed();
 	const add = usePlanChange(month, {
 		save: (data: CommitmentVariables) =>
-			tellPaysDownRefusal(addCommitment({ data }), data.name).finally(() => refreshOwed(data)),
+			tellPaysDownRefusal(addCommitment({ data }), data.name)
+				.finally(() => refreshOwed(data))
+				.then((result) => {
+					onAdded?.();
+					return result;
+				}),
 		apply: withNewCommitment,
 	});
 
@@ -603,6 +616,8 @@ export function AddCommitment({ month, start }: { month: MonthKey; start?: Commi
 		setErrors(read.errors);
 		if (!read.ok) return;
 		add.mutate({ commitmentId, month, ...read.terms });
+		// A sheet keeps the submitted fields available if saving fails.
+		if (onAdded) return;
 		// The Commitment shows at once; the next one gets its own ID.
 		setCommitmentId(ulid());
 		setPrefill(undefined);
@@ -678,10 +693,10 @@ export function AddCommitment({ month, start }: { month: MonthKey; start?: Commi
 					type="submit"
 					variant="secondary"
 					className="justify-self-start"
-					disabled={!hydrated}
+					disabled={!hydrated || add.isPending}
 				>
 					<Plus />
-					Add Commitment
+					{add.isPending ? "Saving…" : "Add Commitment"}
 				</Button>
 			</form>
 		</Card>

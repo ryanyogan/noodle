@@ -5,11 +5,12 @@ import {
 	merchantKey,
 	type StatementLine,
 } from "@noodle/domain";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PASS } from "./card-payments";
 import {
 	addAccount,
+	addBucket,
 	addCommitment,
 	addIncome,
 	applyRule,
@@ -19,6 +20,7 @@ import {
 	importStatement,
 	listRules,
 	loadCardPaymentRules,
+	loadSpending,
 	loadTransactionsPage,
 	markCardPayment,
 	markCardPayments,
@@ -242,6 +244,70 @@ describe("It's a card payment, remembered for the card's wording", () => {
 		const id = await idOf(note);
 		return (await db.select().from(transfers)).filter((row) => row.outTransactionId === id);
 	};
+
+	it("reclassifies an assigned payment to a manual card and Undo restores its spending", async () => {
+		await addBucket(db, {
+			householdId,
+			memberId: parentId,
+			bucketId: "temp",
+			name: "Apple Temp Holder",
+			color: 1,
+			month,
+			allowanceCents: 500_000,
+		});
+		await importInto("checking", "apple-import", [line("2026-09-03", -413_269, "Apple Card")]);
+		const id = await idOf("Apple Card");
+		await db.update(transactions).set({ bucketId: "temp" }).where(eq(transactions.id, id));
+		const spent = async () =>
+			(await loadSpending(db, viewer, month)).reduce((total, row) => total + row.amount, 0);
+		expect(await spent()).toBe(413_269);
+		const answer = await markCardPayment(db, viewer, {
+			transactionId: id,
+			transferId: "apple-payment",
+			cardAccountId: "card",
+			ruleId: "apple-rule",
+		});
+		expect(answer.ok).toBe(true);
+		expect(await spent()).toBe(0);
+		expect(await marksOf("Apple Card")).toMatchObject([{ otherAccountId: "card" }]);
+		expect(
+			(await loadTransactionsPage(db, viewer, { month, limit: 50 })).transactions.find(
+				(row) => row.id === id,
+			)?.transfer?.to,
+		).toBe("Visa");
+		await unmarkTransfer(db, viewer, "apple-payment");
+		expect(await spent()).toBe(413_269);
+		expect((await db.select().from(transactions).where(eq(transactions.id, id)))[0]?.bucketId).toBe(
+			"temp",
+		);
+	});
+
+	it("does not pair a named card payment with a different account's matching deposit", async () => {
+		await addBucket(db, {
+			householdId,
+			memberId: parentId,
+			bucketId: "temp",
+			name: "Temporary",
+			color: 1,
+			month,
+			allowanceCents: 50_000,
+		});
+		await importInto("checking", "out", [line("2026-09-03", -9_900, "Apple Card")]);
+		const id = await idOf("Apple Card");
+		await db.update(transactions).set({ bucketId: "temp" }).where(eq(transactions.id, id));
+		// A same-amount arrival in a loan account must never override the explicitly chosen card.
+		await importInto("loan", "in", [line("2026-09-03", 9_900, "Deposit")]);
+		const result = await markCardPayment(db, viewer, {
+			transactionId: id,
+			transferId: "named",
+			cardAccountId: "card",
+			ruleId: "rule",
+		});
+		expect(result.ok).toBe(true);
+		expect(await marksOf("Apple Card")).toMatchObject([
+			{ otherAccountId: "card", inTransactionId: null, inIncomeId: null },
+		]);
+	});
 
 	it("marks the line as a Transfer naming the card, and later payments mark themselves", async () => {
 		await importInto("checking", "i-1", [line("2026-09-03", -9_900, "CARDMEMBER SERV WEB PYMT")]);

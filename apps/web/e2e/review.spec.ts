@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { settledAxe } from "./axe";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import { currentTab, expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
 import {
@@ -134,7 +135,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 			});
 		},
 	);
-	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	await acme.click();
 	await expect(editSheet(page).getByTestId("auto-filed-hint")).toContainText(
 		"Filed automatically by a Rule.",
@@ -230,7 +231,7 @@ test("a Rule files a merchant's statement line to a Commitment", async ({ browse
 		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Commitments", exact: true })
 		.click();
-	const form = page.getByRole("form", { name: "Add a Commitment" });
+	const form = await openCommitmentForm(page);
 	await form.getByLabel("New Commitment").fill("Widget Club");
 	await form.getByLabel("Amount due").fill("19.99");
 	await form.getByRole("button", { name: "Add Commitment" }).click();

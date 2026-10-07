@@ -119,7 +119,7 @@ function OpenRegion({
 			// own width, so the editor's two columns follow the table, not the window.
 			className={cn(
 				"@container min-w-0 scroll-mt-24 outline-none",
-				"lg:bg-surface-2 lg:px-(--card-pad) lg:pt-3 lg:pb-5 lg:shadow-[inset_2px_0_0_var(--color-primary)]",
+				"lg:bg-brand-soft/40 lg:px-6 lg:pt-5 lg:pb-6 lg:shadow-[inset_3px_0_0_var(--color-primary)]",
 				top && "lg:border-b lg:border-border",
 				// Under its row the header is one compact line: no Back (the row is right there, and
 				// Close is at the end), a title the size of a row's heading.
@@ -333,7 +333,11 @@ export function TransactionTable({
 		// Clipped to the card's corners, so a row's hover and the open row's ground follow them.
 		<Card
 			ref={card}
-			className={cn("overflow-clip", open && PAGE_BELOW_LG)}
+			data-slot="transactions-table"
+			className={cn(
+				"overflow-clip [&_[data-slot=data-table-group]]:border-t [&_[data-slot=data-table-group]]:border-border-strong [&_[data-slot=data-table-group]]:bg-surface-2",
+				open && PAGE_BELOW_LG,
+			)}
 			// F2 on a row in focus renames it (Enter opens it, Space selects it).
 			onKeyDown={(event) => {
 				if (event.key !== "F2" || tableIsStacked()) return;
@@ -410,7 +414,8 @@ export function TransactionTable({
 					"data-index": index,
 					"data-transaction": _row.transaction.id,
 					// Under the page's bar when it is brought into view.
-					className: "scroll-mt-24",
+					className:
+						"scroll-mt-24 border-border/60 transition-colors duration-150 aria-[current=true]:bg-brand-soft aria-[current=true]:shadow-[inset_3px_0_0_var(--color-primary)] aria-[current=true]:hover:bg-brand-soft motion-reduce:transition-none",
 				})}
 				groupBefore={
 					byDate
@@ -434,7 +439,7 @@ export function TransactionTable({
 										) : null}
 										<div
 											data-slot="list-group-label"
-											className="flex items-baseline justify-between gap-3 pt-2.5 pb-1.5 text-xs font-medium text-subtle-foreground"
+											className="flex items-baseline justify-between gap-3 py-3 text-xs font-semibold text-muted-foreground"
 										>
 											<span>{dayName(transaction.date, today)}</span>
 											{total !== null ? (

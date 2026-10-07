@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { settledAxe } from "./axe";
+import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
 import {
 	chooseKind,
@@ -208,7 +209,7 @@ test("on a phone no Review card is wider than the screen: every kind of payment 
 	// A card kept by hand, with a Commitment that pays it down.
 	await addAccount(page, "American Express", "credit-card", "2,000");
 	await page.goto(new URL(`/plan/${month}/commitments`, thisMonth).href);
-	const addForm = page.getByRole("form", { name: "Add a Commitment" });
+	const addForm = await openCommitmentForm(page);
 	await addForm.getByLabel("New Commitment").fill("Amex payment");
 	await addForm.getByLabel("Amount due").fill("2,300");
 	await addForm.getByRole("combobox", { name: "Pays down", exact: true }).click();
