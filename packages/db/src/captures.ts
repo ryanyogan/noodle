@@ -255,9 +255,38 @@ export async function loadWalletQuestions(db: Db, householdId: string): Promise<
 		})
 		.from(captureCards)
 		.innerJoin(transactions, eq(transactions.id, captureCards.transactionId))
-		.where(and(eq(captureCards.householdId, householdId), isNull(transactions.accountId)))
+		.where(
+			and(
+				eq(captureCards.householdId, householdId),
+				isNull(transactions.accountId),
+				// A name a Parent said is none of their Accounts stays answered for later captures too.
+				sql`not exists (select 1 from capture_cards nc where nc.household_id = ${householdId}
+					and lower(nc.card) = lower(${captureCards.card}) and nc.none_at is not null)`,
+			),
+		)
 		.groupBy(sql`lower(${captureCards.card})`)
 		.orderBy(sql`lower(${captureCards.card})`);
+}
+
+/**
+ * "None of these" to "Which Account is this Wallet card?": the captures paid with it stay on no
+ * Account, and the name isn't asked about again. Naming an Account for it later still works.
+ */
+export async function dismissWalletCard(
+	db: Db,
+	input: { householdId: string; card: string; now?: Date },
+): Promise<{ ok: boolean }> {
+	const said = await db
+		.update(captureCards)
+		.set({ noneAt: input.now ?? new Date() })
+		.where(
+			and(
+				eq(captureCards.householdId, input.householdId),
+				sql`lower(${captureCards.card}) = lower(${input.card.trim()})`,
+			),
+		)
+		.returning({ id: captureCards.transactionId });
+	return { ok: said.length > 0 };
 }
 
 /**

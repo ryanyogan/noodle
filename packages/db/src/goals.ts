@@ -542,6 +542,7 @@ const byHandQueries = (db: Db, householdId: string, accountId?: string) =>
 			),
 		db
 			.select({
+				id: transactions.id,
 				accountId: transfers.otherAccountId,
 				amount: transactions.amountCents,
 				date: transactions.date,
@@ -1088,6 +1089,11 @@ export type GoalRecords = {
 	 * by its day; `id` is its Transaction's.
 	 */
 	payments: (OwedPayment & { id: string; accountId: string; commitmentId: string })[];
+	/**
+	 * The payments marked as a Transfer naming a card kept by hand (issue 136), whose card side
+	 * Noodle can't see; `id` is the paying Transaction's. Optional so older fixtures needn't say.
+	 */
+	sent?: (OwedPayment & { id: string; accountId: string })[];
 	/** The Goal the Household keeps for emergencies, if it has marked one. */
 	emergencyGoalId: string | null;
 	/**
@@ -1314,6 +1320,9 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 				day: balanceDay(row, timeZone),
 			})),
 		payments,
+		sent: (sentRows as (OwedPayment & { id: string; accountId: string })[]).map(
+			({ id, accountId, amount, date }) => ({ id, accountId, amount, date }),
+		),
 		emergencyGoalId: householdRows[0]?.emergencyGoalId ?? null,
 		archivedAccounts: archivedRows.map((row) => ({
 			...row,

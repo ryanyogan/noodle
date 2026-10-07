@@ -392,6 +392,8 @@ export const captureCards = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		// When a Parent answered "None of these" for this card's name: it isn't asked about again.
+		noneAt: integer("none_at", { mode: "timestamp_ms" }),
 	},
 	(t) => [index("capture_cards_household_idx").on(t.householdId)],
 );

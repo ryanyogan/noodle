@@ -480,6 +480,7 @@ export {
 	type CaptureResult,
 	type CaptureTokenSummary,
 	createCaptureToken,
+	dismissWalletCard,
 	findCaptureToken,
 	loadCaptureToken,
 	loadWalletQuestions,
