@@ -386,15 +386,14 @@ function changeWrites(
 	const paidOn = (owed: SQL) =>
 		sql`(select coalesce(sum(pm.amount_cents), 0) from paid_back_matches pm
 			join owed_back po on po.id = pm.owed_back_id where po.transaction_id = ${row.id} and ${owed})`;
+	// Its Splits at their new amounts, as one JSON parameter however many there are: D1 caps a
+	// statement's bound parameters at 100, and `kept` is in two statements.
+	const parts = JSON.stringify((change.splits ?? []).map((split) => [split.id, split.amount]));
 	const kept = sql`((${change.amount} < ${paidOn(sql`1`)}
 		or ${change.amount} < (select coalesce(sum(ri.amount_cents), 0) from refund_links rl
 			join income ri on ri.id = rl.income_id where rl.transaction_id = ${row.id})
-		${sql.join(
-			(change.splits ?? []).map(
-				(split) => sql` or ${split.amount} < ${paidOn(sql`po.split_id = ${split.id}`)}`,
-			),
-			sql``,
-		)})
+		or exists (select 1 from json_each(${parts}) part where json_extract(part.value, '$[1]') <
+			${paidOn(sql`po.split_id = json_extract(part.value, '$[0]')`)}))
 		and ${purchaseEndedRestores(from)})`;
 	const writes: BatchItem<"sqlite">[] = lowered
 		? [
