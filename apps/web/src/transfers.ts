@@ -58,7 +58,9 @@ export type MoneyChange =
 
 const send = (
 	change: MoneyChange,
-): Promise<MoneyResult & { remembered?: string; also?: string[] }> => {
+): Promise<
+	MoneyResult & { remembered?: string; also?: string[]; replaced?: { accountId: string | null } }
+> => {
 	switch (change.kind) {
 		case "mark":
 			if (change.card) {
@@ -156,7 +158,9 @@ export function useMoneyChange() {
 						tone: "success",
 						undo: () => {
 							if (remembered) {
-								void undoCardPaymentAnswer({ data: { pattern: remembered, also } }).finally(() =>
+								void undoCardPaymentAnswer({
+									data: { pattern: remembered, also, replaced: result.replaced },
+								}).finally(() =>
 									Promise.all([
 										queryClient.invalidateQueries({ queryKey: rulesQuery().queryKey }),
 										also.length > 0 && queryClient.invalidateQueries({ queryKey: monthsKey }),

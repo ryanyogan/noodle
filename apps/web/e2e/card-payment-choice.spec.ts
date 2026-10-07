@@ -36,7 +36,7 @@ type NewAccount = {
 	kind: "checking" | "credit-card";
 	balance: string;
 	/** A card's answer to "How do its purchases get into Noodle?"; left out, it stays on statements. */
-	purchases?: "I add them by hand";
+	purchases?: "I add them by hand" | "They won’t";
 };
 
 /** Adds an Account on the Accounts page. */
@@ -246,7 +246,12 @@ test("the “Edit” beside a Commitment made in place opens that Commitment", a
 	const choice = sheet.getByTestId("card-payment-choice");
 	await expect(choice).toContainText("Count this payment as spending?");
 	await choice.getByRole("button", { name: "Yes, make a Commitment" }).click();
-	await toast(page, "It’s planned monthly").getByRole("button", { name: "Edit" }).click();
+	// One toast says it, with Edit beside its Undo.
+	const said = toast(page, "is now a Commitment, and this payment is filed in it");
+	await expect(said).toHaveCount(1);
+	await expect(said.getByRole("button", { name: "Undo" })).toBeVisible();
+	await expect(toast(page, "It’s planned monthly")).toHaveCount(0);
+	await said.getByRole("button", { name: "Edit" }).click();
 	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}\/commitments\/[0-9A-Z]{26}/);
 	await expect(page.locator("[data-slot=detail-title]:visible")).toContainText(/discover/i);
 });
@@ -402,4 +407,153 @@ test("Review asks which card for a payment to a card Noodle doesn't follow, and 
 	await expect(toast(page, "marked as a Transfer to Apple Card")).toBeVisible();
 	await expect(asking).toBeHidden();
 	await expect(page.getByTestId("review-card")).toHaveCount(0);
+});
+
+/** The payment cards waiting in Review, in the view at `view` ("" is one by one). */
+async function reviewCards(page: Page, thisMonth: string, view: "" | "?view=list", text: string) {
+	const cards = page.getByTestId("review-card").filter({ hasText: text });
+	await reloadUntil(page, new URL(`/review${view}`, thisMonth).href, () =>
+		expect(cards.first()).toBeVisible({ timeout: 2_000 }),
+	);
+	return cards;
+}
+
+for (const view of ["?view=list", ""] as const) {
+	const where = view ? "the list" : "one by one";
+
+	test(`Review, ${where}: “Make it a Commitment” makes it in place, with Undo and Edit in one toast`, async ({
+		browser,
+	}) => {
+		test.slow();
+		const page = await signedInPage(browser, parent.email);
+		await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+		const thisMonth = page.url();
+		const day = await today(page);
+		await uploadStatement(
+			page,
+			{ name: "Checking", kind: "checking", balance: "2,500" },
+			"checking.csv",
+			[HEADER, `DEBIT,${day},"DISCOVER E-PAYMENT 5521",-75.00,ACH_DEBIT,1655.00,`],
+		);
+		const cards = await reviewCards(page, thisMonth, view, "DISCOVER");
+		const make = cards.first().getByRole("button", { name: "Make it a Commitment" });
+		await expect(make).toBeEnabled({ timeout: 30_000 });
+		await make.click();
+		// Nothing opens: the Commitment is made here and the card leaves.
+		await expect(page).toHaveURL(/\/review/);
+		const said = toast(page, "is now a Commitment, and this payment is filed in it");
+		await expect(said).toHaveCount(1);
+		await expect(said.getByRole("button", { name: "Edit" })).toBeVisible();
+		await expect(cards).toHaveCount(0, SETTLED);
+
+		// Undo: the card is back, and the Commitment has left the Plan.
+		await said.getByRole("button", { name: "Undo" }).click();
+		await expect(cards.first()).toBeVisible(SETTLED);
+		await expect(said).toHaveCount(0);
+		await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/plan/$1/commitments"));
+		await expect(page.getByLabel("New Commitment")).toBeEnabled({ timeout: 30_000 });
+		await expect(page.getByRole("main").getByText(/discover/i)).toHaveCount(0);
+
+		// Again, and kept: it's in the Plan once, and Review has nothing left of it.
+		const again = await reviewCards(page, thisMonth, view, "DISCOVER");
+		await expect(again.first().getByRole("button", { name: "Make it a Commitment" })).toBeEnabled({
+			timeout: 30_000,
+		});
+		await again.first().getByRole("button", { name: "Make it a Commitment" }).click();
+		const edit = toast(page, "is now a Commitment").getByRole("button", { name: "Edit" });
+		await edit.click();
+		await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}\/commitments\/[0-9A-Z]{26}/);
+		await expect(page.locator("[data-slot=detail-title]:visible")).toContainText(/discover/i);
+	});
+
+	test(`Review, ${where}: a payment to a card kept by hand is filed in its Commitment, and Undo puts the card back`, async ({
+		browser,
+	}) => {
+		test.slow();
+		const page = await signedInPage(browser, parent.email);
+		await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+		const thisMonth = page.url();
+		const day = await today(page);
+		await addAccount(page, {
+			name: "Apple Card",
+			kind: "credit-card",
+			balance: "900",
+			purchases: "I add them by hand",
+		});
+		await payDown(page, thisMonth);
+		await uploadStatement(
+			page,
+			{ name: "Checking", kind: "checking", balance: "2,500" },
+			"checking.csv",
+			[HEADER, `DEBIT,${day},"APPLECARD GSBANK PAYMENT 8841",-300.00,ACH_DEBIT,2200.00,`],
+		);
+		const cards = await reviewCards(page, thisMonth, view, "APPLECARD");
+		const mark = cards.first().getByRole("button", { name: "It’s a card payment" }).first();
+		await expect(mark).toBeEnabled({ timeout: 30_000 });
+		await mark.click();
+		const asking = page.getByRole("dialog", { name: "It’s a card payment" });
+		const choice = asking.getByTestId("card-payment-choice");
+		await expect(choice).toContainText(
+			"Apple Card is kept by hand, so its payment is the spending: it’s filed in Apple Card bill.",
+		);
+		await choice.getByRole("button", { name: "Apple Card", exact: true }).click();
+		const said = toast(page, "filed in Apple Card bill");
+		await expect(said).toContainText("Payments worded like it will be too.");
+		await expect(asking).toBeHidden();
+		await expect(cards).toHaveCount(0, SETTLED);
+
+		await said.getByRole("button", { name: "Undo" }).click();
+		await expect(cards.first()).toBeVisible(SETTLED);
+		// The Rule stated for the wording went with it.
+		await page.goto(new URL("/review/rules", thisMonth).href);
+		await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByRole("main")).not.toContainText("applecard gsbank");
+	});
+}
+
+/** A Commitment, "Apple Card bill", that pays the Apple Card down. */
+async function payDown(page: Page, thisMonth: string) {
+	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/plan/$1/commitments"));
+	await expect(page.getByLabel("New Commitment")).toBeEnabled({ timeout: 30_000 });
+	await page.getByLabel("New Commitment").fill("Apple Card bill");
+	await page.getByLabel("Amount due").fill("300");
+	await page.getByRole("combobox", { name: "Pays down", exact: true }).click();
+	await page
+		.getByRole("listbox")
+		.getByRole("option", { name: /^Apple Card/ })
+		.click();
+	await page.getByRole("button", { name: "Add Commitment" }).click();
+	await expect(page.getByRole("main")).toContainText("Pays down Apple Card");
+}
+
+test("a card whose purchases won’t come into Noodle says so where its payment is asked about", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const thisMonth = page.url();
+	const day = await today(page);
+	await addAccount(page, {
+		name: "Apple Card",
+		kind: "credit-card",
+		balance: "900",
+		purchases: "They won’t",
+	});
+	await payDown(page, thisMonth);
+	await uploadStatement(
+		page,
+		{ name: "Checking", kind: "checking", balance: "2,500" },
+		"checking.csv",
+		[HEADER, `DEBIT,${day},"APPLECARD GSBANK PAYMENT 8841",-300.00,ACH_DEBIT,2200.00,`],
+	);
+	await openTransactions(page, thisMonth);
+	const sheet = await openLine(page, "300");
+	await sheet.getByRole("button", { name: "It’s a card payment" }).click();
+	await expect(sheet.getByTestId("card-payment-choice")).toContainText(
+		"Apple Card’s purchases don’t come into Noodle, so its payment is the spending: it’s filed in Apple Card bill.",
+	);
+	if (process.env.CARD_PAYMENT_SHOTS) {
+		await page.screenshot({ path: `${process.env.CARD_PAYMENT_SHOTS}/they-wont-hint.png` });
+	}
 });

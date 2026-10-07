@@ -65,7 +65,12 @@ import { ulid } from "ulid";
 import { z } from "zod";
 import { pastPlanSentence } from "../../../before-plan";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
-import { asksWhichCard, cardNamedBy } from "../../../card-payments";
+import {
+	asksWhichCard,
+	cardNamedBy,
+	paymentAsSpending,
+	useCardPaymentFiling,
+} from "../../../card-payments";
 import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
 import { CardPaymentQuestion } from "../../../components/card-payment";
 import { ReviewMatchOffer } from "../../../components/match-section";
@@ -312,6 +317,10 @@ function ReviewPage() {
 	const money = useMoneyChange();
 	/** The card "It’s a card payment" is asking about: which card it pays (issue 136). */
 	const [asking, setAsking] = useState<ReviewItem | null>(null);
+	const spending = useCardPaymentFiling();
+	// Cards filed in a card's Commitment by "It's a card payment": each one's whole Undo (its
+	// lines, its Rule, a Commitment made for it), which the stack's Undo runs too.
+	const filings = useRef(new Map<string, () => void>());
 	/** The Transfers marked from cards here, by Transaction: what their Undo unmarks. */
 	const marked = useRef(new Map<string, string>());
 	const months = byMonth(items);
@@ -430,7 +439,11 @@ function ReviewPage() {
 			// A card marked as a card payment was never filed: its Undo unmarks the Transfer.
 			const transferId = marked.current.get(item.id);
 			marked.current.delete(item.id);
+			// One filed in a card's Commitment goes back with all its answer did.
+			const unfile = filings.current.get(item.id);
+			filings.current.delete(item.id);
 			if (transferId) money.mutate({ kind: "unmark", transferId, label: labelOf(item) });
+			else if (unfile) unfile();
 			else returnCard.mutate(item);
 		}
 		dispatch({ type: "returned", items });
@@ -527,6 +540,31 @@ function ReviewPage() {
 		const at = cards.findIndex((card) => card.id === item.id);
 		const next = cards[at + 1] ?? cards[at - 1];
 		setCursor(next?.id ?? null);
+	}
+
+	/** What Review does around a card payment filed in a Commitment, so its stack follows it. */
+	const filingOf = (item: ReviewItem) => ({
+		onFiled: (undo: () => void) => void filings.current.set(item.id, undo),
+		// The toast's Undo goes through the stack, as the stack's own does.
+		undoBy: () => putBack([item]),
+		onFail: () => dispatch({ type: "returned", items: [item] }),
+		// Its month has ended, so it wasn't filed: it's still to review.
+		onStays: () => dispatch({ type: "returned", items: [item] }),
+	});
+
+	/** The card leaves as any filed one does. */
+	function filedInCommitment(item: ReviewItem) {
+		moveOn(item);
+		decided([item], `${labelOf(item)} is filed in the card’s Commitment.`);
+	}
+
+	/**
+	 * "Make it a Commitment" on a payment to a card that isn't in Noodle: the Commitment is made
+	 * here, as the question's "Yes, make a Commitment" does, and the payment filed in it.
+	 */
+	function makeCommitment(item: ReviewItem) {
+		filedInCommitment(item);
+		spending.mutate({ ...paymentAsSpending(item, labelOf(item)), ...filingOf(item) });
 	}
 
 	/** "It's a card payment": marks it as a Transfer, which counts nowhere and leaves Review. */
@@ -1105,6 +1143,7 @@ function ReviewPage() {
 											thisMonth={current}
 											caution={cautionFor(order[0])}
 											onPayment={() => markPayment(order[0] as ReviewItem)}
+											onCommitment={() => makeCommitment(order[0] as ReviewItem)}
 											between={betweenOf(order[0])}
 											onBetweenUs={() => markPayment(order[0] as ReviewItem, "between-us")}
 											onConfirm={() => confirm(order[0] as ReviewItem)}
@@ -1300,6 +1339,7 @@ function ReviewPage() {
 													thisMonth={current}
 													caution={cautionFor(item)}
 													onPayment={() => markPayment(item)}
+													onCommitment={() => makeCommitment(item)}
 													between={betweenOf(item)}
 													onBetweenUs={() => markPayment(item, "between-us")}
 													onConfirm={() => confirm(item)}
@@ -1425,14 +1465,11 @@ function ReviewPage() {
 								label={labelOf(asking)}
 								onCancel={() => setAsking(null)}
 								onTransfer={(card) => markPayment(asking, undefined, card)}
-								onUndo={() => putBack([asking])}
-								onFail={() => dispatch({ type: "returned", items: [asking] })}
+								filing={filingOf(asking)}
 								onDone={(answer) => {
 									setAsking(null);
 									if (answer === "transfer") return;
-									// Filed in the card's Commitment: the card leaves as any filed one does.
-									moveOn(asking);
-									decided([asking], `${labelOf(asking)} is filed in the card’s Commitment.`);
+									filedInCommitment(asking);
 								}}
 							/>
 						</>
@@ -1691,6 +1728,7 @@ function ReviewCard({
 	thisMonth,
 	caution = null,
 	onPayment,
+	onCommitment,
 	ghost = false,
 	actions,
 }: {
@@ -1709,6 +1747,8 @@ function ReviewCard({
 	caution?: PaymentCaution | null;
 	/** Marks it as a Transfer. */
 	onPayment?: () => void;
+	/** Makes the Commitment for a payment to a card that isn't in Noodle, and files it there. */
+	onCommitment?: () => void;
 	today: DayKey;
 	members: MemberSummary[];
 	parentId: string;
@@ -2060,9 +2100,23 @@ function ReviewCard({
 							Confirm
 						</Button>
 					) : null}
-					{payment?.kind === "not-followed" ? (
-						// The payment is the spending, so it's planned like a bill: the Commitment's form
-						// opens with this line's name and amount, and the card to pay down ready.
+					{payment?.kind === "not-followed" && payment.accountId === null ? (
+						// The payment is the spending, so it's planned like a bill: its Commitment is made
+						// here, at this line's amount, and the line filed in it, with Undo and Edit.
+						<Button
+							className={cn(
+								"max-sm:order-first max-sm:min-w-0 max-sm:grow max-sm:shrink compact:basis-[70%] roomy:max-sm:basis-0",
+								largeTextButton,
+							)}
+							disabled={!hydrated}
+							onClick={onCommitment}
+						>
+							Make it a Commitment
+						</Button>
+					) : null}
+					{payment?.kind === "not-followed" && payment.accountId !== null ? (
+						// A card that is an Account here: its Commitment has to pay that Account down, which
+						// the Commitment's form sets, so the form opens with this line's name and amount.
 						<Button
 							className={cn(
 								"max-sm:order-first max-sm:min-w-0 max-sm:grow max-sm:shrink compact:basis-[70%] roomy:max-sm:basis-0",
@@ -2076,7 +2130,7 @@ function ReviewCard({
 								search={{
 									name: labelOf(item).slice(0, 40),
 									amount: item.amountCents,
-									paysDown: payment.accountId ?? "add",
+									paysDown: payment.accountId,
 								}}
 							>
 								Make it a Commitment

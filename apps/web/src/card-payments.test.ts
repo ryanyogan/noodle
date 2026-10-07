@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { asksWhichCard, cardNamedBy } from "./card-payments";
+import {
+	asksWhichCard,
+	cardNamedBy,
+	cardPaymentFiled,
+	commitmentNameFor,
+	paymentAsSpending,
+} from "./card-payments";
+import { commitmentStart } from "./server/card-payments";
 
 const accounts = [
 	{ id: "chk", name: "Checking", kind: "checking" },
@@ -46,5 +53,67 @@ describe("asksWhichCard", () => {
 				accounts,
 			),
 		).toBe(false);
+	});
+});
+
+describe("what the toast says once a card payment is filed as spending", () => {
+	const done = { label: "DISCOVER E-PAYMENT", commitment: "Discover", filed: 1, remembered: true };
+
+	it("says the Commitment was made and the payment filed in it", () => {
+		expect(cardPaymentFiled({ ...done, made: true })).toBe(
+			"Discover is now a Commitment, and this payment is filed in it. Payments worded like it will be too.",
+		);
+		expect(cardPaymentFiled({ ...done, made: false, filed: 3 })).toBe(
+			"DISCOVER E-PAYMENT filed in Discover, with 2 more worded like it. Payments worded like it will be too.",
+		);
+	});
+
+	it("says plainly why a payment in a month that has ended stays as it is", () => {
+		expect(cardPaymentFiled({ ...done, made: true, filed: 0, endedMonth: "2026-09" })).toBe(
+			"Discover is now a Commitment. September has ended, so this payment stays as it is; later payments will be filed in Discover.",
+		);
+		expect(cardPaymentFiled({ ...done, made: true, filed: 2, endedMonth: "2026-09" })).toBe(
+			"Discover is now a Commitment. September has ended, so this payment stays as it is; later payments will be filed in Discover. 2 payments worded like it since then are filed there now.",
+		);
+		expect(
+			cardPaymentFiled({ ...done, made: true, filed: 0, remembered: false, endedMonth: "2026-01" }),
+		).toBe("Discover is now a Commitment. January has ended, so this payment stays as it is.");
+	});
+});
+
+describe("a payment counted as spending", () => {
+	it("is its own Commitment: named from the wording, its amount, due on its day", () => {
+		const answer = paymentAsSpending(
+			{ id: "line", date: "2026-10-04", amountCents: 25_000 },
+			"DISCOVER E-PAYMENT 4821",
+		);
+		expect(answer).toMatchObject({
+			transactionId: "line",
+			label: "DISCOVER E-PAYMENT 4821",
+			commitment: { name: "Discover E-Payment 4821" },
+			create: { month: "2026-10", amountCents: 25_000, dueDate: "2026-10-04" },
+		});
+		expect(answer.commitment.id).not.toBe(answer.ruleId);
+		expect(commitmentNameFor("  ")).toBe("Card payment");
+	});
+
+	it("starts in the payment's month while that month is open", () => {
+		expect(commitmentStart({ month: "2026-10", dueDate: "2026-10-04" }, "2026-10")).toEqual({
+			month: "2026-10",
+			dueDate: "2026-10-04",
+			moved: false,
+		});
+	});
+
+	it("starts this month, on the same day, when the payment's month has ended", () => {
+		expect(commitmentStart({ month: "2026-09", dueDate: "2026-09-04" }, "2026-10")).toEqual({
+			month: "2026-10",
+			dueDate: "2026-10-04",
+			moved: true,
+		});
+		// A day the running month doesn't have is its last day.
+		expect(commitmentStart({ month: "2026-01", dueDate: "2026-01-31" }, "2026-02")).toMatchObject({
+			dueDate: "2026-02-28",
+		});
 	});
 });

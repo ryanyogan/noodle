@@ -1182,7 +1182,7 @@ test.beforeAll(async ({ browser }) => {
 		// Commitment pays down.
 		...(
 			[
-				["12c-review-card-payment-not-followed", "not-followed", "link", "Make it a Commitment"],
+				["12c-review-card-payment-not-followed", "not-followed", "button", "Make it a Commitment"],
 				["12d-review-card-payment-commitment", "commitment", "button", "Confirm"],
 			] as const
 		).map(
