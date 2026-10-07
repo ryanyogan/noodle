@@ -287,8 +287,12 @@ function TransactionsPage() {
 	useEffect(() => {
 		setPicking((was) => (was ? nothingPicked : was));
 	}, [shown]);
+	// To the address it is at: with a Transaction open under its row, that Transaction stays open
+	// (issue 129). Left to the route's own path, a search or a new order closed it mid-edit.
 	const onChange = (next: TransactionFilters) =>
 		void navigate({
+			to: picked ? "/transactions/$month/$transactionId" : "/transactions/$month",
+			params: true,
 			search: (prev) => ({
 				...prev,
 				...next,
