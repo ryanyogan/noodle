@@ -11,7 +11,7 @@ import { useState } from "react";
 import { ulid } from "ulid";
 import { formatMoney } from "../format";
 import { type GoalView, goalStatusName, useGoalMoney, useGoals } from "../goals";
-import { FundGoalSheet } from "./goals";
+import { FundGoalSheet, GoalProgressBar } from "./goals";
 
 /** This month's active Goals, what each still needs this month, and a way to fund it. */
 export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title?: string }) {
@@ -58,12 +58,17 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 							// the figures took three lines on a phone (issue 115). They break between the
 							// month's part and the Goal's, not inside one.
 							below={
-								// The shared dot between parts (issue 73). On a phone each part has its own line, so
-								// rows are the same height (issue 74); the dots sit in the strip MetaParts hides.
-								<MetaParts
-									parts={goalThisMonth(goal)}
-									className="-mt-2 text-[13px] text-muted-foreground max-sm:[&>span]:flex-col max-sm:[&>span]:items-start"
-								/>
+								<div className="grid gap-2.5">
+									{/* The shared dot between parts (issue 73). On a phone each part has its own line, so
+									    rows are the same height (issue 74); the dots sit in the strip MetaParts hides. */}
+									<MetaParts
+										parts={goalThisMonth(goal)}
+										className="-mt-2 text-[13px] text-muted-foreground tabular-nums max-sm:[&>span]:flex-col max-sm:[&>span]:items-start"
+									/>
+									{/* How far along it is, as its card on Goals shows it (issue 146). Decorative: the
+									    line over it says the same in words. */}
+									<GoalProgressBar share={goal.progress.share} />
+								</div>
 							}
 							trailing={
 								// A paid-off card needs no more payments; it's completed on its page.
