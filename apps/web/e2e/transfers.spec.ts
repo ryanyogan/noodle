@@ -215,6 +215,13 @@ test("a payment to a card Noodle doesn't follow is the spending: Review offers a
 	const mark = payment.getByRole("button", { name: "It’s a card payment" });
 	await expect(mark).toBeEnabled();
 	await mark.click();
+	// No card is in Noodle to name, so it asks whether the payment counts as spending.
+	const asking = page.getByRole("dialog", { name: "It’s a card payment" });
+	await expect(asking.getByTestId("card-payment-choice")).toContainText(
+		"Count this payment as spending?",
+	);
+	await expect(page.getByTestId("review-card")).toHaveCount(2);
+	await asking.getByRole("button", { name: "No, it’s a Transfer" }).click();
 	await expect(toast(page, "marked as a Transfer")).toBeVisible();
 	await expect(page.getByTestId("review-card")).toHaveCount(1);
 

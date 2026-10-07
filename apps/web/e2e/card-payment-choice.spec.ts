@@ -347,3 +347,45 @@ test("Review asks which card when the wording fits two cards Noodle follows", as
 	);
 	await expect(asking).toBeHidden();
 });
+
+test("Review asks which card for a payment to a card Noodle doesn't follow, and offers the one kept by hand", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const thisMonth = page.url();
+	const day = await today(page);
+	// Apple Card is kept by hand, and the bank's wording doesn't say its name.
+	await addAccount(page, { name: "Apple Card", kind: "credit-card", balance: "900" });
+	await uploadStatement(
+		page,
+		{ name: "Checking", kind: "checking", balance: "2,500" },
+		"checking.csv",
+		[HEADER, `DEBIT,${day},"APPLECARD GSBANK PAYMENT 8841",-300.00,ACH_DEBIT,2200.00,`],
+	);
+
+	const payment = page
+		.getByTestId("review-card")
+		.filter({ has: page.getByRole("button", { name: "It’s a card payment" }) });
+	await reloadUntil(page, new URL("/review?view=list", thisMonth).href, () =>
+		expect(payment).toHaveCount(1, { timeout: 2_000 }),
+	);
+	const mark = payment.getByRole("button", { name: "It’s a card payment" }).first();
+	await expect(mark).toBeEnabled({ timeout: 30_000 });
+	await mark.click();
+	// Nothing is marked on the click: it asks, with the Household's card and one that isn't here.
+	const asking = page.getByRole("dialog", { name: "It’s a card payment" });
+	const choice = asking.getByTestId("card-payment-choice");
+	await expect(choice).toContainText("Which card does it pay?");
+	await expect(choice.getByRole("button", { name: "A card that isn’t in Noodle" })).toBeVisible();
+	// (The sheet hides the page's buttons from roles, so the cards are counted by test id.)
+	await expect(page.getByTestId("review-card")).toHaveCount(1);
+	await choice.getByRole("button", { name: "A card that isn’t in Noodle" }).click();
+	await expect(choice).toContainText("Count this payment as spending?");
+	await choice.getByRole("button", { name: "Back" }).click();
+	await choice.getByRole("button", { name: "Apple Card", exact: true }).click();
+	await expect(toast(page, "marked as a Transfer to Apple Card")).toBeVisible();
+	await expect(asking).toBeHidden();
+	await expect(page.getByTestId("review-card")).toHaveCount(0);
+});
