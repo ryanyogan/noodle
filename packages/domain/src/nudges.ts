@@ -7,7 +7,14 @@ import type { BucketState, MonthState } from "./month-state";
  * What a Nudge is about. `check-in` is the weekly Check-in's; `test` is one a Parent sends
  * themselves to check a device.
  */
-export type NudgeKind = "bucket-pace" | "quick-add" | "windfall" | "check-in" | "test";
+export type NudgeKind =
+	| "bucket-pace"
+	| "quick-add"
+	| "windfall"
+	| "check-in"
+	| "test"
+	/** The app was updated (issue 140): about the app itself, so always wanted, once a deploy. */
+	| "app-update";
 
 /**
  * A daily window when a Parent gets no Nudges, as minutes after local midnight (0–1439). It
@@ -51,6 +58,7 @@ export function wantsNudge(preferences: NudgePreferences, kind: NudgeKind): bool
 			return preferences.windfalls;
 		case "check-in":
 		case "test":
+		case "app-update":
 			return true;
 	}
 }

@@ -1,5 +1,6 @@
 import { type Query, type QueryClient, type QueryKey, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { LIVE_CONNECTED } from "./app-update";
 import type { FreshStartProgress } from "./fresh-start-live";
 import { setFreshStartProgress } from "./fresh-start-live";
 import {
@@ -197,6 +198,8 @@ function connect({
 			if (connectedBefore) onReconnect();
 			else onFirstConnect();
 			connectedBefore = true;
+			// A deploy drops every connection, so reconnecting is when to ask about a newer build.
+			window.dispatchEvent(new Event(LIVE_CONNECTED));
 			pingTimer = setInterval(ping, PING_EVERY_MS);
 		};
 		ws.onmessage = (event) => {

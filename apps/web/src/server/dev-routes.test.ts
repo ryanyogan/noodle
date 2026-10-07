@@ -30,8 +30,16 @@ describe("dev-only routes", () => {
 	it("__AI_STUB__ is true only when the build is made with AI_MODEL=stub", () => {
 		const config = read("../../vite.config.ts");
 		expect(config).toMatch(/const aiStub = process\.env\.AI_MODEL === "stub";/);
-		expect(config).toContain("define: { __AI_STUB__: JSON.stringify(aiStub) }");
+		expect(config).toContain("define: { __AI_STUB__: JSON.stringify(aiStub),");
 		// Production's own variables never set it.
 		expect(read("../../wrangler.jsonc")).not.toMatch(/AI_MODEL"?\s*:\s*"stub"/);
+	});
+
+	it("the build id a test names in a cookie is read only behind __AI_STUB__", () => {
+		// Issue 140: E2E can't deploy, so a stub build takes its id from a cookie (build-id.ts).
+		const source = read("../build-id.ts");
+		const uses = source.split("\n").filter((line) => /devBuildIn\(/.test(line));
+		expect(uses.length).toBe(2);
+		for (const line of uses) expect(line).toContain("(__AI_STUB__ && devBuildIn(");
 	});
 });
