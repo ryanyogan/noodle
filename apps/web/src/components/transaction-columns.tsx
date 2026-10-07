@@ -191,7 +191,8 @@ function NameCell({
 						<ChevronRight
 							aria-hidden="true"
 							className={cn(
-								"size-3.5 shrink-0 text-subtle-foreground transition-transform motion-reduce:transition-none max-lg:hidden",
+								// Drawn close to the name: a 15-letter name stays whole beside a whole badge at 1536.
+								"-ms-1 size-3.5 shrink-0 text-subtle-foreground transition-transform motion-reduce:transition-none max-lg:hidden",
 								open && "rotate-90 text-primary",
 							)}
 						/>

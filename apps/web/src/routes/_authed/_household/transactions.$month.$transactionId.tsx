@@ -65,18 +65,20 @@ function TransactionPane() {
 	// Back to the list alone, by its address rather than by going Back, so it works when this
 	// address was the first one opened: the list stays where it was scrolled to, and focus returns
 	// to the row, as it does when a sheet closes. Esc does the same from the list's route.
+	const leave = useCallback(
+		() =>
+			void navigate({
+				to: "/transactions/$month",
+				params: { month },
+				search: true,
+				resetScroll: false,
+			}),
+		[navigate, month],
+	);
 	const close = useCallback(() => {
 		document.querySelector<HTMLElement>('[data-slot="list-row"] button[aria-current]')?.focus();
-		animateTransactionClose(
-			() =>
-				void navigate({
-					to: "/transactions/$month",
-					params: { month },
-					search: true,
-					resetScroll: false,
-				}),
-		);
-	}, [navigate, month]);
+		animateTransactionClose(leave);
+	}, [leave]);
 	// A link, as the other details' Back is: it works before the pane has hydrated.
 	const back = (
 		<Button variant="ghost" size="icon" asChild>
@@ -207,7 +209,10 @@ function TransactionPane() {
 				onClose={close}
 				onChange={(next) => {
 					change.mutate({ transaction, label: transactionLabel(transaction), next });
-					close();
+					// Deleted: its row has left the list and this pane with it, so there is nothing to
+					// close slowly. Staying at its address meanwhile would ask for it again by its ID.
+					if (next === null) leave();
+					else close();
 				}}
 			/>
 			{/* Someone outside the Household paying part of it back (issue 132). */}

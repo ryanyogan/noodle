@@ -591,12 +591,14 @@ export async function applyTransactionChange(queryClient: QueryClient, change: T
 	];
 	// The lists outside the month's key are fetching too: a late answer would undo the change.
 	await queryClient.cancelQueries({ queryKey: rangeTransactionsKey });
-	for (const [queryKey, list] of previousLists) {
+	// One Transaction asked for by its ID is cached under its month's key too: it is not a list.
+	const lists = previousLists.filter(([, list]) => Array.isArray(list?.pages));
+	for (const [queryKey, list] of lists) {
 		if (list) queryClient.setQueryData(queryKey, withRowChange(list, change));
 	}
 	return () => {
 		if (previousMonth) queryClient.setQueryData(monthKey, previousMonth);
-		for (const [queryKey, list] of previousLists) queryClient.setQueryData(queryKey, list);
+		for (const [queryKey, list] of lists) queryClient.setQueryData(queryKey, list);
 	};
 }
 

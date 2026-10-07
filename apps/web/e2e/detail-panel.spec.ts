@@ -146,11 +146,9 @@ test("a Commitment opens in a panel from the right and the list keeps its width"
 	await expect(rail(page)).toHaveAttribute("aria-label", "Commitments: totals, add and about");
 	const listBefore = await list(page).boundingBox();
 	const railBefore = await rail(page).boundingBox();
-	// In the wide list a row has its columns: what it costs a year is one of them.
-	const yearly = list(page)
-		.getByText(/a year$/)
-		.first();
-	await expect(yearly).toBeVisible();
+	// In the wide list a row has its columns: what has been paid is one of them.
+	const paid = list(page).getByRole("columnheader", { name: "Paid" });
+	await expect(paid).toBeVisible();
 	await list(page).evaluate((pane) => {
 		pane.dataset.kept = "yes";
 	});
@@ -176,7 +174,7 @@ test("a Commitment opens in a panel from the right and the list keeps its width"
 	// The list and the rail are exactly where and as wide as they were, and the row keeps its columns.
 	expect(await list(page).boundingBox()).toEqual(listBefore);
 	expect(await rail(page).boundingBox()).toEqual(railBefore);
-	await expect(yearly).toBeVisible();
+	await expect(paid).toBeVisible();
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 	await expect(list(page).locator("[data-md-item][aria-current]")).toHaveText("Rent");
 	// Focus is on what just opened.
