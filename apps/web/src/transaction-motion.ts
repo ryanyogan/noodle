@@ -9,6 +9,9 @@ export function animateTransactionClose(done: () => void) {
 		return;
 	}
 	if (region.dataset.closing) return;
+	// Where the Parent was when it began to close: if they have gone elsewhere since (a link in the
+	// sidebar pressed right after Esc), leaving now would take them back from where they went.
+	const from = window.location.pathname;
 	region.dataset.closing = "true";
 	region.inert = true;
 	const animation = region.animate(
@@ -21,7 +24,7 @@ export function animateTransactionClose(done: () => void) {
 	void animation.finished.then(
 		() => {
 			// Opening another row during the animation must not close that new row afterwards.
-			if (region.isConnected) done();
+			if (region.isConnected && window.location.pathname === from) done();
 		},
 		() => {
 			delete region.dataset.closing;

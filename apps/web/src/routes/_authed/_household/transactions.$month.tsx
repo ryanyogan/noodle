@@ -579,7 +579,8 @@ function Filters({
 					<Input
 						id="filter-search"
 						type="search"
-						placeholder="Search transactions"
+						// One short word: at 200% text on a phone a longer one is cut off in its box.
+						placeholder="Search"
 						autoComplete="off"
 						maxLength={SEARCH_MAX}
 						disabled={!hydrated}
