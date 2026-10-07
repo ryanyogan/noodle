@@ -3,6 +3,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { strFromU8, unzipSync } from "fflate";
 import { createTestParent } from "./parents";
 import {
+	chooseKind,
 	createPlannedHousehold,
 	enterJoinedHousehold,
 	openPlanBuckets,
@@ -166,4 +167,175 @@ test("the other Parent's download has Alex's Personal Allowance only as its mont
 	const alexLines = strFromU8((await downloadZip(alex))["transactions.csv"] as Uint8Array);
 	expect(alexLines).toContain("Birthday gift for Sam");
 	expect(alexLines).not.toContain("Total for the month");
+});
+
+/** A CSV file of the download as rows of cells (none of these cells holds a comma or a quote). */
+const cells = (file: Uint8Array | undefined) =>
+	strFromU8(file as Uint8Array)
+		.trim()
+		.split("\r\n")
+		.map((line) => line.split(","));
+
+// The three files issue 141 added: money in with its kind, the Rules for money in (a remembered
+// pair of Accounts among them) and the card payments Noodle remembers. Each is read from the ZIP
+// a Parent downloads, after they have named a deposit, remembered a pair and answered "It's a
+// card payment" in the app.
+test("the download's money-in.csv, money-in-rules.csv and card-payment-rules.csv say what the Parent named and asked Noodle to remember", async ({
+	browser,
+}) => {
+	test.setTimeout(300_000);
+	const alex = await createTestParent();
+	parents.push(alex);
+	const page = await signedInPage(browser, alex.email, { viewport: { width: 1440, height: 900 } });
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "600"]] });
+	const month = /\/month\/(\d{4}-\d{2})/.exec(page.url())?.[1];
+	if (!month) throw new Error(`No month in ${page.url()}`);
+	const toast = (text: string) => page.getByRole("status").filter({ hasText: text });
+
+	const addAccount = async (name: string, kind: "checking" | "savings" | "credit-card") => {
+		await page.goto("/accounts");
+		await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
+		await expect(async () => {
+			if (!(await page.getByLabel("Name").isVisible()))
+				await page.getByRole("button", { name: "Add Account" }).click({ timeout: 2_000 });
+			await expect(page.getByLabel("Name")).toBeVisible({ timeout: 1_000 });
+		}).toPass();
+		await page.getByLabel("Name").fill(name);
+		await chooseKind(page, kind);
+		await page.getByLabel(kind === "credit-card" ? "Owed now" : "Balance now").fill("900");
+		await page.getByRole("button", { name: "Add Account" }).last().click();
+		await expect(page.getByRole("link", { name: new RegExp(`^${name}, `) })).toBeVisible();
+	};
+	await addAccount("Visa", "credit-card");
+	await addAccount("Ally savings", "savings");
+	await addAccount("Checking", "checking");
+
+	// Checking's statement: a paycheck, money a person sent, and a payment to the card.
+	const { us, iso } = await page.evaluate(() => {
+		const now = new Date();
+		const mm = String(now.getMonth() + 1).padStart(2, "0");
+		const dd = String(now.getDate()).padStart(2, "0");
+		return { us: `${mm}/${dd}/${now.getFullYear()}`, iso: `${now.getFullYear()}-${mm}-${dd}` };
+	});
+	const PAY = "ACME CORP PAYROLL 0042";
+	const JORDAN = "Zelle payment from JORDAN PIKE 99887766";
+	const CARD = "CARDMEMBER SERV WEB PYMT";
+	await page.getByRole("link", { name: /^Checking, / }).click();
+	await expect(page.locator("[data-slot=detail-title]:visible")).toContainText("Checking");
+	await page.getByRole("button", { name: "Upload statement" }).click();
+	const sheet = page.getByRole("dialog", { name: "Upload a statement" });
+	await sheet.getByLabel("Statement file").setInputFiles({
+		name: "checking.csv",
+		mimeType: "text/csv",
+		buffer: Buffer.from(
+			[
+				"Details,Posting Date,Description,Amount,Type,Balance,Check or Slip #",
+				`CREDIT,${us},"${PAY}",1840.00,ACH_CREDIT,2740.00,`,
+				`CREDIT,${us},"${JORDAN}",75.00,ACH_CREDIT,2815.00,`,
+				`DEBIT,${us},"${CARD}",-250.00,ACH_DEBIT,2565.00,`,
+			].join("\n"),
+		),
+	});
+	await sheet.getByRole("button", { name: "Import 3 lines" }).click();
+	await expect(sheet).toBeHidden();
+	await expect(toast("checking.csv").first()).toBeVisible();
+
+	// The payment out of Checking is a card payment to Visa, and its wording is remembered.
+	await page.goto(`/transactions/${month}`);
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled({ timeout: 30_000 });
+	const payment = page.getByRole("button", { name: /, \$250, Unassigned, .*from Checking$/ });
+	await expect(payment).toBeVisible();
+	await payment.click();
+	const detail = page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Transfer" }) });
+	await expect(detail.getByRole("button", { name: "It’s a card payment" })).toBeEnabled();
+	await detail.getByRole("button", { name: "It’s a card payment" }).click();
+	await detail
+		.getByTestId("card-payment-choice")
+		.getByRole("button", { name: "Visa", exact: true })
+		.click();
+	await expect(toast("marked as a Transfer to Visa")).toBeVisible();
+	await expect(payment).toHaveCount(0, { timeout: 20_000 });
+
+	// What the person sent is a Transfer from savings, and the pair is remembered. (After the card
+	// payment, so Review holds nothing else while the row asks which Account.)
+	await page.goto("/review");
+	const row = page
+		.getByTestId("money-in-review")
+		.getByTestId("money-in-row")
+		.filter({ hasText: "JORDAN PIKE" });
+	await expect(row).toBeVisible({ timeout: 30_000 });
+	const pair = row.getByTestId("account-pair-offer");
+	await expect(async () => {
+		if (!(await pair.isVisible()))
+			await row.getByRole("button", { name: "Transfer", exact: true }).click({ timeout: 2_000 });
+		await expect(pair).toBeVisible({ timeout: 3_000 });
+	}).toPass({ timeout: 30_000 });
+	await pair.getByRole("button", { name: "Ally savings" }).click();
+	await pair.getByRole("button", { name: "Yes, always" }).click();
+	await expect(
+		toast("Money from Ally savings into Checking is always a Transfer now"),
+	).toBeVisible();
+
+	// Rules are dated by the day they were made, in UTC: the day before or after this one's start.
+	const madeOn = [new Date(Date.now() - 600_000), new Date()].map((d) =>
+		d.toISOString().slice(0, 10),
+	);
+	const files = await downloadZip(page);
+
+	// money-in.csv: every deposit with its kind; the Transfer names the Account it came from.
+	const moneyIn = cells(files["money-in.csv"]);
+	expect(moneyIn[0]).toEqual([
+		"Date",
+		"Account",
+		"Note",
+		"Amount",
+		"Kind",
+		"From Account",
+		"Whose pay",
+		"Bank took it back on",
+		"Bank changed it to",
+	]);
+	expect(moneyIn).toHaveLength(3);
+	const paycheck = moneyIn.find((line) => line[3] === "1840");
+	expect(paycheck).toEqual([iso, "Checking", PAY, "1840", "Income", "", "", "", ""]);
+	const transfer = moneyIn.find((line) => line[3] === "75");
+	expect(transfer).toEqual([iso, "Checking", JORDAN, "75", "Transfer", "Ally savings", "", "", ""]);
+	// The payment to the card is money out: it is not in this file.
+	expect(strFromU8(files["money-in.csv"] as Uint8Array)).not.toContain("CARDMEMBER");
+
+	// money-in-rules.csv: the remembered pair, with both its Accounts and who made it.
+	const moneyInRules = cells(files["money-in-rules.csv"]);
+	expect(moneyInRules[0]).toEqual([
+		"Statement words",
+		"Always",
+		"Into Account",
+		"From Account",
+		"Whose pay",
+		"Set by",
+		"Made on",
+	]);
+	expect(moneyInRules).toHaveLength(2);
+	expect(moneyInRules[1]).toEqual([
+		// The wording as Noodle keeps it: the sender, without the words and numbers that change.
+		"zelle from jordan pike",
+		"Transfer",
+		"Checking",
+		"Ally savings",
+		"",
+		"Alex",
+		expect.stringMatching(new RegExp(`^(${madeOn.join("|")})$`)),
+	]);
+
+	// card-payment-rules.csv: the wording, the card it pays, who said so and when.
+	const cardPaymentRules = cells(files["card-payment-rules.csv"]);
+	expect(cardPaymentRules[0]).toEqual(["Statement words", "Card", "Set by", "Made on"]);
+	expect(cardPaymentRules).toHaveLength(2);
+	expect(cardPaymentRules[1]).toEqual([
+		"cardmember serv",
+		"Visa",
+		"Alex",
+		expect.stringMatching(new RegExp(`^(${madeOn.join("|")})$`)),
+	]);
 });
