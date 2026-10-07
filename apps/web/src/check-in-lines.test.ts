@@ -1,6 +1,13 @@
-import type { CheckInStackCard, MonthKey } from "@noodle/domain";
+import type { CheckInCard, CheckInStackCard, MonthKey } from "@noodle/domain";
 import { describe, expect, it } from "vitest";
-import { checkInClearedHeading, checkInDealtLine, checkInStackLine } from "./check-in";
+import {
+	checkInClearedHeading,
+	checkInDealtLine,
+	checkInOpenLabel,
+	checkInStackLine,
+	checkInSummary,
+	checkInSummaryLines,
+} from "./check-in";
 
 const sam = { memberId: "sam", name: "Sam" };
 const alex = { memberId: "alex", name: "Alex" };
@@ -100,5 +107,25 @@ describe("the line over a stack that was all dealt with before this visit", () =
 	it("names nobody when any line has no record of who", () => {
 		const unknown = dealt({ kind: "insights", count: 1, ids: ["a"] });
 		expect(checkInClearedHeading([review, unknown], "alex")).toBe("These 2 are dealt with");
+	});
+});
+
+describe("what still waits, a line for each card", () => {
+	const cards: CheckInCard[] = [
+		{ kind: "review", count: 1 },
+		{ kind: "insights", titles: ["A"] },
+	];
+
+	it("reads as one sentence, each line its own piece so it can open its card", () => {
+		expect(checkInSummaryLines(cards)).toEqual(["1 Transaction in Review", "1 new Insight"]);
+		expect(checkInSummary(cards)).toBe("1 Transaction in Review, 1 new Insight.");
+		expect(
+			checkInSummaryLines([{ kind: "sweeps", month: september, leftovers: [], total: 5500 }]),
+		).toEqual(["$55 to Sweep from September"]);
+	});
+
+	it("names the way back to a card, saying when it was skipped", () => {
+		expect(checkInOpenLabel("review", true)).toBe("Open Review, skipped");
+		expect(checkInOpenLabel("windfalls", false)).toBe("Open Extra income");
 	});
 });

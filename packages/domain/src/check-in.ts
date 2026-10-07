@@ -278,3 +278,29 @@ export function checkInDealtBefore(
 	const dealt = stack.flatMap((card) => (card.state === "dealt" ? [card] : []));
 	return dealt.length === stack.length ? dealt : null;
 }
+
+/**
+ * The card a Parent asked to open again (`open`, as the address names it): one of the week's stack
+ * that still waits, in its own place ("1 of 3"). Opening it changes nothing: a skipped card stays
+ * skipped until it is dealt with. Null when nothing was asked for, or the card is dealt with or not
+ * in the stack.
+ */
+export function checkInReopened(
+	stack: readonly CheckInStackCard[],
+	open: string | undefined,
+):
+	| (Extract<CheckInStep, { kind: "card" }> & {
+			card: Extract<CheckInStackCard, { state: "waiting" }>;
+	  })
+	| null {
+	const index = stack.findIndex((card) => card.kind === open);
+	const card = stack[index];
+	if (card?.state !== "waiting") return null;
+	return {
+		kind: "card",
+		card,
+		position: index + 1,
+		of: stack.length,
+		last: index === stack.length - 1,
+	};
+}

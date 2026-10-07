@@ -420,3 +420,95 @@ test("a skipped card is still skipped on coming back the same week", async ({ br
 	await page.reload();
 	await expect(steps.nth(0)).toContainText("Skipped");
 });
+
+test("a skipped card can be opened again from the steps and from Still waiting for you, and dealt with", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	const day = await householdOnCheckInDay(page);
+	await seedCheckIn(parent.userId, day);
+	const household = `(select household_id from members where clerk_user_id = ${q(parent.userId)})`;
+
+	await openCheckIn(page);
+	await expect(page.getByRole("heading", { name: "1 Transaction in Review" })).toBeVisible();
+	const skip = page.getByRole("button", { name: "Skip for now" });
+	await hydrated(skip);
+	const skipped = savedBy(page, "skipCheckInCard");
+	await skip.click();
+	await skipped;
+	await expect(page.getByText("2 of 3")).toBeVisible();
+
+	// From the steps beside the card: the skipped step has a way back to its card, by keyboard too.
+	const steps = page.getByRole("navigation", { name: "Check-in steps" }).getByRole("listitem");
+	await expect(steps.nth(0)).toContainText("Skipped");
+	const openReview = page.getByRole("link", { name: "Open Review, skipped" });
+	await expect(steps.nth(0).getByRole("link", { name: "Open Review, skipped" })).toBeVisible();
+	// The card on screen, and one not yet met, have no such link.
+	await expect(page.getByRole("link", { name: /^Open (Insights|Extra income)/ })).toHaveCount(0);
+	await steps.nth(0).getByRole("link", { name: "Open Review, skipped" }).focus();
+	await page.keyboard.press("Enter");
+	await expect(page).toHaveURL(/open=review/);
+	await expect(page.getByText("1 of 3")).toBeVisible();
+	await expect(page.getByRole("heading", { name: "1 Transaction in Review" })).toBeVisible();
+	await expect(page.getByRole("list", { name: "Waiting in Review" })).toContainText(
+		"Corner Hardware",
+	);
+	await expect(page.getByRole("link", { name: "Open full page" })).toBeVisible();
+	await expect(steps.nth(0)).toHaveAttribute("aria-current", "step");
+	// Leaving it leaves it skipped, back where the Parent was; so does a reload.
+	await page.getByRole("button", { name: "Leave it skipped" }).click();
+	await expect(page).not.toHaveURL(/open=/);
+	await expect(page.getByText("2 of 3")).toBeVisible();
+	await expect(page.getByRole("heading", { name: "1 new Insight" })).toBeVisible();
+	await page.reload();
+	await expect(steps.nth(0)).toContainText("Skipped");
+	await expect(page.getByText("2 of 3")).toBeVisible();
+
+	// On a phone the steps aren't beside the card: the same way back is in "So far this week".
+	await page.setViewportSize({ width: 393, height: 852 });
+	const soFar = page.getByRole("list", { name: "So far this week" });
+	await expect(soFar.getByRole("link", { name: "Open Review, skipped" })).toBeVisible();
+	await soFar.getByRole("link", { name: "Open Review, skipped" }).click();
+	await expect(page.getByRole("heading", { name: "1 Transaction in Review" })).toBeVisible();
+	// What waits arrives under the heading and moves the buttons down: wait for it before pressing.
+	await expect(page.getByRole("list", { name: "Waiting in Review" })).toContainText(
+		"Corner Hardware",
+	);
+	await page.getByRole("button", { name: "Leave it skipped" }).click();
+	await expect(page.getByRole("heading", { name: "1 new Insight" })).toBeVisible();
+	await page.setViewportSize({ width: 1440, height: 900 });
+
+	// Skipping the rest finishes the week. Each thing still waiting opens its card.
+	await hydrated(skip);
+	await skip.click();
+	const finished = savedBy(page, "completeCheckIn");
+	await page.getByRole("button", { name: "Skip and finish" }).click();
+	await finished;
+	await expect(page.getByText("You’re done for this week")).toBeVisible();
+	await expect(
+		page.getByText(/Still waiting for you: 1 Transaction in Review, 1 new/),
+	).toBeVisible();
+	await expect(openReview).toHaveCount(1);
+	await page.getByRole("link", { name: "1 Transaction in Review", exact: true }).click();
+	await expect(page).toHaveURL(/open=review/);
+	await expect(page.getByRole("heading", { name: "1 Transaction in Review" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Leave it skipped" })).toBeVisible();
+
+	// Dealt with from the card: its page, where the Transaction leaves Review (with no record of
+	// who, as the tests above do it), and back. "Skipped" gives way to what was done, and Review is
+	// no longer among what waits.
+	await page.getByRole("link", { name: "Open full page" }).click();
+	await expect(page).toHaveURL(/\/review/);
+	await seedSql([
+		`delete from categorizations where household_id = ${household};`,
+		`delete from transactions where household_id = ${household};`,
+	]);
+	await page.goBack();
+	await expect(page.getByText("You’re done for this week")).toBeVisible();
+	await expect(steps.nth(0)).toContainText("1 Transaction cleared from Review");
+	await expect(steps.nth(0)).not.toContainText("Skipped");
+	await expect(page.getByText(/Still waiting for you: 1 new Insight/)).toBeVisible();
+	await expect(page.getByRole("link", { name: /^Open Review/ })).toHaveCount(0);
+	await expect(steps.nth(1).getByRole("link", { name: "Open Insights, skipped" })).toBeVisible();
+});

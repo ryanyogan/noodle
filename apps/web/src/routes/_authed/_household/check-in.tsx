@@ -4,6 +4,7 @@ import {
 	type CheckInStackCard,
 	checkInDealtBefore,
 	checkInPast,
+	checkInReopened,
 	checkInStep,
 	displayMerchant,
 } from "@noodle/domain";
@@ -18,15 +19,16 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useState } from "react";
 import { z } from "zod";
 import {
 	checkInCardTitle,
 	checkInClearedHeading,
 	checkInDealtLine,
 	checkInLine,
+	checkInOpenLabel,
 	checkInStackLine,
-	checkInSummary,
+	checkInSummaryLines,
 } from "../../../check-in";
 import { PerkResetLine } from "../../../components/perk-reset";
 import { TermHelp } from "../../../components/term-help";
@@ -42,7 +44,12 @@ import {
 export const Route = createFileRoute("/_authed/_household/check-in")({
 	// `past`: the cards already passed, comma-separated, so leaving for Review or Insights and
 	// coming Back picks up at the same card.
-	validateSearch: z.object({ past: z.string().optional().catch(undefined) }),
+	// `open`: a card that still waits (skipped, most often), opened again from the steps or from
+	// "Still waiting for you". Opening it changes nothing by itself.
+	validateSearch: z.object({
+		past: z.string().optional().catch(undefined),
+		open: z.string().optional().catch(undefined),
+	}),
 	// Read afresh on the way in: a cached empty stack would finish the Check-in before its cards
 	// arrived.
 	loader: ({ context }) => context.queryClient.fetchQuery(checkInQuery()),
@@ -57,6 +64,8 @@ export const Route = createFileRoute("/_authed/_household/check-in")({
  * joins the end. Reaching the end finishes the week's Check-in; nothing on the cards changes until
  * the Parent acts on the page each one links to. A card skipped is kept as skipped for the week
  * (issue 142), and a stack that was all dealt with before this visit is one summary with Finish.
+ * A skipped card can be opened again, from its step and from the done state: it then offers what
+ * it always did, and stays skipped until it is dealt with.
  */
 function CheckInPage() {
 	const view = useSuspenseQuery(checkInQuery()).data;
@@ -74,6 +83,10 @@ function CheckInPage() {
 		view.completedAt === null ? checkInStep(view.stack, past) : ({ kind: "done" } as const);
 	// Everything was dealt with before this visit: its lines together, and one Finish.
 	const dealtBefore = view.completedAt === null ? checkInDealtBefore(view.stack, past) : null;
+	// A waiting card the Parent opened again, shown in place of where they are; leaving it goes back.
+	const reopened = checkInReopened(view.stack, search.open);
+	// The card on screen, with its place in the stack: the one opened again, else the step's.
+	const shown = reopened ?? (step.kind === "card" && !dealtBefore ? step : null);
 	const complete = useCompleteCheckIn();
 	// Finishing is recorded once, when the stack runs out (straight away when it was empty).
 	const done = step.kind === "done";
@@ -102,8 +115,13 @@ function CheckInPage() {
 	}, [unstarted, queryClient, startTries]);
 	// The cards already met, on a phone, where the steps aren't beside the card: every card
 	// before this one, or the whole stack once done.
-	const met =
-		step.kind === "card" ? (dealtBefore ? [] : view.stack.slice(0, step.position - 1)) : view.stack;
+	const met = reopened
+		? []
+		: step.kind === "card"
+			? dealtBefore
+				? []
+				: view.stack.slice(0, step.position - 1)
+			: view.stack;
 	// A card this Parent moved past while it waited, on this visit or earlier this week. One that
 	// appeared after the week was finished was never skipped, and says what waits.
 	const isSkipped = (card: CheckInStackCard) =>
@@ -115,6 +133,23 @@ function CheckInPage() {
 			.then(() => queryClient.invalidateQueries({ queryKey: checkInQuery().queryKey }))
 			.catch(() => {});
 	};
+	// The way back to a card that still waits and isn't on screen: one this Parent is past, or any
+	// once the week is done (a card that appeared after finishing was never skipped).
+	const openLink = (card: CheckInStackCard) =>
+		card.state === "waiting" &&
+		shown?.card.kind !== card.kind &&
+		(done || past.includes(card.kind)) ? (
+			<>
+				{" · "}
+				<OpenCard
+					kind={card.kind}
+					past={search.past}
+					label={checkInOpenLabel(card.kind, isSkipped(card))}
+				>
+					Open
+				</OpenCard>
+			</>
+		) : null;
 
 	return (
 		<>
@@ -135,9 +170,7 @@ function CheckInPage() {
 				{view.stack.length > 0 ? (
 					<div className="hidden gap-3 lg:grid">
 						{/* A line over the steps, as "1 of 4" is over the card: both columns start alike. */}
-						{step.kind === "card" && !dealtBefore ? (
-							<p className="text-sm text-muted-foreground">This week</p>
-						) : null}
+						{shown ? <p className="text-sm text-muted-foreground">This week</p> : null}
 						<StepList aria-label="Check-in steps">
 							{view.stack.map((card) => (
 								<StepListItem
@@ -145,7 +178,7 @@ function CheckInPage() {
 									// The control radius, and room for the step's own line under its name.
 									className="items-start rounded-(--radius-control) py-2.5 [&>span[aria-hidden]]:mt-1.5 [&>svg]:mt-0.5"
 									state={
-										!dealtBefore && step.kind === "card" && step.card.kind === card.kind
+										shown?.card.kind === card.kind
 											? "current"
 											: done || past.includes(card.kind) || card.state === "dealt"
 												? "done"
@@ -159,6 +192,7 @@ function CheckInPage() {
 										    September"). */}
 										<span className="text-pretty text-[13px] font-normal text-muted-foreground">
 											{checkInStackLine(card, view.me, isSkipped(card))}
+											{openLink(card)}
 										</span>
 									</span>
 								</StepListItem>
@@ -168,9 +202,9 @@ function CheckInPage() {
 				) : null}
 				{/* From lg the card takes the page's column with or without steps beside it (issue 73). */}
 				<div className="grid max-w-3xl gap-3 lg:max-w-none">
-					{step.kind === "card" && !dealtBefore ? (
+					{shown ? (
 						<p className="text-sm text-muted-foreground tabular-nums">
-							{step.position} of {step.of}
+							{shown.position} of {shown.of}
 						</p>
 					) : null}
 					{met.length > 0 ? (
@@ -186,12 +220,23 @@ function CheckInPage() {
 											{checkInCardTitle[card.kind]}
 										</span>{" "}
 										{checkInStackLine(card, view.me, isSkipped(card))}
+										{openLink(card)}
 									</span>
 								</li>
 							))}
 						</ul>
 					) : null}
-					{dealtBefore ? (
+					{reopened ? (
+						<CheckInCardView
+							key={reopened.card.kind}
+							card={reopened.card.card}
+							last={reopened.last}
+							// Leaving it changes nothing: skipped stays skipped, and the Parent is back
+							// where they were.
+							leave={isSkipped(reopened.card) ? "Leave it skipped" : "Leave it for now"}
+							onNext={() => navigate({ search: { past: search.past } })}
+						/>
+					) : dealtBefore ? (
 						<DealtBeforeView
 							cards={dealtBefore}
 							me={view.me}
@@ -215,11 +260,42 @@ function CheckInPage() {
 							/>
 						)
 					) : (
-						<Done view={view} empty={view.stack.length === 0 && past.length === 0} />
+						<Done
+							view={view}
+							empty={view.stack.length === 0 && past.length === 0}
+							past={search.past}
+						/>
 					)}
 				</div>
 			</div>
 		</>
+	);
+}
+
+/**
+ * A few words that open a waiting card again, in the Check-in itself. `label` names it where the
+ * words alone ("Open") wouldn't say which card.
+ */
+function OpenCard({
+	kind,
+	past,
+	label,
+	className,
+	children,
+}: {
+	kind: CheckInCardKind;
+	past: string | undefined;
+	label?: string;
+	className?: string;
+	children: ReactNode;
+}) {
+	return (
+		// On a phone the one word is a short target: 24px of height at least.
+		<Button asChild variant="link" size="inline" className={cn("max-lg:min-h-6", className)}>
+			<Link to="/check-in" search={{ past, open: kind }} aria-label={label}>
+				{children}
+			</Link>
+		</Button>
 	);
 }
 
@@ -307,10 +383,13 @@ function DealtBeforeView({
 function CheckInCardView({
 	card,
 	last,
+	leave,
 	onNext,
 }: {
 	card: CheckInCard;
 	last: boolean;
+	/** For a card opened again: what leaving it is called, in place of "Skip for now". */
+	leave?: string;
 	onNext: () => void;
 }) {
 	return (
@@ -346,7 +425,7 @@ function CheckInCardView({
 				<CardLink card={card} />
 				{/* A card is only here while something on it waits: moving on leaves it for later. */}
 				<Button variant="ghost" className="max-[359px]:-mx-3" onClick={onNext}>
-					{last ? "Skip and finish" : "Skip for now"}
+					{leave ?? (last ? "Skip and finish" : "Skip for now")}
 				</Button>
 			</CardFooter>
 		</Card>
@@ -503,18 +582,41 @@ function CardLink({ card }: { card: CheckInCard }) {
 	}
 }
 
-function Done({ view, empty }: { view: CheckInView; empty: boolean }) {
+function Done({
+	view,
+	empty,
+	past,
+}: {
+	view: CheckInView;
+	empty: boolean;
+	past: string | undefined;
+}) {
 	const other = view.otherParent;
 	// The week is done, but what was skipped still waits: say so, rather than "all done".
 	const cards = view.stack.flatMap((card) => (card.state === "waiting" ? [card.card] : []));
-	const waiting = cards.length > 0 ? checkInSummary(cards) : null;
+	const lines = checkInSummaryLines(cards);
 	return (
 		<EmptyState
 			icon={<Check />}
 			title="You’re done for this week"
 			description={
 				<>
-					{waiting ? `Still waiting for you: ${waiting} ` : null}
+					{/* Each thing that waits opens its card again. */}
+					{cards.length > 0 ? (
+						<>
+							Still waiting for you:{" "}
+							{cards.map((card, index) => (
+								<Fragment key={card.kind}>
+									{index > 0 ? ", " : null}
+									{/* Part of the sentence: it wraps as words do, and keeps its comma. */}
+									<OpenCard kind={card.kind} past={past} className="inline whitespace-normal">
+										{lines[index]}
+									</OpenCard>
+								</Fragment>
+							))}
+							.{" "}
+						</>
+					) : null}
 					{empty
 						? "Nothing needed you this week. Once a week, the Check-in takes a few minutes: confirm spending Noodle wasn’t sure about, look at its suggestions, and decide what to do with last month’s leftovers. "
 						: null}
