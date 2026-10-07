@@ -522,7 +522,17 @@ function EditForm({
 				)}
 			>
 				<div className="grid gap-1.5">
-					<Field label="Name" htmlFor="transaction-name">
+					<Field
+						label="Name"
+						htmlFor="transaction-name"
+						// The line under a field is its hint, here as under Assigned to beside it: the same
+						// words, size and distance, so the two fields and their lines sit level (issue 147).
+						hint={
+							banksWording && name.trim() !== banksWording ? (
+								<span className="block min-w-0 break-words">From your bank: {banksWording}</span>
+							) : undefined
+						}
+					>
 						{fromBank ? (
 							<Input
 								id="transaction-name"
@@ -543,11 +553,6 @@ function EditForm({
 							/>
 						)}
 					</Field>
-					{banksWording && name.trim() !== banksWording ? (
-						<p className="min-w-0 break-words text-muted-foreground text-sm">
-							From your bank: {banksWording}
-						</p>
-					) : null}
 					{banksName && name.trim() !== banksName ? (
 						<Button
 							type="button"
@@ -563,12 +568,10 @@ function EditForm({
 					) : null}
 				</div>
 				<div
-					className={cn(
-						"grid gap-3 sm:grid-cols-2",
-						// The sentence of a month with no Buckets is taller than a field (issue 117): Amount
-						// keeps its own height beside it.
-						none && "items-start",
-					)}
+					// Each field keeps its own height from the top: a hint under one (why it was filed
+					// automatically), or the sentence of a month with no Buckets (issue 117), never moves
+					// the label or the box of the field beside it (issue 147).
+					className="grid items-start gap-4 sm:grid-cols-2"
 				>
 					<Field label="Amount" htmlFor="transaction-amount">
 						<AmountInput
@@ -615,8 +618,8 @@ function EditForm({
 									disabled={!hydrated}
 									value={assignment}
 									onValueChange={setAssignment}
-									placeholder="Choose a bucket or commitment"
-									searchPlaceholder="Search buckets and commitments…"
+									placeholder="Choose a Bucket or Commitment"
+									searchPlaceholder="Search Buckets and Commitments…"
 									aria-invalid={invalid === "assignment" || undefined}
 									choices={choices}
 								/>
@@ -695,6 +698,7 @@ function EditForm({
 							value={forMemberIds}
 							onChange={setForMemberIds}
 							multiple
+							field
 							className={wide ? "max-w-2xl" : undefined}
 						/>
 						{none ? (
@@ -817,7 +821,7 @@ function SplitFields({
 					<X />
 				</Button>
 			) : null}
-			<div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3">
+			<div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-start gap-3">
 				<Field label="Amount" htmlFor={`${id}-amount`}>
 					<AmountInput
 						id={`${id}-amount`}
@@ -845,6 +849,7 @@ function SplitFields({
 				value={split.for}
 				onChange={(value) => onChange({ for: value })}
 				multiple
+				field
 			/>
 		</fieldset>
 	);

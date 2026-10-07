@@ -7,6 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from "@noodle/ui/components/dropdown-menu";
 import { Field } from "@noodle/ui/components/field";
+import { RowButton } from "@noodle/ui/components/row-button";
 import { useQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { ArrowLeftRight, ChevronDown, CreditCard, ReceiptText, Sparkles } from "lucide-react";
@@ -19,7 +20,47 @@ import { nameOf, type TransactionRow } from "../transactions";
 import { useMoneyChange } from "../transfers";
 import { CardPaymentQuestion } from "./card-payment";
 
-/** Page-local treatment switch. A payment is available even after a mistaken bucket filing. */
+type Mode = "default" | "payment" | "transfer" | "between-us";
+
+/**
+ * What each choice means, said where it is chosen (issue 147), in CONTEXT.md's words. The names
+ * are the ones specs and the glossary use; the line under each tells them apart.
+ */
+const TYPES: Record<
+	Exclude<Mode, "default">,
+	{ name: string; means: string; icon: typeof Sparkles }
+> = {
+	payment: {
+		name: "Credit card payment",
+		means: "Paying a card’s bill. What was bought on the card is already counted.",
+		icon: CreditCard,
+	},
+	transfer: {
+		name: "Transfer",
+		means: "Money moved between two of your own Accounts. It isn’t spending.",
+		icon: ArrowLeftRight,
+	},
+	"between-us": {
+		name: "Between us",
+		means: "Money one Parent moved to the other. It isn’t Income or spending.",
+		icon: ArrowLeftRight,
+	},
+};
+
+const DEFAULTS = {
+	Spending: { means: "It counts in a Bucket or a Commitment.", icon: ReceiptText },
+	Suggested: { means: "File it where Noodle suggests, or choose a Bucket.", icon: Sparkles },
+};
+
+/** The word on Review's menu button for the choice made. */
+const SHORT: Record<Mode, string> = {
+	default: "Suggested",
+	payment: "Card payment",
+	transfer: "Transfer",
+	"between-us": "Between us",
+};
+
+/** Page-local treatment switch. A payment is available even after a mistaken Bucket filing. */
 export function TransactionTreatment({
 	transaction,
 	onDone,
@@ -36,12 +77,12 @@ export function TransactionTreatment({
 	onModeChange?: (alternative: boolean) => void;
 	review?: Pick<ReviewItem, "merchant" | "guess" | "for">;
 	/** Review puts a compact type menu beside the amount in its header. */
-	renderHeader?: (choices: ReactNode) => ReactNode;
+	renderHeader?: (choices: ReactNode, mode: Mode) => ReactNode;
 }) {
 	const hydrated = useHydrated();
-	const [mode, setMode] = useState<"default" | "payment" | "transfer" | "between-us">("default");
+	const [mode, setMode] = useState<Mode>("default");
 	const payment = mode === "payment";
-	function choose(next: typeof mode) {
+	function choose(next: Mode) {
 		setMode(next);
 		onModeChange?.(next !== "default");
 	}
@@ -82,10 +123,20 @@ export function TransactionTreatment({
 	if (!transaction.importedFrom || transaction.splits.length > 0)
 		return (
 			<>
-				{renderHeader?.(null)}
+				{renderHeader?.(null, "default")}
 				{children}
 			</>
 		);
+	// Transfer and Between us only while it is in no Bucket and no Commitment.
+	const offered: Mode[] = [
+		"default",
+		"payment",
+		...(!transaction.bucketId && !transaction.commitmentId
+			? (["transfer", "between-us"] as const)
+			: []),
+	];
+	const typeOf = (kind: Mode) =>
+		kind === "default" ? { name: defaultLabel, ...DEFAULTS[defaultLabel] } : TYPES[kind];
 	return (
 		<div
 			// Its rows shrink with the card: a long button wraps rather than widening it.
@@ -101,99 +152,83 @@ export function TransactionTreatment({
 								variant="secondary"
 								size="sm"
 								disabled={busy}
-								aria-label={`Transaction type: ${mode === "default" ? "Suggested" : mode === "payment" ? "Card payment" : mode === "transfer" ? "Transfer" : "Between us"}`}
+								aria-label={`Transaction type: ${SHORT[mode]}`}
 								className="gap-1 px-2 text-xs"
 							>
-								<span>
-									{mode === "default"
-										? "Suggested"
-										: mode === "payment"
-											? "Card payment"
-											: mode === "transfer"
-												? "Transfer"
-												: "Between us"}
-								</span>
+								<span>{SHORT[mode]}</span>
 								<ChevronDown className="size-3" />
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" aria-label="Transaction type">
-							<DropdownMenuItem onSelect={() => choose("default")}>
-								<Sparkles />
-								Suggested
-							</DropdownMenuItem>
-							<DropdownMenuItem onSelect={() => choose("payment")}>
-								<CreditCard />
-								Credit card payment
-							</DropdownMenuItem>
-							{!transaction.bucketId && !transaction.commitmentId ? (
-								<>
-									<DropdownMenuItem onSelect={() => choose("transfer")}>
-										<ArrowLeftRight />
-										Transfer
+						<DropdownMenuContent align="end" aria-label="Transaction type" className="w-72">
+							{offered.map((kind) => {
+								const { name, means, icon: Icon } = typeOf(kind);
+								return (
+									<DropdownMenuItem
+										key={kind}
+										// Named by its first line alone; the second says what it means.
+										aria-labelledby={`${id}-${kind}-name`}
+										aria-describedby={`${id}-${kind}-means`}
+										className="items-start"
+										onSelect={() => choose(kind)}
+									>
+										<Icon className="mt-0.5" />
+										<span className="grid min-w-0 gap-0.5">
+											<span id={`${id}-${kind}-name`} className="font-medium">
+												{name}
+											</span>
+											<span id={`${id}-${kind}-means`} className="text-xs text-muted-foreground">
+												{means}
+											</span>
+										</span>
 									</DropdownMenuItem>
-									<DropdownMenuItem onSelect={() => choose("between-us")}>
-										<ArrowLeftRight />
-										Between us
-									</DropdownMenuItem>
-								</>
-							) : null}
+								);
+							})}
 						</DropdownMenuContent>
 					</DropdownMenu>,
+					mode,
 				)
 			) : (
 				<fieldset
 					aria-label="Transaction type"
-					className="flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1 justify-self-start"
+					// Two across in a sheet or a narrow pane; all on one line once the row is wide.
+					className="grid grid-cols-2 gap-2 @3xl:grid-cols-4"
 				>
-					<Button
-						type="button"
-						size="sm"
-						variant={mode === "default" ? "secondary" : "ghost"}
-						aria-pressed={mode === "default"}
-						disabled={busy}
-						onClick={() => choose("default")}
-					>
-						{defaultLabel === "Suggested" ? <Sparkles /> : <ReceiptText />}
-						{defaultLabel}
-					</Button>
-					<Button
-						type="button"
-						size="sm"
-						variant={payment ? "secondary" : "ghost"}
-						aria-pressed={payment}
-						disabled={busy}
-						onClick={() => choose("payment")}
-					>
-						<CreditCard />
-						Credit card payment
-					</Button>
-					{(!transaction.bucketId && !transaction.commitmentId
-						? (["transfer", "between-us"] as const)
-						: []
-					).map((kind) => (
-						<Button
-							key={kind}
-							type="button"
-							size="sm"
-							variant={mode === kind ? "secondary" : "ghost"}
-							aria-pressed={mode === kind}
-							disabled={busy}
-							onClick={() => choose(kind)}
-						>
-							<ArrowLeftRight />
-							{kind === "transfer" ? "Transfer" : "Between us"}
-						</Button>
-					))}
+					{offered.map((kind) => {
+						const { name, means, icon: Icon } = typeOf(kind);
+						return (
+							<RowButton
+								key={kind}
+								type="button"
+								variant="tile"
+								aria-pressed={mode === kind}
+								aria-labelledby={`${id}-${kind}-name`}
+								aria-describedby={`${id}-${kind}-means`}
+								disabled={busy}
+								onClick={() => choose(kind)}
+								className="flex items-start gap-2.5 text-left disabled:opacity-60 aria-pressed:border-ring aria-pressed:bg-brand-soft"
+							>
+								<Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+								<span className="grid min-w-0 gap-0.5">
+									<span id={`${id}-${kind}-name`} className="text-sm font-medium text-foreground">
+										{name}
+									</span>
+									<span id={`${id}-${kind}-means`} className="text-xs text-muted-foreground">
+										{means}
+									</span>
+								</span>
+							</RowButton>
+						);
+					})}
 				</fieldset>
 			)}
 			{/* Keep unsaved spending fields intact if the Parent switches back. */}
 			<div hidden={mode !== "default"}>{children}</div>
 			{mode === "transfer" || mode === "between-us" ? (
-				<div className="grid gap-3 rounded-xl border border-border bg-surface-2 p-4">
+				<div className="grid max-w-xl gap-4">
 					<p className="text-sm text-muted-foreground">
 						{mode === "transfer"
-							? "Money moving between accounts. It won’t count as spending in a bucket."
-							: "Money sent to the other parent. It won’t count as household spending."}
+							? "Marked as a Transfer, it counts nowhere: it is your own money moving between your Accounts, not spending in a Bucket."
+							: "Marked as between us, it counts nowhere: money one Parent moved to the other isn’t Income and isn’t spending."}
 					</p>
 					<Button
 						type="button"
@@ -221,8 +256,8 @@ export function TransactionTreatment({
 			{payment ? (
 				<div className="grid max-w-xl gap-4">
 					<p className="text-sm text-muted-foreground">
-						Link the saved {formatMoney(transaction.amountCents)} transaction to the card it pays.
-						Cards you keep manually are included.
+						Choose the card this {formatMoney(transaction.amountCents)} pays. Cards you keep by hand
+						are included.
 					</p>
 					{cards.isError ? (
 						<div role="alert" className="text-sm">
@@ -259,10 +294,10 @@ export function TransactionTreatment({
 					) : (
 						<>
 							{card ? (
-								<p className="rounded-xl bg-card p-3 text-sm text-muted-foreground">
+								<p className="text-sm text-muted-foreground">
 									{card.commitment
 										? `This payment will be filed in ${card.commitment.name}, which pays down ${card.name}.`
-										: `This becomes a transfer to ${card.name}, so it won’t count as spending in a bucket.`}{" "}
+										: `This becomes a Transfer to ${card.name}, so it won’t count as spending in a Bucket.`}{" "}
 									Payments with the same bank wording will be remembered too.
 								</p>
 							) : null}

@@ -614,7 +614,7 @@ test("an assigned Apple payment links to a manually added card from Transactions
 	});
 	await editor.getByRole("button", { name: "Credit card payment", exact: true }).click();
 	await choose(editor, "Payment to", "Apple Card");
-	await expect(editor).toContainText("won’t count as spending in a bucket");
+	await expect(editor).toContainText("won’t count as spending in a Bucket");
 	await page.screenshot({
 		path: "/tmp/noodle-transactions-payment.png",
 		fullPage: true,

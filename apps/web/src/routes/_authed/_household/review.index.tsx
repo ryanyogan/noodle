@@ -1885,7 +1885,7 @@ function ReviewCard({
 				key={item.id}
 				transaction={item}
 				defaultLabel="Suggested"
-				renderHeader={(choices) => (
+				renderHeader={(choices, mode) => (
 					<div className="flex items-start justify-between gap-3 @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-y-1">
 						<div className="grid min-w-0 gap-0.5 @max-[15rem]/card:basis-full">
 							{/* On a phone a long Account name goes to a second line rather than being cut mid-word;
@@ -1925,7 +1925,17 @@ function ReviewCard({
 							</p>
 							{/* Why it is here, beside the menu of what it is: said on every card. */}
 							<div className="flex max-w-full flex-wrap items-center justify-end gap-1 @max-[15rem]/card:justify-between">
-								<Badge className="@max-[15rem]/card:h-auto @max-[15rem]/card:max-w-full @max-[15rem]/card:rounded-xl @max-[15rem]/card:whitespace-normal">
+								{/* Once "Card payment" is the type chosen, the menu says it: not twice (issue 147). */}
+								<Badge
+									className={cn(
+										"@max-[15rem]/card:h-auto @max-[15rem]/card:max-w-full @max-[15rem]/card:rounded-xl @max-[15rem]/card:whitespace-normal",
+										mode === "payment" &&
+											payment &&
+											payment.kind !== "commitment" &&
+											payment.kind !== "followed" &&
+											"hidden",
+									)}
+								>
 									{payment?.kind === "commitment"
 										? "Payment"
 										: payment?.kind === "followed"

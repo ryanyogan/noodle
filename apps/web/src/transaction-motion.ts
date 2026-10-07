@@ -1,3 +1,6 @@
+/** How long the pane takes to shut. */
+const CLOSE_MS = 180;
+
 /** The close that is under way, if any: its pane and the animation shutting it. */
 let closing: { region: HTMLElement; animation: Animation } | null = null;
 
@@ -32,7 +35,7 @@ export function animateTransactionClose(done: () => void) {
 			{ height: `${region.offsetHeight}px`, opacity: 1, overflow: "clip" },
 			{ height: "0px", paddingTop: "0px", paddingBottom: "0px", opacity: 0, overflow: "clip" },
 		],
-		{ duration: 180, easing: "ease-in-out", fill: "forwards" },
+		{ duration: CLOSE_MS, easing: "ease-in-out", fill: "forwards" },
 	);
 	const mine = { region, animation };
 	closing = mine;
@@ -41,19 +44,32 @@ export function animateTransactionClose(done: () => void) {
 		delete region.dataset.closing;
 		region.inert = false;
 	};
+	let settled = false;
+	const finish = () => {
+		if (settled) return;
+		settled = true;
+		clearTimeout(late);
+		if (closing === mine) closing = null;
+		// Somewhere else by now (another row, another page): that is not this close's to undo.
+		// Still here, the pane closes even when its row has gone (a deleted Transaction's pane
+		// is taken out of the page before the animation ends, and must not come back with Undo).
+		if (window.location.pathname === from) done();
+		else if (region.isConnected) {
+			animation.cancel();
+			restore();
+		}
+	};
+	// A pane taken out of the page mid-close (its row left the list: a filter, a change from the
+	// other Parent) may never be told its animation ended. The close still finishes, a moment
+	// after it would have, so the address is never left on a Transaction that isn't shown.
+	const late = setTimeout(finish, CLOSE_MS + 120);
 	void animation.finished.then(
-		() => {
-			if (closing === mine) closing = null;
-			// Somewhere else by now (another row, another page): that is not this close's to undo.
-			// Still here, the pane closes even when its row has gone (a deleted Transaction's pane
-			// is taken out of the page before the animation ends, and must not come back with Undo).
-			if (window.location.pathname === from) done();
-			else if (region.isConnected) {
-				animation.cancel();
-				restore();
-			}
-		},
+		finish,
 		// Cancelled: the pane is open again.
-		restore,
+		() => {
+			settled = true;
+			clearTimeout(late);
+			restore();
+		},
 	);
 }

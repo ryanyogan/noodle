@@ -17,12 +17,15 @@ export function ForPicker({
 	value,
 	onChange,
 	multiple = false,
+	field = false,
 	className,
 }: {
 	members: MemberSummary[];
 	value: For;
 	onChange: (value: For) => void;
 	multiple?: boolean;
+	/** Among a form's Fields: "For" reads as their labels do, the same size and distance above. */
+	field?: boolean;
 	className?: string;
 }) {
 	const options = pickableMembers(members, value);
@@ -42,7 +45,13 @@ export function ForPicker({
 	);
 	return (
 		<div className={cn("@container grid gap-2", className)}>
-			<p id={labelId} className="mb-2 text-xs font-medium text-muted-foreground">
+			<p
+				id={labelId}
+				className={cn(
+					"font-medium text-muted-foreground",
+					field ? "text-[13px] leading-none" : "mb-2 text-xs",
+				)}
+			>
 				For
 			</p>
 			{multiple ? (
