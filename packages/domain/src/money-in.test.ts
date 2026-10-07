@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	looksLikePayroll,
 	looksLikeRefund,
+	looksLikeReturnedPayment,
 	moneyInKindOf,
 	moneyInOnImport,
 	moneyInRuleFor,
@@ -63,15 +64,37 @@ describe("money in on Import", () => {
 });
 
 describe("money in that reads as a refund (issue 141)", () => {
-	// Real bank wordings, both ways.
+	// Real bank wordings, each way. A store or a bank giving money back: Review, Refund suggested.
 	const refunds = [
 		"AMAZON REFUND",
 		"AMZN Mktp US REFUND 112-4455",
 		"POS REFUND TARGET 00012",
+		"NETFLIX.COM REFUND",
+		"APPLE.COM/BILL REFUND",
+		"VISA REFUND SOUTHWEST AIR",
+		"Refund from IKEA",
+		"WAYFAIR REFUND REF #88213",
+		"SALES TAX REFUND TARGET",
 		"PURCHASE RETURN COSTCO WHSE #1042",
 		"DEBIT CARD RETURN HOME DEPOT",
-		"RETURNED ITEM",
+		"CHECKCARD RETURN LOWES #00907",
+		"MERCHANDISE RETURN KOHLS",
+		"POS RETURN WALMART #2211",
+		"AMAZON RETURN",
+		"TARGET RETURN 0423",
+		"REI #11 RETURN",
+		"COSTCO RETURNS",
+		"DELTA AIR LINES RFND",
+		"UBER TRIP RFD",
+		"BEST BUY REFND 00291",
+		"REF OF OVERPAYMENT COMCAST",
 		"OVERDRAFT FEE REVERSAL",
+		"OVERDRAFT FEE REFUND",
+		"ATM FEE REFUND",
+		"MONTHLY SERVICE FEE REVERSAL",
+		"LATE FEE REVERSED",
+		"RETURNED ITEM FEE REVERSAL",
+		"ACH RETURN FEE REFUND",
 		"PAYMENT REVERSED",
 		"CREDIT ADJ",
 		"CREDIT ADJUSTMENT 0921",
@@ -79,22 +102,92 @@ describe("money in that reads as a refund (issue 141)", () => {
 		"CHARGEBACK VISA",
 		"CHARGE BACK 4471",
 		"PROVISIONAL CREDIT",
-		"Zelle payment from CASEY LOWE refund for shoes",
+		"DISPUTE CREDIT 8841",
 	];
-	const notRefunds = [
+	// Pay, tax refunds (by the agency's name, with or without the word tax), reference numbers,
+	// and wording too thin to tell: Income, as it always was.
+	const incomes = [
 		"ACME CORP PAYROLL",
 		"IRS TREAS 310 TAX REF",
 		"IRS TREAS 310 TAX REFUND",
+		"US TREASURY 310 TAX REFUND",
 		"STATE OF OHIO TAX REFUND",
+		"STATE OF COLO REFUND",
+		"ST OF MICH TAX RFD",
+		"FRANCHISE TAX BD",
 		"FRANCHISE TAX BD CASTTAXRFD",
+		"CA FTB",
+		"CA FTB MCT REFUND",
+		"GA DOR REFUND",
+		"WI DOR REFUND",
+		"NYS DTF PIT",
+		"NYS DTF PIT TAX REFUND",
+		"COMM OF MASS TAX RFD",
+		"COMMONWEALTH OF PA PASTTAXRFD",
+		"OREGON DEPT OF REVENUE REFUND",
+		"MN DEPT OF REVENUE REFUND",
+		"NC DEPT REVENUE REFUND",
+		"IL DEPT OF REV REFUND",
+		"VA DEPT TAXATION REFUND",
+		"MD COMPTROLLER REFUND",
+		"TAXREFUND",
+		"TAX PRODUCTS PE1 SBTPG LLC",
+		"PROPERTY TAX REFUND COOK COUNTY",
+		"SSA TREAS 310 XXSOC SEC",
 		"INTEREST PAYMENT",
 		"MOBILE CHECK DEPOSIT",
+		"ATM DEPOSIT",
 		"ACH CREDIT ACME CONSULTING",
+		"CREDIT",
+		"CASH BACK",
 		"CASH BACK REWARD",
 		"CREDITKARMA TRANSFER",
 		"REFUNDIFY INC",
 		"RETURNPATH LLC",
+		"DEPOSIT REF #1234",
+		"ACH CREDIT REF: 9981",
+		"WIRE IN REF 20261007",
+		"RETURN",
+		"RETURN 0423",
+		"RETURN OF PREMIUM",
+		"RETURN OF PREMIUM STATE FARM",
 	];
+	// A payment that failed and came back: not a Refund for a purchase, and not Income either.
+	const returned = [
+		"ACH RETURN",
+		"ACH RETURN COMCAST CABLE",
+		"ACH RTN 0042",
+		"ACH RETURNED ITEM",
+		"RETURNED ITEM",
+		"RETURN ITEM",
+		"RETURN CHECK",
+		"RETURNED CHECK #1042",
+		"CHECK RETURNED",
+		"RETURNED PAYMENT",
+		"PAYMENT RETURNED",
+		"BILL PAY RETURN",
+		"RETURNED ACH DEBIT",
+		"NSF RETURN",
+	];
+	// From a person: Review as before issue 141; Paid back suggested when the memo says so.
+	const people: [string, "paid-back" | null][] = [
+		["ZELLE FROM JOHN refund for tickets", "paid-back"],
+		["Zelle payment from CASEY LOWE refund for shoes", "paid-back"],
+		["VENMO PAYMENT JOHN paying you back", "paid-back"],
+		["Zelle payment from SAM PIKE paid back dinner", "paid-back"],
+		["CASH APP*MIA what I owe you", "paid-back"],
+		["PAYPAL TRANSFER reimbursement camp", "paid-back"],
+		["Zelle payment from CASEY LOWE 1234", null],
+		["VENMO CASHOUT", null],
+		["Zelle payment from RETURN PATH LLC", null],
+		["ZELLE FROM JOHN tax refund split", "paid-back"],
+		["Zelle payment from JOHN ACH RETURN", null],
+	];
+
+	it("the table is big enough to mean something", () => {
+		expect(refunds.length).toBeGreaterThanOrEqual(30);
+		expect(incomes.length + returned.length + people.length).toBeGreaterThanOrEqual(30);
+	});
 
 	it("waits in Review with Refund suggested, and isn't a Refund until a Parent says so", () => {
 		for (const wording of refunds) {
@@ -108,23 +201,48 @@ describe("money in that reads as a refund (issue 141)", () => {
 		}
 	});
 
-	it("leaves pay, tax refunds, interest and plain credits as they were", () => {
-		for (const wording of notRefunds) {
-			expect(moneyInOnImport(wording).suggest, wording).toBeUndefined();
+	it("leaves pay, tax refunds, interest, reference numbers and plain credits as Income", () => {
+		for (const wording of incomes) {
+			expect(looksLikeRefund(wording), wording).toBe(false);
+			expect(looksLikeReturnedPayment(wording), wording).toBe(false);
+			expect(moneyInOnImport(wording), wording).toEqual({ kind: "income", review: false });
 			expect(suggestedMoneyInKind(wording), wording).toBeNull();
 		}
-		expect(moneyInOnImport("IRS TREAS 310 TAX REFUND")).toEqual({ kind: "income", review: false });
 		expect(moneyInOnImport(null)).toEqual({ kind: "income", review: false });
+	});
+
+	it("sends a payment that came back to Review with nothing suggested", () => {
+		for (const wording of returned) {
+			expect(looksLikeReturnedPayment(wording), wording).toBe(true);
+			expect(looksLikeRefund(wording), wording).toBe(false);
+			expect(moneyInOnImport(wording), wording).toEqual({ kind: "income", review: true });
+			expect(suggestedMoneyInKind(wording), wording).toBeNull();
+		}
+	});
+
+	it("money from a person waits in Review whatever its memo says, never with Refund suggested", () => {
+		for (const [wording, suggest] of people) {
+			expect(looksLikeRefund(wording), wording).toBe(false);
+			expect(moneyInOnImport(wording), wording).toEqual(
+				suggest ? { kind: "income", review: true, suggest } : { kind: "income", review: true },
+			);
+			expect(suggestedMoneyInKind(wording), wording).toBe(suggest);
+		}
 	});
 
 	it("payroll wording still wins, and so does a Rule", () => {
 		expect(moneyInOnImport("ACME PAYROLL REVERSAL")).toEqual({ kind: "income", review: false });
 		expect(suggestedMoneyInKind("ACME PAYROLL REVERSAL")).toBeNull();
+		expect(moneyInOnImport("ACME PAYROLL ZELLE refund")).toEqual({ kind: "income", review: false });
+		expect(suggestedMoneyInKind("ACME PAYROLL ZELLE refund")).toBeNull();
 		expect(
 			moneyInOnImport("AMAZON REFUND", [{ pattern: "amazon refund", kind: "income" }]),
 		).toEqual({
 			kind: "income",
 			review: false,
 		});
+		expect(
+			moneyInOnImport("ZELLE FROM JOHN refund for tickets", [{ pattern: "zelle", kind: "income" }]),
+		).toEqual({ kind: "income", review: false });
 	});
 });

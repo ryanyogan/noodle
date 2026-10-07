@@ -42,13 +42,16 @@ export function looksLikePayroll(text: string | null | undefined): boolean {
 	return !!text && PAYROLL.test(text);
 }
 
-// Wording a bank gives money coming back for something bought, as whole words. Each row was
-// checked both ways against real statement lines (money-in.test.ts has the table).
+// Wording a bank gives money coming back for something bought, or a fee it gives back, as whole
+// words. Each row was checked both ways against real statement lines (money-in.test.ts has the
+// table). "REF" counts only as "REF OF …": "REF #1234" is a reference number. "CREDIT" and "CASH
+// BACK" alone are not here: banks write them on pay and rewards too.
 const REFUND = new RegExp(
 	`\\b(${[
 		"refund(?:ed|s)?", // "AMAZON REFUND", "POS REFUND TARGET", "OVERDRAFT FEE REFUND"
-		"return(?:ed|s)?", // "PURCHASE RETURN COSTCO", "DEBIT CARD RETURN", "RETURNED ITEM"
-		"revers(?:al|ed)", // "FEE REVERSAL", "PAYMENT REVERSED"
+		"rfnd|rfd|refnd", // "DELTA AIR LINES RFND", "UBER TRIP RFD"
+		"ref\\s+of", // "REF OF OVERPAYMENT COMCAST"
+		"revers(?:al|ed)", // "OVERDRAFT FEE REVERSAL", "PAYMENT REVERSED"
 		"credit\\s?adj(?:ustment)?", // "CREDIT ADJ", "CREDIT ADJUSTMENT"
 		"merchant\\s?credit", // "MERCHANT CREDIT REI"
 		"charge\\s?back", // "CHARGEBACK", "CHARGE BACK"
@@ -56,24 +59,73 @@ const REFUND = new RegExp(
 	].join("|")})\\b`,
 	"i",
 );
-// A tax refund is the Household's own money coming home, not money back for a purchase: Income.
-const TAX = /\b(tax|taxes|irs|treas(?:ury)?|franchise\s?tax|dept\s?of\s?rev(?:enue)?)\b/i;
 
+// A payment that failed and came back ("ACH RETURN", "RETURNED ITEM", "RETURN CHECK", "PAYMENT
+// RETURNED"): the Household's own money, so neither a Refund for a purchase nor Income.
+const RETURNED_PAYMENT =
+	/\b(?:returned|ach\s+(?:returns?|rtn|ret)|(?:nsf|item|check|chk|payment|pmt|bill\s?pay|draft)\s+returns?|returns?\s+(?:item|check|chk|payment|pmt|ach|draft))\b/i;
+
+const RETURN = /\breturns?\b/gi;
 /**
- * The bank's wording reads as money back for something bought: "AMAZON REFUND", "PURCHASE
- * RETURN", "FEE REVERSAL", "MERCHANT CREDIT", "CHARGEBACK". Not a tax refund ("IRS TREAS 310 TAX
- * REFUND"), and not "CREDIT" or "CASH BACK" alone, which banks write on pay and rewards too.
+ * "RETURN" with a store beside it ("AMAZON RETURN", "PURCHASE RETURN COSTCO", "REI #11 RETURN").
+ * Not "RETURN OF PREMIUM" (an insurer's payout), and not the word alone, which says too little.
  */
-export function looksLikeRefund(text: string | null | undefined): boolean {
-	return !!text && REFUND.test(text) && !TAX.test(text);
+function looksLikeStoreReturn(text: string): boolean {
+	RETURN.lastIndex = 0;
+	if (!RETURN.test(text) || /\breturns?\s+of\b/i.test(text)) return false;
+	return /[a-z]{2,}/i.test(text.replace(RETURN, " "));
+}
+
+// A tax refund is the Household's own money coming home, not money back for a purchase: Income.
+// Recognised by the revenue agency as much as by the word, which many states leave out ("GA DOR
+// REFUND", "STATE OF COLO REFUND", "NYS DTF PIT", "CA FTB"), and glued too ("CASTTAXRFD",
+// "TAXREFUND"). Sales tax a store gives back is the store's refund ("SALES TAX REFUND TARGET").
+const TAX =
+	/(?<!\bsales\s?)tax\s?(?:ref|rfn?d)|\b(?:(?<!\bsales\s)tax(?:es|ation)?|irs|treas(?:ury)?|ftb|dor|dtf|comptroller|sbtpg|revenue|(?:dept|department)\s+(?:of\s+)?rev|(?:state|st|comm|commonwealth)\s+of\s+[a-z]+)\b/i;
+
+/** How wording that isn't payroll or person to person reads: a refund, a payment back, or neither. */
+function comingBack(text: string | null | undefined): "refund" | "returned" | null {
+	if (!text || looksPersonToPerson(text)) return null;
+	// A refund said outright wins over the rest: "RETURNED ITEM FEE REVERSAL" gives a fee back.
+	if (REFUND.test(text)) return TAX.test(text) ? null : "refund";
+	if (RETURNED_PAYMENT.test(text)) return "returned";
+	return looksLikeStoreReturn(text) && !TAX.test(text) ? "refund" : null;
 }
 
 /**
- * The kind Review suggests for money in that waits there: a Refund when its wording reads as
- * one, nothing otherwise. Read from the wording each time, so nothing is kept about it.
+ * The bank's wording reads as money back for something bought, or a fee given back: "AMAZON
+ * REFUND", "TARGET RETURN 0423", "FEE REVERSAL", "MERCHANT CREDIT", "CHARGEBACK", "UBER RFD". Not
+ * a tax refund ("IRS TREAS 310 TAX REF", "GA DOR REFUND"), not a payment that came back ("ACH
+ * RETURN"), not money from a person whatever its memo says, and not "CREDIT" or "CASH BACK" alone.
+ * When the wording says too little, it isn't one: real Income is not pulled into Review.
+ */
+export function looksLikeRefund(text: string | null | undefined): boolean {
+	return comingBack(text) === "refund";
+}
+
+/**
+ * The bank's wording reads as a payment that failed and came back: "ACH RETURN", "RETURNED ITEM",
+ * "RETURN CHECK". It waits in Review with no kind suggested: it is not a Refund for a purchase,
+ * and it is not Income.
+ */
+export function looksLikeReturnedPayment(text: string | null | undefined): boolean {
+	return comingBack(text) === "returned";
+}
+
+// What a person writes in a memo when they are paying for something the Household bought.
+const PAYING_BACK =
+	/\b(?:refund(?:ed|s|ing)?|rfnd|pa(?:y|ys|ying|id)\s?(?:(?:you|u|me)\s)?back|repa(?:y|id|yment|ying)|owe[ds]?|reimburs[a-z]*|iou)\b/i;
+
+/**
+ * The kind Review suggests for money in that waits there, read from the wording each time, so
+ * nothing is kept about it. Money from a person gets Paid back when its memo says so ("refund for
+ * tickets", "paying you back", "what I owe you") and never Refund: there is no purchase at a
+ * merchant to link. Other wording that reads as a refund gets Refund. Nothing otherwise.
  */
 export function suggestedMoneyInKind(description: string | null | undefined): MoneyInKind | null {
-	return looksLikeRefund(description) && !looksLikePayroll(description) ? "refund" : null;
+	if (!description || looksLikePayroll(description)) return null;
+	if (looksPersonToPerson(description)) return PAYING_BACK.test(description) ? "paid-back" : null;
+	return looksLikeRefund(description) ? "refund" : null;
 }
 
 /** A Rule for money in: wording (a merchantKey, matched as whole words) that is always a kind. */
@@ -107,8 +159,10 @@ export function moneyInRuleFor<R extends MoneyInRule>(
 /**
  * What an Import does with money in (ADR-0057): a Rule's kind without asking; Income without
  * asking for payroll wording; person-to-person wording (Zelle, Venmo, PayPal, Cash App, Apple
- * Cash, "transfer from") waits in Review, and so does wording that reads as a refund or a
- * reversal, with Refund suggested (issue 141); anything else is Income, as it always was.
+ * Cash, "transfer from") waits in Review, with Paid back suggested when its memo says so; wording
+ * that reads as a store's refund or a reversal waits there with Refund suggested, and a payment
+ * that came back ("ACH RETURN") with nothing suggested (issue 141); anything else is Income, as
+ * it always was, a tax refund included.
  */
 export function moneyInOnImport(
 	description: string | null | undefined,
@@ -117,7 +171,11 @@ export function moneyInOnImport(
 	const rule = moneyInRuleFor(rules, description);
 	if (rule) return { kind: rule.kind, review: false };
 	if (looksLikePayroll(description)) return { kind: "income", review: false };
-	// Not Income yet, and not a Refund until a Parent says so: the kind kept stays Income's.
-	if (looksLikeRefund(description)) return { kind: "income", review: true, suggest: "refund" };
-	return { kind: "income", review: looksPersonToPerson(description) };
+	// Not Income yet, and not the suggested kind until a Parent says so: the kind kept stays Income's.
+	const suggest = suggestedMoneyInKind(description);
+	if (suggest) return { kind: "income", review: true, suggest };
+	return {
+		kind: "income",
+		review: looksPersonToPerson(description) || looksLikeReturnedPayment(description),
+	};
 }

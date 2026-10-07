@@ -1,4 +1,4 @@
-import { type MonthKey, moneyInOnImport } from "@noodle/domain";
+import { looksPersonToPerson, type MonthKey, moneyInOnImport } from "@noodle/domain";
 import { and, eq, gte, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { incomeCounts } from "./counting";
 import { decidedSql, extraIncomeSql } from "./extra-income";
@@ -86,14 +86,12 @@ export async function runMoneyInPass(
 			.orderBy(income.date, income.id),
 		loadMoneyInRules(db, householdId),
 	]);
-	// What an Import would send to Review today: person-to-person wording, no payroll, no Rule.
-	// Only that: wording that reads as a refund waits in Review on Import from issue 141 on, and
-	// the lines already here are left as they are.
+	// Person-to-person wording with no payroll and no Rule, whatever its memo says ("ZELLE FROM JOHN
+	// refund for tickets" too). Only that: a store's refund or a payment that came back waits in
+	// Review on Import from issue 141 on, but those already here were Income under the old rules
+	// and are left as they are.
 	const ids = rows
-		.filter((row) => {
-			const said = moneyInOnImport(row.note, rules);
-			return said.review && !said.suggest;
-		})
+		.filter((row) => looksPersonToPerson(row.note) && moneyInOnImport(row.note, rules).review)
 		.map((row) => row.id);
 	const snapshotId = ids.length > 0 ? await input.snapshot() : null;
 

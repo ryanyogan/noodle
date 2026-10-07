@@ -294,3 +294,69 @@ test("a refund into checking waits in Review with Refund first, and counts nowhe
 		.toContain("Kids $17.90 spent");
 	await page.context().close();
 });
+
+// What a person sent stays what a person sent, whatever its memo says (issue 141): a Zelle that
+// says "refund" waits in Review with Paid back first, never Refund. A state's tax refund is
+// Income without the word tax, and a payment that came back waits with nothing suggested.
+test("a Zelle that says refund waits with Paid back first, a state tax refund is Income, and a returned payment waits with nothing suggested", async ({
+	browser,
+}) => {
+	test.setTimeout(240_000);
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Kids", "300"]] });
+	const thisMonth = page.url();
+	const month = /\/month\/(\d{4}-\d{2})/.exec(thisMonth)?.[1];
+	if (!month) throw new Error(`No month in ${thisMonth}`);
+	await addAccount(page, "Everyday Checking", "checking", "4,000");
+
+	const today = await page.evaluate(() => {
+		const now = new Date();
+		return `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}/${now.getFullYear()}`;
+	});
+	await upload(page, "people-and-tax.csv", [
+		[today, "ZELLE FROM JOHN PIKE refund for tickets", "80.00"],
+		[today, "GA DOR REFUND", "310.00"],
+		[today, "ACH RETURN COMCAST CABLE", "99.00"],
+		[today, PAY, "1840.00"],
+	]);
+
+	// Review: the Zelle and the payment that came back wait; the tax refund and the paycheck don't.
+	await page.goto(new URL("/review", thisMonth).href);
+	const waiting = page.getByTestId("money-in-review");
+	const row = (what: string) => waiting.getByTestId("money-in-row").filter({ hasText: what });
+	await expect(row("JOHN PIKE")).toBeVisible({ timeout: 30_000 });
+	await expect(row("ACH RETURN")).toBeVisible();
+	await expect(waiting.getByTestId("money-in-row")).toHaveCount(2);
+
+	// Paid back is first and described as suggested, and isn't chosen: nothing is pressed.
+	const kinds = (what: string) =>
+		row(what)
+			.getByRole("group", { name: /^What is this money\?/ })
+			.getByRole("button");
+	await expect(kinds("JOHN PIKE").first()).toHaveText("Paid back");
+	await expect(kinds("JOHN PIKE").first()).toHaveAttribute("aria-pressed", "false");
+	await expect(kinds("JOHN PIKE").first()).toHaveAttribute("data-suggested", "");
+	await expect(kinds("JOHN PIKE").first()).toHaveAccessibleDescription(
+		"This reads as money Paid back, so it’s first. It isn’t until you say so.",
+	);
+	await expect(kinds("JOHN PIKE").nth(1)).toHaveText("Income");
+	await expect(kinds("JOHN PIKE").nth(2)).toHaveText("Refund");
+	await expect(row("JOHN PIKE").getByTestId("money-in-suggested")).toBeVisible();
+	// A payment that came back has nothing suggested: Income is first, as everywhere.
+	await expect(kinds("ACH RETURN").first()).toHaveText("Income");
+	await expect(row("ACH RETURN").getByTestId("money-in-suggested")).toHaveCount(0);
+
+	// The state's tax refund is Income already, with the paycheck; the other two are nobody's.
+	await page.goto(`/month/${month}`);
+	await expect(page.getByRole("region", { name: "Income" })).toContainText("$2,150 received", {
+		timeout: 30_000,
+	});
+	await page.goto(`/plan/${month}/income`);
+	const table = income(page).getByRole("table", { name: /^Income in / });
+	await expect(table).toContainText("GA DOR REFUND", { timeout: 30_000 });
+	await expect(table).toContainText("ACME CORP PAYROLL");
+	await expect(table).not.toContainText("JOHN PIKE");
+	await expect(table).not.toContainText("ACH RETURN");
+	await page.context().close();
+});
