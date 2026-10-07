@@ -1353,20 +1353,37 @@ export async function updateTransaction(
 	return { ok: false, reason: await refusal(db, input) };
 }
 
+/** The Bucket or Commitment a change of date took a Transaction out of, for Undo to put back. */
+export type DateUnassigned = { kind: "bucket" | "commitment"; id: string; name: string };
+
 /** How a change of date ended (issue 148, ADR-0060). */
 export type TransactionDateResult =
 	/**
 	 * `from`: the day it was on before (what Undo puts back); `bankDate`: the bank's own day, kept
-	 * while it differs; `months`: the months whose lists and totals moved.
+	 * while it differs; `months`: the months whose lists and totals moved; `unassigned`: what it
+	 * was filed in, when that wasn't in the Plan of the month it landed in and it is filed nowhere
+	 * now.
 	 */
-	| { ok: true; version: number; from: DayKey; bankDate: DayKey | null; months: MonthKey[] }
+	| {
+			ok: true;
+			version: number;
+			from: DayKey;
+			bankDate: DayKey | null;
+			months: MonthKey[];
+			unassigned: DateUnassigned | null;
+	  }
 	/**
-	 * "future": a day that hasn't come; "not-in-plan": what it is filed in (or one of its Splits)
-	 * wasn't in the Plan that month; "refund-order": a Refund linked to it would no longer come
+	 * "future": a day that hasn't come; "refund-order": a Refund linked to it would no longer come
 	 * after its purchase, within the days a Refund may; "changed-elsewhere": it is no longer at the
 	 * version the change was made on, isn't theirs to change, or is gone.
 	 */
-	| { ok: false; reason: "future" | "not-in-plan" | "refund-order" | "changed-elsewhere" }
+	| { ok: false; reason: "future" | "refund-order" | "changed-elsewhere" }
+	/**
+	 * `name` wasn't in the Plan of the month it would land in, and it can't simply be left
+	 * unassigned: it is one of its Splits' ("split": a Split is never unassigned), or money back
+	 * counts in it ("money-back": a Refund, a Refund link or Owed back holds it where it is filed).
+	 */
+	| { ok: false; reason: "not-in-plan"; part: "split" | "money-back"; name: string }
 	/** `month` has been closed, and it would leave it, land in it, or move within it. */
 	| { ok: false; reason: "month-closed"; month: MonthKey };
 
@@ -1377,10 +1394,17 @@ export type TransactionDateResult =
  * bank sync, duplicate detection and Matching go on recognising it by; back on the bank's day,
  * nothing is kept. One typed in simply changes.
  *
+ * Filed whole in a Bucket or Commitment that wasn't in the Plan of the month it lands in, it
+ * moves and is left unassigned in the same write (the owner's decision, 2026-10-07): its For
+ * stays, and `unassigned` says what it was in. `refile` is the way back: Undo sends the day it
+ * was on and what it was filed in, and both go back in one write, where the Transaction is
+ * filed nowhere and that month's Plan has it.
+ *
  * Refused for a day after `today`; while either month (the one it leaves or the one it lands in)
- * has been closed; where what it is filed in wasn't in the Plan in the month it lands in; and
- * where a linked Refund would end up before its purchase or more than REFUND_WINDOW_DAYS after.
- * Setting the day it already has changes nothing, so a retry lands the same.
+ * has been closed; where a Split's Bucket or Commitment wasn't in the Plan in the month it lands
+ * in, or the whole one's wasn't and money back counts in it; and where a linked Refund would end
+ * up before its purchase or more than REFUND_WINDOW_DAYS after. Setting the day it already has
+ * changes nothing, so a retry lands the same.
  */
 export async function changeTransactionDate(
 	db: Db,
@@ -1393,6 +1417,8 @@ export async function changeTransactionDate(
 		today?: DayKey;
 		/** The version the Parent made this change on: refused if it has moved on (ADR-0041). */
 		expectedVersion?: number;
+		/** Undo's: what to file it in again, if it is filed nowhere and that month's Plan has it. */
+		refile?: { bucketId: string } | { commitmentId: string };
 	},
 ): Promise<TransactionDateResult> {
 	const { householdId, memberId, transactionId, date } = input;
@@ -1407,6 +1433,17 @@ export async function changeTransactionDate(
 			version: transactions.version,
 			bucketId: transactions.bucketId,
 			commitmentId: transactions.commitmentId,
+			goalId: transactions.goalId,
+			filedIn: sql<string | null>`coalesce(
+				(select b.name from buckets b where b.id = ${transactions.bucketId}),
+				(select c.name from commitments c where c.id = ${transactions.commitmentId}))`,
+			// Money back counts where it is filed: a Refund either way, a Refund link, Owed back.
+			held: sql<number>`(${refundSide}
+				or exists (select 1 from refund_links rl where rl.transaction_id = ${transactions.id})
+				or exists (select 1 from owed_back ob where ob.transaction_id = ${transactions.id}))`.mapWith(
+				Number,
+			),
+			whole: sql<number>`${fileableWhole}`.mapWith(Number),
 		})
 		.from(transactions)
 		.where(theTransaction);
@@ -1420,7 +1457,14 @@ export async function changeTransactionDate(
 	) {
 		// Already there: the same day asked again, or this change on an earlier try.
 		const bankDate = row.bankDate as DayKey | null;
-		return { ok: true, version: row.version, from: bankDate ?? from, bankDate, months };
+		return {
+			ok: true,
+			version: row.version,
+			from: bankDate ?? from,
+			bankDate,
+			months,
+			unassigned: null,
+		};
 	}
 	if (expected !== undefined && row.version !== expected) {
 		return { ok: false, reason: "changed-elsewhere" };
@@ -1457,43 +1501,92 @@ export async function changeTransactionDate(
 		.where(theTransaction);
 	if (links?.broken) return { ok: false, reason: "refund-order" };
 
+	const month = sql`${monthOfDay(date)}`;
+	const inPlan = async (assignment: SplitAssignment) => {
+		const [found] = await db
+			.select({
+				inPlan: sql<number>`${assignable(householdId, memberId, assignment, month)}`.mapWith(
+					Number,
+				),
+			})
+			.from(transactions)
+			.where(theTransaction);
+		return Boolean(found?.inPlan);
+	};
+	let unassigned: DateUnassigned | null = null;
 	if (months.length > 1) {
-		// What it is filed in, whole or by its Splits, is in the Plan for the month it lands in.
+		// Each Split's Bucket or Commitment is in the Plan for the month it lands in: a Split is
+		// never unassigned, so one that isn't holds the whole Transaction where it is.
 		const parts = await db
-			.select({ bucketId: splits.bucketId, commitmentId: splits.commitmentId })
+			.select({
+				bucketId: splits.bucketId,
+				commitmentId: splits.commitmentId,
+				name: sql<string | null>`coalesce(
+					(select b.name from buckets b where b.id = ${splits.bucketId}),
+					(select c.name from commitments c where c.id = ${splits.commitmentId}))`,
+			})
 			.from(splits)
 			.where(and(eq(splits.transactionId, transactionId), eq(splits.householdId, householdId)));
-		const filedIn = new Map<string, SplitAssignment>();
-		for (const { bucketId, commitmentId } of [row, ...parts]) {
-			if (bucketId) filedIn.set(`b:${bucketId}`, { bucketId });
-			else if (commitmentId) filedIn.set(`c:${commitmentId}`, { commitmentId });
+		const filedIn = new Map<string, { assignment: SplitAssignment; name: string }>();
+		for (const { bucketId, commitmentId, name } of parts) {
+			if (bucketId) filedIn.set(`b:${bucketId}`, { assignment: { bucketId }, name: name ?? "" });
+			else if (commitmentId)
+				filedIn.set(`c:${commitmentId}`, { assignment: { commitmentId }, name: name ?? "" });
 		}
-		const month = sql`${monthOfDay(date)}`;
 		// One at a time: a statement's bound parameters are capped (D1), however many Splits.
-		for (const assignment of filedIn.values()) {
-			const [found] = await db
-				.select({
-					inPlan: sql<number>`${assignable(householdId, memberId, assignment, month)}`.mapWith(
-						Number,
-					),
-				})
-				.from(transactions)
-				.where(theTransaction);
-			if (!found?.inPlan) return { ok: false, reason: "not-in-plan" };
+		for (const { assignment, name } of filedIn.values()) {
+			if (!(await inPlan(assignment)))
+				return { ok: false, reason: "not-in-plan", part: "split", name };
+		}
+		// Filed whole in what that month's Plan didn't have: it goes, and is filed nowhere.
+		const whole: DateUnassigned | null = row.bucketId
+			? { kind: "bucket", id: row.bucketId, name: row.filedIn ?? "" }
+			: row.commitmentId
+				? { kind: "commitment", id: row.commitmentId, name: row.filedIn ?? "" }
+				: null;
+		if (
+			whole &&
+			!(await inPlan(whole.kind === "bucket" ? { bucketId: whole.id } : { commitmentId: whole.id }))
+		) {
+			// Money back on it counts where it is filed, so it can't be left filed nowhere.
+			if (row.held)
+				return { ok: false, reason: "not-in-plan", part: "money-back", name: whole.name };
+			unassigned = whole;
 		}
 	}
+	// Undo's way back: filed again in what it was taken out of, in the same write.
+	const refile =
+		input.refile &&
+		!row.bucketId &&
+		!row.commitmentId &&
+		!row.goalId &&
+		row.whole &&
+		!row.held &&
+		(await inPlan(input.refile))
+			? input.refile
+			: null;
+	const filing = unassigned
+		? { bucketId: null, commitmentId: null }
+		: refile
+			? {
+					bucketId: "bucketId" in refile ? refile.bucketId : null,
+					commitmentId: "commitmentId" in refile ? refile.commitmentId : null,
+				}
+			: {};
 
 	// The bank's own day is kept the first time it moves, and let go when it is back on it.
 	const kept = row.source === "import" ? ((row.bankDate ?? from) as DayKey) : null;
 	const bankDate = kept === date ? null : kept;
 	await db
 		.update(transactions)
-		.set({ date, bankDate, version: sql`${transactions.version} + 1` })
+		.set({ date, bankDate, ...filing, version: sql`${transactions.version} + 1` })
 		.where(
 			and(
 				theTransaction,
 				eq(transactions.version, row.version),
 				eq(transactions.date, from),
+				// Still filed where it was read to be.
+				sql`${transactions.bucketId} is ${row.bucketId} and ${transactions.commitmentId} is ${row.commitmentId}`,
 				// Neither month was closed meanwhile.
 				sql`not exists (select 1 from month_closes mc where mc.household_id = ${householdId}
 					and mc.month in (${months[0]}, ${months.at(-1)}))`,
@@ -1506,7 +1599,7 @@ export async function changeTransactionDate(
 			and(theTransaction, eq(transactions.date, date), eq(transactions.version, row.version + 1)),
 		);
 	if (!landed) return { ok: false, reason: "changed-elsewhere" };
-	return { ok: true, version: landed.version, from, bankDate, months };
+	return { ok: true, version: landed.version, from, bankDate, months, unassigned };
 }
 
 /** How a rename ended. "not-editable": not theirs to change here (or not the Household's). */

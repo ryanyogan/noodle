@@ -23,6 +23,9 @@ const list = (page: Page) =>
 	page.getByRole("grid", { name: /^Transactions in / }).locator("[data-slot=data-table-body]");
 const row = (page: Page, title: string) =>
 	list(page).getByRole("button", { name: new RegExp(`^${title},`, "i") });
+/** The row, reading where it is filed ("Groceries", or "Unassigned"). */
+const filed = (page: Page, title: string, where: string) =>
+	list(page).getByRole("button", { name: new RegExp(`^${title},.*\\b${where}\\b`, "i") });
 const toast = (page: Page, text: string | RegExp) =>
 	page.getByRole("status").filter({ hasText: text });
 
@@ -132,7 +135,7 @@ test("a bank line moves to another day of its month, keeps the bank's date, and 
 	await page.context().close();
 });
 
-test("a line moved into last month leaves this month's list and is in last month's; a closed month and a Bucket not in that Plan refuse", async ({
+test("a line moved into last month leaves this month's list and is in last month's, unassigned where that Plan lacked its Bucket, and Undo files it again; a closed month refuses", async ({
 	browser,
 }) => {
 	test.slow();
@@ -147,22 +150,35 @@ test("a line moved into last month leaves this month's list and is in last month
 	await openTransactions(page);
 	const thisMonth = new URL(page.url()).pathname;
 
-	// Filed in a Bucket that last month's Plan didn't have: refused, and it stays where it was.
+	// Filed in a Bucket that last month's Plan didn't have: it moves all the same, and is filed
+	// nowhere there. The message says so.
+	const unassigned = `Moved to ${short(lastMonthEnd)} · ${monthOf(lastMonthEnd)}. Groceries wasn’t in ${monthOf(lastMonthEnd)}’s Plan, so it isn’t filed anywhere now.`;
+	await expect(filed(page, "Gamma Grocer", "Groceries")).toBeVisible();
 	await row(page, "Gamma Grocer").click();
 	await moveTo(page, lastMonthEnd);
-	await expect(
-		toast(
-			page,
-			`Groceries wasn’t in ${monthOf(lastMonthEnd)}’s Plan, so it can’t count there. File it somewhere else first.`,
-		),
-	).toBeVisible();
-	await expect(row(page, "Gamma Grocer")).toBeVisible();
+	await expect(toast(page, unassigned)).toBeVisible();
+	await expect(row(page, "Gamma Grocer")).toHaveCount(0);
+
+	// Undo puts back its day and its Bucket together: here again, in Groceries.
+	const undone = savedBy(page, "changeTransactionDate");
+	await toast(page, unassigned).getByRole("button", { name: "Undo" }).click();
+	await undone;
+	await expect(filed(page, "Gamma Grocer", "Groceries")).toBeVisible();
+	await openTransactions(page);
+	await expect(filed(page, "Gamma Grocer", "Groceries")).toBeVisible();
+
+	// Moved again, and left there.
+	await row(page, "Gamma Grocer").click();
+	await moveTo(page, lastMonthEnd);
+	await expect(toast(page, unassigned)).toBeVisible();
+	await expect(row(page, "Gamma Grocer")).toHaveCount(0);
 
 	// Not filed anywhere yet: only its day is sent, and it goes.
 	await row(page, "Alpha Market").click();
 	await moveTo(page, lastMonthEnd);
+	// The plain message: nothing was unassigned, so it ends at the month.
 	await expect(
-		toast(page, `Moved to ${short(lastMonthEnd)} · ${monthOf(lastMonthEnd)}`),
+		toast(page, new RegExp(`Moved to ${short(lastMonthEnd)} · ${monthOf(lastMonthEnd)}(?!\\.)`)),
 	).toBeVisible();
 	await expect(row(page, "Alpha Market")).toHaveCount(0);
 	// The pane left with its row.
@@ -171,6 +187,8 @@ test("a line moved into last month leaves this month's list and is in last month
 
 	await openTransactions(page, lastMonthEnd.slice(0, 7));
 	await expect(row(page, "Alpha Market")).toBeVisible();
+	// The one that was in Groceries is in last month's list, filed nowhere.
+	await expect(filed(page, "Gamma Grocer", "Unassigned")).toBeVisible();
 
 	// Last month is closed: nothing moves out of it.
 	await seedSql([
@@ -201,7 +219,14 @@ test("on a phone the editor changes a typed-in line's date", async ({ browser })
 	// Nothing sideways at 393 with the extra field.
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
 	await moveTo(page, lastMonthEnd);
-	// A typed-in line simply changes; filed in a Bucket last month's Plan lacks, it is refused.
-	await expect(toast(page, /wasn’t in .*’s Plan, so it can’t count there/)).toBeVisible();
+	// A typed-in line simply changes; filed in a Bucket last month's Plan lacks, it is left
+	// unassigned there.
+	await expect(
+		toast(
+			page,
+			`Moved to ${short(lastMonthEnd)} · ${monthOf(lastMonthEnd)}. Groceries wasn’t in ${monthOf(lastMonthEnd)}’s Plan, so it isn’t filed anywhere now.`,
+		),
+	).toBeVisible();
+	await expect(page.getByRole("button", { name: /^Delta Diner,/i })).toHaveCount(0);
 	await page.context().close();
 });

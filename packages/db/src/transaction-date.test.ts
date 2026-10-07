@@ -2,20 +2,26 @@ import type { BankLine, DayKey, MonthKey } from "@noodle/domain";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+	addAccount,
 	addBankConnection,
 	addBucket,
+	addCommitment,
+	addCommitmentPayment,
 	addQuickAdd,
 	changeTransactionDate,
 	chooseBankAccounts,
 	closeMonth,
 	createHouseholdForParent,
 	type Db,
+	linkCommitment,
 	loadExportData,
 	loadSpending,
 	loadTransactionsPage,
+	owedNow,
 	setTakeHomePay,
 	splitTransaction,
 	syncBankLines,
+	updateAccountBalance,
 	updateTransaction,
 } from "./index";
 import { matches, refunds, transactions } from "./schema";
@@ -28,6 +34,7 @@ const householdId = "household";
 const parentId = "parent";
 const viewer = { householdId, memberId: parentId };
 const today = "2026-10-07" as DayKey;
+const august: MonthKey = "2026-08";
 const september: MonthKey = "2026-09";
 const october: MonthKey = "2026-10";
 
@@ -143,7 +150,12 @@ async function bankLine(date: string, cents = 42_50) {
 	return id;
 }
 
-const move = (transactionId: string, date: string, expectedVersion?: number) =>
+const move = (
+	transactionId: string,
+	date: string,
+	expectedVersion?: number,
+	refile?: { bucketId: string } | { commitmentId: string },
+) =>
 	changeTransactionDate(db, {
 		householdId,
 		memberId: parentId,
@@ -151,6 +163,7 @@ const move = (transactionId: string, date: string, expectedVersion?: number) =>
 		date: date as DayKey,
 		today,
 		expectedVersion,
+		refile,
 	});
 
 const spentIn = async (month: MonthKey) =>
@@ -180,10 +193,12 @@ describe("changeTransactionDate", () => {
 		expect(await move(id, "2026-09-30")).toMatchObject({
 			ok: true,
 			months: [september, october],
+			// September's Plan has Eating out: it stays filed in it.
+			unassigned: null,
 		});
 		expect(await listed(october)).toEqual([]);
 		expect(await listed(september)).toMatchObject([
-			{ id, date: "2026-09-30", bankDate: "2026-10-02" },
+			{ id, date: "2026-09-30", bankDate: "2026-10-02", bucketId: "eating" },
 		]);
 		expect(await spentIn(september)).toBe(42_50);
 		expect(await spentIn(october)).toBe(0);
@@ -223,10 +238,142 @@ describe("changeTransactionDate", () => {
 		expect(await move(id, "2026-10-07")).toMatchObject({ ok: true });
 	});
 
-	it("is refused where what it is filed in was not in the Plan that month", async () => {
+	it("moves into a month whose Plan didn't have its Bucket, and is left unassigned: it counts in no Bucket", async () => {
 		const id = await bankLine("2026-10-02");
-		expect(await move(id, "2026-08-30")).toEqual({ ok: false, reason: "not-in-plan" });
-		// Split, each part is asked.
+		await updateTransaction(db, {
+			householdId,
+			memberId: parentId,
+			transactionId: id,
+			amountCents: 42_50,
+			assignment: { bucketId: "eating" },
+			note: "Nopa",
+			forMemberIds: [parentId],
+			today,
+		});
+		const [before] = await listed(october);
+		const moved = await move(id, "2026-08-30", before?.version);
+		expect(moved).toEqual({
+			ok: true,
+			version: (before?.version ?? 0) + 1,
+			from: "2026-10-02",
+			bankDate: "2026-10-02",
+			months: [august, october],
+			unassigned: { kind: "bucket", id: "eating", name: "Eating out" },
+		});
+		expect(await listed(october)).toEqual([]);
+		// Filed nowhere, on its new day, and still For who it was For.
+		expect(await listed(august)).toMatchObject([
+			{ id, date: "2026-08-30", bucketId: null, commitmentId: null, for: [parentId] },
+		]);
+		expect(await spentIn(august)).toBe(0);
+		expect(await spentIn(october)).toBe(0);
+	});
+
+	it("goes back with Undo to its day and its Bucket in one write", async () => {
+		const id = await bankLine("2026-10-02");
+		const moved = await move(id, "2026-08-30");
+		if (!moved.ok || !moved.unassigned) throw new Error("not moved and unassigned");
+		// What it is filed in again must be in the Plan of the month it lands in: not August's.
+		expect(await move(id, "2026-08-29", moved.version, { bucketId: "eating" })).toMatchObject({
+			ok: true,
+			version: moved.version + 1,
+		});
+		expect(await listed(august)).toMatchObject([{ id, bucketId: null }]);
+		expect(
+			await move(id, moved.from, moved.version + 1, { bucketId: moved.unassigned.id }),
+		).toMatchObject({ ok: true, version: moved.version + 2, bankDate: null, unassigned: null });
+		expect(await listed(august)).toEqual([]);
+		expect(await listed(october)).toMatchObject([
+			{ id, date: "2026-10-02", bankDate: null, bucketId: "eating" },
+		]);
+		expect(await spentIn(october)).toBe(42_50);
+		// Filed somewhere, nothing is filed over it.
+		await addBucket(db, {
+			householdId,
+			memberId: parentId,
+			bucketId: "fun",
+			name: "Fun",
+			color: 2,
+			month: september,
+			allowanceCents: 10_000,
+		});
+		await move(id, "2026-10-03", undefined, { bucketId: "fun" });
+		expect(await listed(october)).toMatchObject([{ id, bucketId: "eating" }]);
+	});
+
+	it("leaves a Commitment that month's Plan didn't have, and its pay-down with it; Undo puts both back", async () => {
+		await addAccount(db, {
+			householdId,
+			accountId: "visa",
+			name: "Visa",
+			kind: "credit-card",
+			balanceCents: null,
+			balanceId: "visa-none",
+			createdByMemberId: parentId,
+		});
+		await updateAccountBalance(db, {
+			householdId,
+			balanceId: "visa-aug",
+			accountId: "visa",
+			amountCents: 100_000,
+			createdByMemberId: parentId,
+			asOf: "2026-08-01" as DayKey,
+		});
+		await addCommitment(db, {
+			householdId,
+			memberId: parentId,
+			commitmentId: "visa-bill",
+			name: "Visa bill",
+			month: september,
+			amountCents: 20_000,
+			cadence: "monthly",
+			dueDate: "2026-09-05",
+		});
+		await linkCommitment(db, {
+			householdId,
+			memberId: parentId,
+			commitmentId: "visa-bill",
+			accountId: "visa",
+			carriedBalance: false,
+			month: september,
+			today,
+		});
+		expect(
+			await addCommitmentPayment(db, {
+				householdId,
+				transactionId: "paid",
+				commitmentId: "visa-bill",
+				date: "2026-09-10" as DayKey,
+				amountCents: 20_000,
+				createdByMemberId: parentId,
+			}),
+		).toEqual({ ok: true });
+		const owed = () => owedNow(db, { householdId, accountId: "visa" });
+		expect(await owed()).toBe(80_000);
+
+		const moved = await move("paid", "2026-08-30");
+		expect(moved).toMatchObject({
+			ok: true,
+			unassigned: { kind: "commitment", id: "visa-bill", name: "Visa bill" },
+		});
+		expect(await listed(august)).toMatchObject([
+			{ id: "paid", bucketId: null, commitmentId: null },
+		]);
+		// After the balance's day still, but it pays the card down no longer.
+		expect(await owed()).toBe(100_000);
+
+		if (!moved.ok) throw new Error("not moved");
+		expect(
+			await move("paid", moved.from, moved.version, { commitmentId: "visa-bill" }),
+		).toMatchObject({ ok: true, unassigned: null });
+		expect(await listed(september)).toMatchObject([
+			{ id: "paid", date: "2026-09-10", commitmentId: "visa-bill" },
+		]);
+		expect(await owed()).toBe(80_000);
+	});
+
+	it("is refused for a split one while a Split's Bucket was not in the Plan that month", async () => {
+		const id = await bankLine("2026-10-02");
 		await splitTransaction(db, {
 			householdId,
 			memberId: parentId,
@@ -239,9 +386,36 @@ describe("changeTransactionDate", () => {
 			],
 			today,
 		});
-		expect(await move(id, "2026-08-30")).toEqual({ ok: false, reason: "not-in-plan" });
-		expect(await move(id, "2026-09-30")).toMatchObject({ ok: true });
+		// A Split is never unassigned, so the whole Transaction stays where it is.
+		expect(await move(id, "2026-08-30")).toEqual({
+			ok: false,
+			reason: "not-in-plan",
+			part: "split",
+			name: "Eating out",
+		});
+		expect(await listed(october)).toMatchObject([{ id, date: "2026-10-02" }]);
+		expect(await spentIn(october)).toBe(42_50);
+		// Every Split's Bucket in that month's Plan: it moves, split as it was.
+		expect(await move(id, "2026-09-30")).toMatchObject({ ok: true, unassigned: null });
 		expect(await spentIn(september)).toBe(42_50);
+	});
+
+	it("is still refused into a closed month, whatever its Plan had", async () => {
+		const id = await bankLine("2026-10-02");
+		await closeMonth(db, {
+			householdId,
+			closeId: "close-aug",
+			month: august,
+			decidedByMemberId: parentId,
+			sweeps: [],
+			windfall: [],
+		});
+		expect(await move(id, "2026-08-30")).toEqual({
+			ok: false,
+			reason: "month-closed",
+			month: august,
+		});
+		expect(await listed(october)).toMatchObject([{ id, date: "2026-10-02", bucketId: "eating" }]);
 	});
 
 	it("is refused once the Transaction has changed on another screen", async () => {
@@ -426,6 +600,16 @@ describe("a Refund linked to its purchase", () => {
 		expect(await move(purchase, "2026-09-12")).toMatchObject({ ok: true });
 		expect(await move(refund, "2026-10-01")).toMatchObject({ ok: true });
 		expect(await db.select({ id: refunds.id }).from(refunds)).toEqual([{ id: "r-1" }]);
+		// Money back counts where its purchase is filed, so the purchase is not left unassigned.
+		expect(await move(purchase, "2026-08-30")).toEqual({
+			ok: false,
+			reason: "not-in-plan",
+			part: "money-back",
+			name: "Eating out",
+		});
+		expect((await stored()).find((row) => row.id === purchase)).toMatchObject({
+			date: "2026-09-12",
+		});
 		// Unlinked, nothing holds it.
 		await db.update(refunds).set({ removedAt: new Date() }).where(eq(refunds.id, "r-1"));
 		expect(await move(purchase, "2026-10-05")).toMatchObject({ ok: true });

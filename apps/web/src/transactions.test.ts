@@ -8,6 +8,8 @@ import {
 	applyTransactionChange,
 	dateChange,
 	dateRefusedText,
+	dateUnassignedText,
+	dateUndo,
 	monthOfTransaction,
 	nameGiven,
 	type TransactionChange,
@@ -470,6 +472,24 @@ describe("a change of date (issue 148)", () => {
 		expect(dateChange(skates, "2026-08-30").said).toBe("Moved to Aug 30 · August");
 	});
 
+	test("left unassigned by the month it landed in: the message says so, and Undo puts back its day and its Bucket", () => {
+		const moved = dateChange({ ...skates, assignedName: "Hockey" }, "2026-08-30");
+		const unassigned = { kind: "bucket", id: "hockey", name: "Hockey" } as const;
+		expect(dateUnassignedText(moved, unassigned)).toBe(
+			"Moved to Aug 30 · August. Hockey wasn’t in August’s Plan, so it isn’t filed anywhere now.",
+		);
+		expect(dateUndo(moved.back, unassigned)).toEqual({
+			date: skates.date,
+			refile: { bucketId: "hockey" },
+		});
+		expect(dateUndo(moved.back, { kind: "commitment", id: "rent", name: "Rent" })).toEqual({
+			date: skates.date,
+			refile: { commitmentId: "rent" },
+		});
+		// Still filed: Undo is the day alone.
+		expect(dateUndo(moved.back, null)).toEqual({ date: skates.date });
+	});
+
 	test("each refusal says why in plain words", () => {
 		const to = {
 			...change({ date: "2026-08-30" }),
@@ -479,8 +499,15 @@ describe("a change of date (issue 148)", () => {
 			"August is closed, so nothing moves into or out of it.",
 		);
 		expect(dateRefusedText(to, "future")).toBe("A Transaction can’t be dated after today.");
-		expect(dateRefusedText(to, "not-in-plan")).toBe(
-			"Hockey wasn’t in August’s Plan, so it can’t count there. File it somewhere else first.",
+		// Filed whole in what that month's Plan lacked it moves and is unassigned; only a Split or
+		// money back holds it.
+		expect(dateRefusedText(to, "not-in-plan", undefined, { part: "split", name: "Kids" })).toBe(
+			"One of its Splits is filed in Kids, which wasn’t in August’s Plan. Change that Split first.",
+		);
+		expect(
+			dateRefusedText(to, "not-in-plan", undefined, { part: "money-back", name: "Hockey" }),
+		).toBe(
+			"Money back counts in Hockey, which wasn’t in August’s Plan. File it somewhere else first.",
 		);
 		expect(dateRefusedText({ ...to, next: { date: "2026-09-20" } }, "refund-order")).toBe(
 			"Its Refund would come before it. Move the Refund first.",

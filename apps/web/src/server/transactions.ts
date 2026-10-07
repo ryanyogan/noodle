@@ -3,6 +3,7 @@ import {
 	addQuickAdd as addQuickAddInDb,
 	changeTransactionDate as changeTransactionDateInDb,
 	countSameMerchant,
+	type DateUnassigned,
 	type DeletionSummary,
 	deleteTransaction as deleteTransactionInDb,
 	type FiledBefore,
@@ -322,13 +323,22 @@ export const updateTransaction = createServerFn({ method: "POST" })
  * How a change of date ended (issue 148, ADR-0060). Saved, it says the day it was on before (what
  * Undo sends back) and the bank's own day while that differs. Refused, it says why, for the
  * client to say in the app's voice: a day that hasn't come, a month that has been closed (which
- * one), a Bucket or Commitment not in the Plan that month, or a Refund that would no longer come
- * after its purchase.
+ * one), a Refund that would no longer come after its purchase, or a Bucket or Commitment not in
+ * the Plan that month which a Split or money back holds it in. Filed whole in one that month's
+ * Plan didn't have, it is saved and `unassigned` says what it was taken out of.
  */
 export type TransactionDateAnswer =
-	| { status: "saved"; version: number; from: DayKey; bankDate: DayKey | null; months: MonthKey[] }
+	| {
+			status: "saved";
+			version: number;
+			from: DayKey;
+			bankDate: DayKey | null;
+			months: MonthKey[];
+			unassigned: DateUnassigned | null;
+	  }
 	| Exclude<TransactionWriteAnswer, { status: "saved" }>
-	| { status: "refused"; reason: "future" | "not-in-plan" | "refund-order" }
+	| { status: "refused"; reason: "future" | "refund-order" }
+	| { status: "refused"; reason: "not-in-plan"; part: "split" | "money-back"; name: string }
 	| { status: "refused"; reason: "month-closed"; month: MonthKey };
 
 /**
@@ -343,6 +353,10 @@ export const changeTransactionDate = createServerFn({ method: "POST" })
 			transactionId: ulidSchema,
 			date: dayKeySchema,
 			expectedVersion: versionSchema,
+			// Undo's: what a change of date took it out of, to file it in again with its day.
+			refile: z
+				.union([z.object({ bucketId: ulidSchema }), z.object({ commitmentId: ulidSchema })])
+				.optional(),
 		}),
 	)
 	.handler(async ({ data, context }): Promise<TransactionDateAnswer> => {
@@ -353,6 +367,7 @@ export const changeTransactionDate = createServerFn({ method: "POST" })
 			transactionId: data.transactionId,
 			date: data.date as DayKey,
 			expectedVersion: data.expectedVersion,
+			refile: data.refile,
 		});
 		if (!result.ok) {
 			if (result.reason === "changed-elsewhere") {
@@ -360,9 +375,11 @@ export const changeTransactionDate = createServerFn({ method: "POST" })
 				// changedElsewhere never answers "saved".
 				return answer as Exclude<TransactionWriteAnswer, { status: "saved" }>;
 			}
-			return result.reason === "month-closed"
-				? { status: "refused", reason: result.reason, month: result.month }
-				: { status: "refused", reason: result.reason };
+			if (result.reason === "month-closed")
+				return { status: "refused", reason: result.reason, month: result.month };
+			if (result.reason === "not-in-plan")
+				return { status: "refused", reason: result.reason, part: result.part, name: result.name };
+			return { status: "refused", reason: result.reason };
 		}
 		await notifyHousehold(context.household.id, [
 			// Every month: it left one and landed in another, and what's left rolls into later ones.
@@ -370,8 +387,8 @@ export const changeTransactionDate = createServerFn({ method: "POST" })
 			"for-earlier",
 			"bucket-uses",
 		]);
-		const { version, from, bankDate, months } = result;
-		return { status: "saved", version, from, bankDate, months };
+		const { version, from, bankDate, months, unassigned } = result;
+		return { status: "saved", version, from, bankDate, months, unassigned };
 	});
 
 /**

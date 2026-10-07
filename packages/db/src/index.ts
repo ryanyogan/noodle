@@ -927,6 +927,7 @@ export {
 	addQuickAdd,
 	type BucketSpend,
 	changeTransactionDate,
+	type DateUnassigned,
 	type DeletionSummary,
 	deleteTransaction,
 	deleteTransactions,

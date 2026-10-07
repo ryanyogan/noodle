@@ -190,7 +190,17 @@ export type TransactionFor = { for: string[] };
  * Only the day it counts on (issue 148, ADR-0060): it moves to that day, and that day's month,
  * everywhere. Nothing else about it changes, so one that isn't filed anywhere yet can be moved too.
  */
-export type TransactionDate = { date: DayKey };
+export type TransactionDate = {
+	date: DayKey;
+	/**
+	 * Undo's: the Bucket or Commitment the change of date took it out of, filed in again with its
+	 * day in the same write.
+	 */
+	refile?: { bucketId: string } | { commitmentId: string };
+};
+
+/** What a change of date took a Transaction out of: its month's Plan didn't have it (ADR-0060). */
+export type DateUnassigned = { kind: "bucket" | "commitment"; id: string; name: string };
 
 /** Every change that keeps the Transaction: an edit, or one thing about it alone. */
 type TransactionNext = TransactionEdit | TransactionRename | TransactionFor | TransactionDate;
@@ -232,13 +242,44 @@ export function dateChange(transaction: TransactionRow, date: DayKey): Transacti
 	return { ...change, said: `Moved to ${shortDay(date)}${to ? ` · ${monthName(to)}` : ""}` };
 }
 
+/**
+ * What a Parent is told once a change of date has saved and left the Transaction unassigned: the
+ * month it landed in had no such Bucket or Commitment in its Plan, so it is filed nowhere now.
+ */
+export function dateUnassignedText(
+	{ said, next, transaction }: Pick<TransactionChange, "said" | "next" | "transaction">,
+	unassigned: Pick<DateUnassigned, "name">,
+) {
+	const date = next && "date" in next ? next.date : transaction.date;
+	const landing = monthName(date.slice(0, 7) as MonthKey);
+	return `${said}. ${unassigned.name || "What it was filed in"} wasn’t in ${landing}’s Plan, so it isn’t filed anywhere now.`;
+}
+
+/** The change that puts a date back, and with it what the change of date took it out of. */
+export const dateUndo = (
+	back: TransactionNext | null | undefined,
+	unassigned: DateUnassigned | null | undefined,
+): TransactionNext | null | undefined =>
+	back && "date" in back && unassigned
+		? {
+				date: back.date,
+				refile:
+					unassigned.kind === "bucket"
+						? { bucketId: unassigned.id }
+						: { commitmentId: unassigned.id },
+			}
+		: back;
+
 /** Why the server left a Transaction's date as it was (ADR-0060). Sending it again won't help. */
 export type DateRefusal = "month-closed" | "future" | "not-in-plan" | "refund-order";
+/** For "not-in-plan": what holds it where it is filed, and the name of what the Plan lacked. */
+export type DateHeld = { part: "split" | "money-back"; name: string };
 export class DateRefused extends Error {
 	constructor(
 		readonly reason: DateRefusal,
 		/** The closed month, for "month-closed". */
 		readonly month?: MonthKey,
+		readonly held?: DateHeld,
 	) {
 		super(reason);
 		this.name = "DateRefused";
@@ -250,14 +291,21 @@ export function dateRefusedText(
 	{ transaction, next }: Pick<TransactionChange, "transaction" | "next">,
 	reason: DateRefusal,
 	closed?: MonthKey,
+	held?: DateHeld,
 ) {
 	const date = next && "date" in next ? next.date : transaction.date;
 	const landing = monthName(date.slice(0, 7));
 	if (reason === "month-closed")
 		return `${closed ? monthName(closed) : landing} is closed, so nothing moves into or out of it.`;
 	if (reason === "future") return "A Transaction can’t be dated after today.";
-	if (reason === "not-in-plan")
-		return `${transaction.assignedName || "What it’s filed in"} wasn’t in ${landing}’s Plan, so it can’t count there. File it somewhere else first.`;
+	// Filed whole in what that month's Plan lacked, it moves and is left unassigned. Only a Split,
+	// which is never unassigned, or money back counting where it is filed, holds it.
+	if (reason === "not-in-plan") {
+		const name = held?.name || transaction.assignedName || "what it’s filed in";
+		return held?.part === "split"
+			? `One of its Splits is filed in ${name}, which wasn’t in ${landing}’s Plan. Change that Split first.`
+			: `Money back counts in ${name}, which wasn’t in ${landing}’s Plan. File it somewhere else first.`;
+	}
 	// A Refund comes after its purchase, within the days one may.
 	return date > transaction.date
 		? "Its Refund would come before it. Move the Refund first."
@@ -511,11 +559,25 @@ export async function saveTransactionChange({ transaction, next }: TransactionCh
 	const expectedVersion = expectedVersionOf(transaction);
 	if (next && "date" in next) {
 		const moved = await changeTransactionDate({
-			data: { transactionId: transaction.id, date: next.date, expectedVersion },
+			data: {
+				transactionId: transaction.id,
+				date: next.date,
+				expectedVersion,
+				refile: next.refile,
+			},
 		});
 		if (moved.status === "refused")
-			throw new DateRefused(moved.reason, "month" in moved ? moved.month : undefined);
-		return settleWrite(transaction.id, moved);
+			throw new DateRefused(
+				moved.reason,
+				"month" in moved ? moved.month : undefined,
+				"part" in moved ? { part: moved.part, name: moved.name } : undefined,
+			);
+		settleWrite(transaction.id, moved);
+		// What it was taken out of, for the message and its Undo: only the server knows whether
+		// the month it landed in had its Bucket.
+		return moved.status === "saved" && moved.unassigned
+			? { unassigned: moved.unassigned }
+			: undefined;
 	}
 	const answer =
 		next && "rename" in next
@@ -814,6 +876,34 @@ export async function applyFiling(
 }
 
 /**
+ * A Transaction a change of date left unassigned, in the lists that still show it (an Account's,
+ * or one of several months): it reads as filed nowhere at once, before the lists come back.
+ */
+function showUnassigned(queryClient: QueryClient, id: string) {
+	const lists = [
+		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+			queryKey: [...monthsKey, "account-transactions"],
+		}),
+		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+			queryKey: rangeTransactionsKey,
+		}),
+	];
+	for (const [queryKey, list] of lists) {
+		if (!list || !Array.isArray(list.pages)) continue;
+		if (!list.pages.some((page) => page.transactions.some((row) => row.id === id))) continue;
+		queryClient.setQueryData(queryKey, {
+			...list,
+			pages: list.pages.map((page) => ({
+				...page,
+				transactions: page.transactions.map((row) =>
+					row.id === id ? { ...row, bucketId: null, commitmentId: null, assignedName: null } : row,
+				),
+			})),
+		});
+	}
+}
+
+/**
  * After a change to spending settles: refetch every month, and what follows from spending. Not
  * while another change is in flight, which the refetch would briefly undo on screen.
  */
@@ -870,7 +960,7 @@ export function useTransactionChange() {
 				});
 			// Its day stays as it was, and why is said: nothing to retry.
 			if (error instanceof DateRefused)
-				return void toast(dateRefusedText(variables, error.reason, error.month), {
+				return void toast(dateRefusedText(variables, error.reason, error.month, error.held), {
 					tone: "error",
 				});
 			toast(
@@ -880,18 +970,27 @@ export function useTransactionChange() {
 				{ tone: "error", action: { label: "Retry", onClick: () => change.mutate(variables) } },
 			);
 		},
-		onSuccess: (_data, variables) => {
+		onSuccess: (data, variables) => {
+			// The month it landed in had no such Bucket: wherever it still shows, it is filed nowhere.
+			const unassigned = data?.unassigned;
+			if (unassigned) showUnassigned(queryClient, variables.transaction.id);
 			if (variables.quiet) return;
 			// A cell's change says what it did, with an Undo that writes it back in its turn.
 			if (variables.said) {
-				const { back, next } = variables;
-				// On its new day, which is where the Undo of a change of date finds it.
+				const { next } = variables;
+				// Undo of a change of date puts back what it was filed in too, in the same write.
+				const back = dateUndo(variables.back, unassigned);
+				// On its new day, and filed nowhere if so: where the Undo of a change of date finds it.
 				const transaction =
 					next && "date" in next
-						? { ...variables.transaction, date: next.date }
+						? {
+								...variables.transaction,
+								date: next.date,
+								...(unassigned ? { bucketId: null, commitmentId: null, assignedName: null } : {}),
+							}
 						: variables.transaction;
 				return void toast(
-					variables.said,
+					unassigned ? dateUnassignedText(variables, unassigned) : variables.said,
 					back
 						? {
 								tone: "success",

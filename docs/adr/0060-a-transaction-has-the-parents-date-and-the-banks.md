@@ -1,6 +1,6 @@
 # ADR-0060: A Transaction has the Parent's date and the bank's
 
-Status: accepted (2026-10-07)
+Status: accepted (2026-10-07); point 6 amended the same day (see "Amended")
 
 ## Context
 
@@ -15,8 +15,18 @@ Ended months: `ended-months.ts` only guards money back (ADR-0058). Nothing else 
 3. **Every other reader is untouched**, which is why the new column is the bank's and not the Parent's: dozens of reads of `date` stay correct as they are, and four places learn the new one.
 4. **Allowed days:** any day up to the Household's today.
 5. **Closed months:** a change of date is refused (`month-closed`, naming the month) when the month it would leave or the month it would land in has a `month_closes` row, a move within a closed month included. A month that has ended but has not been closed yet takes and gives Transactions, which is the late-September case. The check is made before the write and again inside it.
-6. **Links keep their rules.** Splits, For, the Commitment paid, Refund links, Owed back and Transfer sides are held by the Transaction's id and move with it. A move that would put a linked Refund before its purchase, or more than 90 days after, is refused (`refund-order`) rather than breaking the link. What it is filed in, whole or by Split, must be in the Plan for the month it lands in (`not-in-plan`).
+6. **Links keep their rules.** Splits, For, the Commitment paid, Refund links, Owed back and Transfer sides are held by the Transaction's id and move with it. A move that would put a linked Refund before its purchase, or more than 90 days after, is refused (`refund-order`) rather than breaking the link. ~~What it is filed in, whole or by Split, must be in the Plan for the month it lands in (`not-in-plan`).~~ Replaced the day it shipped: see "Amended".
 7. It is one more versioned write (ADR-0041): made on the version the Parent saw, one version on when it lands.
+
+## Amended (2026-10-07): a Bucket the landing month's Plan lacked no longer refuses
+
+The owner, the day it shipped: "if the bucket didn't exist the prior month, let the date change and just un-assign the bucket". A new Household has no Plan before its first month, so the refusal stopped the very case asked for (late September's charge, filed in October).
+
+- **Filed whole in a Bucket or a Commitment** that isn't in the Plan of the month it lands in: the date changes and, in the same versioned write, it is left unassigned (`bucket_id` and `commitment_id` null). That is the state the Undo of "File in…" leaves and nothing new: it reads Unassigned in the lists, counts in no Bucket in either month, keeps its For, and waits in Review again only if Review was where it had waited (its `categorizations.outcome` is still `review`). What a Commitment's payments pay down on a card kept by hand is derived from the payments filed in it, so that goes with it and comes back with it.
+- The answer says what it was taken out of (`unassigned`: kind, id, name). **Undo** sends the day it was on and that (`refile`), and both go back in one write: only onto a Transaction filed nowhere, whole, with no money back, and only where that month's Plan has it. Otherwise the day goes back and it stays unassigned.
+- **Splits** (`not-in-plan`, `part: "split"`): still refused where any Split's Bucket or Commitment isn't in that month's Plan. A Split always has an assignment; there is no unassigned Split, and one was not invented for this. The Parent changes that Split first.
+- **Money back** (`not-in-plan`, `part: "money-back"`): still refused where a Refund on a card (either side), a Refund link or Owed back is on the Transaction and what it is filed in isn't in that month's Plan. Money back restores the Bucket its purchase is filed in (ADR-0058), so a purchase filed nowhere would leave it restoring nothing.
+- Unchanged: closed months, days that haven't come, the Refund order rule, Goal spending, and a side of a Transfer or a card payment, which is filed nowhere to begin with.
 
 ## Considered
 
