@@ -230,7 +230,10 @@ export async function loadCheckInDoers(
 							and(
 								eq(moves.householdId, viewer.householdId),
 								eq(moves.kind, "windfall"),
-								gte(moves.createdAt, card.startedAt),
+								// A decision is timed in whole seconds (the column's default), the card's
+								// start to the millisecond: since the start's own second, or one made
+								// straight after the card joined would be nobody's.
+								gte(moves.createdAt, new Date(Math.floor(card.startedAt.getTime() / 1000) * 1000)),
 								sql`${moves.month} in (select value from json_each(${JSON.stringify(card.months)}))`,
 							),
 						);
