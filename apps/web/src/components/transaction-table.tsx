@@ -119,7 +119,7 @@ function OpenRegion({
 			// own width, so the editor's two columns follow the table, not the window.
 			className={cn(
 				"@container min-w-0 scroll-mt-24 outline-none",
-				"lg:bg-brand-soft/40 lg:px-6 lg:pt-5 lg:pb-6 lg:shadow-[inset_3px_0_0_var(--color-primary)]",
+				"lg:bg-card lg:px-6 lg:pt-5 lg:pb-6 lg:shadow-[inset_3px_0_0_var(--color-primary)]",
 				top && "lg:border-b lg:border-border",
 				// Under its row the header is one compact line: no Back (the row is right there, and
 				// Close is at the end), a title the size of a row's heading.

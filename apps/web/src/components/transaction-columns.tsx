@@ -15,10 +15,12 @@ import {
 	ArrowLeftRight,
 	Check,
 	ChevronRight,
+	Clock,
 	Sparkles,
 	Split as SplitIcon,
 	Target,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { BANK_TOOK_BACK_WORD } from "../bank-took-back";
 import { monogram } from "../buckets";
 import { askCardPayment } from "../card-payments";
@@ -76,12 +78,127 @@ export function WaitingForBankBadge() {
 		</TooltipProvider>
 	);
 }
+/** What the Auto and Pending marks say: their names, and their tooltips. */
+export const AUTO_MARK = "Filed automatically";
+export const AUTO_MARK_MEANS =
+	"Filed automatically, as a best guess. Open it to check or change it.";
+export const PENDING_MARK = "Pending";
+export const PENDING_MARK_MEANS =
+	"Pending: the bank hasn’t posted it yet, so it may still change or go.";
+
+/**
+ * A small mark after a row's name (issue 147): an icon with its name for a screen reader and what
+ * it means in a tooltip, on hover and on keyboard focus. A press on it is a press on its row, so
+ * on a phone (no hover) it opens the row, which says the same in words.
+ */
+function Mark({ name, means, children }: { name: string; means: string; children: ReactNode }) {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span
+					role="img"
+					aria-label={name}
+					// biome-ignore lint/a11y/noNoninteractiveTabindex: focus is how a keyboard reads its tooltip
+					tabIndex={0}
+					data-slot="row-mark"
+					className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5"
+				>
+					{children}
+				</span>
+			</TooltipTrigger>
+			<TooltipContent>{means}</TooltipContent>
+		</Tooltip>
+	);
+}
+
+const ink = "min-w-0 truncate text-foreground";
+
+/**
+ * What a row was for, the second thing it says after its name (issue 147): the Bucket, Commitment
+ * or Goal in ink (a Bucket with a dot of its colour in the column, where its tile is far away),
+ * the kind where it isn't spending, or "Needs review". Drawn for the eye: the row's label says it
+ * all in words. `stacked` is the line under the name on a phone, where the row's badges have
+ * already said the kind.
+ */
+function What({ view, stacked = false }: { view: RowView; stacked?: boolean }) {
+	const dot =
+		!stacked && view.assignment.color ? (
+			<span
+				aria-hidden="true"
+				data-slot="bucket-dot"
+				className="size-2 shrink-0 rounded-full bg-(--tile)"
+				style={{ ["--tile" as string]: `var(--bucket-${view.assignment.color})` }}
+			/>
+		) : null;
+	const kind =
+		!stacked && view.kindWord ? (
+			<Badge data-slot="row-kind-column" className={pill}>
+				{view.kindWord}
+			</Badge>
+		) : null;
+	if (view.kind === "goal")
+		return (
+			<>
+				<span className={ink}>{view.assignment.name}</span>
+				<span className="shrink-0">Goal</span>
+			</>
+		);
+	if (view.kind === "transfer")
+		return (
+			<>
+				{kind}
+				{view.route ? <span className="min-w-0 truncate">{view.route}</span> : null}
+			</>
+		);
+	if (view.kindWord)
+		return (
+			<>
+				{kind}
+				{dot}
+				<span className={ink}>{view.assignment.name}</span>
+			</>
+		);
+	if (view.moneyIn) return <span className={ink}>Money back</span>;
+	if (view.kind === "split") {
+		// Two names, each shortened only as far as it must be, and how many more: never "…" alone.
+		const shown = view.splitNames.slice(0, 2);
+		const more = view.splitNames.length - shown.length;
+		return (
+			<>
+				{/* A stacked row's tile says it is split; the column has no tile beside it. */}
+				{stacked ? null : <span className="shrink-0">Split ·</span>}
+				{shown.map((name, index) => (
+					<span key={name} className={ink}>
+						{name}
+						{index < shown.length - 1 ? "," : ""}
+					</span>
+				))}
+				{more > 0 ? <span className="shrink-0 text-foreground">+{more}</span> : null}
+			</>
+		);
+	}
+	if (view.needsReview)
+		return (
+			<Badge dot variant="pace" data-slot="needs-review" className={pill}>
+				Needs review
+			</Badge>
+		);
+	return (
+		<>
+			{dot}
+			<span className={view.assignment.name === "Unassigned" ? "min-w-0 truncate" : ink}>
+				{view.assignment.name}
+			</span>
+		</>
+	);
+}
+
 // A tile with no Bucket colour is the same grey as a selected or open row: there it takes the
 // card's ground, so the square is still a square.
 const plainTile = "[[data-selected]_&]:bg-card [[aria-current=true]_&]:bg-card";
 // The name is the row's control: as small as its words, so the row around it stays a row.
 const nameControl =
-	"col-span-2 h-auto min-h-6 max-w-full min-w-0 justify-start justify-self-start rounded-sm p-0 text-start text-sm font-medium hover:bg-transparent sm:col-span-1";
+	"col-span-2 h-auto min-h-6 max-w-full min-w-0 shrink justify-start justify-self-start rounded-sm p-0 text-start text-sm font-medium hover:bg-transparent sm:col-span-1";
 
 /**
  * The tile, the name (the control that opens the row, saying everything the row says), its
@@ -164,62 +281,71 @@ function NameCell({
 					renaming && "hidden",
 				)}
 			>
-				{transaction.goal ? (
-					<Button asChild variant="ghost" size="sm" className={nameControl}>
-						<Link
-							to="/goals/$goalId"
-							params={{ goalId: transaction.goal.id }}
+				<span className="col-span-2 flex min-w-0 items-center gap-1 sm:col-span-1">
+					{transaction.goal ? (
+						<Button asChild variant="ghost" size="sm" className={nameControl}>
+							<Link
+								to="/goals/$goalId"
+								params={{ goalId: transaction.goal.id }}
+								aria-label={view.label}
+							>
+								<span className="truncate">{view.title}</span>
+							</Link>
+						</Button>
+					) : (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className={nameControl}
 							aria-label={view.label}
+							aria-current={open ? "true" : undefined}
+							// It opens in place, under its row (issue 99). Said on the button: a grid's row can't
+							// take aria-expanded. Goal spending goes to its Goal instead.
+							aria-expanded={transaction.goal ? undefined : open}
+							onClick={() => onEdit(transaction)}
 						>
 							<span className="truncate">{view.title}</span>
-						</Link>
-					</Button>
-				) : (
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						className={nameControl}
-						aria-label={view.label}
-						aria-current={open ? "true" : undefined}
-						// It opens in place, under its row (issue 99). Said on the button: a grid's row can't
-						// take aria-expanded. Goal spending goes to its Goal instead.
-						aria-expanded={transaction.goal ? undefined : open}
-						onClick={() => onEdit(transaction)}
-					>
-						<span className="truncate">{view.title}</span>
-						<ChevronRight
-							aria-hidden="true"
-							className={cn(
-								// Drawn close to the name: a 15-letter name stays whole beside a whole badge at 1536.
-								"-ms-1 size-3.5 shrink-0 text-subtle-foreground transition-transform motion-reduce:transition-none max-lg:hidden",
-								open && "rotate-90 text-primary",
-							)}
-						/>
-					</Button>
-				)}
+							<ChevronRight
+								aria-hidden="true"
+								className={cn(
+									// Drawn close to the name: a 15-letter name stays whole beside a whole badge at 1536.
+									"-ms-1 size-3.5 shrink-0 text-subtle-foreground transition-transform motion-reduce:transition-none max-lg:hidden",
+									open && "rotate-90 text-primary",
+								)}
+							/>
+						</Button>
+					)}
+					{/* Small marks, not words: the name and what it was for keep the room. */}
+					{view.pending || view.autoFiled ? (
+						<TooltipProvider>
+							<span className="flex shrink-0 items-center">
+								{view.pending ? (
+									<Mark name={PENDING_MARK} means={PENDING_MARK_MEANS}>
+										<Clock aria-hidden="true" />
+									</Mark>
+								) : null}
+								{view.autoFiled ? (
+									<Mark name={AUTO_MARK} means={AUTO_MARK_MEANS}>
+										<Sparkles aria-hidden="true" />
+									</Mark>
+								) : null}
+							</span>
+						</TooltipProvider>
+					) : null}
+				</span>
 				<span className="peer/badges col-start-1 row-start-2 me-1.5 flex shrink-0 items-center gap-1.5 empty:hidden sm:col-start-2 sm:row-start-1 sm:ms-1.5 sm:me-0">
 					{/* One word where the line isn't plain spending (issue 134); the row's label says it too. */}
 					{view.kindWord ? (
-						<Badge aria-hidden="true" data-slot="row-kind" className={pill}>
+						// The Assigned to column says it once the table is in columns.
+						<Badge aria-hidden="true" data-slot="row-kind" className={cn(pill, "@2xl/dt:hidden")}>
 							{view.kindWord}
-						</Badge>
-					) : null}
-					{view.pending ? (
-						<Badge aria-hidden="true" dot className={pill}>
-							Pending
 						</Badge>
 					) : null}
 					{/* Kept after the bank took it back or changed it (issue 141); opening it says why. */}
 					{transaction.bankTookBackOn ? (
 						<Badge data-testid="bank-took-back" className={pill}>
 							{BANK_TOOK_BACK_WORD}
-						</Badge>
-					) : null}
-					{view.autoFiled ? (
-						<Badge aria-hidden="true" className={pill}>
-							<Sparkles />
-							Auto
 						</Badge>
 					) : null}
 					{view.matched ? (
@@ -235,16 +361,30 @@ function NameCell({
 				<span
 					className={cn(
 						"col-start-2 row-start-2 flex min-w-0 items-center gap-1 text-[13px] font-normal text-muted-foreground sm:col-span-2 sm:col-start-1 @2xl/dt:hidden",
+						view.who === FOR_DIFFERS && "flex-wrap",
 						// On the narrowest phones the marks get the second line and the detail a third.
 						"max-[389px]:peer-[:not(:empty)]/badges:col-span-2 max-[389px]:peer-[:not(:empty)]/badges:col-start-1 max-[389px]:peer-[:not(:empty)]/badges:row-start-3",
 					)}
 				>
-					{cells && checked === undefined && view.aroundFor && forEdits(transaction) ? (
-						<>
-							<span aria-hidden="true" className="min-w-0 truncate">
-								{dated ? `${shortDay(transaction.date)} · ` : ""}
-								{view.aroundFor.before} ·
-							</span>
+					{dated ? (
+						<span aria-hidden="true" className="shrink-0">
+							{shortDay(transaction.date)} ·
+						</span>
+					) : null}
+					<span
+						aria-hidden="true"
+						className={cn(
+							"flex min-w-0 items-center gap-1",
+							// Beside "Different for each Split" it keeps 9rem or takes a line of its own.
+							view.who === FOR_DIFFERS && "flex-[1_1_9rem]",
+							// A pill is never cut.
+							view.needsReview && "shrink-0",
+						)}
+					>
+						<What view={view} stacked />
+					</span>
+					{view.aroundFor ? (
+						cells && checked === undefined && forEdits(transaction) ? (
 							<ForCell
 								stacked
 								transaction={transaction}
@@ -253,27 +393,24 @@ function NameCell({
 								names={view.forNames}
 								cells={cells}
 							/>
-							{view.aroundFor.after ? (
-								<span aria-hidden="true" className="min-w-0 shrink-[3] truncate">
-									· {view.aroundFor.after}
-								</span>
-							) : null}
-						</>
-					) : (
-						<>
-							<span aria-hidden="true" className="min-w-0 truncate">
-								{dated ? `${shortDay(transaction.date)} · ` : ""}
-								{view.detail}
+						) : (
+							<span aria-hidden="true" className="shrink-0 whitespace-nowrap">
+								· {view.who}
 							</span>
-							{/* A split one whose Splits are For different people: said here in words, whole,
-							    as its column says it on a wide table (issue 141). */}
-							{view.who === FOR_DIFFERS ? (
-								<span aria-hidden="true" className="shrink-0 whitespace-nowrap">
-									· {FOR_DIFFERS}
-								</span>
-							) : null}
-						</>
-					)}
+						)
+					) : view.who === FOR_DIFFERS ? (
+						// A split one whose Splits are For different people: said here in words, whole,
+						// as its column says it on a wide table (issue 141).
+						<span aria-hidden="true" className="shrink-0 whitespace-nowrap">
+							{FOR_DIFFERS}
+						</span>
+					) : null}
+					{/* Where it came from has only the room that is left: what it was for stays whole. */}
+					{view.source && view.kind !== "transfer" && view.kind !== "goal" ? (
+						<span aria-hidden="true" className="min-w-0 flex-[1_1_0%] truncate">
+							· {view.source}
+						</span>
+					) : null}
 				</span>
 			</span>
 			{renames && !renaming ? (
@@ -356,9 +493,16 @@ export function transactionColumns({
 						title={view.title}
 						assigned={view.assigned}
 						cells={cells}
-					/>
+					>
+						<span className="flex min-w-0 items-center gap-1.5">
+							<What view={view} />
+						</span>
+					</AssignedCell>
 				) : (
-					<span className="truncate">{view.assigned}</span>
+					// The whole of it on hover, where the column cut it short.
+					<span className="flex min-w-0 items-center gap-1.5" title={view.assigned}>
+						<What view={view} />
+					</span>
 				),
 		},
 		{
@@ -424,9 +568,19 @@ export function transactionColumns({
 			stacked: "value",
 			sortable: { descFirst: true, said: { asc: "smallest first", desc: "largest first" } },
 			className: "font-semibold",
-			// Money in is green with its "+"; money out is plain ink (issue 134).
+			// Money in is green with its "+"; money out is plain ink (issue 134). A pending one is
+			// quieter (issue 147): it may still change.
 			cell: ({ view }) => (
-				<span className={view.moneyIn ? "text-money-in" : undefined}>{view.amount}</span>
+				<span
+					data-pending={view.pending || undefined}
+					className={cn(
+						view.moneyIn && "text-money-in",
+						// Not settled yet: quieter than money that is.
+						view.pending && "font-medium text-muted-foreground",
+					)}
+				>
+					{view.amount}
+				</span>
 			),
 		},
 	];

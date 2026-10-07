@@ -86,7 +86,7 @@ test("a Zelle to a person is offered as between us in Review, fits a 320px phone
 	// It stays out of Review, and its row says what it is.
 	await page.goto(new URL(`/transactions/${month}`, thisMonth).href);
 	await expect(
-		page.getByText("Between us · out of Visa").filter({ visible: true }).first(),
+		page.getByText("out of Visa", { exact: true }).filter({ visible: true }).first(),
 	).toBeVisible();
 	await page.goto(new URL("/review", thisMonth).href);
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Review");

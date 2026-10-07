@@ -89,7 +89,7 @@ test("imported Transactions are filed automatically, marked, and a Parent can ch
 			name: "Acme Widgets, $19.99, Unassigned, For Everyone, from Visa",
 		}),
 	).toBeVisible();
-	await expect(page.getByText("Auto", { exact: true })).toHaveCount(2);
+	await expect(page.getByRole("img", { name: "Filed automatically" })).toHaveCount(2);
 
 	// The marker opens the Transaction, which says how it was filed; a Parent changes it.
 	await costco.click();
@@ -105,7 +105,7 @@ test("imported Transactions are filed automatically, marked, and a Parent can ch
 			name: "Costco, $61.20, Gas, For Everyone, from Visa",
 		}),
 	).toBeVisible();
-	await expect(page.getByText("Auto", { exact: true })).toHaveCount(1);
+	await expect(page.getByRole("img", { name: "Filed automatically" })).toHaveCount(1);
 
 	// Still so after a reload: the Parent's choice is theirs, not categorization's.
 	await page.reload();
@@ -114,7 +114,7 @@ test("imported Transactions are filed automatically, marked, and a Parent can ch
 			name: "Costco, $61.20, Gas, For Everyone, from Visa",
 		}),
 	).toBeVisible();
-	await expect(page.getByText("Auto", { exact: true })).toHaveCount(1);
+	await expect(page.getByRole("img", { name: "Filed automatically" })).toHaveCount(1);
 });
 
 test("Review looks again once the Plan has a Bucket for what waits there", async ({ browser }) => {

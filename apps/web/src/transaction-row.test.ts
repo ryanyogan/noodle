@@ -86,6 +86,27 @@ describe("rowView", () => {
 		expect(view({ amountCents: -500 }).aroundFor).toBeNull();
 	});
 
+	it("says what it was for apart from where it came from, for the row to draw (issue 147)", () => {
+		expect(view({ importedFrom: "Visa ••1234" })).toMatchObject({
+			source: "Visa ••1234",
+			needsReview: false,
+			route: "",
+			splitNames: [],
+		});
+		// Waiting in Review, it says so where its Bucket would be.
+		expect(view({ bucketId: null, waits: true }).needsReview).toBe(true);
+		// A side of a Transfer names its Accounts without the kind's word: its badge says that.
+		expect(view({ transfer: { from: "Checking", to: "Visa", reason: null } }).route).toBe(
+			"Checking → Visa",
+		);
+		expect(view({ transfer: { from: "Checking", to: null, reason: "between-us" } }).route).toBe(
+			"out of Checking",
+		);
+		expect(view({ transfer: { from: null, to: "Savings", reason: null } }).route).toBe(
+			"into Savings",
+		);
+	});
+
 	it("with no name it says what kind of thing it is", () => {
 		expect(view({ merchantName: null }).title).toBe("Quick Add");
 		expect(view({ merchantName: null, importedFrom: "Visa" }).title).toBe("Imported");
