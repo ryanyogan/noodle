@@ -139,7 +139,7 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 		}),
 	).toBeVisible();
 	const card = page.getByRole("button", {
-		name: /^(AUTOPAY PAYMENT - THANK YOU|Autopay Payment Thank You), −\$500, Money back, from Visa$/,
+		name: /^(AUTOPAY PAYMENT - THANK YOU|Autopay Payment Thank You), \+\$500, Money back, from Visa$/,
 	});
 	await expect(card).toBeVisible();
 
@@ -250,7 +250,7 @@ test("money back linked as a Refund goes back to the purchase's Bucket", async (
 
 	// The jacket is the likely purchase it refunds.
 	await openTransactions(page, thisMonth);
-	const moneyBack = page.getByRole("button", { name: "REI, −$24.99, Money back, from Visa" });
+	const moneyBack = page.getByRole("button", { name: "REI, +$24.99, Money back, from Visa" });
 	await reloadUntil(page, page.url(), () => expect(moneyBack).toBeVisible({ timeout: 2_000 }));
 	// Rows open their detail once the page is hydrated.
 	await expect(page.getByLabel("Bucket")).toBeEnabled();
@@ -261,7 +261,7 @@ test("money back linked as a Refund goes back to the purchase's Bucket", async (
 	await sheet.getByRole("button", { name: /^Link as a Refund for REI jacket, \$80,/ }).click();
 	await expect(toast(page, "REI linked as a Refund")).toBeVisible();
 	const refund = page.getByRole("button", {
-		name: "REI, −$24.99, Refund, Gear, from Visa",
+		name: "REI, +$24.99, Refund, Gear, from Visa",
 	});
 	await expect(refund).toBeVisible();
 	await says(page, refund, ["Refund · Gear", "Visa"]);

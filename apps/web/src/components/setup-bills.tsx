@@ -102,11 +102,16 @@ export function SetupBills({
 											<Checkbox
 												id={`${rowId}-about`}
 												checked={row.about === true}
-												aria-label={`${label} varies`}
+												// Named by its own words, with the bill as its description: a name
+												// with the bill's in it would answer to the bill's own tick too.
+												aria-describedby={`${rowId}-bill`}
 												onCheckedChange={(checked) => edit(row.key, { about: checked === true })}
 											/>
 											It varies: plan for about this much
 										</label>
+										<span id={`${rowId}-bill`} hidden>
+											{label}
+										</span>
 									</div>
 								) : null}
 							</Card>
