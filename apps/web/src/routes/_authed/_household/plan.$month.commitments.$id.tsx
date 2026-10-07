@@ -36,6 +36,7 @@ import { DetailHeader, DetailPager, DetailPending } from "../../../components/ma
 import { OwedBackOnCommitment } from "../../../components/owed-back-list";
 import { PlanHistoryList } from "../../../components/plan-history";
 import { formatMoney, fullDay, monthName } from "../../../format";
+import { paidBackIntoText } from "../../../owed-back";
 import { commitmentsQuery, goalsQuery, planHistoryQuery, useMonthState } from "../../../queries";
 import { COMMITMENT_MONTHS, type CommitmentsData } from "../../../server/commitments";
 
@@ -179,6 +180,11 @@ function CommitmentPage() {
 					month={month}
 					className="mb-6 block text-sm text-muted-foreground"
 				/>
+			) : null}
+			{thisMonth?.paidBack ? (
+				<p className="mb-6 text-sm text-muted-foreground" data-testid="paid-back-commitment">
+					{paidBackIntoText(thisMonth.paidBack)} this month
+				</p>
 			) : null}
 			{/* The cost across the top. Beneath it, in a pane wide enough, two columns that both start
 			    with a heading: Charges beside Next due and Terms history. With no Charges yet, their note

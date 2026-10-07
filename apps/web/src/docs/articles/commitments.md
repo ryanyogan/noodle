@@ -67,6 +67,7 @@ When Noodle sees the same charge keep coming back, it may offer "Netflix looks l
 - Add every one you can think of. Small subscriptions count, and their yearly cost can be an eye-opener.
 - Day-to-day spending that happens to repeat, like groceries or coffee, belongs in a Bucket. See [Commitments or Buckets: which is which](/docs/commitments-or-buckets).
 - Paying a credit card you use every day is a Transfer, not a Commitment. A set payment on a balance you are carrying is a Commitment. See [Paying off debt](/docs/paying-off-debt).
+- A bill that changes each time, like power or water, can be planned at "about" what it costs. See [Bills that vary](/docs/bills-that-vary).
 - Changing an amount reaches that month and later months, or just that month, as you choose.
 
 ## Related

@@ -68,6 +68,7 @@ import { type GoalView, useGoals } from "../../../goals";
 import { useLearned } from "../../../learned";
 import { useReviewWaiting } from "../../../money-in";
 import { closingWeek, useCloseMonth } from "../../../month-close";
+import { bucketSpentText } from "../../../owed-back";
 import { useFreeCarry } from "../../../plan-changes";
 import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
 import { carriedOverText } from "../../../plan-split";
@@ -915,7 +916,8 @@ function BucketRow({
 					{/* On a phone "spent" always has its own line, so every row with a badge reads alike
 					    (issue 110: at 320 px it fitted beside "Ahead" in some rows and wrapped in others). */}
 					<span className="max-sm:basis-full">
-						{formatMoney(bucket.spent)} spent{isPrivate ? " · Private" : ""}
+						{bucketSpentText(bucket)}
+						{isPrivate ? " · Private" : ""}
 					</span>
 				</>
 			}
@@ -956,7 +958,7 @@ function BucketRow({
 						marker={ended ? undefined : 1 - bucket.pace.leftShare}
 						state={barState(bucket.status)}
 						label={bucket.name}
-						valueText={`${formatMoney(bucket.spent)} spent of ${formatMoney(bucket.available)}, ${
+						valueText={`${bucketSpentText(bucket)} of ${formatMoney(bucket.available)}, ${
 							bucket.left < 0
 								? `over by ${formatMoney(-bucket.left)}`
 								: `${formatMoney(bucket.left)} left`

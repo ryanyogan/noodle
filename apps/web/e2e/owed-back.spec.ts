@@ -2,7 +2,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { createPlannedHousehold, hydrated, signedInPage } from "./session";
+import { createPlannedHousehold, hydrated, signedInPage, uploadStatement } from "./session";
 
 // Paid back and Owed back (issue 132, ADR-0058), the ticket's scenario from end to end: tuition
 // of $1,200 last month with half Owed back by Casey, skates ($45) and the dentist ($80) Owed back
@@ -173,6 +173,26 @@ test("$700 Paid back settles tuition and skates, leaves $25 of the dentist owed,
 	await expect(list.getByTestId("owed-back-item")).toContainText("$55 of $80 Paid back");
 	await shot(list, "list-after-1440");
 
+	// A Parent takes one match off: the skates are owed again and the $45 waits, offered as before.
+	const matched = matching.getByTestId("paid-back-match");
+	await expect(matched).toHaveCount(3);
+	await matched
+		.filter({ hasText: "Skates" })
+		.getByRole("button", { name: "Take $45 off Skates" })
+		.click();
+	await expect(toast(page, "Taken off. $45 is Paid back, not matched yet")).toBeVisible();
+	await expect(matched).toHaveCount(2);
+	await expect(list.getByTestId("owed-back-person")).toContainText("owes $70");
+	await expect(matching).toContainText("What is this $45 paying back from Casey?");
+	await expect(offered).toHaveCount(2);
+	await expect(offered.nth(0)).toContainText("Skates");
+	await expect(offered.nth(0).getByRole("textbox")).toHaveValue(/^45(\.00)?$/);
+	await shot(casey, "matching-taken-off-1440");
+	// And matches it again.
+	await matching.getByRole("button", { name: "Confirm" }).click();
+	await expect(matched).toHaveCount(3);
+	await expect(list.getByTestId("owed-back-person")).toContainText("owes $25");
+
 	// It is kept, and it counts this month, where each purchase was filed: the Buckets and the
 	// Commitment get the money back, and none of it is Income.
 	await page.goto(`/month/${now}`);
@@ -180,9 +200,13 @@ test("$700 Paid back settles tuition and skates, leaves $25 of the dentist owed,
 		timeout: 30_000,
 	});
 	const thisMonthAfter = await words(page);
-	expect(thisMonthAfter).toContain("Kids −$45 spent $345 of $300");
-	expect(thisMonthAfter).toContain("Health −$55 spent $255 of $200");
-	expect(thisMonthAfter).toMatch(/Tuition Due \w+ 5 .*?−\$600 of \$600/);
+	// Said as money Paid back, never as negative spending or a negative payment.
+	expect(thisMonthAfter).toContain("Kids $45 Paid back $345 of $300");
+	expect(thisMonthAfter).toContain("Health $55 Paid back $255 of $200");
+	expect(thisMonthAfter).toMatch(/Tuition Due \w+ 5 .*?\$600 Paid back by Casey .*?\$0 of \$600/);
+	expect(thisMonthAfter).toContain("$0 of $600 paid · $600 Paid back");
+	expect(thisMonthAfter).not.toContain("−$");
+	expect(thisMonthAfter).not.toContain("less than expected");
 	expect(thisMonthAfter).not.toContain("owed back by Casey");
 	await shot(page.locator("main"), "this-month-after-1440");
 	// Last month is as it was.
@@ -201,4 +225,47 @@ test("$700 Paid back settles tuition and skates, leaves $25 of the dentist owed,
 		{ timeout: 30_000 },
 	);
 	await shot(page.locator("main"), "dentist-1440");
+});
+
+// The Rule's own write (applyOwedBackRules) on the real local D1: a statement line the Rule
+// files gets the Owed back the Rule remembers, "Tuition: Casey pays back half".
+test("a line a Rule files gets the Owed back its Rule remembers", async ({ browser }) => {
+	test.setTimeout(240_000);
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const { now } = months();
+	const made = await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [["Kids", "300"]],
+		commitments: [{ name: "Tuition", amountCents: 60_000, cadence: "monthly", dueDay: 5 }],
+	});
+	if (!made) throw new Error("The Household wasn't made directly");
+	const household = `(select household_id from members where clerk_user_id = ${q(parent.userId)})`;
+	const member = `(select id from members where clerk_user_id = ${q(parent.userId)})`;
+	await seedSql([
+		`insert into rules (id, household_id, pattern, commitment_id, created_by_member_id, owed_back_who, owed_back_percent) values (${q(ulid())}, ${household}, 'tuition', ${q(made.commitmentIds.Tuition as string)}, ${member}, 'Casey', 50);`,
+	]);
+
+	await page.goto(`/month/${now}`);
+	await hydrated(
+		page.getByRole("region", { name: "Income" }).getByRole("button", { name: "Add income" }),
+	);
+	await uploadStatement(page, [["TUITION", "1200.00"]], true);
+
+	// Filed by the Rule in its Commitment, with half of it Owed back by Casey.
+	const said = async () => {
+		const [rows = []] = await seedSql([
+			`select o.who, o.amount_cents, t.commitment_id from owed_back o join transactions t on t.id = o.transaction_id where o.household_id = ${household};`,
+		]);
+		return rows.map((row) => `${row.who} ${row.amount_cents} ${row.commitment_id}`);
+	};
+	await expect
+		.poll(said, { timeout: 60_000 })
+		.toEqual([`Casey 60000 ${made.commitmentIds.Tuition}`]);
+	await page.goto(`/transactions/${now}`);
+	const list = page.getByTestId("owed-back-list");
+	await expect(list.getByTestId("owed-back-person")).toContainText("owes $600", {
+		timeout: 30_000,
+	});
+	await expect(list.getByTestId("owed-back-item")).toHaveCount(1);
 });

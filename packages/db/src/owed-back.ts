@@ -312,6 +312,11 @@ export type PaidBackOffered = PaidBackLine & {
 	open: OwedBackItem[];
 	/** For what of the line isn't matched yet: oldest first that fit (offerPaidBack). */
 	offer: PaidBackOffer;
+	/**
+	 * The items the line's matches are on, oldest first, settled in full or not: what a Parent
+	 * can take a match off.
+	 */
+	settles: OwedBackItem[];
 };
 
 /**
@@ -328,7 +333,10 @@ export async function offerPaidBackFor(
 	const open = await loadOwedBack(db, viewer, { open: true });
 	const who = owedBackPersonIn(paid.line.note, [...new Set(open.map((item) => item.who))]);
 	const theirs = who ? open.filter((item) => item.who.toLowerCase() === who.toLowerCase()) : open;
-	return { ...paid, who, open, offer: offerPaidBack(paid.unmatched, theirs) };
+	const on = new Set(paid.matches.map((match) => match.owedBackId));
+	const settles =
+		on.size > 0 ? (await loadOwedBack(db, viewer)).filter((item) => on.has(item.id)) : [];
+	return { ...paid, who, open, offer: offerPaidBack(paid.unmatched, theirs), settles };
 }
 
 export type PaidBackConfirmResult =
@@ -548,6 +556,7 @@ export async function loadPaidBackSpending(
 				amount,
 				date: `${month}-01` as DayKey,
 				for: [],
+				paidBack: true,
 			};
 		}
 		return {
@@ -556,6 +565,7 @@ export async function loadPaidBackSpending(
 			amount,
 			date,
 			for: row.splitId ? forOf(row.splitId, partFor) : forOf(row.id, wholeFor),
+			paidBack: true,
 		};
 	});
 }
@@ -577,6 +587,7 @@ export async function loadPaidBackCharges(
 			commitmentId: commitment.as("restored_commitment_id"),
 			amount: sql<number>`-${paidBackMatches.amountCents}`.as("amount"),
 			date: paidBackMatches.countsOn,
+			who: owedBack.who,
 		})
 		.from(paidBackMatches)
 		.innerJoin(owedBack, eq(owedBack.id, paidBackMatches.owedBackId))

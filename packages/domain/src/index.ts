@@ -333,6 +333,7 @@ export {
 	type Move,
 	monthState,
 	paymentsOf,
+	paymentsView,
 	type Spend,
 	type Sweep,
 } from "./month-state";

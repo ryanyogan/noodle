@@ -207,7 +207,16 @@ export const privateTotalsFit = (filters: ReportFilters) =>
 	filters.merchant === undefined &&
 	!filters.min;
 
-type Restore = { target: Target; day: DayKey; amount: Cents; private: boolean };
+type Restore = {
+	/** The purchase's Transaction. */
+	id: string;
+	target: Target;
+	day: DayKey;
+	amount: Cents;
+	private: boolean;
+	/** Who the purchase was For; a Commitment's restores have it only from `restoresWithFor`. */
+	for: string[];
+};
 
 /**
  * What Paid back restores in a Report's range (ADR-0058), as spending in reverse on the day the
@@ -226,23 +235,61 @@ async function loadRestores(db: Db, scope: ReportScope): Promise<Restore[]> {
 	]);
 	const restores: Restore[] = [
 		...toBuckets.map((spend) => ({
+			id: spend.id,
 			target: `bucket:${spend.bucketId}` as Target,
 			day: spend.date,
 			amount: spend.amount,
+			for: spend.for,
 			private: spend.id === privateTotalId(spend.bucketId, monthOfDay(spend.date)),
 		})),
 		...toCommitments
 			// Charges are read through their last day; a Report's range stops before `until`.
 			.filter((charge) => charge.date < range.until)
 			.map((charge) => ({
+				id: charge.id,
 				target: `commitment:${charge.commitmentId}` as Target,
 				day: charge.date,
 				amount: charge.amount,
 				private: false,
+				for: [],
 			})),
 	];
 	return restores.filter(
 		(restore) => !filters.targets?.length || filters.targets.includes(restore.target),
+	);
+}
+
+/**
+ * The restores a Parent may see one by one, each with who its purchase was For. A Bucket's come
+ * with it; a Commitment's take the For of the whole purchase (one filed there by a Split counts
+ * For the Household, as nothing says which Split the money went back to).
+ */
+async function restoresWithFor(db: Db, scope: ReportScope): Promise<Restore[]> {
+	const restores = (await loadRestores(db, scope)).filter((restore) => !restore.private);
+	const ids = [
+		...new Set(restores.filter((r) => r.target.startsWith("commitment:")).map((r) => r.id)),
+	];
+	if (ids.length === 0) return restores;
+	// One JSON parameter: D1 allows 100 bound parameters a statement.
+	const rows = await db
+		.select({ id: transactionFor.transactionId, memberId: transactionFor.memberId })
+		.from(transactionFor)
+		.where(
+			and(
+				eq(transactionFor.householdId, scope.viewer.householdId),
+				sql`${transactionFor.transactionId} in (select value from json_each(${JSON.stringify(ids)}))`,
+			),
+		);
+	return restores.map((restore) =>
+		restore.target.startsWith("commitment:")
+			? {
+					...restore,
+					for: rows
+						.filter((row) => row.id === restore.id)
+						.map((row) => row.memberId)
+						.sort(),
+				}
+			: restore,
 	);
 }
 
@@ -335,7 +382,11 @@ export async function loadDailySpend(
 		.sort((x, y) => x.day.localeCompare(y.day));
 }
 
-/** Spending per period by who it was For (see spendFor in @noodle/domain). */
+/**
+ * Spending per period by who it was For (see spendFor in @noodle/domain), with what was Paid back
+ * taken off who its purchase was For, in the period it counts (a cell with a count of 0), so by
+ * Member and by Bucket add up to the same.
+ */
 export async function loadForCells(
 	db: Db,
 	scope: ReportScope,
@@ -353,9 +404,18 @@ export async function loadForCells(
 			.where(parts.where)
 			.groupBy(period, parts.forKey);
 	const [a, b] = await db.batch([query(whole), query(split)]);
-	return ([...a, ...b] as { period: string; forKey: string; amount: number; count: number }[]).map(
-		({ forKey, ...row }) => ({ ...row, for: forKey ? forKey.split(",") : [] }),
-	);
+	const restored = (await restoresWithFor(db, scope)).map((restore) => ({
+		period: periodKey(restore.day, grouping),
+		amount: restore.amount,
+		count: 0,
+		for: restore.for,
+	}));
+	return [
+		...([...a, ...b] as { period: string; forKey: string; amount: number; count: number }[]).map(
+			({ forKey, ...row }) => ({ ...row, for: forKey ? forKey.split(",") : [] }),
+		),
+		...restored,
+	];
 }
 
 export type MerchantTotal = {
@@ -524,11 +584,17 @@ export type ReportItem = {
 	accountId: string | null;
 	/** It's one Split of a split Transaction. */
 	split: boolean;
+	/**
+	 * Not a purchase: money Paid back on the Transaction `id`, a negative amount on the day it
+	 * counts (ADR-0058). It has no note, merchant or Account of its own.
+	 */
+	paidBack?: true;
 };
 
 /**
  * Parts `viewer` may see, newest first or largest first, at most `limit` (and how many there are
- * in all). The deepest level of a drill-down; never another Parent's Personal Allowance.
+ * in all). The deepest level of a drill-down; never another Parent's Personal Allowance. What
+ * was Paid back is listed with them, so the list adds up to the Bucket's or Commitment's total.
  */
 export async function loadReportItems(
 	db: Db,
@@ -573,8 +639,27 @@ export async function loadReportItems(
 		count(whole),
 		count(split),
 	]);
-	const items = ([...a, ...b] as (Omit<ReportItem, "split"> & { split: number })[])
-		.map((item) => ({ ...item, split: Boolean(item.split) }))
+	const restored = (await loadRestores(db, scope))
+		.filter((restore) => !restore.private)
+		.map(
+			(restore): ReportItem => ({
+				id: restore.id,
+				date: restore.day,
+				amount: restore.amount,
+				note: null,
+				merchantName: null,
+				target: restore.target,
+				accountId: null,
+				split: false,
+				paidBack: true,
+			}),
+		);
+	const items = [
+		...([...a, ...b] as (Omit<ReportItem, "split"> & { split: number })[]).map(
+			(item): ReportItem => ({ ...item, split: Boolean(item.split) }),
+		),
+		...restored,
+	]
 		.sort((x, y) =>
 			order === "amount"
 				? y.amount - x.amount || y.date.localeCompare(x.date)
@@ -583,7 +668,8 @@ export async function loadReportItems(
 		.slice(0, limit);
 	const total =
 		((countA as { count: number } | undefined)?.count ?? 0) +
-		((countB as { count: number } | undefined)?.count ?? 0);
+		((countB as { count: number } | undefined)?.count ?? 0) +
+		restored.length;
 	return { items, total };
 }
 

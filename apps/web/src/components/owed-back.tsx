@@ -333,6 +333,15 @@ export function PaidBackMatching({ line, today }: { line: MoneyInLine; today: st
 	// Matches of months still running are sent again with the new ones: confirming replaces them.
 	const running = `${today.slice(0, 7)}-01`;
 	const kept = offered.matches.filter((match) => match.countsOn >= running);
+	const settles = new Map(offered.settles.map((item) => [item.id, item]));
+	/** The matches of running months as sent: one amount an item, without `skip`. */
+	const keptWithout = (skip?: string) => {
+		const total = new Map<string, number>();
+		for (const match of kept)
+			if (match.id !== skip)
+				total.set(match.owedBackId, (total.get(match.owedBackId) ?? 0) + match.amount);
+		return total;
+	};
 	return (
 		<div className="grid gap-3" data-testid="paid-back-matching">
 			<p id={`${id}-q`} className="text-sm text-muted-foreground">
@@ -343,6 +352,55 @@ export function PaidBackMatching({ line, today }: { line: MoneyInLine; today: st
 						? `${formatMoney(offered.unmatched)} is Paid back, not matched yet. Nothing is Owed back right now; it isn’t counted as Income.`
 						: `What is this ${formatMoney(offered.unmatched)} paying back${offered.who ? ` from ${offered.who}` : ""}? Oldest first; change any amount.`}
 			</p>
+			{offered.matches.length > 0 ? (
+				<ul className="grid gap-2" aria-label="Matched to" data-testid="paid-back-matched">
+					{offered.matches.map((match) => {
+						const item = settles.get(match.owedBackId);
+						const name = item?.purchase?.trim() || "Purchase";
+						return (
+							<li
+								key={match.id}
+								className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
+								data-testid="paid-back-match"
+							>
+								<span className="min-w-0 text-sm">
+									<span className="font-medium">{name}</span>
+									<span className="text-muted-foreground">
+										{" "}
+										· {item ? `${dayName(item.date, today)} · ` : ""}
+										{formatMoney(match.amount)} matched
+									</span>
+								</span>
+								{match.countsOn >= running ? (
+									<Button
+										type="button"
+										size="sm"
+										variant="ghost"
+										disabled={confirm.isPending}
+										aria-label={`Take ${formatMoney(match.amount)} off ${name}`}
+										onClick={() =>
+											confirm.mutate({
+												incomeId: line.id,
+												matches: [...keptWithout(match.id)].map(([owedBackId, amount]) => ({
+													owedBackId,
+													amount: amount as Cents,
+												})),
+												takenOff: true,
+											})
+										}
+									>
+										Take off
+									</Button>
+								) : (
+									<span className="text-[13px] text-muted-foreground">
+										Counted in a month that has ended
+									</span>
+								)}
+							</li>
+						);
+					})}
+				</ul>
+			) : null}
 			{offered.unmatched > 0 && offered.open.length > 0 ? (
 				<>
 					<ul className="grid gap-2" aria-labelledby={`${id}-q`}>
@@ -389,9 +447,7 @@ export function PaidBackMatching({ line, today }: { line: MoneyInLine; today: st
 							size="sm"
 							disabled={waits < 0 || tooMuch || placing === 0 || confirm.isPending}
 							onClick={() => {
-								const total = new Map<string, number>();
-								for (const match of kept)
-									total.set(match.owedBackId, (total.get(match.owedBackId) ?? 0) + match.amount);
+								const total = keptWithout();
 								for (const item of offered.open)
 									if (amountFor(item) > 0)
 										total.set(item.id, (total.get(item.id) ?? 0) + amountFor(item));

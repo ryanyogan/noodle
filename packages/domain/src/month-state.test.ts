@@ -9,6 +9,7 @@ import {
 	monthState,
 	type Plan,
 	type PlanCommitment,
+	paymentsView,
 	type Spend,
 } from "./index";
 
@@ -447,5 +448,71 @@ describe("monthState: Paid back into a Commitment isn't a payment of it", () => 
 		expect(state.paid).toBe(0);
 		expect(state.actual).toBe(-60_000);
 		expect(state.status).not.toBe("paid");
+	});
+});
+
+describe("monthState: what was Paid back this month is said apart from what was paid or spent", () => {
+	const plan: Plan = {
+		...planOf("2026-10", { kids: 30_000 }),
+		commitments: [commitment("tuition", 60_000, "monthly", "2026-09-01")],
+	};
+	const back: Charge = {
+		commitmentId: "tuition",
+		amount: -60_000,
+		date: "2026-10-03",
+		paidBack: true,
+		who: "Casey",
+	};
+	const tuitionOf = (charges: Charge[]) => {
+		const state = monthState({ plan, spending: [], charges, asOf: "2026-10-20" });
+		return state.commitments[0] as NonNullable<(typeof state.commitments)[0]>;
+	};
+
+	it("keeps how much came back into a Commitment, and from whom", () => {
+		expect(tuitionOf([back]).paidBack).toEqual({ amount: 60_000, who: ["Casey"] });
+		expect(
+			tuitionOf([back, { ...back, amount: -2_500 as never, who: "casey" }, { ...back, who: "Sam" }])
+				.paidBack,
+		).toEqual({ amount: 122_500, who: ["Casey", "Sam"] });
+		expect(tuitionOf([]).paidBack).toBeUndefined();
+	});
+
+	it("reads a month with only the money back as not paid yet, never as a negative payment", () => {
+		const row = paymentsView(tuitionOf([back]));
+		expect(row).toMatchObject({ actual: 0, difference: 0, status: "upcoming", charges: 0 });
+		expect(row.paidBack).toEqual({ amount: 60_000, who: ["Casey"] });
+	});
+
+	it("reads this month's own payment as paid when last month's money comes back", () => {
+		const paid: Charge = { commitmentId: "tuition", amount: 60_000, date: "2026-10-01" };
+		expect(tuitionOf([paid, back])).toMatchObject({ actual: 0, difference: -60_000 });
+		expect(paymentsView(tuitionOf([paid, back]))).toMatchObject({
+			actual: 60_000,
+			difference: 0,
+			status: "paid",
+		});
+	});
+
+	it("leaves a month alone where the money back only brings it down to what was planned", () => {
+		const shared: Charge = { commitmentId: "tuition", amount: 120_000, date: "2026-10-01" };
+		const state = tuitionOf([shared, back]);
+		expect(paymentsView(state)).toBe(state);
+		expect(state).toMatchObject({ actual: 60_000, difference: 0, status: "paid" });
+		const plain = tuitionOf([shared]);
+		expect(paymentsView(plain)).toBe(plain);
+	});
+
+	it("keeps how much came back into a Bucket", () => {
+		const bucketOf = (spending: Parameters<typeof monthState>[0]["spending"]) =>
+			monthState({ plan, spending, charges: [], asOf: "2026-10-20" }).buckets[0];
+		expect(
+			bucketOf([
+				{ bucketId: "kids", amount: -4_500 as never, date: "2026-10-03", paidBack: true },
+				{ bucketId: "kids", amount: 1_000 as never, date: "2026-10-04" },
+			]),
+		).toMatchObject({ spent: -3_500, paidBack: 4_500 });
+		expect(
+			bucketOf([{ bucketId: "kids", amount: 1_000 as never, date: "2026-10-04" }])?.paidBack,
+		).toBeUndefined();
 	});
 });

@@ -17,6 +17,7 @@ import { GripVertical, Pencil } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { asBucketColor, barState, monogram } from "../buckets";
 import { formatMoney, formatWholeMoney } from "../format";
+import { bucketSpentText } from "../owed-back";
 import { BucketSheet, GroupSheet, useBucketChanges } from "./bucket-editor";
 import { useBucketReorder } from "./bucket-reorder";
 import { masterDetailItem } from "./master-detail";
@@ -68,6 +69,7 @@ function PhoneFigure({ cents, short }: { cents: number; short: boolean }) {
 function Summary({
 	allowance,
 	spent,
+	paidBack,
 	left,
 	rolling = false,
 	indent = false,
@@ -75,6 +77,8 @@ function Summary({
 }: {
 	allowance: number;
 	spent: number;
+	/** Money Paid back into it this month: a month it took below zero says so, not "−$45 spent". */
+	paidBack?: number | undefined;
 	left: number;
 	rolling?: boolean;
 	/** Starts where the row over it does in a table without handles: see `STACKED_INDENT`. */
@@ -83,6 +87,7 @@ function Summary({
 	underName?: boolean;
 }) {
 	const short = Math.max(Math.abs(spent), Math.abs(allowance)) >= SIX_FIGURES;
+	const back = spent < 0 && (paidBack ?? 0) >= -spent;
 	return (
 		// Two boxes: the outer one starts with the tile over it, the inner one with the name. It wraps.
 		<span className={cn("flex min-w-0", indent && STACKED_INDENT)}>
@@ -91,12 +96,24 @@ function Summary({
 				    figure is in the over tone once it passes the allowance; from 376px what is left or
 				    over is also beside the name. Whether it carries over is on the Bucket's own page. */}
 				<span className="whitespace-nowrap sm:hidden" data-summary="phone">
-					<span
-						className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}
-					>
-						<PhoneFigure cents={spent} short={short} />
-					</span>{" "}
-					of <PhoneFigure cents={allowance} short={short} /> spent
+					{back ? (
+						<>
+							<span className="font-medium text-foreground">
+								{bucketSpentText({ spent, paidBack })}
+							</span>
+							{DOT}
+							<PhoneFigure cents={allowance} short={short} /> allowance
+						</>
+					) : (
+						<>
+							<span
+								className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}
+							>
+								<PhoneFigure cents={spent} short={short} />
+							</span>{" "}
+							of <PhoneFigure cents={allowance} short={short} /> spent
+						</>
+					)}
 				</span>
 				{/* A narrow list that is not a phone. Each line wraps between its parts, never inside one,
 				    and none ends in a "·" (issue 74). */}
@@ -117,7 +134,7 @@ function Summary({
 						<span className="ps-[1em] whitespace-nowrap">{formatMoney(allowance)} allowance</span>
 						<span className="whitespace-nowrap">
 							{DOT}
-							{formatMoney(spent)} spent
+							{bucketSpentText({ spent, paidBack })}
 						</span>
 						{rolling ? (
 							<span className="whitespace-nowrap">
@@ -374,6 +391,7 @@ export function BucketTable({
 					<Summary
 						allowance={bucket.allowance}
 						spent={bucket.spent}
+						paidBack={bucket.paidBack}
 						left={bucket.left}
 						rolling={bucket.rolling}
 						indent={indent}
@@ -407,7 +425,7 @@ export function BucketTable({
 							marker={1 - bucket.pace.leftShare}
 							state={barState(bucket.status)}
 							label={`${bucket.name} this month`}
-							valueText={`${formatMoney(bucket.spent)} spent of ${formatMoney(bucket.available)}, ${
+							valueText={`${bucketSpentText(bucket)} of ${formatMoney(bucket.available)}, ${
 								bucket.left < 0
 									? `${formatMoney(-bucket.left)} over`
 									: `${formatMoney(bucket.left)} left`

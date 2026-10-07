@@ -2,8 +2,9 @@ import type { CommitmentState, DayKey, MonthKey } from "@noodle/domain";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@noodle/ui/components/tabs";
 import { useState } from "react";
+import { commitmentsPaid } from "../commitments";
 import { ComingUpList, useComingUp } from "./coming-up";
-import { CommitmentsList, commitmentsPaid } from "./commitment-list";
+import { CommitmentsList } from "./commitment-list";
 
 // Bills on This Month (#47): the month's Commitments, paid or due, and what's coming up in the
 // next 30 days were two lists of the same bills one after the other. Now one section switches

@@ -8,6 +8,7 @@ import {
 	nextDueDate,
 	type PlanScope,
 	parseDollars,
+	paymentsView,
 	yearlyCost,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -45,7 +46,7 @@ import {
 	withoutCommitment,
 } from "../commitments";
 import { formatMoney, formatMoneyInput, fullDay, monthName, shortDay } from "../format";
-import { owedBackOnCommitmentText, useOwedBackOnCommitment } from "../owed-back";
+import { owedBackOnCommitmentText, paidBackIntoText, useOwedBackOnCommitment } from "../owed-back";
 import { usePlanChange } from "../plan-changes";
 import { goalsQuery } from "../queries";
 import { addCommitment, endCommitment, updateCommitment } from "../server/commitments";
@@ -163,7 +164,25 @@ export function CommitmentEditor({
 }
 
 /** Where a Commitment stands this month, for its column in a wide list. */
-function PaidState({ commitment }: { commitment: CommitmentState }) {
+function PaidState({ commitment: given }: { commitment: CommitmentState }) {
+	// Money Paid back into it this month is its own line, never "$600 less" (issue 132).
+	const commitment = paymentsView(given);
+	const paidBack = paidBackIntoText(commitment.paidBack);
+	if (!paidBack) return <PaymentsState commitment={commitment} />;
+	return (
+		<span className="grid justify-items-start gap-1">
+			<PaymentsState commitment={commitment} />
+			<span
+				className="text-[13px] text-muted-foreground tabular-nums"
+				data-testid="paid-back-commitment"
+			>
+				{paidBack}
+			</span>
+		</span>
+	);
+}
+
+function PaymentsState({ commitment }: { commitment: CommitmentState }) {
 	const { status, dueDates, charges, difference } = commitment;
 	// "$600 over · $600 owed back by Casey", as This Month's Bills says it (issue 132).
 	const owedBack = owedBackOnCommitmentText(difference, useOwedBackOnCommitment(commitment.id));

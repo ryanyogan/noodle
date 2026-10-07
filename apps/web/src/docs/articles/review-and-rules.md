@@ -42,6 +42,8 @@ Some cards are not spending at all, and Review says so.
 - **A card Noodle does not follow.** Noodle cannot see what was bought on it, so the payment is the spending. You can **Make it a Commitment**, or connect the card.
 - **It's between us.** Money one Parent sent the other is not spending. If it paid someone else, pick a Bucket.
 
+[Card payments](/docs/card-payments) walks through each case, and [Fees and interest](/docs/fees-and-interest) covers bank fees and card interest.
+
 ## File without a Bucket
 
 A Transaction from a month before your Plan started, or from a month with no Buckets, has nowhere to go. **File without a Bucket** takes it out of Review and changes no month's figures.
@@ -66,6 +68,9 @@ Open a Rule to change it, to **File what's still unassigned now**, or to **Delet
 
 ## Related
 
+- [Card payments](/docs/card-payments)
+- [Fees and interest](/docs/fees-and-interest)
+- [Paid back and Owed back](/docs/paid-back-and-owed-back)
 - [Transactions](/docs/transactions)
 - [Quick Add](/docs/quick-add)
 - [Buckets](/docs/buckets)
