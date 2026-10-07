@@ -4,7 +4,7 @@ import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatMoney } from "./format";
 import { monthChangeKey } from "./plan-changes";
-import { bucketUsesQuery, monthQuery, monthsKey } from "./queries";
+import { bucketUsesQuery, goalsQuery, monthQuery, monthsKey } from "./queries";
 import type { MonthData } from "./server/month";
 import { addQuickAdd } from "./server/transactions";
 
@@ -23,7 +23,58 @@ export type QuickAddVariables = {
 	receiptId?: string;
 	/** Dated today, not on the Receipt's day: that month has no Plan to add it to. */
 	datedToday?: boolean;
+	/** The card kept by hand it was paid with: it's the record there, and adds to what's owed. */
+	accountId?: string | null;
 };
+
+/** An Account as "Paid with" reads it. */
+type PaidWithAccount = {
+	id: string;
+	name: string;
+	kind: string;
+	purchases: string | null;
+	bankConnectionId: string | null;
+};
+
+/** The cards kept by hand a Quick Add can be paid with: credit cards no bank reaches, said to be by hand. */
+export const handKeptCards = <A extends PaidWithAccount>(accounts: readonly A[]): A[] =>
+	accounts.filter(
+		(a) => a.kind === "credit-card" && a.purchases === "hand" && a.bankConnectionId === null,
+	);
+
+/**
+ * Which card "Paid with" starts on: the one asked for (a link from that card's balance check),
+ * else the one this device chose last time, and only while it's still a card kept by hand. Null is
+ * "Something else": the Quick Add is on no Account, as before.
+ */
+export function paidWithStart(
+	cards: readonly { id: string }[],
+	remembered: string | null,
+	asked: string | null = null,
+): string | null {
+	const known = (id: string | null) => (id && cards.some((c) => c.id === id) ? id : null);
+	return known(asked) ?? known(remembered);
+}
+
+const PAID_WITH_KEY = "noodle:quick-add:paid-with";
+
+/** What this device paid with last time; null when nothing's kept or storage is closed. */
+export function rememberedPaidWith(): string | null {
+	try {
+		return window.localStorage.getItem(PAID_WITH_KEY) || null;
+	} catch {
+		return null;
+	}
+}
+
+/** Keeps the choice for next time on this device. */
+export function rememberPaidWith(accountId: string | null) {
+	try {
+		window.localStorage.setItem(PAID_WITH_KEY, accountId ?? "");
+	} catch {
+		// Private windows: the choice just isn't kept.
+	}
+}
 
 /** A month's inputs with a Quick Add's spending in them; adding the same one twice changes nothing. */
 export function withQuickAdd(data: MonthData, variables: QuickAddVariables): MonthData {
@@ -56,6 +107,7 @@ export function useQuickAdd() {
 			forMemberIds,
 			receiptId,
 			datedToday,
+			accountId,
 		}: QuickAddVariables) =>
 			addQuickAdd({
 				data: {
@@ -66,6 +118,7 @@ export function useQuickAdd() {
 					forMemberIds,
 					receiptId,
 					datedToday,
+					accountId: accountId ?? undefined,
 				},
 			}),
 		onMutate: async (variables) => {
@@ -85,7 +138,10 @@ export function useQuickAdd() {
 		onSuccess: (_data, variables) => {
 			toast(`${formatMoney(variables.amountCents)} added to ${variables.bucketName}`);
 		},
-		onSettled: () => {
+		onSettled: (_data, _error, variables) => {
+			// On a card kept by hand it adds to what's owed there.
+			if (variables.accountId)
+				void queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
 			// Refetching while another change is in flight would briefly undo it on screen.
 			if (queryClient.isMutating({ mutationKey: monthChangeKey }) === 1) {
 				return Promise.all([

@@ -37,12 +37,20 @@ import { formatMoney, monthName, shortDay } from "../format";
 import type { MemberSummary } from "../members";
 import {
 	bucketUsesQuery,
+	goalsQuery,
 	membersQuery,
 	monthQuery,
 	quickAddRulesQuery,
 	useMonthState,
 } from "../queries";
-import { type QuickAddVariables, useQuickAdd } from "../quick-add";
+import {
+	handKeptCards,
+	paidWithStart,
+	type QuickAddVariables,
+	rememberedPaidWith,
+	rememberPaidWith,
+	useQuickAdd,
+} from "../quick-add";
 import { type CaptureDraft, type SnapResult, typedAmount } from "../snap";
 import { ForPicker } from "./for-picker";
 import { SnapAndSpeak } from "./quick-add-capture";
@@ -78,6 +86,11 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 		from: "/_authed/_household",
 		select: (search) => search.sheet === quickAddSearch.sheet,
 	});
+	// A card's balance check opens Quick Add already paid with that card.
+	const paidWith = useSearch({
+		from: "/_authed/_household",
+		select: (search) => search.paidWith ?? null,
+	});
 	const navigate = useNavigate();
 	const router = useRouter();
 	const quickAdd = useQuickAdd();
@@ -95,7 +108,7 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 		} else {
 			void navigate({
 				to: ".",
-				search: ({ sheet: _, ...rest }) => rest,
+				search: ({ sheet: _, paidWith: __, ...rest }) => rest,
 				replace: true,
 				resetScroll: false,
 			});
@@ -149,6 +162,7 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 						stepBack={stepBack}
 						timeZone={timeZone}
 						parentId={parentId}
+						paidWith={paidWith}
 						onAdd={(variables) => {
 							close();
 							quickAdd.mutate(variables);
@@ -191,9 +205,12 @@ function typed(amount: string, key: string): string | null {
 function QuickAddForm({
 	timeZone,
 	parentId,
+	paidWith,
 	stepBack,
 	onAdd,
 }: {
+	/** The card kept by hand the link that opened it asked for, if any. */
+	paidWith: string | null;
 	/** What Esc does before it closes: set by the form, asked by the sheet. */
 	stepBack: RefObject<(() => boolean) | null>;
 	timeZone: string;
@@ -220,6 +237,12 @@ function QuickAddForm({
 	const [note, setNote] = useState(draft.note);
 	const members = useSuspenseQuery(membersQuery()).data;
 	const [forMemberIds, setForMemberIds] = useState(draft.forMemberIds);
+	// "Paid with", only for a Household with a card kept by hand (issue 136): this device's last
+	// choice, unless a card's balance check asked for its own. Not awaited: the sheet opens without it.
+	const cards = handKeptCards(useQuery(goalsQuery()).data?.accounts ?? []);
+	const [paidChoice, setPaidChoice] = useState<string | null | undefined>(undefined);
+	const accountId =
+		paidChoice === undefined ? paidWithStart(cards, rememberedPaidWith(), paidWith) : paidChoice;
 	const display = useRef<HTMLOutputElement>(null);
 	const added = useRef(false);
 	useEffect(() => {
@@ -402,6 +425,7 @@ function QuickAddForm({
 			date: receipt && !datedToday ? receipt.date : entry.today,
 			receiptId: receipt?.receiptId,
 			datedToday,
+			accountId: cards.some((c) => c.id === accountId) ? accountId : null,
 		});
 	}
 
@@ -719,7 +743,19 @@ function QuickAddForm({
 						</span>
 					</Button>
 				</div>
-				<ForLine members={members} value={forMemberIds} onChange={setForMemberIds} />
+				<div className="flex flex-wrap items-center gap-x-4">
+					<ForLine members={members} value={forMemberIds} onChange={setForMemberIds} />
+					{cards.length > 0 ? (
+						<PaidWithLine
+							cards={cards}
+							value={accountId}
+							onChange={(next) => {
+								setPaidChoice(next);
+								rememberPaidWith(next);
+							}}
+						/>
+					) : null}
+				</div>
 			</div>
 			{/* Phones: the keypad stays at the bottom, in thumb reach. With the keyboard up for the
 			    note, it steps aside: the keyboard has numbers too. */}
@@ -809,6 +845,70 @@ function BucketPick({
 		</RowButton>
 	);
 }
+
+/** Which card kept by hand it was paid with, or none of them; the choices open over the Buckets. */
+function PaidWithLine({
+	cards,
+	value,
+	onChange,
+}: {
+	cards: { id: string; name: string }[];
+	value: string | null;
+	onChange: (value: string | null) => void;
+}) {
+	const [open, setOpen] = useState(false);
+	const [host, setHost] = useState<HTMLDivElement | null>(null);
+	const choices = [...cards.map((c) => ({ id: c.id as string | null, name: c.name })), OTHER_WAY];
+	const chosen = choices.find((c) => c.id === value) ?? OTHER_WAY;
+	return (
+		<div ref={setHost} className="flex h-8 min-w-0 items-center">
+			<Popover open={open} onOpenChange={setOpen}>
+				<PopoverTrigger asChild>
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="-ms-2 min-w-0 gap-1 text-muted-foreground"
+					>
+						Paid with: <span className="truncate text-foreground">{chosen.name}</span>
+						<ChevronDown strokeWidth={1.75} aria-hidden="true" />
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent
+					container={host}
+					side="top"
+					align="start"
+					className="w-[min(18rem,calc(100vw-32px))]"
+				>
+					<div role="radiogroup" aria-label="Paid with" className="grid gap-1">
+						{choices.map((choice) => (
+							<Button
+								key={choice.id ?? "other"}
+								type="button"
+								role="radio"
+								aria-checked={choice.id === chosen.id}
+								variant={choice.id === chosen.id ? "secondary" : "ghost"}
+								className="justify-start"
+								onClick={() => {
+									onChange(choice.id);
+									setOpen(false);
+								}}
+							>
+								<span className="truncate">{choice.name}</span>
+							</Button>
+						))}
+					</div>
+					<p className="mt-2 text-[13px] text-muted-foreground">
+						On a card you keep by hand, a Quick Add is the record and adds to what’s owed.
+					</p>
+				</PopoverContent>
+			</Popover>
+		</div>
+	);
+}
+
+/** "Paid with" for anything that isn't a card kept by hand: on no Account, as a Quick Add always was. */
+const OTHER_WAY: { id: string | null; name: string } = { id: null, name: "Something else" };
 
 /** Who it was For, on one line; the picker opens over the Buckets. */
 function ForLine({

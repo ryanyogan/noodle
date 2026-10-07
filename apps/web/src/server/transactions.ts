@@ -67,6 +67,8 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 			receiptId: ulidSchema.optional(),
 			// The Receipt's month has no Plan to add it to, and the Parent was told it's dated today.
 			datedToday: z.boolean().default(false),
+			// The card kept by hand it was paid with (issue 136): the Quick Add is the record there.
+			accountId: ulidSchema.optional(),
 		}),
 	)
 	.handler(async ({ data, context }) => {
@@ -85,14 +87,16 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 			forMemberIds: data.forMemberIds,
 			createdByMemberId: context.parent.id,
 			receipt: receipt && data.receiptId ? { id: data.receiptId, newId: ulid } : undefined,
+			accountId: data.accountId ?? null,
 		});
 		if (!result.ok) throw new Error("That Bucket isn’t in this month’s Plan.");
-		// Every month: what's left can roll into later ones.
+		// Every month: what's left can roll into later ones. On a card, what's owed there too.
+		const onCard = data.accountId ? (["goals"] as const) : [];
 		await notifyHousehold(
 			context.household.id,
 			result.matchedMonths.length > 0
-				? ["months", "for-earlier", "bucket-uses"]
-				: ["months", "bucket-uses"],
+				? ["months", "for-earlier", "bucket-uses", ...onCard]
+				: ["months", "bucket-uses", ...onCard],
 			[{ type: "quick-add", transactionId: data.transactionId }],
 		);
 	});
