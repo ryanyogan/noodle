@@ -35,7 +35,7 @@ import {
 	updateTransaction,
 } from "./server/transactions";
 import { rangeBounds, type TransactionRange } from "./transaction-range";
-import type { TransactionShow } from "./transaction-summary";
+import { summaryAfterChange, type TransactionShow } from "./transaction-summary";
 import {
 	CHANGED_ELSEWHERE,
 	ChangedElsewhere,
@@ -303,10 +303,13 @@ export function withRowChange(
 ): InfiniteData<TransactionsPage> {
 	const { id } = change.transaction;
 	const next = change.next;
+	// As it is in this list, if it is: only then is it in the list's Money out.
+	const was = data.pages.flatMap((page) => page.transactions).find((row) => row.id === id);
 	return {
 		...data,
 		pages: data.pages.map((page) => ({
 			...page,
+			summary: page.summary && was ? summaryAfterChange(page.summary, was, next) : page.summary,
 			transactions: next
 				? page.transactions.map((row) => {
 						if (row.id !== id) return row;

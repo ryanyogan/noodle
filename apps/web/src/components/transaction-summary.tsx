@@ -45,6 +45,9 @@ function Figure({
 	);
 }
 
+/** The line that says why the page's bar is off under Money in: what the bar is described by. */
+export const MONEY_IN_HINT_ID = "money-in-hint";
+
 const figure = "text-base font-semibold tabular-nums lg:text-2xl lg:tracking-tight";
 
 export function MonthSummary({
@@ -66,33 +69,53 @@ export function MonthSummary({
 	const disabled = !useHydrated();
 	const { inCents, outCents, needsReview } = monthSummary(moneyIn, list);
 	const shared = { on: filters.show, onShow, disabled };
+	// Money out follows the page's filters; Money in is the whole month's whatever they are, and
+	// says so while they narrow the list (the simpler of the two: no filter but the month applies
+	// to every kind of money in).
+	const narrowed = Boolean(filters.bucket || filters.for || filters.account || filters.q);
 	return (
-		// biome-ignore lint/a11y/useSemanticElements: a fieldset's legend can't sit in this grid.
-		<div
-			role="group"
-			aria-label="The month at a glance"
-			data-testid="month-summary"
-			// Three across down to a 320 px phone; the floor is in rem, so at large text they stack
-			// instead of pushing the page sideways.
-			className="grid grid-cols-[repeat(auto-fit,minmax(5.6rem,1fr))] gap-2 sm:gap-3 lg:max-w-3xl"
-		>
-			<Figure show="in" label="Money in" {...shared}>
-				<span className={cn(figure, inCents > 0 && "text-money-in")} data-testid="month-in">
-					{inCents > 0 ? "+" : ""}
-					{formatMoney(inCents)}
-				</span>
-			</Figure>
-			<Figure show="out" label="Money out" {...shared}>
-				<span className={figure} data-testid="month-total">
-					{formatMoney(outCents)}
-				</span>
-				<span className="text-[11px] font-normal text-subtle-foreground">{caption}</span>
-			</Figure>
-			<Figure show="review" label="Needs review" {...shared}>
-				<span className={figure} data-testid="month-review">
-					{needsReview}
-				</span>
-			</Figure>
-		</div>
+		<>
+			{/* biome-ignore lint/a11y/useSemanticElements: a fieldset's legend can't sit in this grid. */}
+			<div
+				role="group"
+				aria-label="The month at a glance"
+				data-testid="month-summary"
+				// Three across down to a 320 px phone; the floor is in rem, so at large text they stack
+				// instead of pushing the page sideways.
+				className="grid grid-cols-[repeat(auto-fit,minmax(5.6rem,1fr))] gap-2 sm:gap-3 lg:max-w-3xl"
+			>
+				<Figure show="in" label="Money in" {...shared}>
+					<span className={cn(figure, inCents > 0 && "text-money-in")} data-testid="month-in">
+						{inCents > 0 ? "+" : ""}
+						{formatMoney(inCents)}
+					</span>
+					{narrowed ? (
+						<span
+							className="text-[11px] font-normal text-subtle-foreground"
+							data-testid="month-in-caption"
+						>
+							All money in
+						</span>
+					) : null}
+				</Figure>
+				<Figure show="out" label="Money out" {...shared}>
+					<span className={figure} data-testid="month-total">
+						{formatMoney(outCents)}
+					</span>
+					<span className="text-[11px] font-normal text-subtle-foreground">{caption}</span>
+				</Figure>
+				<Figure show="review" label="Needs review" {...shared}>
+					<span className={figure} data-testid="month-review">
+						{needsReview}
+					</span>
+				</Figure>
+			</div>
+			{/* Under Money in the page's search, filters and sort are off: they are for spending. */}
+			{filters.show === "in" ? (
+				<p id={MONEY_IN_HINT_ID} className="text-xs text-muted-foreground">
+					Search, filters and sort are for spending. Press Money in again to use them.
+				</p>
+			) : null}
+		</>
 	);
 }

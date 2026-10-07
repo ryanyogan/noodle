@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moneyInShown, monthSummary } from "./transaction-summary";
+import { moneyInShown, monthSummary, summaryAfterChange } from "./transaction-summary";
 
 const line = (
 	amount: number,
@@ -49,5 +49,41 @@ describe("the money in listed under a filter", () => {
 	it("is none of it with Money out, and only what waits with Needs review", () => {
 		expect(moneyInShown(lines, "out")).toEqual([]);
 		expect(moneyInShown(lines, "review")).toEqual([lines[1]]);
+	});
+});
+
+describe("the list's figures at once after a change (issue 134)", () => {
+	const summary = { outCents: 15_049, needsReview: 1 };
+	const costco = { amountCents: 8_550, transfer: null };
+
+	it("Money out takes an edited amount straight away", () => {
+		expect(summaryAfterChange(summary, costco, { amountCents: 9_000 })).toEqual({
+			outCents: 15_499,
+			needsReview: 1,
+		});
+	});
+
+	it("loses a deleted Transaction's amount", () => {
+		expect(summaryAfterChange(summary, costco, null).outCents).toBe(6_499);
+	});
+
+	it("gives back what money back took off when it is deleted", () => {
+		expect(
+			summaryAfterChange(summary, { amountCents: -2_000, transfer: null }, null).outCents,
+		).toBe(17_049);
+	});
+
+	it("a new name, or a refile at the same amount, moves nothing", () => {
+		expect(summaryAfterChange(summary, costco, { rename: "Costco run" })).toBe(summary);
+		expect(summaryAfterChange(summary, costco, { amountCents: 8_550 }).outCents).toBe(15_049);
+	});
+
+	it("a side of a Transfer was never in Money out", () => {
+		const side = { amountCents: 50_000, transfer: { from: "Checking", to: "Visa" } };
+		expect(summaryAfterChange(summary, side, null)).toBe(summary);
+	});
+
+	it("leaves one partly in the other Parent's Personal Allowance to the server", () => {
+		expect(summaryAfterChange(summary, { ...costco, partlyPrivate: true }, null)).toBe(summary);
 	});
 });
