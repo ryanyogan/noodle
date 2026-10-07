@@ -142,24 +142,46 @@ describe("the week's stack", () => {
 		]);
 	});
 
-	it("is in one order for both Parents, each holding only what waited for them", async () => {
-		// Sweeps waited for both from Monday. Review waited for Sam alone on Monday (something
-		// in Sam's Personal Allowance), and for Alex only from Wednesday.
-		await startCheckInStack(db, { ...sam, week, cards: [review, sweeps], now: monday });
-		await startCheckInStack(db, { ...alex, week, cards: [sweeps], now: monday });
-		expect(await loadCheckInStack(db, alex, week)).toEqual([{ ...sweeps, startedAt: monday }]);
-		const alexReview: CheckInStarted = { kind: "review", count: 1 };
-		await startCheckInStack(db, { ...alex, week, cards: [alexReview], now: wednesday });
-		// Review joined the Household's stack on Monday, so it's first for both; Alex reads
-		// their own count, never Sam's.
-		expect(await loadCheckInStack(db, alex, week)).toEqual([
-			{ ...alexReview, startedAt: wednesday },
-			{ ...sweeps, startedAt: monday },
-		]);
+	it("puts a card at the end of each Parent's own stack, whatever day it joined for the other", async () => {
+		const thursday = new Date(wednesday.getTime() + 24 * 60 * 60 * 1000);
+		// Review waits for Alex from Monday. Sam's stack starts on Wednesday with other cards.
+		await startCheckInStack(db, { ...alex, week, cards: [review], now: monday });
+		await startCheckInStack(db, { ...sam, week, cards: [sweeps, extra], now: wednesday });
+		// On Thursday something lands in Review for Sam: after the cards Sam has already passed,
+		// not ahead of them because Alex's Review card is older.
+		await startCheckInStack(db, { ...sam, week, cards: [review], now: thursday });
 		expect((await loadCheckInStack(db, sam, week)).map((card) => card.kind)).toEqual([
-			"review",
 			"sweeps",
+			"windfalls",
+			"review",
 		]);
+		// And Alex, whose Sweeps card joins on Wednesday, meets it after Review.
+		await startCheckInStack(db, { ...alex, week, cards: [sweeps], now: wednesday });
+		expect(await loadCheckInStack(db, alex, week)).toEqual([
+			{ ...review, startedAt: monday },
+			{ ...sweeps, startedAt: wednesday },
+		]);
+	});
+
+	it("starts every card of a stack in one write", async () => {
+		let batches = 0;
+		const counting = new Proxy(db, {
+			get(target, key, receiver) {
+				if (key === "batch") batches++;
+				const value = Reflect.get(target, key, receiver);
+				return typeof value === "function" ? value.bind(target) : value;
+			},
+		});
+		expect(
+			await startCheckInStack(counting, {
+				...alex,
+				week,
+				cards: [review, sweeps, extra],
+				now: monday,
+			}),
+		).toBe(3);
+		expect(batches).toBe(1);
+		expect(await startCheckInStack(counting, { ...alex, week, cards: [], now: monday })).toBe(0);
 	});
 
 	it("is one week's, one Household's, and only a Parent's", async () => {

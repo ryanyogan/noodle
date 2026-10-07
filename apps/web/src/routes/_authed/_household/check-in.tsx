@@ -16,7 +16,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import {
 	checkInCardTitle,
@@ -75,12 +75,18 @@ function CheckInPage() {
 	// line once it's dealt with depend on it.
 	const queryClient = useQueryClient();
 	const unstarted = view.unstarted;
+	// A failed ask is made again a little later, a few times, while the card still hasn't joined.
+	const [startTries, setStartTries] = useState(0);
 	useEffect(() => {
 		if (!unstarted) return;
+		let again: ReturnType<typeof setTimeout> | undefined;
 		startCheckInStack()
 			.then(() => queryClient.invalidateQueries({ queryKey: checkInQuery().queryKey }))
-			.catch(() => {});
-	}, [unstarted, queryClient]);
+			.catch(() => {
+				if (startTries < 3) again = setTimeout(() => setStartTries(startTries + 1), 15_000);
+			});
+		return () => clearTimeout(again);
+	}, [unstarted, queryClient, startTries]);
 	// The cards already met, on a phone, where the steps aren't beside the card: every card
 	// before this one, or the whole stack once done.
 	const met = step.kind === "card" ? view.stack.slice(0, step.position - 1) : view.stack;

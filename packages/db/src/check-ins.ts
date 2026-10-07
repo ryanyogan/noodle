@@ -106,75 +106,64 @@ export async function startCheckInStack(
 		now: Date;
 	},
 ): Promise<number> {
-	const written = await Promise.all(
-		input.cards.map((card) =>
-			db
-				.insert(checkInCards)
-				.select(
-					db
-						.select({
-							// Selected in the table's column order: insert … select is positional.
-							householdId: members.householdId,
-							memberId: members.id,
-							week: sql<string>`${input.week}`.as("week"),
-							kind: sql<CheckInCardKind>`${card.kind}`.as("kind"),
-							started: sql<CheckInStarted>`${JSON.stringify(card)}`.as("started"),
-							startedAt: sql<Date>`${input.now.getTime()}`.as("started_at"),
-						})
-						.from(members)
-						.where(
-							and(
-								eq(members.id, input.memberId),
-								eq(members.householdId, input.householdId),
-								eq(members.kind, "parent"),
-							),
+	const [first, ...rest] = input.cards.map((card) =>
+		db
+			.insert(checkInCards)
+			.select(
+				db
+					.select({
+						// Selected in the table's column order: insert … select is positional.
+						householdId: members.householdId,
+						memberId: members.id,
+						week: sql<string>`${input.week}`.as("week"),
+						kind: sql<CheckInCardKind>`${card.kind}`.as("kind"),
+						started: sql<CheckInStarted>`${JSON.stringify(card)}`.as("started"),
+						startedAt: sql<Date>`${input.now.getTime()}`.as("started_at"),
+					})
+					.from(members)
+					.where(
+						and(
+							eq(members.id, input.memberId),
+							eq(members.householdId, input.householdId),
+							eq(members.kind, "parent"),
 						),
-				)
-				.onConflictDoNothing()
-				.returning({ kind: checkInCards.kind }),
-		),
+					),
+			)
+			.onConflictDoNothing()
+			.returning({ kind: checkInCards.kind }),
 	);
+	if (!first) return 0;
+	// One write for the whole stack: every card joins, or none does and the next read asks again.
+	const written = await db.batch([first, ...rest]);
 	return written.flat().length;
 }
 
 /**
  * `viewer`'s stack for `week`: the cards that have waited for them, each as it joined. The order
- * is the Household's, so both Parents meet the cards in one order: by when each kind first
- * joined for anyone, then the fixed order. Only `viewer`'s own rows are read back: what a card
- * held for the other Parent may rest on their Personal Allowance (ADR-0003).
+ * is this Parent's own: by when each card joined their stack, then the fixed order, so a card that
+ * appears mid-week joins the END of it and never lands ahead of cards they have already passed,
+ * whatever day it joined for the other Parent. Only `viewer`'s own rows are read: what a card held
+ * for the other Parent may rest on their Personal Allowance (ADR-0003).
  */
 export async function loadCheckInStack(
 	db: Db,
 	viewer: Viewer,
 	week: DayKey,
 ): Promise<CheckInStackRow[]> {
-	const [mine, firsts] = await Promise.all([
-		db
-			.select({ started: checkInCards.started, startedAt: checkInCards.startedAt })
-			.from(checkInCards)
-			.where(
-				and(
-					eq(checkInCards.householdId, viewer.householdId),
-					eq(checkInCards.memberId, viewer.memberId),
-					eq(checkInCards.week, week),
-				),
+	const mine = await db
+		.select({ started: checkInCards.started, startedAt: checkInCards.startedAt })
+		.from(checkInCards)
+		.where(
+			and(
+				eq(checkInCards.householdId, viewer.householdId),
+				eq(checkInCards.memberId, viewer.memberId),
+				eq(checkInCards.week, week),
 			),
-		db
-			.select({
-				kind: checkInCards.kind,
-				first: sql<number>`min(${checkInCards.startedAt})`.as("first"),
-			})
-			.from(checkInCards)
-			.where(and(eq(checkInCards.householdId, viewer.householdId), eq(checkInCards.week, week)))
-			.groupBy(checkInCards.kind),
-	]);
-	const first = new Map(firsts.map((row) => [row.kind, row.first]));
+		);
 	const rank = (kind: CheckInCardKind) => CHECK_IN_ORDER.indexOf(kind);
 	return mine
 		.map((row): CheckInStackRow => ({ ...row.started, startedAt: row.startedAt }))
-		.sort(
-			(a, b) => (first.get(a.kind) ?? 0) - (first.get(b.kind) ?? 0) || rank(a.kind) - rank(b.kind),
-		);
+		.sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime() || rank(a.kind) - rank(b.kind));
 }
 
 /**
