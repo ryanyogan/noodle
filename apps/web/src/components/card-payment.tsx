@@ -1,70 +1,134 @@
-import { type MonthKey, merchantKey } from "@noodle/domain";
+import type { MonthKey } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useHydrated } from "@tanstack/react-router";
-import { useId, useState } from "react";
+import { useHydrated } from "@tanstack/react-router";
+import { useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
 import {
 	cardPaymentCardsQuery,
 	cardPaymentRulesQuery,
-	useCardPaymentCommitment,
+	onCardPaymentAsked,
+	takeAskedCardPayment,
+	useCardPaymentFiling,
 	useForgetCardPayment,
 } from "../card-payments";
 import type { TransactionRow } from "../transactions";
 import { useMoneyChange } from "../transfers";
 
+type CardPaymentLine = Pick<
+	TransactionRow,
+	"id" | "date" | "note" | "merchantName" | "amountCents"
+>;
+
+/** How the question was answered: a Transfer, or filed in a Commitment (the payment is the spending). */
+export type CardPaymentAnswer = "transfer" | "commitment";
+
 /**
  * "It's a card payment" for money out, as one choice (issue 136). It asks which card: a card
  * Noodle follows or keeps by statements makes the line a Transfer naming it; a card kept by hand
  * that a Commitment pays down files it in that Commitment; "A card that isn't in Noodle" asks
- * whether the payment counts as spending (a Commitment for the card) or is a Transfer. The answer
- * is remembered for the line's wording. Sits in a wrapping row of buttons; open, it takes the row.
+ * whether the payment counts as spending (a Commitment for the card, made in place) or is a
+ * Transfer. The answer is remembered for the line's wording, and covers the lines already here
+ * that say the same. Sits in a wrapping row of buttons; open, it takes the row.
  */
 export function CardPaymentChoice({
 	transaction,
 	label,
 	onDone,
 }: {
-	transaction: Pick<TransactionRow, "id" | "date" | "note" | "merchantName" | "amountCents">;
+	transaction: CardPaymentLine;
 	label: string;
 	/** Called once an answer is sent: the row may change or leave the list. */
 	onDone: () => void;
 }) {
 	const hydrated = useHydrated();
-	const id = useId();
-	const [step, setStep] = useState<"closed" | "which" | "spending">("closed");
-	const cards = useQuery({ ...cardPaymentCardsQuery(), enabled: step !== "closed" }).data;
-	const change = useMoneyChange();
-	const file = useCardPaymentCommitment();
-	const pattern = merchantKey(transaction.note || transaction.merchantName || "");
-
-	const transfer = (card: { id: string | null; name: string | null }) => {
-		change.mutate({
-			kind: "mark",
-			transferId: ulid(),
-			transactionId: transaction.id,
-			label,
-			card: { ...card, ruleId: ulid() },
-		});
-		onDone();
-	};
-
-	if (step === "closed") {
+	// The row's own menu may have asked already (askCardPayment): then it opens at the question.
+	const [open, setOpen] = useState(() => takeAskedCardPayment(transaction.id));
+	useEffect(() => onCardPaymentAsked(transaction.id, () => setOpen(true)), [transaction.id]);
+	if (!open) {
 		return (
 			<Button
 				type="button"
 				variant="secondary"
 				size="sm"
 				disabled={!hydrated}
-				onClick={() => setStep("which")}
+				onClick={() => setOpen(true)}
 			>
 				It’s a card payment
 			</Button>
 		);
 	}
+	return (
+		<CardPaymentQuestion
+			transaction={transaction}
+			label={label}
+			onDone={onDone}
+			onCancel={() => setOpen(false)}
+		/>
+	);
+}
+
+/**
+ * The question itself, already asked: "Which card does it pay?", then "Count this payment as
+ * spending?" for a card that isn't in Noodle. Review gives its own `onTransfer`, `onUndo` and
+ * `onFail`, so its stack follows the answer.
+ */
+export function CardPaymentQuestion({
+	transaction,
+	label,
+	onDone,
+	onCancel,
+	onTransfer,
+	onUndo,
+	onFail,
+}: {
+	transaction: CardPaymentLine;
+	label: string;
+	onDone: (answer: CardPaymentAnswer) => void;
+	onCancel: () => void;
+	/** Marks the Transfer instead of this (Review's own mark); `id` null: a card not in Noodle. */
+	onTransfer?: (card: { id: string | null; name: string | null }) => void;
+	/** After an answer filed in a Commitment is undone, and when it couldn't be filed. */
+	onUndo?: () => void;
+	onFail?: () => void;
+}) {
+	const id = useId();
+	const [step, setStep] = useState<"which" | "spending">("which");
+	const cards = useQuery(cardPaymentCardsQuery()).data;
+	const change = useMoneyChange();
+	const file = useCardPaymentFiling();
+
+	const transfer = (card: { id: string | null; name: string | null }) => {
+		if (onTransfer) onTransfer(card);
+		else {
+			change.mutate({
+				kind: "mark",
+				transferId: ulid(),
+				transactionId: transaction.id,
+				label,
+				card: { ...card, ruleId: ulid() },
+			});
+		}
+		onDone("transfer");
+	};
+	const fileIn = (
+		commitment: { id: string; name: string },
+		create?: { month: MonthKey; amountCents: number; dueDate: string },
+	) => {
+		file.mutate({
+			transactionId: transaction.id,
+			ruleId: ulid(),
+			label,
+			commitment,
+			create,
+			onUndo,
+			onFail,
+		});
+		onDone("commitment");
+	};
 
 	if (step === "spending" || cards?.length === 0) {
 		return (
@@ -77,18 +141,21 @@ export function CardPaymentChoice({
 					Commitment, so it’s the spending. No marks it as a Transfer, which counts nowhere.
 				</p>
 				<div className="flex flex-wrap gap-2">
-					<Button size="sm" asChild>
-						<Link
-							to="/plan/$month/commitments"
-							params={{ month: transaction.date.slice(0, 7) as MonthKey }}
-							search={{
-								name: label.slice(0, 40),
-								amount: transaction.amountCents,
-								paysDown: "add",
-							}}
-						>
-							Yes, make a Commitment
-						</Link>
+					<Button
+						type="button"
+						size="sm"
+						onClick={() =>
+							fileIn(
+								{ id: ulid(), name: commitmentNameFor(label) },
+								{
+									month: transaction.date.slice(0, 7) as MonthKey,
+									amountCents: transaction.amountCents,
+									dueDate: transaction.date,
+								},
+							)
+						}
+					>
+						Yes, make a Commitment
 					</Button>
 					<Button
 						type="button"
@@ -102,7 +169,7 @@ export function CardPaymentChoice({
 						type="button"
 						variant="ghost"
 						size="sm"
-						onClick={() => setStep(cards?.length ? "which" : "closed")}
+						onClick={() => (cards?.length ? setStep("which") : onCancel())}
 					>
 						Back
 					</Button>
@@ -131,17 +198,9 @@ export function CardPaymentChoice({
 						type="button"
 						variant="outline"
 						size="sm"
-						disabled={card.commitment !== null && !pattern}
-						onClick={() => {
-							if (!card.commitment) return transfer({ id: card.id, name: card.name });
-							file.mutate({
-								ruleId: ulid(),
-								pattern: pattern.slice(0, 64),
-								label,
-								commitment: card.commitment,
-							});
-							onDone();
-						}}
+						onClick={() =>
+							card.commitment ? fileIn(card.commitment) : transfer({ id: card.id, name: card.name })
+						}
 					>
 						{card.name}
 					</Button>
@@ -149,12 +208,25 @@ export function CardPaymentChoice({
 				<Button type="button" variant="outline" size="sm" onClick={() => setStep("spending")}>
 					A card that isn’t in Noodle
 				</Button>
-				<Button type="button" variant="ghost" size="sm" onClick={() => setStep("closed")}>
+				<Button type="button" variant="ghost" size="sm" onClick={onCancel}>
 					Cancel
 				</Button>
 			</div>
 		</div>
 	);
+}
+
+/**
+ * The name of a Commitment made for a card from its payment's wording: what the line is called,
+ * in ordinary capitals when the bank shouted it, at most the 40 a Commitment's name takes.
+ */
+export function commitmentNameFor(label: string) {
+	const words = label.replace(/\s+/g, " ").trim();
+	const plain =
+		words === words.toUpperCase()
+			? words.toLowerCase().replace(/(^|[\s-])\p{L}/gu, (first) => first.toUpperCase())
+			: words;
+	return plain.slice(0, 40).trim() || "Card payment";
 }
 
 /** The wordings remembered as card payments, on the Rules page: each can be removed. */

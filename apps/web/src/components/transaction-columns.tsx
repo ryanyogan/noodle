@@ -1,3 +1,4 @@
+import { looksPersonToPerson } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import type { DataTableColumn } from "@noodle/ui/components/data-table";
@@ -12,6 +13,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeftRight, Check, Sparkles, Split as SplitIcon, Target } from "lucide-react";
 import { monogram } from "../buckets";
+import { askCardPayment } from "../card-payments";
 import { shortDay } from "../format";
 import { cellEdits, forEdits } from "../transaction-cells";
 import type { RowView } from "../transaction-row";
@@ -24,6 +26,7 @@ import {
 	ForChips,
 	NameEditor,
 	RenameButton,
+	RowMenu,
 } from "./transaction-cells";
 
 // The Transactions table's columns (issue 99): Date, Name, Assigned to, For, Account, Amount.
@@ -219,6 +222,17 @@ function NameCell({
 			{renames && !renaming ? (
 				<RenameButton title={view.title} onClick={() => renames.start(transaction, "name")} />
 			) : null}
+			{/* Money out nobody has assigned may be a card payment: the row says so itself (issue 136),
+			    and opens at "Which card does it pay?". */}
+			{!renaming && checked === undefined && mayBeCardPayment(transaction) ? (
+				<RowMenu
+					title={view.title}
+					onCardPayment={() => {
+						askCardPayment(transaction.id);
+						if (!open) onEdit(transaction);
+					}}
+				/>
+			) : null}
 		</span>
 	);
 }
@@ -349,4 +363,21 @@ export function transactionColumns({
 			),
 		},
 	];
+}
+
+/**
+ * Whether a row offers "It's a card payment" itself: imported money out that is nowhere yet, as
+ * its detail offers it (TransferSection), and not money sent to a person.
+ */
+function mayBeCardPayment(transaction: TransactionRow) {
+	return (
+		transaction.amountCents > 0 &&
+		transaction.importedFrom !== null &&
+		transaction.bucketId === null &&
+		transaction.commitmentId === null &&
+		transaction.goal === null &&
+		transaction.transfer === null &&
+		transaction.splits.length === 0 &&
+		!looksPersonToPerson(transaction.note || transaction.merchantName)
+	);
 }
