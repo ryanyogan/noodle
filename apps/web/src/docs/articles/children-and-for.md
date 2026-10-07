@@ -36,6 +36,15 @@ When a purchase is split, each Split has its own For. One shop can be part for t
 
 In Household settings, each Child's row also has a link that reads **See what** their name **costs**.
 
+## Say who it is For while you file
+
+You do not have to open each Transaction.
+
+- **On a Review card**, the chips under the card say who it is For. Leave **Everyone**, or choose a name before you file it.
+- **When filing many at once**, choose who the selected Transactions are For once filed. **As it is** leaves each one's For alone.
+
+On the Transactions page, who a line is For shows as chips on its row.
+
 ## Good to know
 
 - For never changes which Bucket something is filed in, and it never changes your Plan.

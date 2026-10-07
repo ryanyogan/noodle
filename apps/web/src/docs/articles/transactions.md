@@ -49,6 +49,12 @@ A Quick Add you entered by hand may show **Waiting for bank**. It means the bank
 
 Sometimes Noodle is not sure and shows **Possible match** when you open the Transaction. If it is the same purchase, match it there.
 
+## The month at a glance
+
+Above the list, three figures sum up the month: **Money in**, **Money out** and **Needs review**. Choose one to show only those lines. Choose it again to see everything.
+
+Money in adds up Income, Refunds and money Paid back. Each line of money in shows its kind and a + before the amount. See [Money in and its kinds](/docs/money-in).
+
 ## Good to know
 
 - Paying a credit card from checking is a Transfer. It is not spending, because what you bought on the card was counted when you bought it. See [Paying off debt](/docs/paying-off-debt).
@@ -60,6 +66,8 @@ Sometimes Noodle is not sure and shows **Possible match** when you open the Tran
 
 ## Related
 
+- [Money in and its kinds](/docs/money-in)
+- [Paid back and Owed back](/docs/paid-back-and-owed-back)
 - [Review and Rules](/docs/review-and-rules)
 - [Quick Add](/docs/quick-add)
 - [Accounts and connecting a bank](/docs/accounts-and-banks)
