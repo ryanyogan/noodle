@@ -491,12 +491,16 @@ export {
 	runCardPaymentPasses,
 } from "./card-payment-pass";
 export {
+	type CardPaymentFiling,
+	fileCardPayment,
 	forgetCardPayment,
 	loadCardPaymentRules,
 	loadCreditCards,
 	markCardPayment,
 	markCardPayments,
 	markRememberedCardPayments,
+	undoCardPaymentFiling,
+	undoCardPaymentMarks,
 } from "./card-payments";
 export {
 	type CategorizableBucket,

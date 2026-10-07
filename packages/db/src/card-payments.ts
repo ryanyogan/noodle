@@ -2,6 +2,7 @@ import {
 	type DayKey,
 	daysBetween,
 	likelyCardPayment,
+	type MonthKey,
 	merchantKey,
 	readsAsPaymentReceived,
 	TRANSFER_WINDOW_DAYS,
@@ -10,7 +11,9 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
 import { type Viewer, visibleTo } from "./privacy";
+import { deleteRule, saveRule } from "./rules";
 import { accounts, cardPaymentRules, transactions, transfers } from "./schema";
+import { type FiledBefore, fileTransactions, unfileTransactions } from "./transactions";
 import {
 	commitmentPayments,
 	type MoneyResult,
@@ -272,8 +275,10 @@ export async function markCardPayment(
 		transactionId: string;
 		cardAccountId: string | null;
 		ruleId: string;
+		/** Given, the other lines already here with the same wording are marked too, with these IDs. */
+		newId?: () => string;
 	},
-): Promise<MoneyResult & { remembered?: string }> {
+): Promise<MoneyResult & { remembered?: string; also?: string[] }> {
 	const { householdId } = viewer;
 	const [[line], cards] = await Promise.all([
 		db
@@ -335,7 +340,37 @@ export async function markCardPayment(
 		);
 	}
 	await db.batch(writes as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
-	return pattern ? { ...result, remembered: pattern } : result;
+	if (!pattern) return result;
+	if (!input.newId) return { ...result, remembered: pattern };
+	// The lines already here that say the same are the same payment, earlier: marked now, not at
+	// the next Import, and taken back by the same Undo (undoCardPaymentMarks).
+	const others = await markRememberedCardPayments(db, householdId, input.newId, pattern);
+	return {
+		...result,
+		months: [...new Set([...result.months, ...others.months])].sort(),
+		remembered: pattern,
+		also: others.transferIds,
+	};
+}
+
+/**
+ * Undo for the other lines an answer marked (markCardPayment's `also`): their marks are taken
+ * away whole, not unmarked, so a second answer marks them again. Only marks Noodle made itself,
+ * with no other side, that are still there. The line answered is unmarked as any Transfer is.
+ */
+export async function undoCardPaymentMarks(db: Db, householdId: string, transferIds: string[]) {
+	if (transferIds.length === 0) return;
+	await db.delete(transfers).where(
+		and(
+			eq(transfers.householdId, householdId),
+			// One JSON parameter for all of them: D1 caps a statement's bound parameters at 100.
+			sql`${transfers.id} in (select value from json_each(${JSON.stringify(transferIds)}))`,
+			isNull(transfers.createdByMemberId),
+			isNull(transfers.removedAt),
+			isNull(transfers.inTransactionId),
+			isNull(transfers.inIncomeId),
+		),
+	);
 }
 
 /** A wording stops being remembered as a card payment. Transfers already marked stay as they are. */
@@ -357,9 +392,11 @@ export async function markRememberedCardPayments(
 	db: Db,
 	householdId: string,
 	newId: () => string,
-): Promise<{ marked: number; months: string[] }> {
+	/** Only lines this one remembered wording marks: what an answer just given covers. */
+	only?: string,
+): Promise<{ marked: number; months: string[]; transferIds: string[] }> {
 	const remembered = await loadCardPaymentRules(db, householdId);
-	if (remembered.length === 0) return { marked: 0, months: [] };
+	if (remembered.length === 0) return { marked: 0, months: [], transferIds: [] };
 	const [leaving, paysCommitment] = await Promise.all([
 		db
 			.select({
@@ -391,9 +428,11 @@ export async function markRememberedCardPayments(
 		.flatMap((out) => {
 			const said = ` ${merchantKey(out.note ?? "")} `;
 			const rule = byLength.find((candidate) => said.includes(` ${candidate.pattern} `));
-			return rule ? [{ id: newId(), outId: out.id, card: rule.accountId, date: out.date }] : [];
+			return rule && (only === undefined || rule.pattern === only)
+				? [{ id: newId(), outId: out.id, card: rule.accountId, date: out.date }]
+				: [];
 		});
-	if (rows.length === 0) return { marked: 0, months: [] };
+	if (rows.length === 0) return { marked: 0, months: [], transferIds: [] };
 	const field = (name: string) => sql.raw(`json_extract(value, '$.${name}')`);
 	await db
 		.insert(transfers)
@@ -417,5 +456,120 @@ export async function markRememberedCardPayments(
 	return {
 		marked: rows.length,
 		months: [...new Set(rows.map((row) => row.date.slice(0, 7)))].sort(),
+		transferIds: rows.map((row) => row.id),
 	};
+}
+
+/** What fileCardPayment did, for its Undo (undoCardPaymentFiling). */
+export type CardPaymentFiling =
+	| {
+			ok: true;
+			/** How many lines went into the Commitment: the one answered and those worded like it. */
+			filed: number;
+			months: string[];
+			undo: FiledBefore[];
+			/** The Rule that files later payments there; null when the line has no wording to go by. */
+			ruleId: string | null;
+	  }
+	| { ok: false };
+
+/**
+ * A payment to a card whose payment IS the spending (kept by hand and paid down by a Commitment,
+ * or not in Noodle at all): the line is filed in `commitmentId`, with every other line of money
+ * out still unassigned that says the same, each in its own month's Plan (a month the Commitment
+ * isn't in is left alone). A Rule for the wording files later ones. Safe to retry.
+ */
+export async function fileCardPayment(
+	db: Db,
+	viewer: Viewer,
+	input: { transactionId: string; commitmentId: string; ruleId: string },
+): Promise<CardPaymentFiling> {
+	const { householdId, memberId } = viewer;
+	const [line] = await db
+		.select({ id: transactions.id, date: transactions.date, note: transactions.note })
+		.from(transactions)
+		.where(
+			and(
+				eq(transactions.id, input.transactionId),
+				visibleTo(viewer),
+				sql`${transactions.amountCents} > 0`,
+			),
+		);
+	if (!line) return { ok: false };
+	// A Rule's pattern is at most 64 long; cut at a word, so it still matches whole words.
+	const pattern = wordsWithin(merchantKey(line.note ?? ""), 64);
+	const alike = pattern
+		? await db
+				.select({ id: transactions.id, date: transactions.date, note: transactions.note })
+				.from(transactions)
+				.where(
+					and(
+						visibleTo(viewer),
+						sql`${transactions.amountCents} > 0`,
+						isNull(transactions.bucketId),
+						isNull(transactions.commitmentId),
+						isNull(transactions.goalId),
+					),
+				)
+				.orderBy(sql`${transactions.date} desc`)
+				.limit(PASS_LIMIT)
+		: [];
+	const byMonth = new Map<string, string[]>([[line.date.slice(0, 7), [line.id]]]);
+	for (const other of alike) {
+		if (other.id === line.id) continue;
+		if (!` ${merchantKey(other.note ?? "")} `.includes(` ${pattern} `)) continue;
+		const month = other.date.slice(0, 7);
+		byMonth.set(month, [...(byMonth.get(month) ?? []), other.id]);
+	}
+	const undo: FiledBefore[] = [];
+	const months: string[] = [];
+	let filed = 0;
+	for (const [month, ids] of byMonth) {
+		const result = await fileTransactions(db, viewer, {
+			selection: { ids },
+			month: month as MonthKey,
+			assignment: { commitmentId: input.commitmentId },
+		});
+		// The line answered must go in; another month's Plan without the Commitment is skipped.
+		if (!result.ok) {
+			if (ids.includes(line.id)) return { ok: false };
+			continue;
+		}
+		if (ids.includes(line.id) && result.filed + result.already === 0) return { ok: false };
+		if (result.filed > 0) months.push(month);
+		filed += result.filed;
+		undo.push(...result.undo);
+	}
+	const rule = pattern
+		? await saveRule(db, {
+				id: input.ruleId,
+				householdId,
+				memberId,
+				pattern,
+				bucketId: null,
+				commitmentId: input.commitmentId,
+			})
+		: null;
+	return { ok: true, filed, months: months.sort(), undo, ruleId: rule?.ok ? rule.ruleId : null };
+}
+
+/** The whole words of `text` that fit in `length`. */
+function wordsWithin(text: string, length: number) {
+	if (text.length <= length) return text;
+	const cut = text.slice(0, length + 1);
+	return cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : length).trim();
+}
+
+/**
+ * Undo for fileCardPayment: each line goes back to where it was (only while nothing else has
+ * changed it since), and the Rule for the wording is forgotten.
+ */
+export async function undoCardPaymentFiling(
+	db: Db,
+	viewer: Viewer,
+	input: { undo: FiledBefore[]; ruleId: string | null },
+): Promise<{ restored: number }> {
+	const { restored } = await unfileTransactions(db, viewer, input.undo);
+	if (input.ruleId) await deleteRule(db, viewer, input.ruleId);
+	return { restored };
 }
