@@ -86,6 +86,8 @@ test("a purchase whose money back counted in an ended month keeps its amount and
 	await expect(page.getByRole("button", { name: /^Pure Hockey skates, \$40, / })).toHaveCount(0);
 
 	// Its name is still its own, once the amount is what it was (the form keeps what was typed).
+	// A pane that is still folding away after a Save reads as visible: wait for it to go first.
+	await expect(page.locator("[data-slot=transaction-detail][data-closing]")).toHaveCount(0);
 	if (!(await pane(page).isVisible())) await row.click();
 	await pane(page).getByLabel("Amount").fill("45");
 	await pane(page).getByLabel("Name").fill("Skates for Mia");
@@ -100,6 +102,8 @@ test("a purchase whose money back counted in an ended month keeps its amount and
 		.toBe("Skates for Mia");
 
 	// Deleting it: it comes back once the Undo has gone, and says why.
+	// A pane that is still folding away after a Save reads as visible: wait for it to go first.
+	await expect(page.locator("[data-slot=transaction-detail][data-closing]")).toHaveCount(0);
 	if (!(await pane(page).isVisible())) await renamed.click();
 	await pane(page).getByRole("button", { name: "Delete" }).click();
 	await page.getByRole("alertdialog").getByRole("button", { name: "Delete Transaction" }).click();
