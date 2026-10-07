@@ -264,6 +264,10 @@ export function useAlwaysWhosePay() {
 		mutationFn: ({ line, payMemberId }: { line: MoneyInLine; payMemberId: string | null }) =>
 			alwaysWhosePay({ data: { ruleId: ulid(), incomeId: line.id, payMemberId } }),
 		onError: () => toast("Couldn’t save that Rule, so nothing changed.", { tone: "error" }),
-		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
+		// Not waited for: what the caller says next ("…pay from now on") is said at once, not after
+		// every month has been read again.
+		onSettled: () => {
+			void queryClient.invalidateQueries({ queryKey: monthsKey });
+		},
 	});
 }

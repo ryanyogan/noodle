@@ -45,10 +45,10 @@ import {
 	useMoneyInKindChange,
 } from "../money-in";
 import { usePlanChange, withTakeHomePay } from "../plan-changes";
-import { membersQuery } from "../queries";
 import { setTakeHomePay } from "../server/plan";
 import type { IncomeListActions } from "./extra-income";
 import { AmountInput } from "./goals";
+import { useParents } from "./whose-pay";
 
 // Plan › Income as a table a Parent works in (issue 133, ADR-0051, ADR-0057): Date · From ·
 // Whose pay · Account · Amount, a total per Parent with the range of one whose pay varies, and
@@ -60,13 +60,7 @@ import { AmountInput } from "./goals";
 const HOUSEHOLD = "";
 const HOUSEHOLD_LABEL = "The Household";
 
-type Parent = { id: string; name: string };
-
-/** The Parents, for "whose pay". */
-function useParents(): Parent[] {
-	const { data } = useQuery(membersQuery());
-	return (data ?? []).filter((member) => member.kind === "parent");
-}
+type Parent = ReturnType<typeof useParents>[number];
 
 const whoLabel = (parents: Parent[], whosePay: string | null) =>
 	whosePay === null
@@ -165,6 +159,19 @@ export function IncomeTable({
 	const total = rows.reduce((sum, row) => sum + row.amount, 0) as Cents;
 	const open = rows.find((row) => row.id === editing)?.line ?? null;
 	const choices = whoChoices(parents);
+	// Until the month's money-in read arrives nothing is known of whose pay a row is or where it
+	// landed: say that it's coming, never "The Household" or "Typed in".
+	const waiting = lines === undefined;
+	const coming = (what: string) => (
+		<span className="text-muted-foreground" data-testid="income-coming">
+			<span aria-hidden="true">…</span>
+			<span className="sr-only">Loading {what}</span>
+		</span>
+	);
+	const accountOf = (row: Row) =>
+		row.line?.accountId
+			? (accounts.find((account) => account.id === row.line?.accountId)?.name ?? "An Account")
+			: "Typed in";
 
 	const columns: DataTableColumn<Row>[] = [
 		{
@@ -174,12 +181,18 @@ export function IncomeTable({
 			width: "4.5rem",
 			priority: 2,
 			stacked: "secondary",
-			cell: (row) => shortDay(row.date),
+			cell: (row) => (
+				<>
+					{shortDay(row.date)}
+					{/* Stacked (a phone), the Account has no column of its own: it follows the day. */}
+					{waiting ? null : <span className="@2xl:hidden"> · {accountOf(row)}</span>}
+				</>
+			),
 		},
 		{
 			id: "from",
 			header: "From",
-			min: 10,
+			min: 8,
 			width: "minmax(0,2fr)",
 			stacked: "title",
 			cell: (row) => row.note ?? "Income",
@@ -201,6 +214,8 @@ export function IncomeTable({
 						disabled={!hydrated}
 						onValueChange={(value) => row.line && whose.set(row.line, value || null)}
 					/>
+				) : waiting ? (
+					coming("whose pay")
 				) : (
 					<span className="text-muted-foreground">{HOUSEHOLD_LABEL}</span>
 				),
@@ -208,17 +223,17 @@ export function IncomeTable({
 		{
 			id: "account",
 			header: "Account",
-			min: 8,
-			width: "minmax(0,1fr)",
+			// Narrow enough that it shows wherever the table is in columns (42rem and up).
+			min: 6,
+			width: "minmax(6rem,1fr)",
 			priority: 3,
 			stacked: "hidden",
-			cell: (row) => (
-				<span className="text-muted-foreground">
-					{row.line?.accountId
-						? (accounts.find((account) => account.id === row.line?.accountId)?.name ?? "An Account")
-						: "Typed in"}
-				</span>
-			),
+			cell: (row) =>
+				waiting ? (
+					coming("the Account")
+				) : (
+					<span className="text-muted-foreground">{accountOf(row)}</span>
+				),
 		},
 		{
 			id: "amount",

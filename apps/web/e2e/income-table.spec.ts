@@ -39,7 +39,9 @@ test("whose pay is said in the Income table, totalled per Parent, and typed Inco
 
 	const table = income(page).getByRole("table", { name: /^Income in / });
 	await expect(table).toContainText("Paycheck");
-	await expect(table).toContainText("Typed in");
+	// The Account is a column of its own: typed-in Income has none.
+	await expect(table.getByRole("columnheader", { name: "Account" })).toBeVisible();
+	await expect(table.getByRole("cell", { name: "Typed in", exact: true })).toBeVisible();
 
 	// It is the Household's until a Parent says whose pay it is.
 	const whose = table.getByRole("combobox", { name: "Whose pay is $2,500 from Paycheck" });
