@@ -1,7 +1,13 @@
 import { getTableColumns } from "drizzle-orm";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { HOUSEHOLD_TABLES, type HouseholdTableName } from "./fresh-start";
-import { migrationNumber, SNAPSHOT_TABLES, type SnapshotFile, type SnapshotRow } from "./snapshots";
+import {
+	migrationNumber,
+	NOT_SNAPSHOTTED,
+	SNAPSHOT_TABLES,
+	type SnapshotFile,
+	type SnapshotRow,
+} from "./snapshots";
 
 // Carrying a Household snapshot across schema migrations (issue 88, ADR-0048). A snapshot taken
 // under an older migration is restored when every migration since only ADDED things: its rows go
@@ -66,12 +72,14 @@ export function carriedTables(
 /**
  * Why carried tables still don't fit today's schema, in words a Parent can read; null when they
  * do. A column or table the schema no longer has would be lost silently, so it is refused: rows
- * with fewer columns, and missing tables, are fine.
+ * with fewer columns, missing tables, and tables a restore leaves alone are fine.
  */
 export function carryRefusal(tables: SnapshotTables): string | null {
 	const known = new Set<string>(SNAPSHOT_TABLES);
 	for (const [name, rows] of Object.entries(tables)) {
 		if (rows.length === 0) continue;
+		// A table snapshots stopped holding (the Log's record) is never put back: nothing to fit.
+		if (name in NOT_SNAPSHOTTED) continue;
 		const columns = known.has(name)
 			? new Set(
 					Object.values(

@@ -21,6 +21,9 @@ export const NOT_SNAPSHOTTED: Readonly<Partial<Record<HouseholdTableName, string
 	householdSnapshots: "a snapshot doesn't hold the list of snapshots",
 	freshStarts: "restoring one could set off Start fresh again",
 	householdPasses: "restoring one could run a one-time pass again",
+	// History, not state (issue 141): what was removed stays said through a restore, as it does
+	// through a Fresh start, and so does what the restore itself disconnected.
+	logEvents: "the Log's record of what happened isn't rewound by a restore",
 };
 
 /** Every table a snapshot holds, parents before children (so a restore inserts in this order). */
