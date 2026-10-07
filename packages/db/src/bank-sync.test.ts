@@ -10,8 +10,10 @@ import {
 	type Db,
 	loadMoneyIn,
 	loadTransactionsPage,
+	nameTransactions,
 	rememberAccountPair,
 	renameTransaction,
+	saveMerchantNames,
 	syncBankLines,
 } from "./index";
 import { merchantNames, transactions, transfers } from "./schema";
@@ -296,5 +298,21 @@ describe("a card payment's name", () => {
 		const id = (await row())?.id as string;
 		await renameTransaction(db, { ...viewer, transactionId: id, name: "Visa autopay" });
 		expect(await row()).toMatchObject({ merchantName: "Visa autopay", named: true });
+	});
+
+	it("is never a Parent's at any step of background naming's writes", async () => {
+		await sync("import-1", [
+			line("b-1", "2026-09-11", 50_000, { description: "PAYMENT THANK YOU - WEB" }),
+		]);
+		const viewer = { householdId, memberId: parentId };
+		const row = async () =>
+			(await loadTransactionsPage(db, viewer, { month: "2026-09", limit: 10 })).transactions[0];
+		// The model's name, which is not the normaliser's ("Thank You"), is kept first...
+		const names = [{ raw: "PAYMENT THANK YOU - WEB", name: "Visa payment" }];
+		await saveMerchantNames(db, householdId, names);
+		expect(await row()).toMatchObject({ merchantName: null, named: false });
+		// ...and only then given to the line.
+		await nameTransactions(db, householdId, new Map(names.map(({ raw, name }) => [raw, name])));
+		expect(await row()).toMatchObject({ merchantName: "Visa payment", named: false });
 	});
 });

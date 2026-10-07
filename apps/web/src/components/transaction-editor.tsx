@@ -36,7 +36,7 @@ import type {
 	TransactionEdit,
 	TransactionRow,
 } from "../transactions";
-import { monthOfTransaction, nameOf, useEditFormKey } from "../transactions";
+import { monthOfTransaction, nameGiven, nameOf, useEditFormKey } from "../transactions";
 import { BankTookBackNote } from "./bank-took-back-note";
 import { ForPicker } from "./for-picker";
 import { AmountInput } from "./goals";
@@ -354,7 +354,11 @@ function EditForm({
 	const banksWording = fromBank ? (transaction.note ?? "").trim() : "";
 	const banksName = banksWording ? cleanMerchant(banksWording).name : "";
 	const calledNow = nameOf(transaction);
-	const [name, setName] = useState(calledNow);
+	// What the Parent typed as its name; null until they touch the field, which then shows what the
+	// line is called now, so a name background naming gives it while the form is open is never
+	// taken for theirs (issue 147).
+	const [typedName, setName] = useState<string | null>(null);
+	const name = typedName ?? calledNow;
 	const amountCents = parseDollars(amount);
 	const remainder =
 		splits && amountCents
@@ -394,9 +398,9 @@ function EditForm({
 	function edited(): TransactionEdit | null {
 		const typed = String(form.current ? (new FormData(form.current).get("note") ?? "") : "").trim();
 		// The bank's wording is never edited; an emptied name goes back to the bank's.
-		const renamed = name.trim() || banksName;
+		const renamed = fromBank ? nameGiven(typedName, calledNow, banksName) : null;
 		const note = fromBank ? transaction.note : typed || null;
-		const naming = fromBank && renamed && renamed !== calledNow ? { name: renamed } : {};
+		const naming = renamed ? { name: renamed } : {};
 		if (!amountCents) {
 			setInvalid("amount");
 			return null;
@@ -442,7 +446,9 @@ function EditForm({
 		const note = String(form.current ? (new FormData(form.current).get("note") ?? "") : "").trim();
 		return (
 			amount !== formatMoneyInput(transaction.amountCents) ||
-			(fromBank ? name.trim() !== calledNow : note !== (transaction.note ?? "")) ||
+			(fromBank
+				? nameGiven(typedName, calledNow, banksName) !== null
+				: note !== (transaction.note ?? "")) ||
 			(splits === null
 				? transaction.splits.length > 0 ||
 					assignment !== assignmentValue(transaction) ||

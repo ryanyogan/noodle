@@ -5,6 +5,7 @@ import type { MonthData } from "./server/month";
 import {
 	applyTransactionChange,
 	monthOfTransaction,
+	nameGiven,
 	type TransactionChange,
 	type TransactionRow,
 	transactionQuery,
@@ -308,5 +309,28 @@ describe("applyTransactionChange: a Transaction cached by its ID is not one of t
 
 		putBack();
 		expect(queryClient.getQueryData(listKey)).toEqual(list);
+	});
+});
+
+describe("nameGiven: only a Parent's own typing names an imported Transaction", () => {
+	// The form opened on the bank's wording ("Apple Card"); background naming then called the line
+	// "Apple" while the form stayed open. Saving it for another reason gives it no name.
+	test("a name field the Parent never touched gives no name, whatever the line is called by now", () => {
+		expect(nameGiven(null, "Apple", "Apple")).toBeNull();
+		expect(nameGiven(null, "Apple Card", "Apple")).toBeNull();
+	});
+
+	test("what a Parent typed is the name, trimmed", () => {
+		expect(nameGiven("  Apple Card payment ", "Apple", "Apple")).toBe("Apple Card payment");
+	});
+
+	test("typing what it is already called gives no name", () => {
+		expect(nameGiven("Apple ", "Apple", "Apple")).toBeNull();
+	});
+
+	test("an emptied name goes back to the bank's", () => {
+		expect(nameGiven(" ", "Big shop", "Costco")).toBe("Costco");
+		expect(nameGiven("", "Costco", "Costco")).toBeNull();
+		expect(nameGiven("", "", "")).toBeNull();
 	});
 });

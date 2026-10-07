@@ -421,6 +421,19 @@ export async function saveTransactionChange({ transaction, next }: TransactionCh
 export const nameOf = (transaction: Pick<TransactionRow, "merchantName" | "note">) =>
 	transaction.merchantName ?? (transaction.note ? displayMerchant(transaction.note) : "");
 
+/**
+ * The name a Parent gave an imported Transaction in its form, or null when they gave it none.
+ * `typed` is what they put in the name field, null while they haven't touched it: the form may
+ * have opened on the bank's wording and the line been named in the background since, and saving
+ * it for another reason must not write the old wording back as a name of theirs. An emptied name
+ * goes back to the bank's.
+ */
+export function nameGiven(typed: string | null, calledNow: string, banksName: string) {
+	if (typed === null) return null;
+	const renamed = typed.trim() || banksName;
+	return renamed && renamed !== calledNow ? renamed : null;
+}
+
 /** Refreshes this screen's lists once the others are renamed; other screens hear by live updates. */
 let sameNameApplied: () => void = () => {};
 
