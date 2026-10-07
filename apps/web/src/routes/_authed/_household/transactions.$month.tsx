@@ -68,6 +68,7 @@ import { goalsQuery, membersQuery, monthQuery, reviewQuery } from "../../../quer
 import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
 import { forFilterSchema, SEARCH_MAX, transactionSortSchema } from "../../../server/transactions";
+import { ShownFilters } from "../../../transaction-filters-shown";
 import {
 	RANGE_OPTIONS,
 	rangeName,
@@ -436,9 +437,11 @@ function TransactionsPage() {
 								onCellChange={change.mutate}
 								detail={
 									picked ? (
-										<Suspense fallback={<DetailPending />}>
-											<Outlet />
-										</Suspense>
+										<ShownFilters.Provider value={filters}>
+											<Suspense fallback={<DetailPending />}>
+												<Outlet />
+											</Suspense>
+										</ShownFilters.Provider>
 									) : undefined
 								}
 							/>
