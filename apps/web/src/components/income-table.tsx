@@ -156,7 +156,6 @@ export function IncomeTable({
 				: { ...entry, line };
 		})
 		.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
-	const total = rows.reduce((sum, row) => sum + row.amount, 0) as Cents;
 	const open = rows.find((row) => row.id === editing)?.line ?? null;
 	const choices = whoChoices(parents);
 	// Until the month's money-in read arrives nothing is known of whose pay a row is or where it
@@ -196,7 +195,6 @@ export function IncomeTable({
 			width: "minmax(0,2fr)",
 			stacked: "title",
 			cell: (row) => row.note ?? "Income",
-			footer: "Total",
 		},
 		{
 			id: "whose",
@@ -243,7 +241,6 @@ export function IncomeTable({
 			align: "end",
 			stacked: "value",
 			cell: (row) => <Money cents={row.amount} />,
-			footer: <Money cents={total} />,
 		},
 		{
 			id: "actions",
@@ -292,9 +289,7 @@ export function IncomeTable({
 
 	if (rows.length === 0)
 		return (
-			<Card className="p-5 text-sm text-muted-foreground">
-				No income recorded this month. Add income, or mark a deposit below as income.
-			</Card>
+			<Card className="p-5 text-sm text-muted-foreground">No Income recorded this month yet.</Card>
 		);
 	return (
 		<div className="grid gap-4">
@@ -350,7 +345,11 @@ function WhosePayTotals({
 	for (const range of ranges)
 		if (range.varies && !totals.has(range.whosePay)) totals.set(range.whosePay, 0);
 	const order = [...parents.map((parent) => parent.id), null].filter((who) => totals.has(who));
-	if (order.length === 0) return null;
+	// One party and no usual range would only repeat the Income so far, said at the top of the
+	// page (issue 145): the split is drawn when it says something the total doesn't.
+	const says =
+		order.length > 1 || order.some((who) => ranges.find((range) => range.whosePay === who)?.varies);
+	if (!says) return null;
 	return (
 		<section aria-label="Whose pay" className="grid gap-2">
 			<List>

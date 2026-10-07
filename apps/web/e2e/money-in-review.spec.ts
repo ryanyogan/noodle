@@ -172,7 +172,7 @@ test("money in is named in Review with whose pay and its Account, and Plan › I
 	// The offer sits with the Take-home pay, above the Income list.
 	await page.getByRole("button", { name: "Use $4,600 as what you can count on" }).click();
 	await expect(toast(page, /^Take-home pay is \$4,600 from /)).toBeVisible();
-	await expect(income(page)).toContainText("of $4,600 usual take-home pay");
+	await expect(page.getByTestId("take-home-pay")).toContainText("$4,600");
 
 	// The Rule says whose pay it sets, and the next Import's paycheck is that Parent's unasked.
 	await page.goto(new URL("/review/rules", thisMonth).href);

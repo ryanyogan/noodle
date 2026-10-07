@@ -58,9 +58,11 @@ test("whose pay is said in the Income table, totalled per Parent, and typed Inco
 	await first.click();
 	const said = toast(page, `$2,500 is ${name}’s pay`);
 	await expect(said).toBeVisible();
-	const totals = income(page).getByRole("region", { name: "Whose pay" });
-	await expect(totals).toContainText(`${name}’s pay`);
-	await expect(totals).toContainText("$2,500");
+	// One earner: a split by Parent would only repeat the total, so it isn't drawn (issue 145).
+	await expect(income(page).getByRole("region", { name: "Whose pay" })).toHaveCount(0);
+	// The Income so far is said once, at the top of the page.
+	const summary = page.getByTestId("income-summary");
+	await expect(summary).toContainText("$2,500");
 
 	// Saying it offers to remember the sender.
 	await said
@@ -81,7 +83,7 @@ test("whose pay is said in the Income table, totalled per Parent, and typed Inco
 	await sheet.getByRole("button", { name: "Save" }).click();
 	await expect(toast(page, "Saved your change to this Income")).toBeVisible();
 	await expect(table).toContainText("September pay");
-	await expect(income(page)).toContainText("$2,600 received of $5,000 usual take-home pay");
-	await expect(totals).toContainText("$2,600");
+	await expect(summary).toContainText("$2,600");
+	await expect(income(page)).not.toContainText("received of");
 	await page.context().close();
 });

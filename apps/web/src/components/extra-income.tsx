@@ -54,7 +54,10 @@ export function MonthIncome({
 	income,
 	renderList,
 	showBetweenUs = true,
+	showReceived = true,
 }: {
+	/** False where the page says the Income received itself (Plan › Income, issue 145). */
+	showReceived?: boolean;
 	month: MonthKey;
 	/** The Income page lists these with the other inbound deposits. */
 	showBetweenUs?: boolean;
@@ -78,6 +81,7 @@ export function MonthIncome({
 		<>
 			<IncomeSection
 				renderList={renderList}
+				showReceived={showReceived}
 				baseline={baseline}
 				income={income}
 				betweenUs={showBetweenUs ? betweenUs : []}
@@ -138,7 +142,9 @@ export function IncomeSection({
 	onRemove,
 	onBetweenUs,
 	onCountAgain,
+	showReceived = true,
 }: {
+	showReceived?: boolean;
 	baseline: Cents | null;
 	/** This month's income. */
 	income: IncomeRecord[];
@@ -173,21 +179,25 @@ export function IncomeSection({
 			/>
 			{/* A container on a phone: with text at 200% "take-home pay" may break, as the pair is
 			    wider than the screen then. */}
-			<div className="max-sm:@container">
-				<p className="pb-2 text-sm text-muted-foreground">
-					<span className="font-medium text-foreground tabular-nums">{formatMoney(received)}</span>{" "}
-					{baseline === null ? (
-						"received. Set your take-home pay to compare it with your plan."
-					) : (
-						<>
-							received of {formatMoney(baseline)} usual{" "}
-							<span className="whitespace-nowrap @max-[12rem]:whitespace-normal">
-								take-home pay
-							</span>
-						</>
-					)}
-				</p>
-			</div>
+			{showReceived ? (
+				<div className="max-sm:@container">
+					<p className="pb-2 text-sm text-muted-foreground">
+						<span className="font-medium text-foreground tabular-nums">
+							{formatMoney(received)}
+						</span>{" "}
+						{baseline === null ? (
+							"received. Set your take-home pay to compare it with your plan."
+						) : (
+							<>
+								received of {formatMoney(baseline)} usual{" "}
+								<span className="whitespace-nowrap @max-[12rem]:whitespace-normal">
+									take-home pay
+								</span>
+							</>
+						)}
+					</p>
+				</div>
+			) : null}
 			{renderList ? (
 				renderList({ canRecord, onRemove, onBetweenUs })
 			) : income.length > 0 ? (
