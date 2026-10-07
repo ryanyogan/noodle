@@ -37,8 +37,7 @@ export function PlanSubPage({
 			stack="children"
 			className={cn(
 				"max-w-2xl lg:max-w-none",
-				wide &&
-					"max-w-none lg:grid-cols-[minmax(0,1fr)] min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]",
+				wide && "max-w-none lg:grid-cols-1 min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]",
 			)}
 		>
 			<SplitMain>

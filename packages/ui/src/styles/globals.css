@@ -586,18 +586,6 @@
 		-webkit-text-size-adjust: 100%;
 		-webkit-tap-highlight-color: transparent;
 	}
-	/* Installed, there's no pull to refresh: the page doesn't rubber-band under the fixed bars.
-	   The app marks <html data-standalone> as well, for iOS's navigator.standalone. */
-	html[data-standalone],
-	html[data-standalone] body {
-		overscroll-behavior-y: none;
-	}
-	@media (display-mode: standalone) {
-		html,
-		body {
-			overscroll-behavior-y: none;
-		}
-	}
 	body {
 		min-height: 100dvh;
 		background:
@@ -610,6 +598,18 @@
 		line-height: 1.45;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
+	}
+	/* Installed, there's no pull to refresh: the page doesn't rubber-band under the fixed bars.
+	   The app marks <html data-standalone> as well, for iOS's navigator.standalone. */
+	html[data-standalone],
+	html[data-standalone] body {
+		overscroll-behavior-y: none;
+	}
+	@media (display-mode: standalone) {
+		html,
+		body {
+			overscroll-behavior-y: none;
+		}
 	}
 	h1,
 	h2,

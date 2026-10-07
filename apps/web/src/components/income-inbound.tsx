@@ -34,14 +34,16 @@ export function OtherMoneyIn({ month, today }: { month: MonthKey; today: string 
 			width: "minmax(0,2fr)",
 			stacked: "title",
 			cell: (line) => (
-				<button
+				<Button
 					type="button"
-					className="text-start font-medium hover:underline"
+					variant="link"
+					size="inline"
+					className="text-start font-medium text-foreground no-underline hover:underline"
 					onClick={() => setEditing(line)}
 					aria-label={`Change what ${moneyInLabel(line)} is`}
 				>
 					{moneyInLabel(line)}
-				</button>
+				</Button>
 			),
 		},
 		{
