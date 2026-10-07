@@ -14,7 +14,7 @@ import {
 	syncBankLines,
 	type Viewer,
 } from "@noodle/db";
-import type { BankLine, Cents } from "@noodle/domain";
+import { type BankLine, type Cents, dayKeyAt } from "@noodle/domain";
 import { ulid } from "ulid";
 import { withinBankHistory } from "../bank-history";
 import type { HouseholdChange } from "../household-changes";
@@ -160,6 +160,8 @@ export async function runBankImport(
 						removed,
 						createdByMemberId: read.createdByMemberId,
 						newId: deps.newId,
+						// What counted in a month that has ended, by the Household's day, stays.
+						today: dayKeyAt(new Date(), params.timeZone),
 					}),
 				);
 				if (!result) continue;

@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addAccount,
+	addBankConnection,
 	addBucket,
 	addChild,
 	addCommitment,
@@ -10,11 +11,14 @@ import {
 	addIncome,
 	addQuickAdd,
 	changeMoneyInKind,
+	chooseBankAccounts,
 	clearHouseholdRows,
 	confirmPaidBack,
 	createHouseholdForParent,
 	type Db,
 	deleteTransaction,
+	deleteTransactions,
+	editMoneyIn,
 	fileCategorizations,
 	listRules,
 	loadCharges,
@@ -32,6 +36,7 @@ import {
 	sayOwedBack,
 	setTakeHomePay,
 	splitTransaction,
+	syncBankLines,
 	updateTransaction,
 } from "./index";
 import { bucketLeftSql } from "./moves";
@@ -44,7 +49,7 @@ import {
 import { setCarriesOver } from "./plan";
 import { loadRolledOver } from "./rollover";
 import { applyRule, saveRule } from "./rules";
-import { owedBack, paidBackMatches, refundLinks, transactions } from "./schema";
+import { income, owedBack, paidBackMatches, refundLinks, transactions } from "./schema";
 import { testDb } from "./test-db";
 
 // Paid back and Owed back (issue 132, ADR-0058). The ticket's scenario: tuition of $1,200 in
@@ -409,6 +414,7 @@ describe("$700 arrives in October", () => {
 			incomeId: "zelle",
 			kind: "income",
 			transferId: "unused",
+			today,
 		});
 		expect(changed.ok).toBe(true);
 		expect(await db.select().from(paidBackMatches)).toEqual([]);
@@ -426,6 +432,7 @@ describe("$700 arrives in October", () => {
 			householdId,
 			memberId: parentId,
 			transactionId: "skates",
+			today,
 		});
 		expect(deleted.ok).toBe(true);
 		expect((await db.select().from(owedBack)).map((row) => row.id).sort()).toEqual([
@@ -856,5 +863,264 @@ describe("a Fresh start with Owed back, Paid back and a linked Refund", () => {
 		expect(await db.select().from(paidBackMatches)).toEqual([]);
 		expect(await db.select().from(refundLinks)).toEqual([]);
 		expect(await db.select().from(transactions)).toEqual([]);
+	});
+});
+
+describe("what counted in a month that has ended stays as it was", () => {
+	const november: DayKey = "2026-11-03";
+	const matches = async () =>
+		(await db.select().from(paidBackMatches))
+			.map((row) => [row.owedBackId, row.amountCents])
+			.sort();
+	const settled = [
+		["ob-skates", 4_500],
+		["ob-tuition", 60_000],
+	];
+
+	beforeEach(async () => {
+		await caseyOwes();
+		await paidBack("zelle", "2026-10-05", 64_500);
+		await confirmOffer("zelle");
+	});
+
+	it("refuses a change of kind once the line's matches counted in a month that has ended", async () => {
+		expect(
+			await changeMoneyInKind(db, viewer, {
+				incomeId: "zelle",
+				kind: "income",
+				transferId: "unused",
+				today: november,
+			}),
+		).toEqual({ ok: false, reason: "month-ended" });
+		expect(await matches()).toEqual(settled);
+		expect(await bucketSpent(october)).toHaveLength(1);
+		expect((await loadPaidBack(db, householdId, "zelle"))?.line.kind).toBe("paid-back");
+	});
+
+	it("refuses deleting a purchase whose money back counted in a month that has ended", async () => {
+		expect(
+			await deleteTransaction(db, {
+				householdId,
+				memberId: parentId,
+				transactionId: "skates",
+				today: november,
+			}),
+		).toEqual({ ok: false, reason: "month-ended" });
+		expect(await matches()).toEqual(settled);
+		expect(await bucketSpent(october)).toHaveLength(1);
+	});
+
+	it("leaves such a purchase out when several are deleted at once", async () => {
+		expect(
+			await deleteTransactions(db, viewer, { ids: ["skates", "dentist"] }, { today: november }),
+		).toEqual({ deleted: 1 });
+		expect(await matches()).toEqual(settled);
+		expect(
+			(await db.select({ id: transactions.id }).from(transactions)).map((row) => row.id),
+		).toContain("skates");
+	});
+
+	it("keeps a line the bank withdraws, and a purchase it withdraws, once they counted in an ended month", async () => {
+		await addBankConnection(db, {
+			householdId,
+			connectionId: "conn-1",
+			provider: "plaid",
+			externalId: "item-1",
+			institution: "First Platypus Bank",
+			credential: "v1:sealed",
+			createdByMemberId: parentId,
+		});
+		await chooseBankAccounts(db, {
+			householdId,
+			connectionId: "conn-1",
+			createdByMemberId: parentId,
+			choices: [
+				{
+					balanceId: "bank-b",
+					account: {
+						externalId: "acc-ch",
+						name: "Bank",
+						mask: null,
+						kind: "checking",
+						balance: null,
+					},
+					choice: { kind: "add", accountId: "bank" },
+				},
+			],
+		});
+		let ids = 0;
+		const sync = (importId: string, lines: unknown[], removed: string[], asOf: DayKey) =>
+			syncBankLines(db, {
+				householdId,
+				connectionId: "conn-1",
+				accountId: "bank",
+				importId,
+				lines: lines as never,
+				removed,
+				createdByMemberId: parentId,
+				newId: () => `bank-${++ids}`,
+				today: asOf,
+			});
+		const bankLine = (bankId: string, date: string, amount: number, description: string) => ({
+			accountExternalId: "acc-ch",
+			bankId,
+			date,
+			amount,
+			description,
+		});
+		await sync(
+			"imp-1",
+			[
+				bankLine("in-1", "2026-10-06", 80_00, "ACH CREDIT CASEY LOWE"),
+				bankLine("out-1", "2026-10-02", -30_00, "Rink Shop"),
+			],
+			[],
+			today,
+		);
+		const [arrived] = await db.select().from(income).where(sql`${income.accountId} = 'bank'`);
+		const [bought] = await db
+			.select()
+			.from(transactions)
+			.where(sql`${transactions.accountId} = 'bank'`);
+		if (!arrived || !bought) throw new Error("the bank's lines didn't arrive");
+		await db
+			.update(transactions)
+			.set({ bucketId: "hockey" })
+			.where(sql`${transactions.id} = ${bought.id}`);
+		expect(
+			(
+				await changeMoneyInKind(db, viewer, {
+					incomeId: arrived.id,
+					kind: "paid-back",
+					transferId: "unused",
+					today,
+				})
+			).ok,
+		).toBe(true);
+		expect(
+			(
+				await sayOwedBack(db, viewer, {
+					owedBackId: "ob-shop",
+					transactionId: bought.id,
+					who: "Casey",
+					amountCents: 3_000 as Cents,
+				})
+			).ok,
+		).toBe(true);
+		expect(
+			await confirmPaidBack(db, viewer, {
+				incomeId: arrived.id,
+				matches: [
+					{ id: "m-bank", owedBackId: "ob-dentist", amount: 5_000 as Cents },
+					{ id: "m-shop", owedBackId: "ob-shop", amount: 3_000 as Cents },
+				],
+				today,
+			}),
+		).toMatchObject({ ok: true });
+		const spentBefore = await bucketSpent(october);
+
+		await sync("imp-2", [], ["in-1", "out-1"], november);
+		expect((await db.select().from(paidBackMatches)).map((row) => row.id).sort()).toEqual([
+			"m-bank",
+			"m-ob-skates",
+			"m-ob-tuition",
+			"m-shop",
+		]);
+		expect(await bucketSpent(october)).toEqual(spentBefore);
+		expect(await db.select().from(income).where(sql`${income.id} = ${arrived.id}`)).toHaveLength(1);
+	});
+
+	it("still lets all of it go while the month is running", async () => {
+		expect(
+			(
+				await changeMoneyInKind(db, viewer, {
+					incomeId: "zelle",
+					kind: "income",
+					transferId: "unused",
+					today,
+				})
+			).ok,
+		).toBe(true);
+		expect(await matches()).toEqual([]);
+	});
+});
+
+describe("a typed Paid back line's amount", () => {
+	it("can't go below what it has settled", async () => {
+		await caseyOwes();
+		await paidBack("zelle", "2026-10-05", 60_000);
+		await confirmOffer("zelle");
+		expect(
+			await editMoneyIn(db, viewer, { incomeId: "zelle", edit: { amountCents: 10_000 as Cents } }),
+		).toEqual({ ok: false, reason: "matched" });
+		expect(await loadPaidBack(db, householdId, "zelle")).toMatchObject({
+			line: { amount: 60_000 },
+			unmatched: 0,
+		});
+		expect(
+			(await editMoneyIn(db, viewer, { incomeId: "zelle", edit: { amountCents: 65_000 as Cents } }))
+				.ok,
+		).toBe(true);
+	});
+});
+
+describe("Owed back on a purchase with Splits", () => {
+	beforeEach(async () => {
+		const split = await splitTransaction(db, {
+			householdId,
+			memberId: parentId,
+			transactionId: "dentist",
+			amountCents: 8_000 as Cents,
+			note: "dentist",
+			splits: [
+				{
+					id: "s1",
+					amountCents: 6_000 as Cents,
+					assignment: { bucketId: "health" },
+					forMemberIds: [],
+				},
+				{
+					id: "s2",
+					amountCents: 2_000 as Cents,
+					assignment: { bucketId: "hockey" },
+					forMemberIds: [],
+				},
+			],
+		});
+		expect(split).toMatchObject({ ok: true });
+	});
+	const say = (owedBackId: string, splitId: string | null, amountCents: number) =>
+		sayOwedBack(db, viewer, {
+			owedBackId,
+			transactionId: "dentist",
+			splitId,
+			who: "Casey",
+			amountCents: amountCents as Cents,
+		});
+	const owed = async () =>
+		(await loadOwedBack(db, viewer, { transactionId: "dentist" })).reduce(
+			(sum, item) => sum + item.owed,
+			0,
+		);
+
+	it("can be said on one Split, up to what the Split came to", async () => {
+		expect(await say("ob-s2", "s2", 2_000)).toMatchObject({
+			ok: true,
+			item: { splitId: "s2", owed: 2_000, purchaseAmount: 2_000, bucketId: "hockey" },
+		});
+		expect(await say("ob-s2", "s2", 2_001)).toEqual({ ok: false, reason: "too-much" });
+	});
+
+	it("is on the whole purchase or on its Splits, never both", async () => {
+		expect((await say("ob-whole", null, 8_000)).ok).toBe(true);
+		expect(await say("ob-s1", "s1", 6_000)).toEqual({ ok: false, reason: "on-whole" });
+		expect(await owed()).toBe(8_000);
+	});
+
+	it("is on its Splits and then not on the whole purchase too", async () => {
+		expect((await say("ob-s1", "s1", 6_000)).ok).toBe(true);
+		expect((await say("ob-s2", "s2", 2_000)).ok).toBe(true);
+		expect(await say("ob-whole", null, 8_000)).toEqual({ ok: false, reason: "on-splits" });
+		expect(await owed()).toBe(8_000);
 	});
 });

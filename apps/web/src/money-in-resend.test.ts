@@ -5,11 +5,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // sent again like a Transaction's (issue 133, ADR-0041, ADR-0056): by the function its screen
 // uses, on the version written down for it. The server function is the only thing stood in for.
 
-const server = vi.hoisted(() => ({ editMoneyInLine: vi.fn() }));
+const server = vi.hoisted(() => ({ editMoneyInLine: vi.fn(), setMoneyInKind: vi.fn() }));
 vi.mock("./server/money-in", () => server);
 vi.mock("@noodle/ui/components/toast", () => ({ toast: vi.fn() }));
 
-import type { MoneyInEditChange, MoneyInLine } from "./money-in";
+import {
+	type MoneyInEditChange,
+	type MoneyInKindChange,
+	type MoneyInLine,
+	MoneyInRefused,
+} from "./money-in";
 import type { Waiting } from "./outbox";
 import {
 	ChangedElsewhere,
@@ -51,6 +56,7 @@ function leftWaiting(): { waiting: Waiting; variables: unknown } {
 beforeEach(() => {
 	forgetVersions();
 	server.editMoneyInLine.mockReset();
+	server.setMoneyInKind.mockReset();
 });
 
 describe("an edit of a money-in line left waiting when the page was left", () => {
@@ -87,5 +93,66 @@ describe("an edit of a money-in line left waiting when the page was left", () =>
 		expect(server.editMoneyInLine).toHaveBeenCalledWith({
 			data: { incomeId: "income-1", expectedVersion: 2, edit: { whosePay: "sam" } },
 		});
+	});
+});
+
+// A change of kind is written down and sent again the same way (the review of spec 130).
+describe("a change of a money-in line's kind left waiting when the page was left", () => {
+	const kindChange: MoneyInKindChange = { line, kind: "paid-back", always: true };
+	function kindLeftWaiting(): { waiting: Waiting; variables: unknown } {
+		const variables = JSON.parse(JSON.stringify(carryVersions("money-in-kind", kindChange)));
+		forgetVersions();
+		return {
+			waiting: { kind: "money-in-kind", variables, tries: 0 } as unknown as Waiting,
+			variables,
+		};
+	}
+
+	it("is sent again on the version an earlier edit of this screen's answered, without its Rule", async () => {
+		// The Edit sheet saved whose pay first, which answered version 3.
+		noteVersion(line.id, 3);
+		const { waiting, variables } = kindLeftWaiting();
+		server.setMoneyInKind.mockResolvedValue({
+			ok: true,
+			line: { ...line, kind: "paid-back", version: 4 },
+			months: ["2026-10"],
+		});
+		const resend = resendWith(new QueryClient())(waiting);
+		expect(resend).not.toBeNull();
+		await resend?.mutationFn?.(variables as never, {} as never);
+		expect(server.setMoneyInKind).toHaveBeenCalledWith({
+			data: {
+				incomeId: "income-1",
+				kind: "paid-back",
+				transferId: expect.any(String),
+				expectedVersion: 3,
+				// A Rule names no version, so it is never stated days later.
+				ruleId: undefined,
+			},
+		});
+		expect(expectedVersionOf(line)).toBe(4);
+	});
+
+	it("is dropped, never written over, when the line changed on another screen since", async () => {
+		const { waiting, variables } = kindLeftWaiting();
+		server.setMoneyInKind.mockResolvedValue({
+			ok: false,
+			reason: "changed-elsewhere",
+			current: { ...line, version: 7 },
+		});
+		const resend = resendWith(new QueryClient())(waiting);
+		await expect(resend?.mutationFn?.(variables as never, {} as never)).rejects.toBeInstanceOf(
+			ChangedElsewhere,
+		);
+		expect(server.setMoneyInKind.mock.calls[0]?.[0].data.expectedVersion).toBe(2);
+	});
+
+	it("is answered, not tried again, when what it restored counted in a month that has ended", async () => {
+		const { waiting, variables } = kindLeftWaiting();
+		server.setMoneyInKind.mockResolvedValue({ ok: false, reason: "month-ended" });
+		const resend = resendWith(new QueryClient())(waiting);
+		await expect(resend?.mutationFn?.(variables as never, {} as never)).rejects.toBeInstanceOf(
+			MoneyInRefused,
+		);
 	});
 });

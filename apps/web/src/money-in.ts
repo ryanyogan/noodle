@@ -1,4 +1,4 @@
-import { MONEY_IN_KIND_LABELS, type MoneyInKind, type MonthKey } from "@noodle/domain";
+import { MONEY_IN_KIND_LABELS, type MoneyInKind, type MonthKey, monthOfDay } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ulid } from "ulid";
@@ -47,11 +47,26 @@ export const moneyInLabel = (line: Pick<MoneyInLine, "note">) => line.note?.trim
 export const moneyInKindText = (line: Pick<MoneyInLine, "kind" | "needsReview">) =>
 	line.needsReview ? "Needs review" : MONEY_IN_KIND_LABELS[line.kind];
 
-class KindRefused extends Error {
-	constructor(readonly reason: "refused" | "extra-income" | "changed-elsewhere") {
+/** The server's answer that a change to a money-in line can't be made; sending it again won't help. */
+export class MoneyInRefused extends Error {
+	constructor(readonly reason: "refused" | "extra-income" | "month-ended" | "matched") {
 		super(reason);
 	}
 }
+
+/** Why a change to a money-in line wasn't made, said plainly. */
+const refusedText = (error: unknown, otherwise: string) => {
+	if (error instanceof ChangedElsewhere)
+		return "This was changed on another screen. Here’s how it looks now.";
+	const reason = error instanceof MoneyInRefused ? error.reason : null;
+	return reason === "extra-income"
+		? "Some of this month’s Extra income has gone somewhere already, so this stays Income."
+		: reason === "month-ended"
+			? "This money went back to a purchase in a month that has ended, so it stays as it is."
+			: reason === "matched"
+				? "That’s less than this has already Paid back on purchases, so the amount stays."
+				: otherwise;
+};
 
 export type MoneyInKindChange = {
 	line: MoneyInLine;
@@ -60,36 +75,59 @@ export type MoneyInKindChange = {
 	always?: boolean;
 };
 
-/** A Parent says what kind a money-in line is. The lists are refetched once it is written. */
+/**
+ * Sends one change of kind, on the version this screen has for the line (ADR-0041): a repeat of
+ * one that landed is answered as saved, and one made on a line that has moved on is left alone
+ * (ChangedElsewhere). Also how one left waiting by an earlier page is sent again
+ * (waiting-writes.ts, ADR-0056).
+ */
+export async function sendMoneyInKind({
+	line,
+	kind,
+	always,
+}: MoneyInKindChange): Promise<MoneyInLine> {
+	const result = await setMoneyInKind({
+		data: {
+			incomeId: line.id,
+			kind,
+			transferId: ulid(),
+			// The version this screen's own earlier change to the line gave, if any.
+			expectedVersion: expectedVersionOf(line),
+			ruleId: always ? ulid() : undefined,
+		},
+	});
+	if (!result.ok) {
+		if (result.reason === "changed-elsewhere") throw new ChangedElsewhere(line.id, result.current);
+		throw new MoneyInRefused(result.reason);
+	}
+	noteVersion(line.id, result.line.version);
+	return result.line;
+}
+
+/**
+ * A Parent says what kind a money-in line is. It shows in its month's money in at once, waits
+ * its turn with the other edits of money in, and is written down until answered, like them
+ * (ADR-0041, ADR-0056). The lists are refetched once it is written.
+ */
 export function useMoneyInKindChange() {
 	const queryClient = useQueryClient();
 	return useMutation({
 		mutationKey: monthChangeKey,
-		mutationFn: async ({ line, kind, always }: MoneyInKindChange) => {
-			const result = await setMoneyInKind({
-				data: {
-					incomeId: line.id,
-					kind,
-					transferId: ulid(),
-					// The version this screen's own earlier change to the line gave, if any.
-					expectedVersion: expectedVersionOf(line),
-					ruleId: always ? ulid() : undefined,
-				},
-			});
-			if (!result.ok) throw new KindRefused(result.reason);
-			noteVersion(line.id, result.line.version);
-			return result.line;
-		},
-		onError: (error) => {
-			const reason = error instanceof KindRefused ? error.reason : null;
-			toast(
-				reason === "extra-income"
-					? "Some of this month’s Extra income has gone somewhere already, so this stays Income."
-					: reason === "changed-elsewhere"
-						? "This was changed on another screen. Here’s how it looks now."
-						: "Couldn’t change it, so it’s as it was.",
-				{ tone: "error" },
+		scope: reviewWrites,
+		meta: { outbox: "money-in-kind" },
+		mutationFn: sendMoneyInKind,
+		onMutate: async ({ line, kind }) => {
+			const { queryKey } = moneyInQuery(monthOfDay(line.date));
+			await queryClient.cancelQueries({ queryKey });
+			const before = queryClient.getQueryData(queryKey);
+			queryClient.setQueryData(queryKey, (lines) =>
+				lines?.map((row) => (row.id === line.id ? { ...row, kind, needsReview: false } : row)),
 			);
+			return { rollback: () => queryClient.setQueryData(queryKey, before) };
+		},
+		onError: (error, _variables, context) => {
+			context?.rollback();
+			toast(refusedText(error, "Couldn’t change it, so it’s as it was."), { tone: "error" });
 		},
 		onSuccess: (line, { always }) =>
 			toast(
@@ -227,7 +265,7 @@ export async function sendMoneyInEdit({ line, edit }: MoneyInEditChange): Promis
 	});
 	if (!result.ok) {
 		if (result.reason === "changed-elsewhere") throw new ChangedElsewhere(line.id, result.current);
-		throw new KindRefused(result.reason);
+		throw new MoneyInRefused(result.reason);
 	}
 	noteVersion(line.id, result.line.version);
 	return result.line;
@@ -268,15 +306,9 @@ export function useMoneyInEdit() {
 		},
 		onError: (error, _variables, context) => {
 			context?.rollback();
-			const reason = error instanceof KindRefused ? error.reason : null;
-			toast(
-				error instanceof ChangedElsewhere
-					? "This was changed on another screen. Here’s how it looks now."
-					: reason === "extra-income"
-						? "Some of this month’s Extra income has gone somewhere already, so this Income stays as it is."
-						: "Couldn’t save your change, so it’s as it was.",
-				{ tone: "error" },
-			);
+			toast(refusedText(error, "Couldn’t save your change, so it’s as it was."), {
+				tone: "error",
+			});
 		},
 		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
 	});

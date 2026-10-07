@@ -18,6 +18,7 @@ import {
 	addMonths,
 	type Cents,
 	type DayKey,
+	dayKeyAt,
 	MAX_CENTS,
 	MONEY_IN_KINDS,
 	PAY_RANGE_MONTHS,
@@ -59,7 +60,8 @@ export const getMoneyInReview = createServerFn({ method: "GET" })
 
 /**
  * A Parent says what kind a money-in line is. Refused while Extra income already decided in its
- * month needs it as Income (`extra-income`), or when it was changed on another screen
+ * month needs it as Income (`extra-income`), once what it restored counted in a month that has
+ * ended (`month-ended`), or when it was changed on another screen
  * (`changed-elsewhere`, with the line as it is now). With `ruleId`, a Rule is stated too: money in
  * with this line's wording is that kind from now on. Idempotent per `transferId`.
  */
@@ -77,7 +79,10 @@ export const setMoneyInKind = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }): Promise<MoneyInKindResult> => {
 		const db = getDb();
 		const viewer = viewerOf(context);
-		const result = await changeMoneyInKind(db, viewer, data);
+		const result = await changeMoneyInKind(db, viewer, {
+			...data,
+			today: dayKeyAt(new Date(), context.household.timeZone),
+		});
 		if (!result.ok) return result;
 		if (data.ruleId && result.line.note)
 			await saveMoneyInRule(db, viewer, {

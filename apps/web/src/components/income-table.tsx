@@ -409,21 +409,27 @@ function IncomeEditForm({
 		if ((who || null) !== line.whosePay) edit.whosePay = who || null;
 		if (line.typed && cents !== null && cents !== line.amount) edit.amountCents = cents;
 		if (line.typed && date && date !== line.date) edit.date = date as DayKey;
-		const after = (saved: MoneyInLine) => {
+		const remember = (saved: MoneyInLine) => {
 			if (always && who && saved.note) whose.remember(saved, who);
-			if (kind !== line.kind) kindChange.mutate({ line: saved, kind });
 		};
+		const edited = Object.keys(edit).length > 0;
 		onDone();
-		if (Object.keys(edit).length === 0) return after(line);
-		whose.edit.mutate(
-			{ line, edit, month },
-			{
-				onSuccess: (saved) => {
-					toast("Saved your change to this Income", { tone: "success" });
-					after(saved);
+		if (edited)
+			whose.edit.mutate(
+				{ line, edit, month },
+				{
+					onSuccess: (saved) => {
+						toast("Saved your change to this Income", { tone: "success" });
+						remember(saved);
+					},
 				},
-			},
-		);
+			);
+		else remember(line);
+		// The kind is its own change, waiting its turn behind the edit: it goes on the version the
+		// edit leaves, and isn't lost when the edit can't be saved. A line nobody had touched, saved
+		// as it is, is confirmed: a Parent has decided it, and the October pass leaves it alone.
+		const confirmed = !edited && line.version === 0 && !line.needsReview;
+		if (kind !== line.kind || confirmed) kindChange.mutate({ line, kind });
 	};
 
 	return (

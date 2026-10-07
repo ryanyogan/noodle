@@ -7,6 +7,7 @@ import {
 	createHouseholdForParent,
 	type Db,
 	decideExtraIncome,
+	editMoneyIn,
 	householdsAwaitingMoneyInPass,
 	importStatement,
 	loadMoneyIn,
@@ -213,5 +214,33 @@ describe("the one-time pass over October 2026's money in", () => {
 
 		expect(await run("run-2")).toEqual({ ran: true, changed: 1, snapshotId: "snapshot-1" });
 		expect(await waiting()).toEqual(["2026-10-05"]);
+	});
+
+	it("leaves a line a Parent confirmed as Income before the pass ran", async () => {
+		await imported([line("2026-10-05", 30_000, ZELLE), line("2026-10-07", 4_000, VENMO)]);
+		const zelle = await on("2026-10-05");
+		const confirmed = await changeMoneyInKind(db, viewer, {
+			incomeId: zelle.id,
+			kind: "income",
+			transferId: newId(),
+			expectedVersion: zelle.version,
+		});
+		expect(confirmed).toMatchObject({ ok: true, line: { kind: "income", needsReview: false } });
+		// Sent again (the answer was lost): still that one confirmation.
+		expect(
+			await changeMoneyInKind(db, viewer, {
+				incomeId: zelle.id,
+				kind: "income",
+				transferId: newId(),
+				expectedVersion: zelle.version,
+			}),
+		).toEqual(confirmed);
+		// Whose pay said to be the Household's, as it already was, is a decision too.
+		const venmo = await on("2026-10-07");
+		expect(
+			(await editMoneyIn(db, viewer, { incomeId: venmo.id, edit: { whosePay: null } })).ok,
+		).toBe(true);
+		expect(await run()).toEqual({ ran: true, changed: 0, snapshotId: null });
+		expect(await waiting()).toEqual([]);
 	});
 });

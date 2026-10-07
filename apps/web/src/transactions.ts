@@ -364,6 +364,7 @@ export async function saveTransactionChange({ transaction, next }: TransactionCh
 					: await deleteTransaction({
 							data: { transactionId: transaction.id, month, expectedVersion },
 						});
+	if (answer.status === "month-ended") throw new MonthEnded();
 	settleWrite(transaction.id, answer);
 	// Renamed, and saved: the same name is offered for the merchant's other Transactions (#95).
 	const named = next ? ("rename" in next ? next.rename : next.name) : undefined;
@@ -429,6 +430,17 @@ let saidAt = Number.NEGATIVE_INFINITY;
  * Says, once, that a Transaction was changed on another screen: several changes refused in a row
  * (cards decided one after another, or queued behind each other) get one message, not one each.
  */
+/**
+ * A delete the server refused: money Paid back on the purchase, or a Refund linked to it, counted
+ * in a month that has ended, which never changes (ADR-0058). Sending it again won't help.
+ */
+export class MonthEnded extends Error {
+	constructor() {
+		super("month-ended");
+		this.name = "MonthEnded";
+	}
+}
+
 export function sayChangedElsewhere(now = Date.now()) {
 	if (now - saidAt < SAY_AGAIN_AFTER_MS) return;
 	saidAt = now;
@@ -621,6 +633,11 @@ export function useTransactionChange() {
 				);
 				return sayChangedElsewhere();
 			}
+			if (error instanceof MonthEnded)
+				return void toast(
+					`Money back on ${variables.label} counted in a month that has ended, so it can’t be deleted.`,
+					{ tone: "error" },
+				);
 			toast(
 				variables.next
 					? `Couldn’t save your change to ${variables.label}, so it’s been undone.`

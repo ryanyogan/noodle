@@ -16,17 +16,13 @@ import {
 	type PaidBackMatch,
 	type PaidBackOffer,
 } from "@noodle/domain";
-import { and, eq, gte, lt, lte, type SQL, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, isNull, lt, lte, type SQL, sql } from "drizzle-orm";
 import { counts, incomeInTransfer } from "./counting";
+import { runningFrom } from "./ended-months";
 import type { Db } from "./index";
 import { loadMoneyInLine, type MoneyInLine } from "./money-in";
 import { changeableBy, othersAllowance, privateTotalId, type Viewer, visibleTo } from "./privacy";
-import {
-	refundChargeRows,
-	refundRowsByMonth,
-	refundSpendingRows,
-	runningFrom,
-} from "./refund-links";
+import { refundChargeRows, refundRowsByMonth, refundSpendingRows } from "./refund-links";
 import {
 	income,
 	members,
@@ -139,14 +135,19 @@ export type OwedBackResult =
 	/**
 	 * `refused`: not a purchase this Parent may change, or not a Child of the Household;
 	 * `no-name`: nobody was named; `too-much`: nothing, or more than the purchase;
-	 * `paid-back`: less than has already been Paid back on it.
+	 * `paid-back`: less than has already been Paid back on it; `on-whole`: said for a Split while
+	 * it is already said on the whole purchase; `on-splits`: the other way round.
 	 */
-	| { ok: false; reason: "refused" | "no-name" | "too-much" | "paid-back" };
+	| {
+			ok: false;
+			reason: "refused" | "no-name" | "too-much" | "paid-back" | "on-whole" | "on-splits";
+	  };
 
 /**
  * A Parent says someone's paying part of a purchase (or of one Split) back: who, a name or a
  * Child, and how much, half unless said. One per purchase or Split: saying it again changes who
- * and how much, under the ID it already has.
+ * and how much, under the ID it already has. It is on the whole purchase or on its Splits, never
+ * both, so what is owed on a purchase is never more than the purchase.
  */
 export async function sayOwedBack(
 	db: Db,
@@ -201,11 +202,18 @@ export async function sayOwedBack(
 	if (!Number.isInteger(amount) || amount <= 0 || amount > purchase.amount)
 		return { ok: false, reason: "too-much" };
 
-	const same = and(
+	const ofThePurchase = and(
 		eq(owedBack.householdId, householdId),
 		eq(owedBack.transactionId, input.transactionId),
-		sql`coalesce(${owedBack.splitId}, '') = ${splitId ?? ""}`,
 	);
+	// The other way of saying it: on the whole purchase when this is for a Split, and back.
+	const [otherWay] = await db
+		.select({ id: owedBack.id })
+		.from(owedBack)
+		.where(and(ofThePurchase, splitId ? isNull(owedBack.splitId) : isNotNull(owedBack.splitId)))
+		.limit(1);
+	if (otherWay) return { ok: false, reason: splitId ? "on-whole" : "on-splits" };
+	const same = and(ofThePurchase, sql`coalesce(${owedBack.splitId}, '') = ${splitId ?? ""}`);
 	const [existing] = await db
 		.select({ id: owedBack.id, paid: paidSql.as("paid") })
 		.from(owedBack)
@@ -224,6 +232,8 @@ export async function sayOwedBack(
 			select ${input.owedBackId}, ${householdId}, ${transactions.id}, ${splitId}, ${who}, ${memberId},
 				${amount}, ${viewer.memberId}
 			from ${transactions} where ${thePurchase}
+				and not exists (select 1 from owed_back x where x.transaction_id = ${input.transactionId}
+					and (x.split_id is null) = ${splitId ? 1 : 0})
 			on conflict do nothing`);
 	}
 	const item = (await loadOwedBack(db, viewer, { transactionId: input.transactionId })).find(

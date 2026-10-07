@@ -11,6 +11,7 @@ import {
 } from "@noodle/domain";
 import { and, eq, gte, isNotNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
 import { counts } from "./counting";
+import { runningFrom } from "./ended-months";
 import type { Db } from "./index";
 import { loadMoneyInLine, type MoneyInLine } from "./money-in";
 import { changeableBy, othersAllowance, type Viewer, visibleTo } from "./privacy";
@@ -72,8 +73,6 @@ export function rankRefundPurchases(
 /** What the Refunds already linked to a purchase have given it back, together. */
 const givenBack = sql`(select coalesce(sum(oi.amount_cents), 0) from refund_links ol
 	join income oi on oi.id = ol.income_id where ol.transaction_id = ${transactions.id})`;
-
-export const runningFrom = (today: DayKey) => `${monthOfDay(today)}-01` as DayKey;
 
 const assigned = () =>
 	or(

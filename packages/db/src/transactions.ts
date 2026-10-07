@@ -33,6 +33,7 @@ import {
 import type { BatchItem } from "drizzle-orm/batch";
 import { accountLabelSql } from "./account-label";
 import { counts } from "./counting";
+import { endedBefore, purchaseEndedRestores } from "./ended-months";
 import { setAsideSql } from "./goals";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
@@ -942,7 +943,8 @@ export type TransactionEditResult =
 /** How a guarded write that sets no new values ended (a delete, a return to Review). */
 export type TransactionWriteResult =
 	| { ok: true; version: number | null }
-	| { ok: false; reason: "changed-elsewhere" };
+	/** `month-ended`: money back on it counted in a month that has ended (ADR-0058). */
+	| { ok: false; reason: "changed-elsewhere" | "month-ended" };
 
 /** The guard for a change made on version `expected`: the Transaction is still at it (ADR-0041). */
 const atVersion = (expected: number | undefined) =>
@@ -1459,7 +1461,9 @@ const refundedBy = (id: string) =>
 /**
  * Deletes a Transaction, its For, and its Splits, for the Parent `memberId`: never one with
  * spending in the other Parent's Personal Allowance, even through a Split, and never Goal spending
- * (that changes only through its Goal). Idempotent: deleting it again changes nothing.
+ * (that changes only through its Goal). Idempotent: deleting it again changes nothing. Refused
+ * (`month-ended`) once money Paid back on it, or a Refund linked to it, counted in a month that
+ * has ended as of `today`: that month's figures stay (ADR-0058).
  */
 export async function deleteTransaction(
 	db: Db,
@@ -1469,18 +1473,34 @@ export async function deleteTransaction(
 		transactionId: string;
 		/** The version the Parent saw when they deleted it: left alone if it has moved on (ADR-0041). */
 		expectedVersion?: number;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
 	},
 ): Promise<TransactionWriteResult> {
+	const ended = purchaseEndedRestores(endedBefore(input.today));
 	const theTransaction = and(
 		eq(transactions.id, input.transactionId),
 		editableBy(input.householdId, input.memberId),
 		atVersion(input.expectedVersion),
+		sql`not ${ended}`,
 	) as SQL;
 	await db.batch([
 		// A bank or statement line's ID is remembered, so an Import never brings it back (ADR-0045).
 		rememberDeletedLines(db, theTransaction),
 		...transactionDeletes(db, { ...input, theTransaction }),
 	]);
+	const [kept] = await db
+		.select({ id: transactions.id })
+		.from(transactions)
+		.where(
+			and(
+				eq(transactions.id, input.transactionId),
+				editableBy(input.householdId, input.memberId),
+				atVersion(input.expectedVersion),
+				ended,
+			),
+		);
+	if (kept) return { ok: false, reason: "month-ended" };
 	if (input.expectedVersion === undefined) return { ok: true, version: null };
 	// Gone is deleted, now or on an earlier try; still there at another version was changed elsewhere.
 	const version = await transactionVersion(db, input.householdId, input.transactionId);
@@ -1792,10 +1812,18 @@ export async function deleteTransactions(
 	db: Db,
 	viewer: Viewer,
 	selection: TransactionSelection,
-	options: { beforeDeleting?: (count: number) => Promise<void> } = {},
+	options: {
+		beforeDeleting?: (count: number) => Promise<void>;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
+	} = {},
 ): Promise<{ deleted: number }> {
 	const { householdId } = viewer;
-	const editable = editableBy(householdId, viewer.memberId);
+	// One whose money back counted in a month that has ended stays, with that money (ADR-0058).
+	const editable = and(
+		editableBy(householdId, viewer.memberId),
+		sql`not ${purchaseEndedRestores(endedBefore(options.today))}`,
+	) as SQL;
 	const targets = await db
 		.select({ id: transactions.id })
 		.from(transactions)

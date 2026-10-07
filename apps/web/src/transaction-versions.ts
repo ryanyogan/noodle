@@ -74,7 +74,7 @@ export function carryVersions(kind: string, variables: unknown): unknown {
 		}));
 	}
 	if (kind === "return-to-review") return asSent(variables as Versioned);
-	if (kind === "money-in-edit") {
+	if (kind === "money-in-edit" || kind === "money-in-kind") {
 		const edit = variables as { line: Versioned };
 		return { ...edit, line: asSent(edit.line) };
 	}
