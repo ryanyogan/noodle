@@ -23,14 +23,20 @@ export function checkInLine(card: CheckInCard): string {
 	}
 }
 
+/**
+ * Every card's line as a piece of one sentence, the first as it is and the rest without their
+ * capital: "3 Transactions in Review", "1 new Insight". Each can then be its own link.
+ */
+export function checkInSummaryLines(cards: readonly CheckInCard[]): string[] {
+	return cards
+		.map(checkInLine)
+		.map((line, index) => (index === 0 ? line : `${line.charAt(0).toLowerCase()}${line.slice(1)}`));
+}
+
 /** Every card's line, as one sentence: "3 Transactions in Review, 1 new Insight." */
 export function checkInSummary(cards: readonly CheckInCard[]): string {
 	if (cards.length === 0) return "Nothing needs you this week.";
-	const lines = cards.map(checkInLine);
-	return `${lines[0]}${lines
-		.slice(1)
-		.map((line) => `, ${line.charAt(0).toLowerCase()}${line.slice(1)}`)
-		.join("")}.`;
+	return `${checkInSummaryLines(cards).join(", ")}.`;
 }
 
 /** "You", "Sam", "You and Sam": who dealt with a card, as the Parent `me` reads it. */
@@ -117,6 +123,11 @@ export const checkInCardTitle: Record<CheckInCard["kind"], string> = {
 	sweeps: "Sweeps",
 	windfalls: "Extra income",
 };
+
+/** What the way back to a waiting card is called: "Open Review, skipped". */
+export function checkInOpenLabel(kind: CheckInCard["kind"], skipped: boolean): string {
+	return `Open ${checkInCardTitle[kind]}${skipped ? ", skipped" : ""}`;
+}
 
 /** The weekday names, Sunday first, for choosing the Check-in day. */
 export const weekdayNames = [

@@ -8,6 +8,7 @@ import {
 	checkInDealtBefore,
 	checkInNudgeTime,
 	checkInPast,
+	checkInReopened,
 	checkInStack,
 	checkInStarted,
 	checkInStep,
@@ -260,5 +261,38 @@ describe("a card skipped earlier in the week", () => {
 		const stack = checkInStack(started, cards.slice(1), {}, ["review"]);
 		expect(stack[0]).toEqual({ state: "dealt", kind: "review", started: started[0], by: [] });
 		expect(checkInPast(stack, [])).toEqual([]);
+	});
+});
+
+describe("a card opened again", () => {
+	const started: CheckInStarted[] = [
+		{ kind: "review", count: 3 },
+		{ kind: "insights", count: 1, ids: ["a"] },
+	];
+	const cards: CheckInCard[] = [
+		{ kind: "review", count: 3 },
+		{ kind: "insights", titles: ["A"] },
+	];
+
+	it("is the skipped card that still waits, in its own place, and stays skipped", () => {
+		const stack = checkInStack(started, cards, {}, ["review"]);
+		expect(checkInReopened(stack, "review")).toEqual({
+			kind: "card",
+			card: stack[0],
+			position: 1,
+			of: 2,
+			last: false,
+		});
+		// Opening it changes nothing about where the Parent is.
+		expect(checkInStep(stack, checkInPast(stack, []))).toMatchObject({ position: 2 });
+		expect(checkInReopened(stack, "insights")).toMatchObject({ position: 2, last: true });
+	});
+
+	it("is nothing once the card is dealt with, for a card not in the stack, or unasked", () => {
+		const stack = checkInStack(started, cards.slice(1), {}, ["review"]);
+		expect(checkInReopened(stack, "review")).toBeNull();
+		expect(checkInReopened(stack, "sweeps")).toBeNull();
+		expect(checkInReopened(stack, "anything")).toBeNull();
+		expect(checkInReopened(stack, undefined)).toBeNull();
 	});
 });

@@ -115,6 +115,7 @@ export {
 	checkInDealtBefore,
 	checkInNudgeTime,
 	checkInPast,
+	checkInReopened,
 	checkInStack,
 	checkInStarted,
 	checkInStep,
