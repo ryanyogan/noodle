@@ -39,6 +39,7 @@ import {
 	householdSnapshots,
 	logEvents,
 	members,
+	moneyInPairs,
 	moneyInRules,
 	planChanges,
 	rules,
@@ -70,6 +71,8 @@ const SOURCES = [
 	"money-in-rule",
 	"card-payment-rule",
 	"event",
+	// Last, so a cursor made before pairs had a table of their own still names its place.
+	"money-in-pair",
 ] as const;
 type Source = (typeof SOURCES)[number];
 const rankOf = (source: Source) => SOURCES.indexOf(source);
@@ -99,7 +102,8 @@ export type LogPage = { rows: LogRow[]; next: LogCursor | null };
 
 /** The sources that hold changes to one kind of item. */
 const sourcesOf = (item: LogItemKind): readonly Source[] => {
-	if (item === "rule") return ["rule", "money-in-rule", "card-payment-rule", "event"];
+	if (item === "rule")
+		return ["rule", "money-in-rule", "money-in-pair", "card-payment-rule", "event"];
 	if (item === "bank-connection") return ["bank-connection", "event"];
 	if (item === "account") return ["event"];
 	return item === "snapshot" || item === "fresh-start" ? [item] : ["plan"];
@@ -189,6 +193,7 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 		moneyInRows,
 		cardPaymentRows,
 		eventRows,
+		pairRows,
 	] = await db.batch([
 		selectPlanChanges(
 			db,
@@ -370,6 +375,28 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 			)
 			.orderBy(...ordered(logEvents.createdAt, logEvents.id))
 			.limit(limit + 1),
+		// Remembered pairs of Accounts in their own table (issue 141); ones kept before it are
+		// money-in Rules above.
+		db
+			.select({
+				id: moneyInPairs.id,
+				at: moneyInPairs.createdAt,
+				memberId: moneyInPairs.createdByMemberId,
+				memberName: sql<string | null>`${members.name}`.as("member_name"),
+				pattern: moneyInPairs.pattern,
+			})
+			.from(moneyInPairs)
+			.leftJoin(members, who(moneyInPairs.createdByMemberId))
+			.where(
+				and(
+					eq(moneyInPairs.householdId, viewer.householdId),
+					wanted("money-in-pair"),
+					by(moneyInPairs.createdByMemberId),
+					afterCursor("money-in-pair", moneyInPairs.createdAt, moneyInPairs.id),
+				),
+			)
+			.orderBy(...ordered(moneyInPairs.createdAt, moneyInPairs.id))
+			.limit(limit + 1),
 	]);
 
 	const ranked = <S extends Source>(source: S, id: string | number, row: LogRow): Ranked => ({
@@ -470,6 +497,17 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 				event: row.event,
 				name: row.itemName,
 				detail: row.detail,
+			}),
+		),
+		...pairRows.map((row) =>
+			ranked("money-in-pair", row.id, {
+				...head("money-in-pair", row),
+				item: "rule",
+				month: null,
+				source: "money-in-rule",
+				pattern: row.pattern,
+				kind: "transfer",
+				pair: true,
 			}),
 		),
 	].sort(inOrder(sort));

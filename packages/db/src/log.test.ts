@@ -28,6 +28,7 @@ import {
 	householdSnapshots,
 	logEvents,
 	members,
+	moneyInPairs,
 	moneyInRules,
 	rules,
 } from "./schema";
@@ -467,6 +468,106 @@ describe("The Log", () => {
 			// Another Household's removal with the same IDs touches nothing here.
 			await deleteMoneyInRule(db, "elsewhere", "pay", "alex");
 			expect(await db.select().from(logEvents)).toHaveLength(6);
+		});
+
+		it("has a remembered pair of Accounts from either home, as made and as removed", async () => {
+			await db.insert(accounts).values([
+				{ id: "checking", householdId, name: "Checking", kind: "checking" },
+				{ id: "savings", householdId, name: "Savings", kind: "savings" },
+			] as (typeof accounts.$inferInsert)[]);
+			// Kept before pairs had their own table, and after.
+			await db.insert(moneyInRules).values({
+				id: "old",
+				householdId,
+				pattern: "old transfer",
+				kind: "transfer",
+				createdByMemberId: "alex",
+				intoAccountId: "checking",
+				otherAccountId: "savings",
+				createdAt: later(6),
+			});
+			await db.insert(moneyInPairs).values([
+				{
+					id: "new",
+					householdId,
+					pattern: "new transfer",
+					intoAccountId: "checking",
+					otherAccountId: "savings",
+					createdByMemberId: "sam",
+					createdAt: later(7),
+				},
+				{
+					id: "new-2",
+					householdId,
+					pattern: "new transfer",
+					intoAccountId: "savings",
+					otherAccountId: "checking",
+					createdByMemberId: "sam",
+					createdAt: later(8),
+				},
+			]);
+			const live = await whole(alex, { item: "rule" }, 2);
+			expect(live.map(said).slice(0, 3)).toEqual([
+				"money-in:new transfer→pair",
+				"money-in:new transfer→pair",
+				"money-in:old transfer→pair",
+			]);
+			expect(live.slice(0, 2).map((r) => [r.key, r.memberName, r.at])).toEqual([
+				["money-in-pair:new-2", "Sam", later(8).getTime()],
+				["money-in-pair:new", "Sam", later(7).getTime()],
+			]);
+			expect(new Set(live.map((r) => r.key)).size).toBe(live.length);
+			expect((await whole(alex, { memberId: "sam", item: "rule" })).map(said).slice(0, 2)).toEqual([
+				"money-in:new transfer→pair",
+				"money-in:new transfer→pair",
+			]);
+			expect((await whole(alex, { item: "bucket" })).map(said)).not.toContain(
+				"money-in:new transfer→pair",
+			);
+
+			// One pair removed on its own; the other goes when the wording is stated plainly.
+			await deleteMoneyInRule(db, householdId, "new", "alex");
+			await deleteMoneyInRule(db, householdId, "new", "alex");
+			await deleteMoneyInRule(db, "elsewhere", "new-2", "alex");
+			await saveMoneyInRule(db, alex, { ruleId: "plain", wording: "NEW TRANSFER", kind: "income" });
+			await saveMoneyInRule(db, alex, {
+				ruleId: "plain-2",
+				wording: "OLD TRANSFER",
+				kind: "income",
+			});
+			expect(await db.select().from(moneyInPairs)).toHaveLength(0);
+			const rows = await whole(alex, { item: "rule" });
+			expect(
+				rows
+					.map((r) => `${said(r)} by ${r.memberName}`)
+					.filter((s) => s.startsWith("money-in"))
+					.sort(),
+			).toEqual([
+				"money-in-rule-made:new transfer→pair by Sam",
+				"money-in-rule-made:new transfer→pair by Sam",
+				"money-in-rule-made:old transfer→pair by Alex",
+				"money-in-rule-removed:new transfer→pair by Alex",
+				"money-in-rule-removed:new transfer→pair by Alex",
+				"money-in-rule-removed:old transfer→pair by Alex",
+				"money-in:new transfer→income by Alex",
+				"money-in:old transfer→income by Alex",
+			]);
+			expect(rows.find((r) => r.key === "event:new-2:made")).toMatchObject({
+				at: later(8).getTime(),
+			});
+			// The plain Rule that took the old pair's place is recorded on its own when it goes.
+			await deleteMoneyInRule(db, householdId, "old", "sam");
+			expect(
+				(await listLogEvents(db, alex))
+					.filter((e) => e.name === "old transfer")
+					.map((e) => `${e.kind}:${e.detail}:${e.memberName}`)
+					.sort(),
+			).toEqual([
+				"money-in-rule-made:income:Alex",
+				"money-in-rule-made:pair:Alex",
+				"money-in-rule-removed:income:Sam",
+				"money-in-rule-removed:pair:Alex",
+			]);
 		});
 
 		it("has a Bank Connection disconnected, by a Parent or at the bank, and an Account archived", async () => {
