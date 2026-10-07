@@ -142,6 +142,31 @@ export const pairOffered = (
 export const whosePayOffered = (line: Pick<MoneyInLine, "kind" | "needsReview" | "note">) =>
 	!line.needsReview && line.kind === "income" && !!line.note?.trim();
 
+/** What is asked next under a money-in line whose kind has been said. */
+export type MoneyInFollowUp = "whose-pay" | "paid-back" | "refund" | "pair";
+
+/**
+ * What is asked after a line's kind is said, or null when nothing is: its row stays open only
+ * while this says something. Income: whose pay; Paid back: what it pays back; a Refund: which
+ * purchase; a one-sided Transfer: which other Account it came from, when the Household has one.
+ */
+export function moneyInFollowUp(
+	line: Pick<
+		MoneyInLine,
+		"kind" | "needsReview" | "paired" | "accountId" | "note" | "otherAccountId"
+	>,
+	accounts: { id: string }[],
+): MoneyInFollowUp | null {
+	if (line.needsReview) return null;
+	if (line.kind === "paid-back" || line.kind === "refund") return line.kind;
+	if (whosePayOffered(line)) return "whose-pay";
+	return pairOffered(line) &&
+		accounts.some((account) => account.id === line.accountId) &&
+		accounts.some((account) => account.id !== line.accountId)
+		? "pair"
+		: null;
+}
+
 /** A Parent says a Transfer came from another Account, and that money like it always does. */
 export function useRememberAccountPair() {
 	const queryClient = useQueryClient();

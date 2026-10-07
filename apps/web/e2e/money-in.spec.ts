@@ -74,6 +74,11 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 	);
 	// Paid back is still money in.
 	await expect(summary.getByTestId("month-in")).toHaveText("+$5,300");
+	// Of it, only the pay is Income: what This Month calls "received".
+	await expect(summary.getByTestId("month-in-income")).toHaveText("$5,000 of it Income");
+	// One "Done" closes the row once what it pays back has been looked at.
+	await casey.getByRole("button", { name: "Done with Casey for tuition" }).click();
+	await expect(casey.getByTestId("paid-back-matching")).toBeHidden();
 
 	// Each figure is a filter, kept in the address: Money out leaves the money in out, Money in
 	// shows it alone, and pressing the one that is on takes it off.
