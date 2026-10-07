@@ -547,8 +547,8 @@ function ReviewPage() {
 		onFiled: (undo: () => void) => void filings.current.set(item.id, undo),
 		// The toast's Undo goes through the stack, as the stack's own does.
 		undoBy: () => putBack([item]),
-		// Unfiled, the line is nobody's to look at yet: it waits in Review again, as it did.
-		onUndo: () => returnCard.mutate(item),
+		// Filing took the line out of Review: its Undo makes it wait here again, with the unfiling.
+		review: { merchant: item.merchant, guess: item.guess, for: item.for },
 		onFail: () => dispatch({ type: "returned", items: [item] }),
 		// Its month has ended, so it wasn't filed: it's still to review.
 		onStays: () => dispatch({ type: "returned", items: [item] }),

@@ -503,7 +503,13 @@ for (const view of ["?view=list", ""] as const) {
 		);
 		await confirm.click();
 		await expect(cards).toHaveCount(0, SETTLED);
-		await page.getByRole("status").getByRole("button", { name: "Undo" }).first().click();
+		// The list says it in a toast with Undo; one by one there's no toast (it would sit over the
+		// next card): it's said beside the stack, whose own Undo is right there.
+		const undo = view
+			? page.getByRole("status").getByRole("button", { name: "Undo" }).first()
+			: page.getByRole("main").getByRole("button", { name: "Undo", exact: true });
+		await expect(undo).toBeEnabled();
+		await undo.click();
 		await expect(cards.first()).toBeVisible(SETTLED);
 	});
 }

@@ -4,8 +4,10 @@ import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query
 import { useNavigate } from "@tanstack/react-router";
 import { ulid } from "ulid";
 import { monthsKey, rulesQuery } from "./queries";
+import type { ReviewItem } from "./review";
 import { fileCardPayment, undoCardPaymentFiling } from "./server/card-payments";
 import { forgetCardPayment, getCardPaymentCards, getCardPaymentRules } from "./server/transfers";
+import { noteVersion } from "./transaction-versions";
 
 // "It's a card payment" (issue 136): one named choice that asks which card. A card Noodle follows
 // or keeps by statements makes it a Transfer naming the card; a card kept by hand that a
@@ -52,6 +54,11 @@ export type CardPaymentFilingInput = {
 	create?: { month: MonthKey; amountCents: number; dueDate: string };
 	/** After the Undo has put everything back. */
 	onUndo?: () => void;
+	/**
+	 * The Review card it was answered from: the Undo makes the line wait in Review again, in the
+	 * same request that unfiles it (filing took it out, and unfiling alone doesn't put it back).
+	 */
+	review?: { merchant: string; guess: ReviewItem["guess"]; for: string[] };
 	/**
 	 * Called once it's filed, with its Undo (the same one the toast has; it runs once): for a
 	 * screen whose own Undo must take the whole answer back, as Review's stack does.
@@ -166,9 +173,25 @@ export function useCardPaymentFiling() {
 						ruleBefore: result.ruleBefore,
 						months: result.months,
 						created,
+						review: input.review && {
+							transactionId: input.transactionId,
+							merchant: input.review.merchant,
+							guess: input.review.guess && {
+								bucketId: input.review.guess.bucketId,
+								confidence: input.review.guess.confidence,
+								method: input.review.guess.method,
+								reason: input.review.guess.reason,
+							},
+							for: input.review.for,
+						},
 					},
 				})
-					.then(() => (result.stays ? undefined : input.onUndo?.()))
+					.then((undone) => {
+						// This screen's own write: the card's next change goes on the version it left.
+						if (undone.reviewVersion !== null)
+							noteVersion(input.transactionId, undone.reviewVersion);
+						if (!result.stays) input.onUndo?.();
+					})
 					.catch(() => toast("Couldn’t undo that.", { tone: "error" }))
 					.finally(refetch);
 			};
