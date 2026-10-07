@@ -253,6 +253,56 @@ describe("Paid back", () => {
 		const narrowed = await loadSpendCells(db, scope(sam, { merchant: "costco" }), "all");
 		expect(sums(narrowed.cells)).toEqual({ "all bucket:groceries": 30_650 });
 	});
+
+	it("comes off who the purchase was For, and is listed under its Bucket", async () => {
+		const forSums = async (narrowed = scope(sam)) =>
+			(await loadForCells(db, narrowed, "month")).reduce<Record<string, number>>((acc, c) => {
+				const key = `${c.period} ${c.for.join(",")}`;
+				acc[key] = (acc[key] ?? 0) + c.amount;
+				return acc;
+			}, {});
+		const before = {
+			byFor: await forSums(),
+			items: await loadReportItems(db, scope(sam), "date", 50),
+		};
+		await paidBackOn(alex, "milk", 300, "2026-09-25" as DayKey);
+		const after = await forSums();
+		const moved = Object.keys(after).filter((key) => after[key] !== before.byFor[key]);
+		expect(moved).toHaveLength(1);
+		expect(moved[0]).toMatch(/^2026-09 /);
+		expect((after[moved[0] as string] ?? 0) - (before.byFor[moved[0] as string] ?? 0)).toBe(-300);
+		// By who it was For and by Bucket now add up to the same.
+		const total = (rows: { amount: number }[]) => rows.reduce((sum, row) => sum + row.amount, 0);
+		expect(total(await loadForCells(db, scope(sam), "month"))).toBe(
+			total((await loadSpendCells(db, scope(sam), "month")).cells),
+		);
+		const listed = await loadReportItems(db, scope(sam), "date", 50);
+		expect(listed.total).toBe(before.items.total + 1);
+		expect(listed.items.find((item) => item.paidBack)).toEqual({
+			id: "milk",
+			date: "2026-09-25",
+			amount: -300,
+			note: null,
+			merchantName: null,
+			target: "bucket:groceries",
+			accountId: null,
+			split: false,
+			paidBack: true,
+		});
+		expect(total(listed.items)).toBe(total((await loadSpendCells(db, scope(sam), "all")).cells));
+		// Largest first, it is last.
+		expect((await loadReportItems(db, scope(sam), "amount", 50)).items.at(-1)?.paidBack).toBe(true);
+	});
+
+	it("isn't a purchase: merchants and amount bands are as they were", async () => {
+		const read = async () => ({
+			merchants: await loadMerchants(db, scope(sam)),
+			bands: await loadAmountBands(db, scope(sam)),
+		});
+		const before = await read();
+		await paidBackOn(alex, "milk", 300, "2026-09-25" as DayKey);
+		expect(await read()).toEqual(before);
+	});
 });
 
 describe("items and merchants", () => {
