@@ -212,8 +212,11 @@ function replaceFor(db: Db, householdId: string, ruleId: SQL, forMemberIds: stri
  * whole Household). Into `memberId`'s own Personal Allowance it's private to them. Replaces the
  * Rule for the same pattern that's theirs (or the Household's), so saving it twice is harmless.
  * Returns the Rule's ID, which is `id` unless it replaced one.
+ *
+ * As statements for a batch with others, and `saved` to read afterwards what they did; null when
+ * the Rule names no target. saveRule runs them on their own.
  */
-export async function saveRule(
+export function ruleSaving(
 	db: Db,
 	input: {
 		id: string;
@@ -222,18 +225,23 @@ export async function saveRule(
 		pattern: string;
 		forMemberIds?: string[];
 	} & RuleTarget,
-): Promise<{ ok: true; ruleId: string; private: boolean } | { ok: false }> {
+	/** Given, it is stated only while this holds: what else in the batch needs, so all land or none. */
+	onlyIf?: SQL,
+) {
 	const { householdId, memberId } = input;
 	const target = targetOf(input);
-	if (!target) return { ok: false };
+	if (!target) return null;
 	const { bucketId, commitmentId } = target;
 	const pattern = merchantKey(input.pattern);
 	const sameKey = sql`${rules.householdId} = ${householdId} and ${rules.pattern} = ${pattern}
 		and ${rules.ownerMemberId} is ${ownerOf(bucketId)}`;
-	const canAssign = assignableTarget(householdId, memberId, target);
+	const canAssign = and(assignableTarget(householdId, memberId, target), onlyIf) as SQL;
 	const ruleId = sql`(select ${rules.id} from ${rules} where ${sameKey})`;
-	const landed = sql`exists (select 1 from ${rules} where ${sameKey} and ${filesInto(target)})`;
-	await db.batch([
+	const landed = and(
+		sql`exists (select 1 from ${rules} where ${sameKey} and ${filesInto(target)})`,
+		onlyIf,
+	) as SQL;
+	const statements = [
 		db
 			.update(rules)
 			.set({ bucketId, commitmentId, createdByMemberId: memberId })
@@ -260,19 +268,34 @@ export async function saveRule(
 				.where(and(canAssign, sql`not exists (select 1 from ${rules} where ${sameKey})`)),
 		),
 		...replaceFor(db, householdId, ruleId, input.forMemberIds ?? [], landed),
-	]);
-	const [saved] = await db
-		.select({
-			id: rules.id,
-			bucketId: rules.bucketId,
-			commitmentId: rules.commitmentId,
-			owner: rules.ownerMemberId,
-		})
-		.from(rules)
-		.where(sameKey);
-	return saved && saved.bucketId === bucketId && saved.commitmentId === commitmentId
-		? { ok: true, ruleId: saved.id, private: saved.owner !== null }
-		: { ok: false };
+	] as const;
+	const saved = async (): Promise<RuleSaved> => {
+		const [row] = await db
+			.select({
+				id: rules.id,
+				bucketId: rules.bucketId,
+				commitmentId: rules.commitmentId,
+				owner: rules.ownerMemberId,
+			})
+			.from(rules)
+			.where(sameKey);
+		return row && row.bucketId === bucketId && row.commitmentId === commitmentId
+			? { ok: true, ruleId: row.id, private: row.owner !== null }
+			: { ok: false };
+	};
+	return { statements, saved };
+}
+
+export type RuleSaved = { ok: true; ruleId: string; private: boolean } | { ok: false };
+
+export async function saveRule(
+	db: Db,
+	input: Parameters<typeof ruleSaving>[1],
+): Promise<RuleSaved> {
+	const saving = ruleSaving(db, input);
+	if (!saving) return { ok: false };
+	await db.batch(saving.statements);
+	return saving.saved();
 }
 
 /** How long a statement is remembered: well past the week a device keeps one to send again. */

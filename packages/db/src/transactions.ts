@@ -2354,6 +2354,61 @@ const inPairs = (pairs: string, ahead: 0 | 1) =>
 		and json_extract(j.value, '$[1]') + ${ahead} = ${transactions.version})`;
 
 /**
+ * Filing lines in a Commitment as statements, for a batch with what must land with them (issue
+ * 141). Each line of `pairs` (a JSON list of [id, the version it was read at]) goes in while it is
+ * still at that version, this Parent's to change, whole, free to move (ADR-0058), not there
+ * already, and the Commitment is in the Plan of the line's own month. `fileable` is that test
+ * over a row of `transactions` without the Plan, for a batch that makes the Commitment first;
+ * `landed` is true of a row these statements filed.
+ */
+export function commitmentFiling(
+	db: Db,
+	viewer: Viewer,
+	input: { commitmentId: string; pairs: string; today?: DayKey | undefined },
+) {
+	const { householdId, memberId } = viewer;
+	const { commitmentId, pairs } = input;
+	const fileable = and(
+		editableBy(householdId, memberId),
+		fileableWhole,
+		inPairs(pairs, 0),
+		purchaseMayMove(input.today),
+		sql`${transactions.commitmentId} is not ${commitmentId}`,
+	) as SQL;
+	const landed = and(
+		eq(transactions.householdId, householdId),
+		inPairs(pairs, 1),
+		isNull(transactions.bucketId),
+		eq(transactions.commitmentId, commitmentId),
+	) as SQL;
+	const inPlan = assignable(
+		householdId,
+		memberId,
+		{ commitmentId },
+		sql`substr(${transactions.date}, 1, 7)`,
+	);
+	const statements = [
+		db
+			.update(transactions)
+			.set({ bucketId: null, commitmentId, version: sql`${transactions.version} + 1` })
+			.where(and(fileable, inPlan)),
+		// A Parent has decided these now: categorization's marker goes, as when one is filed by hand.
+		db
+			.delete(categorizations)
+			.where(
+				and(
+					eq(categorizations.householdId, householdId),
+					inArray(
+						categorizations.transactionId,
+						db.select({ id: transactions.id }).from(transactions).where(landed),
+					),
+				),
+			),
+	] as const;
+	return { fileable, landed, statements };
+}
+
+/**
  * Files every selected Transaction that one Bucket or Commitment can take whole in `assignment`,
  * for the Parent `viewer` (issue 99, ADR-0055): "File in…" on the Transactions page. Only inside
  * `month`, whose Plan the target must be in. Left as they are, and counted: Splits, sides of a

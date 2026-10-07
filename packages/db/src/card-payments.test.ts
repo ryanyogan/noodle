@@ -1,10 +1,17 @@
-import { type DayKey, type MonthKey, merchantKey, type StatementLine } from "@noodle/domain";
+import {
+	type Cents,
+	type DayKey,
+	type MonthKey,
+	merchantKey,
+	type StatementLine,
+} from "@noodle/domain";
 import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PASS } from "./card-payments";
 import {
 	addAccount,
 	addCommitment,
+	addIncome,
 	applyRule,
 	createHouseholdForParent,
 	type Db,
@@ -22,7 +29,16 @@ import {
 } from "./index";
 import { loadReview } from "./review";
 import { saveRule } from "./rules";
-import { categorizations, ruleFor, rules, transactions, transfers } from "./schema";
+import {
+	categorizations,
+	commitments,
+	commitmentTerms,
+	planChanges,
+	ruleFor,
+	rules,
+	transactions,
+	transfers,
+} from "./schema";
 import { testDb } from "./test-db";
 
 // The card's side of a payment (issue 136): statements go in through importStatement, as an
@@ -987,5 +1003,169 @@ describe("A “count it as spending” answer and the months before it", () => {
 			.where(sql`${transactions.amountCents} = 30000`);
 		await fileCardPayment(db, viewer, { transactionId: id, commitmentId: "apple", ruleId: "r" });
 		expect(await commitmentOf(5_000)).toBeNull();
+	});
+});
+
+describe("“Count this payment as spending? Yes”: the Commitment, the filing and the Rule land together", () => {
+	const WORDING = "APPLECARD GSBANK PAYMENT 8841";
+	const today: DayKey = "2026-09-20";
+	const idOf = async (amount: number) =>
+		(
+			await db
+				.select({ id: transactions.id })
+				.from(transactions)
+				.where(sql`${transactions.amountCents} = ${amount}`)
+		)[0]?.id as string;
+	const filedIn = async (amount: number) =>
+		(
+			await db
+				.select({ commitmentId: transactions.commitmentId })
+				.from(transactions)
+				.where(sql`${transactions.amountCents} = ${amount}`)
+		)[0]?.commitmentId;
+	const made = () => db.select().from(commitments).where(sql`${commitments.id} = 'new-card'`);
+	/** Everything the answer could leave behind: the Commitment, its terms, its Plan changes, the Rule. */
+	const leftBehind = async () => ({
+		commitments: (await made()).length,
+		terms: (await db.select().from(commitmentTerms)).length,
+		planChanges: (await db.select().from(planChanges)).length,
+		rules: (await db.select().from(rules)).length,
+	});
+	const nothing = { commitments: 0, terms: 0, planChanges: 0, rules: 0 };
+	const answer = async (
+		paysDown?: string,
+		over: { month?: MonthKey; dueDate?: DayKey; leaveBefore?: MonthKey; today?: DayKey } = {},
+	) =>
+		fileCardPayment(db, viewer, {
+			transactionId: await idOf(30_000),
+			commitmentId: "new-card",
+			ruleId: "rule-1",
+			today: over.today ?? today,
+			leaveBefore: over.leaveBefore,
+			create: {
+				name: "Apple Card",
+				month: over.month ?? month,
+				amountCents: 30_000,
+				dueDate: over.dueDate ?? "2026-09-05",
+				paysDown,
+			},
+		});
+
+	beforeEach(async () => {
+		await importInto("checking", "i-1", [
+			line("2026-09-05", -30_000, WORDING),
+			line("2026-09-19", -5_000, WORDING),
+		]);
+	});
+
+	it("makes the Commitment paying the card down, files the lines and states the Rule, and says what Undo needs", async () => {
+		const filing = await answer("card");
+		expect(filing).toMatchObject({
+			ok: true,
+			filed: 2,
+			months: [month],
+			ruleId: "rule-1",
+			ruleBefore: null,
+			stays: false,
+			madeIn: month,
+		});
+		expect(await made()).toMatchObject([
+			{ name: "Apple Card", fromMonth: month, endedFromMonth: null, accountId: "card" },
+		]);
+		expect(await db.select().from(commitmentTerms)).toMatchObject([
+			{ commitmentId: "new-card", month, amountCents: 30_000, dueDate: "2026-09-05" },
+		]);
+		expect(await filedIn(30_000)).toBe("new-card");
+		expect(await filedIn(5_000)).toBe("new-card");
+		expect(await listRules(db, viewer)).toMatchObject([{ id: "rule-1" }]);
+
+		if (!filing.ok) throw new Error("not filed");
+		expect(await undoCardPaymentFiling(db, viewer, filing)).toEqual({ restored: 2 });
+		expect(await filedIn(30_000)).toBeNull();
+		expect(await filedIn(5_000)).toBeNull();
+		expect(await listRules(db, viewer)).toEqual([]);
+	});
+
+	it("makes nothing when the line changed elsewhere while the answer was on its way", async () => {
+		const id = await idOf(30_000);
+		const batch = db.batch.bind(db);
+		// The other Parent's change lands between this answer's reading and its write.
+		vi.spyOn(db, "batch").mockImplementationOnce((async (statements: never) => {
+			await db.run(sql`update transactions set version = version + 1 where id = ${id}`);
+			return batch(statements);
+		}) as never);
+		expect(await answer("card")).toEqual({ ok: false });
+		expect(await leftBehind()).toEqual(nothing);
+		expect(await filedIn(30_000)).toBeNull();
+		expect(await filedIn(5_000)).toBeNull();
+	});
+
+	it("makes nothing when the line can't be filed whole: it is one side of a Transfer", async () => {
+		await markCardPayment(db, viewer, {
+			transferId: "t-1",
+			transactionId: await idOf(30_000),
+			cardAccountId: "card",
+			ruleId: "remembered",
+		});
+		expect(await answer()).toEqual({ ok: false });
+		expect(await leftBehind()).toEqual(nothing);
+		expect(await filedIn(5_000)).toBeNull();
+	});
+
+	it("makes nothing when the Commitment can't pay that Account down", async () => {
+		expect(await answer("checking")).toEqual({ ok: false });
+		expect(await leftBehind()).toEqual(nothing);
+		expect(await filedIn(30_000)).toBeNull();
+	});
+
+	it("makes nothing, and says why, when money back on the line counted in a month that has ended", async () => {
+		const id = await idOf(30_000);
+		await addIncome(db, {
+			householdId,
+			incomeId: "back",
+			date: "2026-08-30",
+			amountCents: 1_000 as Cents,
+			note: "APPLECARD",
+			createdByMemberId: parentId,
+		});
+		await db.run(
+			sql`insert into refund_links (income_id, household_id, transaction_id, counts_on)
+				values ('back', ${householdId}, ${id}, '2026-08-30')`,
+		);
+		expect(await answer("card")).toEqual({ ok: false, reason: "month-ended" });
+		expect(await leftBehind()).toEqual(nothing);
+	});
+
+	it("for a payment in a month that has ended, starts the Commitment in the running month and leaves the old payment as it is", async () => {
+		await importInto("checking", "i-2", [line("2026-10-02", -6_100, WORDING)]);
+		const filing = await answer("card", {
+			month: "2026-10",
+			dueDate: "2026-10-05",
+			leaveBefore: "2026-10",
+			today: "2026-10-03",
+		});
+		expect(filing).toMatchObject({
+			ok: true,
+			filed: 1,
+			months: ["2026-10"],
+			stays: true,
+			madeIn: "2026-10",
+			ruleId: "rule-1",
+		});
+		expect(await made()).toMatchObject([{ fromMonth: "2026-10", accountId: "card" }]);
+		expect(await filedIn(30_000)).toBeNull();
+		expect(await filedIn(5_000)).toBeNull();
+		expect(await filedIn(6_100)).toBe("new-card");
+	});
+
+	it("sent twice with the same ids, makes one Commitment and one Rule", async () => {
+		const first = await answer("card");
+		const after = await leftBehind();
+		expect(after).toMatchObject({ commitments: 1, terms: 1, rules: 1 });
+		const again = await answer("card");
+		expect(first.ok && again.ok).toBe(true);
+		expect(again).toMatchObject({ filed: 0, undo: [], ruleId: "rule-1", madeIn: month });
+		expect(await leftBehind()).toEqual(after);
+		expect(await filedIn(30_000)).toBe("new-card");
 	});
 });

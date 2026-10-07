@@ -548,6 +548,7 @@ export {
 	type CommitmentLinkResult,
 	type CommitmentPaymentResult,
 	commitmentLink,
+	mayPayDown,
 	endCommitment,
 	FOLLOWED_WITHIN_DAYS,
 	followedCards,
