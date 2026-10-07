@@ -132,6 +132,7 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 			commitmentId: data.commitmentId,
 			ruleId: data.ruleId,
 			leaveBefore: made?.moved ? running : undefined,
+			today: dayKeyAt(new Date(), context.household.timeZone),
 		});
 		if (!result.ok) {
 			// Nothing half-made is left: a Commitment made for a line that couldn't go in leaves again.

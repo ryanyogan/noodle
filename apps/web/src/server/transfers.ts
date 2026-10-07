@@ -156,7 +156,11 @@ export const markCardPayment = createServerFn({ method: "POST" })
 	.handler(
 		async ({ data, context }): Promise<MoneyResult & { remembered?: string; also?: string[] }> => {
 			// The lines already here that say the same are marked with it (`also`, for its Undo).
-			const result = await markCard(getDb(), viewerOf(context), { ...data, newId: ulid });
+			const result = await markCard(getDb(), viewerOf(context), {
+				...data,
+				newId: ulid,
+				today: dayKeyAt(new Date(), context.household.timeZone),
+			});
 			if (result.ok) await notifyHousehold(context.household.id, moneyChanges(result.months));
 			return result;
 		},

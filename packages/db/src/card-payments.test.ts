@@ -1,6 +1,6 @@
 import { type DayKey, type MonthKey, merchantKey, type StatementLine } from "@noodle/domain";
 import { sql } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PASS } from "./card-payments";
 import {
 	addAccount,
@@ -529,6 +529,70 @@ describe("A payment to a card whose payment is the spending", () => {
 		});
 		expect((await waiting()).sort()).toEqual([opened, other].sort());
 	});
+
+	it("undone, puts 250 lines back in Review in a few writes, not one for each", async () => {
+		const many = Array.from({ length: 250 }, (_, index) =>
+			line(
+				`2026-09-${String((index % 28) + 1).padStart(2, "0")}` as DayKey,
+				-(1_000 + index),
+				WORDING,
+			),
+		);
+		for (let start = 0; start < many.length; start += 50) {
+			await importInto("checking", `i-${start}`, many.slice(start, start + 50));
+		}
+		const ids = (await db.select({ id: transactions.id }).from(transactions)).map((row) => row.id);
+		expect(ids).toHaveLength(250);
+		for (let start = 0; start < ids.length; start += 15) {
+			await db.insert(categorizations).values(
+				ids.slice(start, start + 15).map((transactionId) => ({
+					transactionId,
+					householdId,
+					outcome: "review" as const,
+					method: "none" as const,
+					merchant: merchantKey(WORDING),
+				})),
+			);
+		}
+		const waiting = async () =>
+			(
+				await db
+					.select({ n: sql<number>`count(*)` })
+					.from(categorizations)
+					.where(
+						sql`${categorizations.outcome} = 'review' and ${categorizations.returnedAt} is not null`,
+					)
+			)[0]?.n;
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: ids[0] as string,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		if (!filing.ok) throw new Error("not filed");
+		expect(filing.filed).toBe(250);
+		expect(filing.waited).toHaveLength(250);
+		expect(await waiting()).toBe(0);
+
+		const batches = vi.spyOn(db, "batch");
+		expect(await undoCardPaymentFiling(db, viewer, filing)).toMatchObject({ restored: 250 });
+		// Three writes of at most 100 lines for Review; the Rule's own leaving is the rest.
+		expect(batches.mock.calls.length).toBeLessThanOrEqual(6);
+		batches.mockRestore();
+		expect(await waiting()).toBe(250);
+		const versions = await db
+			.select({ id: transactions.id, version: transactions.version })
+			.from(transactions);
+		const filedAt = new Map(filing.undo.map((entry) => [entry.id, entry.version]));
+		expect(versions.every((row) => row.version === (filedAt.get(row.id) ?? 0) + 2)).toBe(true);
+
+		// Sent again: nothing moves.
+		await undoCardPaymentFiling(db, viewer, filing);
+		expect(await waiting()).toBe(250);
+		const again = await db.select({ version: transactions.version }).from(transactions);
+		expect(again.map((row) => row.version).sort()).toEqual(
+			versions.map((row) => row.version).sort(),
+		);
+	}, 30_000);
 
 	it("undone, puts the lines worded like it back in Review too when that is where they waited", async () => {
 		await importInto("checking", "i-1", [

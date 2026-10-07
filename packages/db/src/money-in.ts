@@ -10,7 +10,7 @@ import {
 } from "@noodle/domain";
 import { type AnyColumn, and, eq, gte, isNull, lt, ne, type SQL, sql } from "drizzle-orm";
 import { incomeCounts } from "./counting";
-import { endedBefore, lineEndedRestores } from "./ended-months";
+import { endedBefore, lineEndedRestores, purchaseMayMove } from "./ended-months";
 import { decidedSql, extraIncomeSql } from "./extra-income";
 import type { Db } from "./index";
 import {
@@ -781,7 +781,14 @@ async function pairWithOtherAccount(
 						}),
 					)
 					.from(income)
-					.where(and(mine, isNull(income.kind), neverInTransfer)),
+					.where(
+						and(
+							mine,
+							isNull(income.kind),
+							neverInTransfer,
+							purchaseMayMove(undefined, sql`${out.id}`),
+						),
+					),
 			)
 			// The money out was paired by someone else meanwhile: this line is marked alone.
 			.onConflictDoNothing();
@@ -862,6 +869,8 @@ async function joinPairsLater(db: Db, householdId: string): Promise<void> {
 					// The money out was paired by someone else meanwhile: this line stays alone.
 					sql`not exists (select 1 from transfers x where x.out_transaction_id = ${outId}
 						and x.removed_at is null)`,
+					// A Transfer doesn't count: never a purchase whose money back counted in an ended month.
+					purchaseMayMove(undefined, sql`${outId}`),
 				),
 			);
 	}

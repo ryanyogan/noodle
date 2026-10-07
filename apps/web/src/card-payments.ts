@@ -89,6 +89,10 @@ const monthNamed = (month: string) =>
  * payment's month when the Commitment isn't in that month's Plan (it starts later, or has ended):
  * the reason is said plainly, since trying again won't help.
  */
+/** Said when the payment stays where it is: its money back counted in a month that has ended. */
+export const cardPaymentMonthEnded = (label: string) =>
+	`Money back on ${label} counted in a month that has ended, so it stays where it is.`;
+
 export function cardPaymentRefused(refused: {
 	label: string;
 	commitment: string;
@@ -182,6 +186,11 @@ export function useCardPaymentFiling() {
 			}),
 		onError: (_error, input) => couldnt(input),
 		onSuccess: (result, input) => {
+			if (!result.ok && result.reason === "month-ended") {
+				toast(cardPaymentMonthEnded(input.label), { tone: "error" });
+				input.onFail?.();
+				return;
+			}
 			if (!result.ok)
 				return couldnt(input, result.reason === "not-in-plan" ? result.lineMonth : undefined);
 			// The Commitment's first month: the payment's, or this month when that one has ended.

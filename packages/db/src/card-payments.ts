@@ -10,9 +10,10 @@ import {
 } from "@noodle/domain";
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import { purchaseMayMove } from "./ended-months";
 import type { Db } from "./index";
 import { cardPaymentForgottenEvents } from "./log-events";
-import { type Viewer, visibleTo } from "./privacy";
+import { changeableBy, type Viewer, visibleTo } from "./privacy";
 import { returnToReview } from "./review";
 import { deleteRule, saveRule } from "./rules";
 import {
@@ -22,7 +23,7 @@ import {
 	monthCloses,
 	ruleFor,
 	rules,
-	transactionFor,
+	splits,
 	transactions,
 	transfers,
 } from "./schema";
@@ -384,6 +385,9 @@ async function markArrived(
 								stillTransferable(householdId, field("inId"), "<"),
 								sql`(${field("outId")} is null or (${stillTransferable(householdId, field("outId"), ">")}
 									and ${sameAmount(householdId, field("outId"), field("inId"), sql`null`)}))`,
+								// A Transfer doesn't count: never a purchase whose money back counted in an
+								// ended month (ADR-0058). By UTC's day, as automatic pairing on Import is.
+								purchaseMayMove(undefined, field("outId")),
 							),
 						),
 				)
@@ -404,6 +408,7 @@ async function markArrived(
 						isNull(transfers.removedAt),
 						isNull(transfers.outTransactionId),
 						stillTransferable(householdId, sql`${outId}`, ">"),
+						purchaseMayMove(undefined, sql`${outId}`),
 						sql`not exists (select 1 from transfers x where x.out_transaction_id = ${outId} and x.removed_at is null)`,
 					),
 				),
@@ -478,6 +483,8 @@ export async function markCardPayment(
 		ruleId: string;
 		/** Given, the other lines already here with the same wording are marked too, with these IDs. */
 		newId?: () => string;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
 	},
 ): Promise<
 	MoneyResult & {
@@ -517,7 +524,9 @@ export async function markCardPayment(
 	const result = await markTransfer(db, viewer, {
 		transferId: input.transferId,
 		transactionId: input.transactionId,
+		today: input.today,
 	});
+	// `month-ended` among them: money back on it counted in a month that has ended.
 	if (!result.ok) return result;
 	const pattern = paymentWording(line);
 	// What the wording was remembered as until now: Undo puts that back, not nothing. A row with
@@ -568,7 +577,7 @@ export async function markCardPayment(
 	// the next Import, and taken back by the same Undo (undoCardPaymentMarks).
 	const others =
 		pattern && input.newId
-			? await markRememberedCardPayments(db, householdId, input.newId, pattern)
+			? await markRememberedCardPayments(db, householdId, input.newId, pattern, input.today)
 			: null;
 	// The card's own line for a payment just named, already here: the two become the pair.
 	const joined = await joinCardPayments(db, householdId);
@@ -663,6 +672,8 @@ export async function markRememberedCardPayments(
 	newId: () => string,
 	/** Only lines this one remembered wording marks: what an answer just given covers. */
 	only?: string,
+	/** The Household's day; UTC's when left out. */
+	today?: DayKey,
 ): Promise<{ marked: number; months: string[]; transferIds: string[] }> {
 	const remembered = await loadCardPaymentRules(db, householdId);
 	if (remembered.length === 0) return { marked: 0, months: [], transferIds: [] };
@@ -725,7 +736,13 @@ export async function markRememberedCardPayments(
 					}),
 				)
 				.from(sql`json_each(${JSON.stringify(rows)})`)
-				.where(stillTransferable(householdId, field("outId"), ">")),
+				.where(
+					and(
+						stillTransferable(householdId, field("outId"), ">"),
+						// Never a purchase whose money back counted in a month that has ended.
+						purchaseMayMove(today, field("outId")),
+					),
+				),
 		)
 		.onConflictDoNothing();
 	// A payment just marked whose card side is already here is the pair, not two marks.
@@ -762,8 +779,12 @@ export type CardPaymentFiling =
 			/** The lines filed that waited in Review until then: Undo makes them wait there again. */
 			waited: CardPaymentWaited[];
 	  }
-	/** "not-in-plan": the Commitment isn't in the Plan of the line's month (`lineMonth`). */
-	| { ok: false; reason?: "not-in-plan"; lineMonth?: string };
+	/**
+	 * "not-in-plan": the Commitment isn't in the Plan of the line's month (`lineMonth`).
+	 * "month-ended": money back on the line counted in a month that has ended, so it stays where
+	 * it is (ADR-0058).
+	 */
+	| { ok: false; reason?: "not-in-plan" | "month-ended"; lineMonth?: string };
 
 /** A line that waited in Review when an answer filed it, with the guess it had there. */
 export type CardPaymentWaited = {
@@ -795,6 +816,8 @@ export async function fileCardPayment(
 		 * Commitment made by the answer, which starts in the running month when the line's has ended.
 		 */
 		leaveBefore?: MonthKey;
+		/** The Household's day; UTC's when left out. */
+		today?: DayKey;
 	},
 ): Promise<CardPaymentFiling> {
 	const { householdId, memberId } = viewer;
@@ -872,6 +895,7 @@ export async function fileCardPayment(
 			selection: { ids },
 			month: month as MonthKey,
 			assignment: { commitmentId: input.commitmentId },
+			today: input.today,
 		});
 		// The line answered must go in; another month's Plan without the Commitment is skipped.
 		if (!result.ok) {
@@ -880,7 +904,21 @@ export async function fileCardPayment(
 				? { ok: false, reason: "not-in-plan", lineMonth }
 				: { ok: false };
 		}
-		if (ids.includes(line.id) && result.filed + result.already === 0) return { ok: false };
+		if (ids.includes(line.id) && result.filed + result.already === 0) {
+			// The line answered is one of those File in… leaves where they are; the others like it
+			// that it left out (`skipped.monthEnded`) just stay, as in any bulk filing.
+			const [stays] = await db
+				.select({ id: transactions.id })
+				.from(transactions)
+				.where(
+					and(
+						eq(transactions.id, line.id),
+						eq(transactions.householdId, householdId),
+						sql`not ${purchaseMayMove(input.today)}`,
+					),
+				);
+			return stays ? { ok: false, reason: "month-ended" } : { ok: false };
+		}
 		if (result.filed > 0) months.push(month);
 		filed += result.filed;
 		undo.push(...result.undo);
@@ -979,34 +1017,14 @@ export async function undoCardPaymentFiling(
 			? { restored }
 			: { restored, reviewVersion: await waitInReviewAgain(db, viewer, input.undo, input.review) };
 	const others = (input.waited ?? []).filter((line) => line.id !== input.review?.transactionId);
-	if (others.length > 0) {
-		// Who each is For stays as it is now (the unfiling has put back a For the filing changed).
-		const forNow = await db
-			.select({ id: transactionFor.transactionId, memberId: transactionFor.memberId })
-			.from(transactionFor)
-			.where(
-				and(
-					eq(transactionFor.householdId, viewer.householdId),
-					sql`${transactionFor.transactionId} in (select value from json_each(${JSON.stringify(
-						others.map((line) => line.id),
-					)}))`,
-				),
-			);
-		for (const line of others) {
-			await waitInReviewAgain(db, viewer, input.undo, {
-				transactionId: line.id,
-				merchant: line.merchant,
-				guess: line.bucketId
-					? {
-							bucketId: line.bucketId,
-							confidence: line.confidence,
-							method: line.method,
-							reason: line.reason,
-						}
-					: null,
-				for: forNow.filter((row) => row.id === line.id).map((row) => row.memberId),
-			});
-		}
+	// Who each is For stays as it is now (the unfiling has put back a For the filing changed).
+	for (let start = 0; start < others.length; start += WAIT_AGAIN_CHUNK) {
+		await waitManyInReviewAgain(
+			db,
+			viewer,
+			input.undo,
+			others.slice(start, start + WAIT_AGAIN_CHUNK),
+		);
 	}
 	if (!input.ruleId) return done;
 	if (input.ruleBefore) {
@@ -1079,4 +1097,115 @@ async function waitInReviewAgain(
 		expectedVersion: filed.version + 1,
 	});
 	return back.ok ? back.version : null;
+}
+
+/** How many lines one write puts back in Review (undoCardPaymentFiling's `waited` is up to 2,000). */
+export const WAIT_AGAIN_CHUNK = 100;
+
+/**
+ * waitInReviewAgain for many lines in one write (issue 141): the lines an answer took out of
+ * Review wait there again, a chunk at a time, each chunk whole or not at all (one batch, one JSON
+ * parameter). The same test as the single one, made by the database on its own rows: the line was
+ * unassigned before the answer (`undo`, at the version the filing left it), is unassigned and
+ * unsplit now, is one version on (the Undo unfiled it, nothing else touched it), and is this
+ * Parent's to change. Its guess is only ever one of the Household's own Buckets. Sent again, the
+ * lines are one more version on and nothing is written.
+ */
+async function waitManyInReviewAgain(
+	db: Db,
+	viewer: Viewer,
+	undo: FiledBefore[],
+	lines: CardPaymentWaited[],
+) {
+	const { householdId, memberId } = viewer;
+	const filedAt = new Map(
+		undo
+			.filter((entry) => entry.bucketId === null && entry.commitmentId === null)
+			.map((entry) => [entry.id, entry.version]),
+	);
+	const rows = lines.flatMap((line) => {
+		const version = filedAt.get(line.id);
+		if (version === undefined) return [];
+		const guessed = line.bucketId !== null;
+		return [
+			{
+				id: line.id,
+				version: version + 1,
+				merchant: line.merchant,
+				bucketId: line.bucketId,
+				method: guessed ? line.method : null,
+				confidence: guessed ? line.confidence : null,
+				reason: guessed ? line.reason : null,
+			},
+		];
+	});
+	if (rows.length === 0) return;
+	const payload = JSON.stringify(rows);
+	const field = (name: string) => sql.raw(`json_extract(j.value, '$.${name}')`);
+	// Over `transactions`: what the Undo just unfiled and nothing has touched since.
+	const unfiled = and(
+		eq(transactions.householdId, householdId),
+		changeableBy(viewer),
+		isNull(transactions.bucketId),
+		isNull(transactions.commitmentId),
+		isNull(transactions.goalId),
+		sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
+	);
+	const guess = sql`(select b.id from buckets b where b.id = ${field("bucketId")}
+		and b.household_id = ${householdId} and b.owner_member_id is null)`;
+	await db.batch([
+		db
+			.insert(categorizations)
+			.select(
+				db
+					.select({
+						// Selected in the table's column order: insert … select is positional.
+						transactionId: sql<string>`${field("id")}`.as("transaction_id"),
+						householdId: sql<string>`${householdId}`.as("household_id"),
+						memberId: sql<string>`${memberId}`.as("member_id"),
+						outcome: sql<"review">`'review'`.as("outcome"),
+						method: sql<
+							string | null
+						>`case when ${guess} is null then null else ${field("method")} end`.as("method"),
+						bucketId: sql<string | null>`${guess}`.as("bucket_id"),
+						confidence: sql<number | null>`${field("confidence")}`.as("confidence"),
+						merchant: sql<string>`${field("merchant")}`.as("merchant"),
+						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+						reason: sql<string | null>`${field("reason")}`.as("reason"),
+						commitmentId: sql<string | null>`null`.as("commitment_id"),
+						returnedAt: sql<Date>`(unixepoch() * 1000)`.as("returned_at"),
+					})
+					.from(sql`json_each(${payload}) j`)
+					.where(
+						sql`exists (select 1 from ${transactions} where ${and(
+							sql`${transactions.id} = ${field("id")}`,
+							sql`${transactions.version} = ${field("version")}`,
+							unfiled,
+						)})`,
+					),
+			)
+			.onConflictDoUpdate({
+				target: categorizations.transactionId,
+				set: {
+					outcome: sql`'review'`,
+					method: sql`excluded.method`,
+					bucketId: sql`excluded.bucket_id`,
+					commitmentId: sql`null`,
+					confidence: sql`excluded.confidence`,
+					reason: sql`excluded.reason`,
+					returnedAt: sql`excluded.returned_at`,
+				},
+			}),
+		// Last: the write before it is guarded by the version this one moves on from.
+		db
+			.update(transactions)
+			.set({ version: sql`${transactions.version} + 1` })
+			.where(
+				and(
+					unfiled,
+					sql`${transactions.version} = (select ${field("version")} from json_each(${payload}) j
+						where ${field("id")} = ${transactions.id})`,
+				),
+			),
+	]);
 }
