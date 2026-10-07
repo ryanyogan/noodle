@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { looksLikePayroll, moneyInKindOf, moneyInOnImport, moneyInRuleFor } from "./money-in";
+import {
+	looksLikePayroll,
+	looksLikeRefund,
+	moneyInKindOf,
+	moneyInOnImport,
+	moneyInRuleFor,
+	suggestedMoneyInKind,
+} from "./money-in";
 
 describe("the kind of money in", () => {
 	it("is Income unless something says otherwise", () => {
@@ -52,5 +59,72 @@ describe("money in on Import", () => {
 			review: false,
 		});
 		expect(moneyInOnImport("ZELLE FROM SAM", rules)).toEqual({ kind: "between-us", review: false });
+	});
+});
+
+describe("money in that reads as a refund (issue 141)", () => {
+	// Real bank wordings, both ways.
+	const refunds = [
+		"AMAZON REFUND",
+		"AMZN Mktp US REFUND 112-4455",
+		"POS REFUND TARGET 00012",
+		"PURCHASE RETURN COSTCO WHSE #1042",
+		"DEBIT CARD RETURN HOME DEPOT",
+		"RETURNED ITEM",
+		"OVERDRAFT FEE REVERSAL",
+		"PAYMENT REVERSED",
+		"CREDIT ADJ",
+		"CREDIT ADJUSTMENT 0921",
+		"MERCHANT CREDIT REI",
+		"CHARGEBACK VISA",
+		"CHARGE BACK 4471",
+		"PROVISIONAL CREDIT",
+		"Zelle payment from CASEY LOWE refund for shoes",
+	];
+	const notRefunds = [
+		"ACME CORP PAYROLL",
+		"IRS TREAS 310 TAX REF",
+		"IRS TREAS 310 TAX REFUND",
+		"STATE OF OHIO TAX REFUND",
+		"FRANCHISE TAX BD CASTTAXRFD",
+		"INTEREST PAYMENT",
+		"MOBILE CHECK DEPOSIT",
+		"ACH CREDIT ACME CONSULTING",
+		"CASH BACK REWARD",
+		"CREDITKARMA TRANSFER",
+		"REFUNDIFY INC",
+		"RETURNPATH LLC",
+	];
+
+	it("waits in Review with Refund suggested, and isn't a Refund until a Parent says so", () => {
+		for (const wording of refunds) {
+			expect(looksLikeRefund(wording), wording).toBe(true);
+			expect(moneyInOnImport(wording), wording).toEqual({
+				kind: "income",
+				review: true,
+				suggest: "refund",
+			});
+			expect(suggestedMoneyInKind(wording), wording).toBe("refund");
+		}
+	});
+
+	it("leaves pay, tax refunds, interest and plain credits as they were", () => {
+		for (const wording of notRefunds) {
+			expect(moneyInOnImport(wording).suggest, wording).toBeUndefined();
+			expect(suggestedMoneyInKind(wording), wording).toBeNull();
+		}
+		expect(moneyInOnImport("IRS TREAS 310 TAX REFUND")).toEqual({ kind: "income", review: false });
+		expect(moneyInOnImport(null)).toEqual({ kind: "income", review: false });
+	});
+
+	it("payroll wording still wins, and so does a Rule", () => {
+		expect(moneyInOnImport("ACME PAYROLL REVERSAL")).toEqual({ kind: "income", review: false });
+		expect(suggestedMoneyInKind("ACME PAYROLL REVERSAL")).toBeNull();
+		expect(
+			moneyInOnImport("AMAZON REFUND", [{ pattern: "amazon refund", kind: "income" }]),
+		).toEqual({
+			kind: "income",
+			review: false,
+		});
 	});
 });

@@ -87,7 +87,14 @@ export async function runMoneyInPass(
 		loadMoneyInRules(db, householdId),
 	]);
 	// What an Import would send to Review today: person-to-person wording, no payroll, no Rule.
-	const ids = rows.filter((row) => moneyInOnImport(row.note, rules).review).map((row) => row.id);
+	// Only that: wording that reads as a refund waits in Review on Import from issue 141 on, and
+	// the lines already here are left as they are.
+	const ids = rows
+		.filter((row) => {
+			const said = moneyInOnImport(row.note, rules);
+			return said.review && !said.suggest;
+		})
+		.map((row) => row.id);
 	const snapshotId = ids.length > 0 ? await input.snapshot() : null;
 
 	const mine = sql`exists (select 1 from household_passes p where p.household_id = ${householdId}

@@ -23,7 +23,10 @@ Open **Transactions**. Money in for the month is listed under **Money in**, each
 
 - A deposit that reads as payroll is Income without asking.
 - Money a person sent you (Zelle, Venmo, PayPal, Cash App, Apple Cash) is not counted as Income until you say what it is. It waits under **Money in to look at**.
+- Money that reads as a refund or a reversal ("AMAZON REFUND", "PURCHASE RETURN", "FEE REVERSAL", "MERCHANT CREDIT", "CHARGEBACK") waits there too, with **Refund** first. Choose it and Noodle asks which purchase it is a Refund for.
+- A tax refund and interest your bank paid you are Income.
 - Any other deposit is Income, as before.
+- A Rule you stated always wins.
 
 ## Change what a line is
 
