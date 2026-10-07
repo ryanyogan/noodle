@@ -4,6 +4,7 @@ import {
 	cardNamedBy,
 	cardPaymentFiled,
 	cardPaymentIntro,
+	cardPaymentMonthEnded,
 	cardPaymentRefused,
 	commitmentNameFor,
 	paymentAsSpending,
@@ -142,6 +143,12 @@ describe("what the toast says when a card payment couldn't be filed", () => {
 		expect(
 			cardPaymentRefused({ label: "APPLECARD", commitment: "Apple Card", notInPlan: "2026-08" }),
 		).toBe("Apple Card isn’t in August’s Plan, so APPLECARD can’t be filed in it.");
+	});
+
+	it("says it stays where it is when its money back counted in a month that has ended", () => {
+		expect(cardPaymentMonthEnded("APPLECARD")).toBe(
+			"Money back on APPLECARD counted in a month that has ended, so it stays where it is.",
+		);
 	});
 
 	it("says only that it couldn't otherwise", () => {

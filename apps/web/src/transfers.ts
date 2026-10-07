@@ -117,6 +117,10 @@ const failed: Record<MoneyChange["kind"], string> = {
  * and what the Refund takes on are the server's to decide, so the month and its lists are
  * refetched once it lands.
  */
+/** Said when a purchase can't become a Transfer: its money back counted in a month that has ended. */
+export const transferMonthEnded = (label: string) =>
+	`Money back on ${label} counted in a month that has ended, so it keeps counting where it is and can’t be marked as a Transfer.`;
+
 export function useMoneyChange() {
 	const queryClient = useQueryClient();
 	const change = useMutation({
@@ -124,10 +128,7 @@ export function useMoneyChange() {
 		mutationFn: send,
 		onSuccess: (result, variables) => {
 			if (!result.ok && result.reason === "month-ended") {
-				toast(
-					`Money back on ${variables.label} counted in a month that has ended, so it keeps counting where it is and can’t be marked as a Transfer.`,
-					{ tone: "error" },
-				);
+				toast(transferMonthEnded(variables.label), { tone: "error" });
 				return;
 			}
 			if (!result.ok) {

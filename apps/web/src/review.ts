@@ -503,14 +503,16 @@ export const ruleAppliedMessage = (
 
 /** What's said once a Rule was saved, and applied to what's still unassigned. */
 export const ruleSavedMessage = (
-	{ filed, snapshot }: RuleApplied,
+	{ filed, snapshot, kept }: RuleApplied,
 	rule: { pattern: string; bucketName: string },
 ) =>
 	filed === 0
-		? `Rule saved: ${rule.pattern} goes in ${rule.bucketName}`
+		? kept
+			? `Rule saved: ${rule.pattern} goes in ${rule.bucketName}.${ruleKept(kept)}`
+			: `Rule saved: ${rule.pattern} goes in ${rule.bucketName}`
 		: snapshot
-			? `Rule saved. Filed ${filed} more in ${rule.bucketName}. ${SNAPSHOT_FIRST}`
-			: `Rule saved. Filed ${filed} more in ${rule.bucketName}.`;
+			? `Rule saved. Filed ${filed} more in ${rule.bucketName}.${ruleKept(kept)} ${SNAPSHOT_FIRST}`
+			: `Rule saved. Filed ${filed} more in ${rule.bucketName}.${ruleKept(kept)}`;
 
 /**
  * How the toast after an apply shows. With the snapshot sentence it is some 25 words, far more

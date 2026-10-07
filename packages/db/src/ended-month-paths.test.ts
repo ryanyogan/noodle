@@ -3,12 +3,14 @@ import { inArray } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
+	addCommitment,
 	addIncome,
 	addQuickAdd,
 	applyRule,
 	changeMoneyInKind,
 	createHouseholdForParent,
 	type Db,
+	fileCardPayment,
 	fileTransactions,
 	linkMoneyInRefund,
 	loadSpending,
@@ -204,5 +206,28 @@ describe("a purchase whose money back counted in a month that has ended", () => 
 					.where(inArray(transfers.id, ["t-skates", "t-tape"]))
 			).map((row) => row.id),
 		).toEqual(["t-tape"]);
+	});
+
+	it("is not filed by “It’s a card payment”, which says why, and is while that month is running", async () => {
+		await addCommitment(db, {
+			householdId,
+			memberId: parentId,
+			commitmentId: "visa-bill",
+			name: "Visa",
+			month: september,
+			amountCents: 10_000 as Cents,
+			cadence: "monthly",
+			dueDate: "2026-09-20",
+		});
+		const answer = (asOf: DayKey) =>
+			fileCardPayment(db, viewer, {
+				transactionId: "skates",
+				commitmentId: "visa-bill",
+				ruleId: "card-rule",
+				today: asOf,
+			});
+		expect(await answer(later)).toEqual({ ok: false, reason: "month-ended" });
+		expect(await filedIn()).toEqual({ skates: "hockey", tape: "hockey" });
+		expect(await answer(today)).toMatchObject({ ok: true, filed: 1 });
 	});
 });

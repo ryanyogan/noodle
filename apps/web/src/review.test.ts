@@ -27,6 +27,32 @@ describe("what's said after a Rule is applied", () => {
 		);
 	});
 
+	test("says how many stayed unassigned because their money back counted in a month that has ended", () => {
+		const stayed = (n: number) =>
+			`${n} stayed unassigned: money back on ${n === 1 ? "it" : "them"} counted in a month that has ended.`;
+		expect(ruleAppliedMessage({ filed: 0, snapshot: false, kept: 1 }, rule)).toBe(
+			`Nothing was filed. ${stayed(1)}`,
+		);
+		expect(ruleAppliedMessage({ filed: 3, snapshot: false, kept: 2 }, rule)).toBe(
+			`Filed 3 in Groceries. ${stayed(2)}`,
+		);
+		expect(ruleAppliedMessage({ filed: 3, snapshot: true, kept: 2 }, rule)).toBe(
+			`Filed 3 in Groceries. ${stayed(2)} ${SNAPSHOT_FIRST}`,
+		);
+		expect(ruleSavedMessage({ filed: 0, snapshot: false, kept: 1 }, rule)).toBe(
+			`Rule saved: costco goes in Groceries. ${stayed(1)}`,
+		);
+		expect(ruleSavedMessage({ filed: 3, snapshot: false, kept: 2 }, rule)).toBe(
+			`Rule saved. Filed 3 more in Groceries. ${stayed(2)}`,
+		);
+		expect(ruleSavedMessage({ filed: 3, snapshot: true, kept: 2 }, rule)).toBe(
+			`Rule saved. Filed 3 more in Groceries. ${stayed(2)} ${SNAPSHOT_FIRST}`,
+		);
+		expect(ruleSavedMessage({ filed: 3, snapshot: false, kept: 0 }, rule)).toBe(
+			"Rule saved. Filed 3 more in Groceries.",
+		);
+	});
+
 	test("stays as it was when no snapshot was taken", () => {
 		expect(ruleAppliedMessage({ filed: 1, snapshot: false }, rule)).toBe("Filed 1 in Groceries");
 		expect(ruleAppliedMessage({ filed: 0, snapshot: false }, rule)).toBe(
