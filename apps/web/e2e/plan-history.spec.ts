@@ -121,7 +121,8 @@ test("the Log shows each Plan change, who made it and when; the other Parent's P
 		const raised = rows(page, "Groceries").filter({ hasText: "$1,200 → $1,500" });
 		await expect(raised).toHaveCount(1);
 		await expect(raised).toContainText("Alex");
-		await expect(raised).toContainText(/\w{3} \d{1,2}, \d{4}/);
+		// The day and, since issue 141, the time of day (the year only for another year's).
+		await expect(raised).toContainText(/\w{3} \d{1,2}, (\d{4}|\d{1,2}:\d{2})/);
 		await expect(raised).toContainText(/From \w+ on/);
 		await expect(rows(page, "Daycare").filter({ hasText: "Added · $1,400" })).toHaveCount(1);
 		await expect(rows(page, "Daycare").filter({ hasText: "$1,400 → $1,450" })).toHaveCount(1);
