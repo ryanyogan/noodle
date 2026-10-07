@@ -404,6 +404,32 @@ describe("The Log", () => {
 			).toEqual(["rule-made:jeweler:Alex", "rule-removed:jeweler:Alex"]);
 		});
 
+		it("keeps both homes' events when a money-in Rule and a remembered pair share an id", async () => {
+			await db.insert(accounts).values([
+				{ id: "checking", householdId, name: "Checking", kind: "checking" },
+				{ id: "savings", householdId, name: "Savings", kind: "savings" },
+			] as (typeof accounts.$inferInsert)[]);
+			await saveMoneyInRule(db, sam, { ruleId: "same", wording: "ACME PAYROLL", kind: "income" });
+			await db.insert(moneyInPairs).values({
+				id: "same",
+				householdId,
+				pattern: "zelle from savings",
+				intoAccountId: "checking",
+				otherAccountId: "savings",
+				createdByMemberId: "sam",
+				createdAt: new Date("2026-10-01T12:00:00Z"),
+			});
+			await deleteMoneyInRule(db, householdId, "same", "alex");
+			expect(
+				(await listLogEvents(db, alex)).map((event) => `${event.kind}:${event.name}`).sort(),
+			).toEqual([
+				"money-in-rule-made:acme payroll",
+				"money-in-rule-made:zelle from savings",
+				"money-in-rule-removed:acme payroll",
+				"money-in-rule-removed:zelle from savings",
+			]);
+		});
+
 		it("has Rules for money in and card payments remembered, as made and as removed", async () => {
 			await db.insert(accounts).values([
 				{ id: "checking", householdId, name: "Checking", kind: "checking" },
@@ -553,7 +579,7 @@ describe("The Log", () => {
 				"money-in:new transfer→income by Alex",
 				"money-in:old transfer→income by Alex",
 			]);
-			expect(rows.find((r) => r.key === "event:new-2:made")).toMatchObject({
+			expect(rows.find((r) => r.key === "event:new-2:pair:made")).toMatchObject({
 				at: later(8).getTime(),
 			});
 			// The plain Rule that took the old pair's place is recorded on its own when it goes.

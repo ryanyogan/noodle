@@ -382,8 +382,8 @@ export const setTransactionFor = createServerFn({ method: "POST" })
 					: "Who that Transaction is For can’t be changed here.",
 			);
 		}
-		// Who spending was For is in every month's figures by person.
-		await notifyHousehold(context.household.id, ["months", "for-earlier"]);
+		// Its own month's screens first, then who spending was For in every month's figures by person.
+		await notifyHousehold(context.household.id, [`month:${data.month}`, "months", "for-earlier"]);
 		return saved(result.version);
 	});
 

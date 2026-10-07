@@ -126,7 +126,9 @@ export function moneyInRuleRemovedEvents(
 /**
  * Remembered pairs of Accounts are about to be removed from their own table: each as it was made,
  * and its removal. `thePairs` is the removal's own condition (one pair, or every pair a wording
- * has). They read in the Log as a money-in Rule that remembered a pair does.
+ * has). They read in the Log as a money-in Rule that remembered a pair does. Their event ids are
+ * their own (`:pair:made`), so a pair and a money-in Rule that share an id (deleteMoneyInRule
+ * removes both homes under one) each leave their two events.
  */
 export function moneyInPairRemovedEvents(
 	db: Db,
@@ -139,14 +141,14 @@ export function moneyInPairRemovedEvents(
 	return [
 		eventFrom(db, moneyInPairs, household, thePairs, {
 			...shared,
-			id: idOf(sql`${moneyInPairs.id}`, ":made"),
+			id: idOf(sql`${moneyInPairs.id}`, ":pair:made"),
 			kind: "money-in-rule-made",
 			memberId: sql`${moneyInPairs.createdByMemberId}`,
 			at: sql`${moneyInPairs.createdAt}`,
 		}),
 		eventFrom(db, moneyInPairs, household, thePairs, {
 			...shared,
-			id: idOf(sql`${moneyInPairs.id}`, ":removed"),
+			id: idOf(sql`${moneyInPairs.id}`, ":pair:removed"),
 			kind: "money-in-rule-removed",
 			memberId: by(memberId),
 			at: at(now),
