@@ -12,7 +12,7 @@ import {
 	loadMoneyInRules,
 	rememberAccountPair,
 } from "./index";
-import { transactions, transfers } from "./schema";
+import { income, transactions, transfers } from "./schema";
 import { testDb } from "./test-db";
 
 // A remembered pair of Accounts (issue 131, ADR-0057): "money from Gusto into Chase is always a
@@ -144,6 +144,65 @@ describe("a remembered pair of Accounts", () => {
 			.innerJoin(transactions, eq(transactions.id, transfers.outTransactionId))
 			.where(eq(transfers.inIncomeId, arrived.id));
 		expect(pair?.date).toBe("2026-10-01");
+	});
+
+	it("joins the money out that is imported after the money in was marked alone", async () => {
+		await remember();
+		await importInto("chase", [line("2026-09-17", 261_300, GUSTO)]);
+		expect(await on("2026-09-17")).toMatchObject({ paired: false, otherAccountId: "gusto" });
+		// Gusto's own statement comes in later: both payouts, and one that is nothing of Chase's.
+		await importInto("gusto", [
+			line("2026-09-02", -250_000, "PAYOUT"),
+			line("2026-09-16", -261_300, "PAYOUT"),
+			line("2026-09-20", -4_000, "FEE"),
+		]);
+		expect(await on("2026-09-03")).toMatchObject({ kind: "transfer", paired: true });
+		expect(await on("2026-09-17")).toMatchObject({ kind: "transfer", paired: true });
+		const outs = await db
+			.select({ date: transactions.date, income: transfers.inIncomeId })
+			.from(transfers)
+			.innerJoin(transactions, eq(transactions.id, transfers.outTransactionId))
+			.orderBy(transactions.date);
+		expect(outs.map((out) => out.date)).toEqual(["2026-09-02", "2026-09-16"]);
+		// Each line keeps its one Transfer: nothing was marked twice.
+		expect(await db.select({ id: transfers.id }).from(transfers)).toHaveLength(2);
+	});
+
+	it("gives each line marked alone its own money out, the nearest", async () => {
+		await remember();
+		await importInto("chase", [
+			line("2026-09-17", 250_000, GUSTO),
+			line("2026-10-01", 250_000, GUSTO),
+		]);
+		await importInto("gusto", [
+			line("2026-09-30", -250_000, "PAYOUT"),
+			line("2026-09-16", -250_000, "PAYOUT"),
+		]);
+		const pairs = await db
+			.select({ into: income.date, out: transactions.date })
+			.from(transfers)
+			.innerJoin(transactions, eq(transactions.id, transfers.outTransactionId))
+			.innerJoin(income, eq(income.id, transfers.inIncomeId))
+			.orderBy(income.date);
+		// Two payouts for three lines: the nearest pairs, and one line stays alone.
+		expect(pairs).toEqual([
+			{ into: "2026-09-17", out: "2026-09-16" },
+			{ into: "2026-10-01", out: "2026-09-30" },
+		]);
+		expect(await on("2026-09-03")).toMatchObject({ paired: false, otherAccountId: "gusto" });
+	});
+
+	it("leaves a line a Parent unmarked alone when its money out comes in", async () => {
+		await remember();
+		const first = await on("2026-09-03");
+		await changeMoneyInKind(db, viewer, {
+			incomeId: first.id,
+			kind: "income",
+			transferId: newId(),
+		});
+		// Too many days apart to be found as a Transfer by amount and day.
+		await importInto("gusto", [line("2026-08-01", -250_000, "PAYOUT")]);
+		expect(await on("2026-09-03")).toMatchObject({ kind: "income", paired: false });
 	});
 
 	it("speaks only for money into its own Account", async () => {
