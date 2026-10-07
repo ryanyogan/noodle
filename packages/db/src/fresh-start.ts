@@ -72,6 +72,7 @@ export const HOUSEHOLD_TABLES = {
 	monthCloses: s.monthCloses,
 	rules: s.rules,
 	ruleFor: s.ruleFor,
+	ruleStatements: s.ruleStatements,
 	moneyInRules: s.moneyInRules,
 	cardPaymentRules: s.cardPaymentRules,
 	categorizations: s.categorizations,

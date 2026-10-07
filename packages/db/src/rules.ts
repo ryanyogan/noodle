@@ -5,7 +5,7 @@ import {
 	type Rule,
 	ruleKeys,
 } from "@noodle/domain";
-import { and, asc, eq, gt, isNull, ne, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, lt, ne, or, type SQL, sql } from "drizzle-orm";
 import { type CategorizationDecision, fileCategorizations } from "./categorize";
 import { counts } from "./counting";
 import type { Db } from "./index";
@@ -16,6 +16,7 @@ import {
 	commitments,
 	members,
 	ruleFor,
+	ruleStatements,
 	rules,
 	splits,
 	transactions,
@@ -270,6 +271,113 @@ export async function saveRule(
 	return saved && saved.bucketId === bucketId && saved.commitmentId === commitmentId
 		? { ok: true, ruleId: saved.id, private: saved.owner !== null }
 		: { ok: false };
+}
+
+/** How long a statement is remembered: well past the week a device keeps one to send again. */
+const STATEMENT_KEPT_MS = 30 * 24 * 60 * 60 * 1000;
+
+export type RuleStated =
+	/** It is the merchant's Rule now: `ruleId` is the one it replaced, else its own ID. */
+	| { status: "stated"; ruleId: string; private: boolean }
+	/** This very statement landed before: nothing was changed, and this is what it did then. */
+	| { status: "repeat"; filed: number; snapshot: boolean }
+	/** Sent again, never landed, and the merchant has a Rule made since: that one was left alone. */
+	| { status: "other-rule" }
+	/** Not a Bucket or Commitment this Parent may file into. */
+	| { status: "refused" };
+
+/**
+ * States a Rule from a Review card (see `saveRule`), once for the ID the card made for it: the
+ * same `id` sent again by the same Parent changes nothing and answers what the first one did
+ * (`noteRuleStated`), though the Rule was since removed or pointed at another Bucket (ADR-0056).
+ *
+ * `again` says it was left by an earlier page and is sent days later perhaps. One that never
+ * landed is then stated only where the merchant has no Rule yet: a Rule made for it since, by
+ * either Parent, is the newer choice and is left as it is ("other-rule"), or kept untouched when
+ * it already files where this one would.
+ */
+export async function stateRule(
+	db: Db,
+	input: Parameters<typeof saveRule>[1] & { again?: boolean },
+	now: Date = new Date(),
+): Promise<RuleStated> {
+	const { householdId, memberId } = input;
+	const [before] = await db
+		.select({ filed: ruleStatements.filed, snapshot: ruleStatements.snapshot })
+		.from(ruleStatements)
+		.where(
+			and(
+				eq(ruleStatements.id, input.id),
+				eq(ruleStatements.householdId, householdId),
+				eq(ruleStatements.memberId, memberId),
+			),
+		);
+	if (before) return { status: "repeat", filed: before.filed, snapshot: before.snapshot };
+
+	const target = targetOf(input);
+	if (!target) return { status: "refused" };
+	let stated: { ruleId: string; private: boolean } | null = null;
+	if (input.again) {
+		const [there] = await db
+			.select({
+				id: rules.id,
+				bucketId: rules.bucketId,
+				commitmentId: rules.commitmentId,
+				owner: rules.ownerMemberId,
+			})
+			.from(rules)
+			.where(
+				sql`${rules.householdId} = ${householdId}
+					and ${rules.pattern} = ${merchantKey(input.pattern)}
+					and ${rules.ownerMemberId} is ${ownerOf(target.bucketId)}`,
+			);
+		if (there) {
+			if (there.bucketId !== target.bucketId || there.commitmentId !== target.commitmentId)
+				return { status: "other-rule" };
+			// Another Parent's private Rule is never theirs to state.
+			if (there.owner !== null && there.owner !== memberId) return { status: "refused" };
+			stated = { ruleId: there.id, private: there.owner !== null };
+		}
+	}
+	if (!stated) {
+		const saved = await saveRule(db, input);
+		if (!saved.ok) return { status: "refused" };
+		stated = { ruleId: saved.ruleId, private: saved.private };
+	}
+	await db.batch([
+		db
+			.delete(ruleStatements)
+			.where(
+				and(
+					eq(ruleStatements.householdId, householdId),
+					lt(ruleStatements.createdAt, new Date(now.getTime() - STATEMENT_KEPT_MS)),
+				),
+			),
+		db
+			.insert(ruleStatements)
+			.values({ id: input.id, householdId, memberId, ruleId: stated.ruleId, createdAt: now })
+			.onConflictDoNothing(),
+	]);
+	return { status: "stated", ...stated };
+}
+
+/** Notes what a statement did once it was applied, so its repeat answers the same. */
+export async function noteRuleStated(
+	db: Db,
+	viewer: Viewer,
+	id: string,
+	did: { filed: number; snapshot: boolean },
+): Promise<void> {
+	await db
+		.update(ruleStatements)
+		.set(did)
+		.where(
+			and(
+				eq(ruleStatements.id, id),
+				eq(ruleStatements.householdId, viewer.householdId),
+				eq(ruleStatements.memberId, viewer.memberId),
+			),
+		);
 }
 
 export type RuleEditResult =

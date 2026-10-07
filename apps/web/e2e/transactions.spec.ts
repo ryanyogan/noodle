@@ -1273,3 +1273,48 @@ test("on a phone, a Transaction from before the first Plan says so in its sheet 
 	await expect(row(page, "Old F")).toBeVisible();
 	await page.context().close();
 });
+
+test("on a computer, a slow search with a Transaction open keeps its editor on screen, never a loading state in its place", async ({
+	browser,
+}) => {
+	test.slow();
+	// The usual window is a computer's: a Transaction opens in place, under its row.
+	const page = await signedInPage(browser, parent.email);
+	await setUp(page);
+	await openTransactions(page);
+	await row(page, "Costco").click();
+	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}\/[0-9A-Z]{26}/);
+	await expect(editSheet(page)).toBeVisible();
+
+	// Counts every time the pane's own loading state is in the page, however briefly.
+	await page.evaluate(() => {
+		const seen = window as unknown as { paneLoading: number };
+		seen.paneLoading = 0;
+		new MutationObserver(() => {
+			if (document.querySelector("[data-slot=detail-pending]")) seen.paneLoading++;
+		}).observe(document.body, { childList: true, subtree: true });
+	});
+	// As on a slow connection: the list for the new search takes a while (issue 129).
+	let held = 0;
+	await page.route(serverFn("getTransactions"), async (route) => {
+		held++;
+		await new Promise((resolve) => setTimeout(resolve, 2_500));
+		await route.continue();
+	});
+	await page.getByLabel("Search notes and merchants").fill("costco");
+	await expect(page).toHaveURL(/q=costco/);
+	await expect.poll(() => held).toBeGreaterThan(0);
+
+	// While it is on its way the editor is still there, as the rows are.
+	await page.waitForTimeout(1_000);
+	await expect(page.locator("[data-slot=detail-pending]")).toHaveCount(0);
+	await expect(editSheet(page)).toBeVisible();
+	await expect(row(page, "Pro Hockey Life")).toBeVisible();
+
+	// Once it has arrived the other row is gone and the editor never gave way.
+	await expect(row(page, "Pro Hockey Life")).toHaveCount(0);
+	await expect(editSheet(page)).toBeVisible();
+	expect(
+		await page.evaluate(() => (window as unknown as { paneLoading: number }).paneLoading),
+	).toBe(0);
+});

@@ -10,9 +10,9 @@
  * answered "saved", and one made on something that has since changed is left alone and said the
  * usual way.
  *
- * A Rule stated from a card is NOT one of them. It names no version: sent again days later it
- * would put back a Rule deleted since, or point the merchant's Rule back at the old Bucket over a
- * newer choice, and file everything unassigned that matches. It is sent once, as before.
+ * A Rule stated from a card is one of them too, though it names no version: the server takes
+ * each `ruleId` once (rules.ts `stateRule`), so a repeat of one that landed changes nothing, and
+ * one that never landed is made only where the merchant has had no Rule made since.
  */
 import { toast } from "@noodle/ui/components/toast";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
@@ -20,7 +20,14 @@ import { useEffect } from "react";
 import { MoneyInRefused, sendMoneyInEdit, sendMoneyInKind } from "./money-in";
 import { MAX_TRIES, openOutbox, type Resend, type Store, type Waiting, type Who } from "./outbox";
 import { monthChangeKey } from "./plan-changes";
-import { sendDecision, sendDecisions, sendFileWithoutBucket, sendReturnToReview } from "./review";
+import {
+	RuleMadeSince,
+	sendDecision,
+	sendDecisions,
+	sendFileWithoutBucket,
+	sendReturnToReview,
+	sendRuleAgain,
+} from "./review";
 import { reviewWrites } from "./review-stack";
 import { ChangedElsewhere, carryVersions, leftAsTheyAre } from "./transaction-versions";
 import {
@@ -43,7 +50,16 @@ const senders: Record<string, (variables: never) => Promise<unknown>> = {
 	// it may have stated ("…and money like it from now on"): a Rule names no version (see above).
 	"money-in-kind": (change: Parameters<typeof sendMoneyInKind>[0]) =>
 		sendMoneyInKind({ ...change, always: false }),
+	// A Rule stated from a Review card: taken once by the ID the card made for it (issue 129).
+	rule: sendRuleAgain,
 };
+
+/** The server's answer "left alone": dropped and said, never tried again. */
+export const leftAlone = (error: unknown) =>
+	error instanceof ChangedElsewhere ||
+	error instanceof RuleMadeSince ||
+	error instanceof MoneyInRefused ||
+	error instanceof MonthEnded;
 
 /** Said once when something written down was too old to send (outbox.ts, `MAX_AGE_MS`). */
 export const tooOldToSave = (count: number) =>
@@ -72,6 +88,8 @@ export function resendWith(queryClient: QueryClient) {
 			onError: (error) => {
 				// Changed on another screen since: left as it is there, never written over (ADR-0041).
 				if (error instanceof ChangedElsewhere) return sayChangedElsewhere();
+				// A Rule that never landed, and the merchant has a newer one: that one stays.
+				if (error instanceof RuleMadeSince) return void toast(error.message);
 				toast(
 					waiting.tries + 1 < MAX_TRIES
 						? "Couldn’t save a change you made earlier. Noodle will try again when you next open it."
@@ -130,10 +148,7 @@ export function useWaitingWrites({ householdId, parentId }: Who) {
 			who: { householdId, parentId },
 			store: deviceStore(),
 			resend: resendWith(queryClient),
-			refused: (error) =>
-				error instanceof ChangedElsewhere ||
-				error instanceof MoneyInRefused ||
-				error instanceof MonthEnded,
+			refused: leftAlone,
 			leaving: () => leaving,
 			carry: carryVersions,
 			expired: (count) => toast(tooOldToSave(count), { tone: "error", id: "saved-too-old" }),

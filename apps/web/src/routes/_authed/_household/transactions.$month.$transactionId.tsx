@@ -4,12 +4,13 @@ import { Card } from "@noodle/ui/components/card";
 import { useQuery, useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, getRouteApi, Link, Navigate } from "@tanstack/react-router";
 import { ChevronLeft, X } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useContext } from "react";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
 import { OwedBackOnPurchase } from "../../../components/owed-back";
 import { TransactionBody } from "../../../components/transaction-editor";
 import { dayName } from "../../../format";
 import { membersQuery, monthQuery } from "../../../queries";
+import { ShownFilters } from "../../../transaction-filters-shown";
 import {
 	monthOfTransaction,
 	nameOf,
@@ -40,7 +41,10 @@ function TransactionPane() {
 	const { month, parentId } = Route.useRouteContext();
 	// The list's own filters and order: the Transaction is read from the rows it has loaded, and
 	// asked for by its ID when it isn't among them (further down, or left out by the filters).
-	const filters = list.useLoaderDeps();
+	// The ones the list is SHOWING, not the ones just asked for: after a search or filter change
+	// the list keeps its rows until the new ones arrive, and so does this (issue 129).
+	const asked = list.useLoaderDeps();
+	const filters = useContext(ShownFilters) ?? asked;
 	const navigate = Route.useNavigate();
 	const members = useSuspenseQuery(membersQuery()).data;
 	const loaded = useSuspenseInfiniteQuery(transactionsQuery(month, filters)).data.pages.flatMap(

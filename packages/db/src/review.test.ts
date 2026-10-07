@@ -10,7 +10,16 @@ import {
 	setTakeHomePay,
 } from "./index";
 import { fileWithoutBucket, loadReview, loadReviewToLookAgain, returnToReview } from "./review";
-import { applyRule, deleteRule, editRule, listRules, loadRules, saveRule } from "./rules";
+import {
+	applyRule,
+	deleteRule,
+	editRule,
+	listRules,
+	loadRules,
+	noteRuleStated,
+	saveRule,
+	stateRule,
+} from "./rules";
 import {
 	categorizations,
 	commitments,
@@ -1042,5 +1051,102 @@ describe("renaming a Transaction without changing anything else (issue 99)", () 
 		expect(await rename("t1", "Peek", 0)).toEqual({ ok: false, reason: "not-editable" });
 		expect(await rename("t1", "Sam's", 0, sam)).toEqual({ ok: true, version: 1 });
 		expect(await rowOf("t1")).toMatchObject({ merchant: "Sam's" });
+	});
+});
+
+// A Rule stated from a Review card is sent again when its page went before the server answered
+// (ADR-0056). The server tells a repeat by the ID the card made for it.
+describe("a Rule stated from a card, sent again", () => {
+	const lego = { id: "stated-1", householdId, memberId: "alex", pattern: "Lego Store" };
+	const patterns = async () => (await listRules(db, alex)).map((rule) => [rule.id, rule.bucketId]);
+
+	it("sent twice is one Rule and the same answer, and files nothing more", async () => {
+		await imported("t1", "lego store", { outcome: "review" });
+		const first = await stateRule(db, { ...lego, bucketId: "fun" });
+		expect(first).toEqual({ status: "stated", ruleId: "stated-1", private: false });
+		const applied = await applyRule(db, alex, "stated-1");
+		expect(applied.filed).toBe(1);
+		await noteRuleStated(db, alex, "stated-1", { filed: applied.filed, snapshot: true });
+
+		// One more of that merchant arrives; the repeat is not a reason to file it.
+		await imported("t2", "lego store", { outcome: "review" });
+		const again = await stateRule(db, { ...lego, bucketId: "fun", again: true });
+		expect(again).toEqual({ status: "repeat", filed: 1, snapshot: true });
+		expect(await stateRule(db, { ...lego, bucketId: "fun" })).toEqual(again);
+		expect(await patterns()).toEqual([["stated-1", "fun"]]);
+		const [waiting] = await db.select().from(transactions).where(eqId("t2"));
+		expect(waiting?.bucketId).toBeNull();
+	});
+
+	it("sent again after the Rule was removed does not put it back", async () => {
+		await stateRule(db, { ...lego, bucketId: "fun" });
+		await deleteRule(db, alex, "stated-1");
+		expect(await stateRule(db, { ...lego, bucketId: "fun", again: true })).toEqual({
+			status: "repeat",
+			filed: 0,
+			snapshot: false,
+		});
+		expect(await patterns()).toEqual([]);
+	});
+
+	it("sent again after a newer choice for the merchant leaves that choice", async () => {
+		await stateRule(db, { ...lego, bucketId: "fun" });
+		// The other Parent then says where Lego goes.
+		await saveRule(db, { ...lego, id: "newer", memberId: "sam", bucketId: "groceries" });
+		expect(await stateRule(db, { ...lego, bucketId: "fun", again: true })).toMatchObject({
+			status: "repeat",
+		});
+		expect(await patterns()).toEqual([["stated-1", "groceries"]]);
+	});
+
+	it("that never landed is stated when it is sent again", async () => {
+		expect(await stateRule(db, { ...lego, bucketId: "fun", again: true })).toEqual({
+			status: "stated",
+			ruleId: "stated-1",
+			private: false,
+		});
+		expect(await patterns()).toEqual([["stated-1", "fun"]]);
+	});
+
+	it("that never landed leaves a Rule made for the merchant since, and says so", async () => {
+		await saveRule(db, { ...lego, id: "since", memberId: "sam", bucketId: "groceries" });
+		expect(await stateRule(db, { ...lego, bucketId: "fun", again: true })).toEqual({
+			status: "other-rule",
+		});
+		expect(await patterns()).toEqual([["since", "groceries"]]);
+		// Made on the page, not sent again, it replaces the merchant's Rule as stating one always has.
+		expect(await stateRule(db, { ...lego, id: "stated-2", bucketId: "fun" })).toEqual({
+			status: "stated",
+			ruleId: "since",
+			private: false,
+		});
+		expect(await patterns()).toEqual([["since", "fun"]]);
+	});
+
+	it("that never landed and finds the same Rule there keeps it as it is", async () => {
+		await saveRule(db, { ...lego, id: "since", bucketId: "fun", forMemberIds: ["maya"] });
+		expect(await stateRule(db, { ...lego, bucketId: "fun", again: true })).toEqual({
+			status: "stated",
+			ruleId: "since",
+			private: false,
+		});
+		expect((await listRules(db, alex))[0]).toMatchObject({ id: "since", for: ["maya"] });
+	});
+
+	it("is not another Household's or Parent's repeat", async () => {
+		await stateRule(db, { ...lego, bucketId: "fun" });
+		expect(
+			await stateRule(db, { ...lego, memberId: "sam", bucketId: "fun", again: true }),
+		).toMatchObject({ status: "stated" });
+	});
+
+	it("refuses a Bucket that is not theirs to file into", async () => {
+		expect(await stateRule(db, { ...lego, bucketId: "no-such-bucket" })).toEqual({
+			status: "refused",
+		});
+		// Nothing was noted, so sending it again is not answered as done.
+		expect(await stateRule(db, { ...lego, bucketId: "no-such-bucket", again: true })).toEqual({
+			status: "refused",
+		});
 	});
 });

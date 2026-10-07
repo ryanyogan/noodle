@@ -6,10 +6,11 @@ import {
 	fileWithoutBucket as fileWithoutBucketInDb,
 	listRules,
 	loadReview,
+	noteRuleStated,
 	type ReviewQueue,
 	type RuleRow,
 	returnToReview as returnToReviewInDb,
-	saveRule as saveRuleInDb,
+	stateRule as stateRuleInDb,
 	type Viewer,
 } from "@noodle/db";
 import { monthKeyAt } from "@noodle/domain";
@@ -148,14 +149,22 @@ const ruleSchema = z.object({
 /**
  * "Always file this merchant in this Bucket": states a Rule, replacing this Parent's (or the
  * Household's) Rule for the same pattern. With `apply`, it also files what's still unassigned
- * that it matches, like the rest of Review's cards for that merchant. Idempotent by `ruleId`, a
- * client ULID. Returns how many it filed, and whether a snapshot was taken first (ADR-0035).
+ * that it matches, like the rest of Review's cards for that merchant. Returns how many it filed,
+ * and whether a snapshot was taken first (ADR-0035).
+ *
+ * Idempotent by `ruleId`, a client ULID: the same one sent again changes and files nothing and
+ * is answered with what the first one did, though the Rule was since removed or changed. `again`
+ * marks one an earlier page left waiting (ADR-0056): if it never landed and the merchant has a
+ * Rule made since, that Rule is left alone and the answer says `madeSince`.
  */
 export const saveRule = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(ruleSchema.extend({ apply: z.boolean().default(false) }))
-	.handler(async ({ data, context }) => {
-		const result = await saveRuleInDb(getDb(), {
+	.validator(
+		ruleSchema.extend({ apply: z.boolean().default(false), again: z.boolean().default(false) }),
+	)
+	.handler(async ({ data, context }): Promise<RuleStatedAnswer> => {
+		const viewer = viewerOf(context);
+		const stated = await stateRuleInDb(getDb(), {
 			id: data.ruleId,
 			householdId: context.household.id,
 			memberId: context.parent.id,
@@ -163,20 +172,28 @@ export const saveRule = createServerFn({ method: "POST" })
 			bucketId: data.bucketId,
 			commitmentId: data.commitmentId,
 			forMemberIds: data.forMemberIds,
+			again: data.again,
 		});
-		if (!result.ok) throw new Error("That isn’t yours to file into.");
+		if (stated.status === "refused") throw new Error("That isn’t yours to file into.");
+		if (stated.status === "other-rule") return { filed: 0, snapshot: false, madeSince: true };
+		if (stated.status === "repeat") return { filed: stated.filed, snapshot: stated.snapshot };
 		const applied = data.apply
-			? await applyRuleInDb(getDb(), viewerOf(context), result.ruleId)
+			? await applyRuleInDb(getDb(), viewer, stated.ruleId)
 			: { filed: 0, snapshotId: null };
+		const outcome = ruleApplyOutcome(applied);
+		if (data.apply) await noteRuleStated(getDb(), viewer, data.ruleId, outcome);
 		const changes = [
-			...(result.private ? [] : (["rules"] as const)),
+			...(stated.private ? [] : (["rules"] as const)),
 			...changesAfterRuleApply(applied),
 		];
 		if (changes.length > 0) await notifyHousehold(context.household.id, changes);
 		// What waits in Review may now match it.
-		await queueAi({ ...viewerOf(context), kind: "rule-added" });
-		return ruleApplyOutcome(applied);
+		await queueAi({ ...viewer, kind: "rule-added" });
+		return outcome;
 	});
+
+/** What stating a Rule answers: what it filed, or that a Rule made since was left alone. */
+export type RuleStatedAnswer = { filed: number; snapshot: boolean; madeSince?: true };
 
 /** Changes a Rule's pattern, Bucket, and For. */
 export const editRule = createServerFn({ method: "POST" })

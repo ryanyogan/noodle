@@ -139,8 +139,23 @@ export async function sendReturnToReview(item: ReviewItem) {
 	settleWrite(item.id, answer);
 }
 
-export const sendRule = (rule: RuleInput & { bucketName: string }) =>
-	saveRule({
+/**
+ * Said when a Rule left waiting by an earlier page was not made: it had never reached the server,
+ * and the merchant has had a Rule made for it since, which is the newer choice (ADR-0056).
+ */
+export class RuleMadeSince extends Error {
+	constructor(readonly pattern: string) {
+		super(`${pattern} has a newer Rule, so the one you made earlier has been left out.`);
+		this.name = "RuleMadeSince";
+	}
+}
+
+/**
+ * States a Rule from a card and files what it matches. The server takes each `ruleId` once, so
+ * sending it again is safe; `again` marks one sent by a later page than it was made on.
+ */
+export async function sendRule(rule: RuleInput & { bucketName: string; again?: boolean }) {
+	const answer = await saveRule({
 		data: {
 			ruleId: rule.ruleId,
 			pattern: rule.pattern,
@@ -148,8 +163,16 @@ export const sendRule = (rule: RuleInput & { bucketName: string }) =>
 			commitmentId: rule.commitmentId ?? null,
 			forMemberIds: rule.forMemberIds,
 			apply: true,
+			again: rule.again ?? false,
 		},
 	});
+	if (answer.madeSince) throw new RuleMadeSince(rule.pattern);
+	return answer as RuleApplied;
+}
+
+/** A Rule an earlier page left waiting, sent by this one. */
+export const sendRuleAgain = (rule: RuleInput & { bucketName: string }) =>
+	sendRule({ ...rule, again: true });
 
 /**
  * Confirms or changes a card: it leaves the stack and its Transaction's change lands in its
@@ -491,9 +514,10 @@ export function useSaveRule() {
 	const save = useMutation({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,
-		// Not written down to be sent again (ADR-0056): a Rule names no version, so a repeat could put
-		// back one deleted since or undo a newer choice for the merchant.
-		mutationFn: sendRule,
+		// Written down until answered (ADR-0056): the server takes each `ruleId` once, so one sent
+		// again never puts back a Rule deleted since or undoes a newer choice for the merchant.
+		meta: { outbox: "rule" },
+		mutationFn: (rule: RuleInput & { bucketName: string }) => sendRule(rule),
 		onMutate: async (rule) => {
 			const matches = [{ pattern: merchantKey(rule.pattern), bucketId: rule.bucketId }];
 			return { putBack: await takeCards(queryClient, (item) => !!ruleFor(matches, item.merchant)) };
