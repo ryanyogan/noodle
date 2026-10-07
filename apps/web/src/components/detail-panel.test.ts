@@ -226,11 +226,46 @@ describe("ListWithPanel", () => {
 		const late = renderToStaticMarkup(
 			h(ListWithPanel, { ...base, list: "rows", detail: "Gas", besideFrom: "late" }),
 		);
-		expect(grid(late)).toContain("min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]");
+		// The column is a rail and the gap before it: the grid has no column gap of its own there.
+		const room = "grid-cols-[minmax(0,1fr)_calc(var(--rail-width)+var(--layout-gap))]";
+		expect(grid(late)).toContain(`min-[90rem]:${room}`);
+		expect(grid(late)).toContain("min-[90rem]:gap-x-0");
 		expect(grid(late)).not.toMatch(/(^| )(lg|xl):grid-cols/);
 		const xl = renderToStaticMarkup(h(ListWithPanel, { ...base, list: "rows", detail: "Gas" }));
-		expect(grid(xl)).toContain("xl:grid-cols-[minmax(0,1fr)_var(--rail-width)]");
+		expect(grid(xl)).toContain(`xl:${room}`);
+		expect(grid(xl)).toContain("xl:gap-x-0");
 		expect(grid(xl)).not.toMatch(/(^| )lg:grid-cols/);
+	});
+
+	it("with no rail, the list makes room over the same time and curve as the panel slides in", () => {
+		const grid = (html: string) => tag(html, "master-detail").match(/class="([^"]*)"/)?.[1] ?? "";
+		// Nothing picked: the same two columns with the second 0px wide, so opening is one track
+		// growing (a grid can only animate between templates with the same number of columns).
+		const closed = grid(renderToStaticMarkup(h(ListWithPanel, { ...base, list: "rows" })));
+		expect(closed).toContain("xl:grid-cols-[minmax(0,1fr)_0px]");
+		expect(closed).toContain("xl:gap-x-0");
+		// Closing is at once, as the panel's going is: the transition is on the open grid only.
+		expect(closed).not.toContain("transition");
+		const open = grid(
+			renderToStaticMarkup(h(ListWithPanel, { ...base, list: "rows", detail: "Gas" })),
+		);
+		expect(open).toContain("transition-[grid-template-columns]");
+		const slide = /--animate-side-in:\s*side-in\s+(\d+ms)\s+(cubic-bezier\([^)]*\))/.exec(
+			readFileSync(
+				new URL("../../../../packages/ui/src/styles/globals.css", import.meta.url),
+				"utf8",
+			),
+		);
+		expect(slide).not.toBeNull();
+		expect(open).toContain(`duration-[${slide?.[1]}]`);
+		expect(open).toContain(`ease-[${slide?.[2]?.replace(/\s/g, "")}]`);
+		// A list with a rail never changes shape, so it has nothing to animate.
+		const railed = grid(
+			renderToStaticMarkup(
+				h(ListWithPanel, { ...base, list: "rows", aside: "totals", detail: "Rent" }),
+			),
+		);
+		expect(railed).not.toContain("transition");
 	});
 
 	it("opens the item as a labelled region on the right edge, sized by the layout", () => {
