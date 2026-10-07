@@ -403,12 +403,34 @@ describe("A payment to a card whose payment is the spending", () => {
 		expect(await listRules(db, viewer)).toEqual([]);
 	});
 
+	it("files well over a hundred lines that say the same, and undoes them", async () => {
+		// D1 binds at most 100 parameters to a statement: the lines must travel as one list.
+		const many = Array.from({ length: 130 }, (_, index) =>
+			line("2026-09-12", -1_000 - index, WORDING),
+		);
+		await importInto("checking", "i-1", [line("2026-09-05", -30_000, WORDING), ...many]);
+		// The list's pages are 50 long, so the line is read straight from the table.
+		const [{ id: opened } = { id: undefined }] = await db
+			.select({ id: transactions.id })
+			.from(transactions)
+			.where(sql`${transactions.amountCents} = 30000`);
+		if (!opened) throw new Error("the payment isn't listed");
+		const filing = await fileCardPayment(db, viewer, {
+			transactionId: opened,
+			commitmentId: "apple",
+			ruleId: "rule-1",
+		});
+		expect(filing).toMatchObject({ ok: true, filed: 131, months: [month] });
+		if (!filing.ok) throw new Error("not filed");
+		expect(await undoCardPaymentFiling(db, viewer, filing)).toEqual({ restored: 131 });
+	});
+
 	it("refuses money back, and a Commitment that isn't in the line's month", async () => {
-		await importInto("checking", "i-1", [
-			line("2026-09-05", 2_000, "REFUND"),
-			line("2026-08-05", -30_000, WORDING),
-		]);
-		const refund = (await rowOf(-2_000))?.id as string;
+		// Money back on the card is a Transaction; money into checking would be Income instead.
+		await importInto("card", "i-0", [line("2026-09-05", 2_000, "REFUND")]);
+		await importInto("checking", "i-1", [line("2026-08-05", -30_000, WORDING)]);
+		const refund = (await rowOf(-2_000))?.id;
+		if (!refund) throw new Error("the money back isn't listed");
 		expect(
 			await fileCardPayment(db, viewer, {
 				transactionId: refund,
