@@ -257,3 +257,16 @@ test.describe("from the app", () => {
 		}
 	});
 });
+
+test("sign-in has a quiet link to the Docs, for reading before signing in", async ({ browser }) => {
+	const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+	const page = await context.newPage();
+	await page.goto("/sign-in");
+	const link = page.getByRole("link", { name: "How Noodle works" });
+	await expect(link).toHaveAttribute("href", "/docs");
+	await expect(page.locator(".cl-formButtonPrimary")).toBeVisible({ timeout: 30_000 });
+	await link.click();
+	await expect(page).toHaveURL(/\/docs\/?$/);
+	await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+	await context.close();
+});
