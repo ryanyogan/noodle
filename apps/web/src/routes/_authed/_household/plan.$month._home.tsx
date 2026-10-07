@@ -1,15 +1,7 @@
-import {
-	addMonths,
-	freeToSpendParts,
-	lumpsIn,
-	type MonthKey,
-	monthOfDay,
-	parseDollars,
-} from "@noodle/domain";
+import { freeToSpendParts, lumpsIn, type MonthKey, monthOfDay, parseDollars } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { SectionGrid } from "@noodle/ui/components/layout";
-import { List } from "@noodle/ui/components/list";
 import { Money } from "@noodle/ui/components/money";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
@@ -31,7 +23,7 @@ import { PlanSplit } from "../../../components/plan-split";
 import { SectionPending } from "../../../components/section-layout";
 import { Suggested } from "../../../components/suggested";
 import { TermHelp } from "../../../components/term-help";
-import { formatMoney, monthName } from "../../../format";
+import { formatMoney } from "../../../format";
 import { useGoals } from "../../../goals";
 import { usePlanChange, usePlanChanges, withTakeHomePay } from "../../../plan-changes";
 import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
