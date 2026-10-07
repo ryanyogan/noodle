@@ -1,5 +1,5 @@
 import type { Cents } from "./money";
-import { type DayKey, type MonthKey, monthOfDay, monthsBetween } from "./month";
+import { type DayKey, daysBetween, type MonthKey, monthOfDay, monthsBetween } from "./month";
 
 export const ACCOUNT_KINDS = ["checking", "savings", "credit-card", "loan"] as const;
 
@@ -53,8 +53,58 @@ export function owedFor(
  */
 export type BalanceUpdate = { amount: Cents; at: number; day?: DayKey };
 
-/** A payment filed in a Commitment that pays down a card or loan, and the day it was made. */
-export type OwedPayment = { amount: Cents; date: DayKey };
+/**
+ * A payment filed in a Commitment that pays down a card or loan, and the day it was made. On a
+ * card kept by hand the same shape carries the two one-sided marks a payment can have: `sent`, a
+ * Transfer out of another Account naming the card (with the paying line's `id`), and `alone`, a
+ * line on the card marked as a Transfer with no other side.
+ */
+export type OwedPayment = {
+	amount: Cents;
+	date: DayKey;
+	id?: string;
+	sent?: boolean;
+	alone?: boolean;
+};
+
+/**
+ * How many days a payment's two sides may be apart and still be one payment: the day it left the
+ * paying Account and the day the card's statement shows it. Wider than a Transfer's few days,
+ * because here a Parent (or a wording they remembered) has said which card it pays.
+ */
+export const CARD_PAYMENT_DAYS = 10;
+
+/**
+ * The payments naming a card kept by hand that still come off what's owed. One whose card side
+ * is on the card too, marked alone (same amount, within CARD_PAYMENT_DAYS), has already come off
+ * as that line: it is left out, so a payment counts once. Each line on the card stands for one
+ * payment only, the earliest, so two payments of the same amount still count twice.
+ */
+export function sentOnce<P extends OwedPayment>(
+	payments: readonly P[],
+	bought: readonly OwedPayment[],
+): P[] {
+	const near = (a: OwedPayment, b: OwedPayment) =>
+		Math.abs(daysBetween(a.date, b.date)) <= CARD_PAYMENT_DAYS;
+	const sent = payments.filter((payment) => payment.sent);
+	const alone = bought.filter((line) => line.alone);
+	if (sent.length === 0 || alone.length === 0) return [...payments];
+	return payments.filter((payment) => {
+		if (!payment.sent) return true;
+		const onCard = alone.filter(
+			(line) => line.amount === -payment.amount && near(line, payment),
+		).length;
+		const before = sent.filter(
+			(other) =>
+				other !== payment &&
+				other.amount === payment.amount &&
+				near(other, payment) &&
+				(other.date < payment.date ||
+					(other.date === payment.date && (other.id ?? "") < (payment.id ?? ""))),
+		).length;
+		return onCard <= before;
+	});
+}
 
 /**
  * What's owed on a credit card or loan (ADR-0050, amending ADR-0019). Kept by hand: its latest
@@ -75,7 +125,7 @@ export function owedOn(
 ): Cents | null {
 	if (latest === null) return null;
 	if (connected) return latest.amount;
-	const paid = payments.reduce(
+	const paid = sentOnce(payments, bought).reduce(
 		(owed, payment) => (payment.date > latest.day ? owed - payment.amount : owed),
 		latest.amount,
 	);

@@ -4,6 +4,7 @@ import {
 	type BalanceCheck,
 	type BalanceUpdate,
 	balanceCheck,
+	CARD_PAYMENT_DAYS,
 	type Cents,
 	type DayKey,
 	dayKeyAt,
@@ -26,6 +27,7 @@ import {
 	inArray,
 	isNotNull,
 	isNull,
+	ne,
 	notExists,
 	type SQL,
 	sql,
@@ -456,7 +458,8 @@ export const owedSql = (accountId: SQL | string, fallbackDay: DayKey | null = nu
 				- coalesce((select sum(t.amount_cents) from transfers x
 					inner join transactions t on t.id = x.out_transaction_id
 					where x.other_account_id = b.account_id and x.household_id = b.household_id
-					and x.removed_at is null and x.in_transaction_id is null and t.date > ${day}), 0)
+					and x.removed_at is null and x.in_transaction_id is null and t.date > ${day}
+					and ${sql.raw(SENT_ONCE)}), 0)
 			else 0 end
 		end
 		from account_balances b inner join accounts oa on oa.id = b.account_id
@@ -516,6 +519,28 @@ const paymentQueries = (db: Db, householdId: string, accountId?: string) =>
 const NOT_MATCHED_QUICK_ADD = (id: string) =>
 	`not exists (select 1 from matches where matches.quick_add_id = ${id} and matches.removed_at is null)`;
 
+/** A line on a card that is marked as a Transfer with no other side: a payment's card side, alone. */
+const MARKED_ALONE = (id: string) =>
+	`exists (select 1 from transfers ma where ma.in_transaction_id = ${id} and ma.removed_at is null
+		and ma.out_transaction_id is null)`;
+
+/**
+ * sentOnce's twin, for a payment `t` in Transfer `x` naming the card of balance `b`: it still
+ * comes off unless a line on the card marked alone already stands for it (same amount, within
+ * CARD_PAYMENT_DAYS), each such line standing for the earliest payment only.
+ */
+const SENT_ONCE = `(select count(*) from transactions ct
+		where ct.account_id = b.account_id and ct.household_id = b.household_id
+		and ct.amount_cents = -t.amount_cents
+		and abs(julianday(ct.date) - julianday(t.date)) <= ${CARD_PAYMENT_DAYS}
+		and ${NOT_MATCHED_QUICK_ADD("ct.id")} and ${MARKED_ALONE("ct.id")})
+	<= (select count(*) from transfers x2 inner join transactions t2 on t2.id = x2.out_transaction_id
+		where x2.other_account_id = b.account_id and x2.household_id = b.household_id
+		and x2.removed_at is null and x2.in_transaction_id is null
+		and t2.amount_cents = t.amount_cents
+		and abs(julianday(t2.date) - julianday(t.date)) <= ${CARD_PAYMENT_DAYS}
+		and (t2.date < t.date or (t2.date = t.date and t2.id < t.id)))`;
+
 /**
  * What moves what's owed on a card whose purchases are kept by hand (issue 136), for the whole
  * Household: every line recorded on the card (bought above 0, money back or a payment received
@@ -528,6 +553,8 @@ const byHandQueries = (db: Db, householdId: string, accountId?: string) =>
 				accountId: transactions.accountId,
 				amount: transactions.amountCents,
 				date: transactions.date,
+				// A payment's card side marked on its own (sentOnce): 1 or 0.
+				alone: sql<boolean>`${sql.raw(MARKED_ALONE('"transactions"."id"'))}`.as("alone"),
 			})
 			.from(transactions)
 			.innerJoin(accounts, eq(accounts.id, transactions.accountId))
@@ -567,7 +594,13 @@ const byHandQueries = (db: Db, householdId: string, accountId?: string) =>
  */
 async function readOwed(
 	db: Db,
-	input: { householdId: string; accountId: string; upTo?: DayKey },
+	input: {
+		householdId: string;
+		accountId: string;
+		upTo?: DayKey;
+		/** A balance to read as if it weren't recorded yet: the one a balance check is writing. */
+		notBalanceId?: string;
+	},
 ): Promise<{ owed: Cents | null; day: DayKey | null }> {
 	const [balanceRows, accountRows, whole, split, bought, sent] = await db.batch([
 		db
@@ -581,6 +614,7 @@ async function readOwed(
 				and(
 					eq(accountBalances.accountId, input.accountId),
 					eq(accountBalances.householdId, input.householdId),
+					input.notBalanceId ? ne(accountBalances.id, input.notBalanceId) : undefined,
 				),
 			)
 			.orderBy(desc(accountBalances.createdAt), desc(accountBalances.id))
@@ -602,7 +636,7 @@ async function readOwed(
 		(upTo ? rows.filter((row) => row.date <= upTo) : rows) as OwedPayment[];
 	const owed = owedOn(
 		{ amount: balance.amount, day },
-		by([...whole, ...split, ...sent]),
+		by([...whole, ...split, ...sent.map((row) => ({ ...row, sent: true }))]),
 		account.bankConnectionId !== null,
 		by(bought),
 	);
@@ -613,7 +647,8 @@ async function readOwed(
  * The monthly balance check on a card (issue 136): compares the statement's balance a Parent
  * typed, true on `asOf`, with what Noodle had recorded as owed at the end of that day, then
  * records the statement's as the card's balance, the new starting point (ADR-0050). Idempotent
- * per `balanceId` for the write; the answer is only right the first time.
+ * per `balanceId`: sent again, it compares with what was recorded before this check's own
+ * balance, so the answer is the first one.
  */
 export async function checkStatementBalance(
 	db: Db,
@@ -637,7 +672,12 @@ export async function checkStatementBalance(
 			),
 		);
 	if (!account) return { ok: false };
-	const { owed } = await readOwed(db, { ...input, upTo: input.asOf });
+	const { owed } = await readOwed(db, {
+		householdId: input.householdId,
+		accountId: input.accountId,
+		upTo: input.asOf,
+		notBalanceId: input.balanceId,
+	});
 	await insertBalance(db, { ...input, amountCents: input.statementCents });
 	return { ok: true, check: balanceCheck(input.statementCents, owed), recordedCents: owed };
 }
@@ -1281,9 +1321,13 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 					? null
 					: owedOn(
 							latestBalance,
-							[...payments, ...(sentRows as (OwedPayment & { accountId: string })[])].filter(
-								(p) => p.accountId === row.id,
-							),
+							[
+								...payments,
+								...(sentRows as (OwedPayment & { accountId: string })[]).map((p) => ({
+									...p,
+									sent: true,
+								})),
+							].filter((p) => p.accountId === row.id),
 							row.bankConnectionId !== null,
 							(boughtRows as (OwedPayment & { accountId: string })[]).filter(
 								(p) => p.accountId === row.id,

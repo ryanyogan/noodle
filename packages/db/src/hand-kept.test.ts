@@ -18,6 +18,7 @@ import {
 	loadTransactionsPage,
 	loadWalletQuestions,
 	markCardPayment,
+	markTransfer,
 	owedNow,
 	owedSql,
 	setCardKept,
@@ -378,5 +379,134 @@ describe("the monthly balance check", () => {
 				createdByMemberId: parentId,
 			}),
 		).toEqual({ ok: false });
+	});
+});
+
+describe("a payment comes off a card kept by hand once", () => {
+	beforeEach(async () => {
+		await balance("apple-1", "apple", 50_000, "2026-09-01");
+	});
+
+	/** Money arriving on a card, as its statement has it. */
+	const received = (date: DayKey, amount: number, description: string): StatementLine => ({
+		date,
+		amount,
+		description,
+		bankId: null,
+	});
+	const lineOn = async (accountId: string, date: DayKey) => {
+		const rows = await db
+			.select({
+				id: s.transactions.id,
+				date: s.transactions.date,
+				accountId: s.transactions.accountId,
+			})
+			.from(s.transactions);
+		const found = rows.find((row) => row.accountId === accountId && row.date === date);
+		if (!found) throw new Error(`no line on ${accountId} on ${date}`);
+		return found.id;
+	};
+	const named = (transferId: string, transactionId: string, also = false) =>
+		markCardPayment(db, viewer, {
+			transferId,
+			transactionId,
+			cardAccountId: "apple",
+			ruleId: `rule-${transferId}`,
+			...(also ? { newId } : {}),
+		});
+	const live = async () =>
+		(await db.select().from(s.transfers)).filter((row) => row.removedAt === null);
+
+	it("when the checking side is named first and the card's statement comes later", async () => {
+		await importLines("checking-1", "checking", [
+			spent("2026-09-10", 20_000, "APPLECARD GSBANK PAYMENT"),
+		]);
+		const paying = await lineOn("checking", "2026-09-10");
+		expect((await named("t-1", paying)).ok).toBe(true);
+		await expectOwed("apple", 30_000);
+		await importLines("apple-statement", "apple", [
+			received("2026-09-11", 20_000, "PAYMENT THANK YOU"),
+		]);
+		await expectOwed("apple", 30_000);
+		// One Transfer, the pair: the Parent's own mark, with the card's line as its other side.
+		expect(await live()).toMatchObject([
+			{
+				id: "t-1",
+				outTransactionId: paying,
+				inTransactionId: await lineOn("apple", "2026-09-11"),
+			},
+		]);
+	});
+
+	it("when the card's statement comes first and the checking side is named a week later", async () => {
+		await importLines("apple-statement", "apple", [
+			received("2026-09-11", 20_000, "PAYMENT THANK YOU"),
+		]);
+		await expectOwed("apple", 30_000);
+		await importLines("checking-1", "checking", [spent("2026-09-18", 20_000, "ACH DEBIT 0042")]);
+		const paying = await lineOn("checking", "2026-09-18");
+		expect((await named("t-1", paying)).ok).toBe(true);
+		await expectOwed("apple", 30_000);
+		expect(await live()).toMatchObject([
+			{
+				id: "t-1",
+				outTransactionId: paying,
+				inTransactionId: await lineOn("apple", "2026-09-11"),
+			},
+		]);
+	});
+
+	it("when each side was marked alone, more than four days apart", async () => {
+		// The card's line doesn't read as a payment, so a Parent marked it themselves.
+		await importLines("apple-statement", "apple", [received("2026-09-11", 20_000, "MISC 0042")]);
+		const arrived = await lineOn("apple", "2026-09-11");
+		await markTransfer(db, viewer, { transferId: "t-card", transactionId: arrived });
+		await importLines("checking-1", "checking", [spent("2026-09-18", 20_000, "ACH DEBIT 0042")]);
+		expect((await named("t-1", await lineOn("checking", "2026-09-18"))).ok).toBe(true);
+		expect(await live()).toHaveLength(2);
+		await expectOwed("apple", 30_000);
+	});
+
+	it("twice for two payments of the same amount in one month", async () => {
+		await importLines("checking-1", "checking", [
+			spent("2026-09-05", 20_000, "APPLECARD GSBANK PAYMENT"),
+			spent("2026-09-19", 20_000, "APPLECARD GSBANK PAYMENT"),
+		]);
+		expect((await named("t-1", await lineOn("checking", "2026-09-05"), true)).ok).toBe(true);
+		await expectOwed("apple", 10_000);
+		// The first payment's card side arrives: the second is still a payment of its own.
+		await importLines("apple-statement", "apple", [
+			received("2026-09-06", 20_000, "PAYMENT THANK YOU"),
+		]);
+		await expectOwed("apple", 10_000);
+		await importLines("apple-statement-2", "apple", [
+			received("2026-09-20", 20_000, "PAYMENT THANK YOU"),
+		]);
+		await expectOwed("apple", 10_000);
+		expect((await live()).map((row) => row.inTransactionId !== null)).toEqual([true, true]);
+	});
+});
+
+describe("the monthly balance check, sent twice", () => {
+	it("gives the first answer again, not “That matches”", async () => {
+		await balance("apple-1", "apple", 50_000, "2026-09-01");
+		await quickAdd("pizza", "2026-09-03", 4_200, "apple");
+		const check = () =>
+			checkStatementBalance(db, {
+				householdId,
+				accountId: "apple",
+				balanceId: "apple-2",
+				statementCents: 62_620,
+				asOf: "2026-09-30",
+				createdByMemberId: parentId,
+			});
+		const first = await check();
+		expect(first).toEqual({
+			ok: true,
+			check: { kind: "higher", byCents: 8_420 },
+			recordedCents: 54_200,
+		});
+		expect(await check()).toEqual(first);
+		await expectOwed("apple", 62_620);
 	});
 });
