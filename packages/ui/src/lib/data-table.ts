@@ -229,3 +229,31 @@ export function ariaSort(
 	if (current?.id !== id) return undefined;
 	return current.desc ? "descending" : "ascending";
 }
+
+/**
+ * What a column's `spanNext` means for the cell at `at` in one row: `into`, the id of the next
+ * column when this cell takes its room too; `given`, when the cell before took this one's. A cell
+ * that gave its room up takes nobody else's, the last column has no next, and columns that only
+ * exist stacked (`wide: false`) are not counted. The component turns `into` into a span from the
+ * next column's tier on, so a column that has dropped gives no room.
+ */
+export function spanOf<TRow>(
+	columns: readonly (
+		| { id: string; wide?: boolean; spanNext?: (row: TRow) => boolean }
+		| undefined
+	)[],
+	at: number,
+	row: TRow,
+): { into?: string; given?: boolean } {
+	const shown = columns.flatMap((column, index) =>
+		column && column.wide !== false ? [{ column, index }] : [],
+	);
+	let given = false;
+	for (const [place, { column, index }] of shown.entries()) {
+		const next = shown[place + 1]?.column;
+		const takes: boolean = Boolean(next) && !given && Boolean(column.spanNext?.(row));
+		if (index === at) return { into: takes ? next?.id : undefined, given };
+		given = takes;
+	}
+	return {};
+}

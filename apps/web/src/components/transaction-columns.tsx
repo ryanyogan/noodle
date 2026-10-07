@@ -484,6 +484,9 @@ export function transactionColumns({
 			width: "minmax(0,1.3fr)",
 			stacked: "hidden",
 			sortable: { said: AZ },
+			// A row For nobody (a Transfer, Goal spending, money back) has an empty For cell beside
+			// it: its Accounts take that room too, so they aren't cut short (issue 147).
+			spanNext: ({ view }) => view.who === "",
 			// A row with one Bucket or none is refiled here; any other kind opens, as its row does.
 			cell: ({ transaction, view }) =>
 				cells && editsInCell(transaction.id, open) && cellEdits(transaction).refile ? (

@@ -26,6 +26,7 @@ import {
 	rangeIds,
 	type StackedSlot,
 	selectsAll,
+	spanOf,
 	stackedLayout,
 	stackedTemplate,
 	type TableSort,
@@ -84,6 +85,13 @@ export type DataTableColumn<TData extends RowData> = ColumnShape & {
 	/** Left out altogether (not the same as dropping when narrow): a closed month has no Edit. */
 	hidden?: boolean;
 	className?: string;
+	/**
+	 * Rows whose cell here also takes the room of the column after it, wherever that column shows:
+	 * for a row with nothing to say there (a Transfer has no For), so what it does say isn't cut
+	 * short beside an empty cell. That row's cell of the next column is left out of the columns; the
+	 * tracks, and every other row, stay as they are. Stacked rows are not changed.
+	 */
+	spanNext?: (row: TData) => boolean;
 	/** For the column's header alone, e.g. the same inset its cells have. */
 	headerClassName?: string;
 };
@@ -211,6 +219,14 @@ const BODY_FROM = [
 	"@2xl/dt:hidden @4xl/dt:flex",
 	"@2xl/dt:hidden @5xl/dt:flex",
 	"@2xl/dt:hidden @6xl/dt:flex",
+];
+// A cell that takes the next column's track as well (`spanNext`), from that column's tier on.
+const SPAN_FROM = [
+	"@2xl/dt:[grid-column:span_2]",
+	"@3xl/dt:[grid-column:span_2]",
+	"@4xl/dt:[grid-column:span_2]",
+	"@5xl/dt:[grid-column:span_2]",
+	"@6xl/dt:[grid-column:span_2]",
 ];
 // The header row is only there from `@2xl`.
 const HEAD_FROM = [
@@ -523,14 +539,24 @@ function DataTable<TData extends RowData>({
 			)
 		: null;
 
+	const spans = columns.some((column) => column.spanNext);
 	const narrowLine = narrowTitleLine && layout.stacked.has.trailing && layout.stacked.rows > 1;
-	const cellClass = (column: DataTableColumn<TData>, slot: StackedSlot) =>
+	const cellClass = (
+		column: DataTableColumn<TData>,
+		slot: StackedSlot,
+		// In this row: `into`, the column whose room it also takes; `given`, its room went to the
+		// cell before it.
+		span?: { into?: string; given?: boolean },
+	) =>
 		cn(
 			"min-w-0 items-center text-sm",
 			STACKED[slot],
 			narrowLine && (slot === "title" || slot === "trailing") && NARROW_LINE[slot],
 			UNSTACK,
-			column.wide === false ? "@2xl/dt:hidden" : BODY_FROM[tierOf(layout.tiers, column.id)],
+			span?.into !== undefined && SPAN_FROM[tierOf(layout.tiers, span.into)],
+			column.wide === false || span?.given
+				? "@2xl/dt:hidden"
+				: BODY_FROM[tierOf(layout.tiers, column.id)],
 			ALIGN[column.align ?? "start"],
 			column.className,
 		);
@@ -767,16 +793,24 @@ function DataTable<TData extends RowData>({
 											</div>
 										) : null}
 										{spacer}
-										{row.getVisibleCells().map((cell) => {
+										{row.getVisibleCells().map((cell, at, cells) => {
 											const column = byId.get(cell.column.id);
 											if (!column) return null;
 											const place = layout.stacked.places[column.id];
+											const span = spans
+												? spanOf(
+														cells.map((each) => byId.get(each.column.id)),
+														at,
+														row.original,
+													)
+												: undefined;
 											return (
 												<div
 													key={cell.id}
 													role={cellRole}
 													data-column={column.id}
-													className={cellClass(column, place?.slot ?? "secondary")}
+													data-span={span?.into !== undefined ? "" : undefined}
+													className={cellClass(column, place?.slot ?? "secondary", span)}
 													style={
 														place?.slot === "secondary"
 															? ({ "--dt-row": place.row } as React.CSSProperties)

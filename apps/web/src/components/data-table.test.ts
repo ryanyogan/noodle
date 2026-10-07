@@ -7,6 +7,7 @@ import {
 	nextSort,
 	rangeIds,
 	selectsAll,
+	spanOf,
 	stackedLayout,
 	stackedTemplate,
 	TABLE_TIERS,
@@ -418,5 +419,73 @@ describe("a table under one that has a leading slot", () => {
 		);
 		expect(both).not.toContain("data-table-indent");
 		expect(templates(both)).toEqual(templates(withHandles));
+	});
+});
+
+describe("a cell that takes the next column's room (spanNext, issue 147)", () => {
+	type Line = { transfer: boolean };
+	const columns = [
+		{ id: "name" },
+		{ id: "assigned", spanNext: (line: Line) => line.transfer },
+		{ id: "summary", wide: false },
+		{ id: "for" },
+		{ id: "account" },
+	];
+
+	it("takes the next column that shows in columns, and that column's cell gives its room up", () => {
+		expect(spanOf(columns, 1, { transfer: true })).toEqual({ into: "for", given: false });
+		expect(spanOf(columns, 3, { transfer: true })).toEqual({ into: undefined, given: true });
+		expect(spanOf(columns, 4, { transfer: true })).toEqual({ into: undefined, given: false });
+	});
+
+	it("leaves every other row as it was", () => {
+		for (const at of [0, 1, 3, 4])
+			expect(spanOf(columns, at, { transfer: false })).toEqual({ into: undefined, given: false });
+	});
+
+	it("the last column has no next, and a cell that gave its room takes nobody's", () => {
+		const all = [
+			{ id: "a", spanNext: () => true },
+			{ id: "b", spanNext: () => true },
+			{ id: "c", spanNext: () => true },
+		];
+		expect(spanOf(all, 0, {})).toEqual({ into: "b", given: false });
+		expect(spanOf(all, 1, {})).toEqual({ into: undefined, given: true });
+		expect(spanOf(all, 2, {})).toEqual({ into: undefined, given: false });
+	});
+
+	it("draws the span from the next column's tier on, and hides that row's next cell in columns", () => {
+		const table: DataTableColumn<Line & { id: string }>[] = [
+			{ id: "name", header: "Name", min: 10, cell: () => "n" },
+			{
+				id: "assigned",
+				header: "Assigned to",
+				min: 9,
+				spanNext: (line) => line.transfer,
+				cell: () => "a",
+			},
+			{ id: "for", header: "For", min: 7, priority: 3, cell: () => null },
+		];
+		const html = renderToStaticMarkup(
+			h(DataTable<Line & { id: string }>, {
+				label: "Lines",
+				columns: table,
+				data: [
+					{ id: "t", transfer: true },
+					{ id: "s", transfer: false },
+				],
+				getRowId: (line) => line.id,
+			}),
+		);
+		const cells = [...html.matchAll(/<div[^>]*data-column="(assigned|for)"[^>]*>/g)]
+			.map(([tag]) => tag)
+			.filter((tag) => !tag.includes("columnheader"));
+		const spanned = cells.filter((tag) => tag.includes("data-span"));
+		expect(spanned).toHaveLength(1);
+		expect(spanned[0]).toMatch(/@\dxl\/dt:\[grid-column:span_2\]/);
+		// The Transfer's For cell never shows in columns; the other row's shows from its tier.
+		const fors = cells.filter((tag) => tag.includes('data-column="for"'));
+		expect(fors).toHaveLength(2);
+		expect(fors.filter((tag) => /@\dxl\/dt:flex/.test(tag))).toHaveLength(1);
 	});
 });

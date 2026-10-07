@@ -158,6 +158,17 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 	await expect(
 		page.getByText("Checking → Visa", { exact: true }).filter({ visible: true }),
 	).toHaveCount(2);
+	// On a table wide enough for the For column, a Transfer's Accounts take that column's empty
+	// room as well as their own (issue 147); a row that is For someone keeps its own cell.
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const columns = page.getByRole("row").filter({ has: page.getByRole("button") });
+	const spanned = columns.locator("[data-column=assigned][data-span]").first();
+	const plain = columns.locator("[data-column=assigned]:not([data-span])").first();
+	await expect(page.getByRole("columnheader", { name: "For" })).toBeVisible();
+	await expect(spanned).toContainText("Checking → Visa");
+	const widths = await Promise.all([spanned, plain].map((cell) => cell.boundingBox()));
+	expect(widths[0]?.width ?? 0).toBeGreaterThan((widths[1]?.width ?? 0) + 80);
+	await page.setViewportSize({ width: 1280, height: 720 });
 	// Only the corner store is left to assign.
 	const unassigned = page.getByRole("button", {
 		name: /, Unassigned, For Everyone, from Checking$/,
