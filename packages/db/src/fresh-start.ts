@@ -63,6 +63,7 @@ export const HOUSEHOLD_TABLES = {
 	// After income and Transactions, which they point at; matches after what they settle.
 	owedBack: s.owedBack,
 	paidBackMatches: s.paidBackMatches,
+	refundLinks: s.refundLinks,
 	moves: s.moves,
 	pushSubscriptions: s.pushSubscriptions,
 	nudgePreferences: s.nudgePreferences,

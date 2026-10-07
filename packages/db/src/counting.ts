@@ -55,16 +55,22 @@ export const incomeCountsRaw = (id: string) =>
 // filed in, on the match's `counts_on` day. The purchase's month is never touched.
 
 /**
- * The FROM of every read of what Paid back restores, in raw SQL: one row per match (`m`), with
- * its Owed back item (`o`), the purchase (`t`) and, when the purchase is split, the Split it
- * restores (`p`: the one the item names, else the largest). The item is only named in a `where`:
- * SQLite before 3.52 can't find `o` from the `order by` of a subquery here ("no such column").
+ * The FROM of every read of what Paid back restores, in raw SQL: one row (`m`) per match, with
+ * its Owed back item's purchase and Split, and per Refund in checking linked to its purchase
+ * (refund-links.ts), which restores the same way; the purchase (`t`) and, when the purchase is
+ * split, the Split it restores (`p`: the one the item names, else the largest). `m.split_id` is
+ * only named in a `where`: SQLite before 3.52 can't find an outer row from the `order by` of a
+ * subquery here ("no such column").
  */
-export const PAID_BACK_RESTORES_FROM = `paid_back_matches m
-	join owed_back o on o.id = m.owed_back_id
-	join transactions t on t.id = o.transaction_id
+export const PAID_BACK_RESTORES_FROM = `(select pm.household_id, pm.amount_cents, pm.counts_on,
+			ob.transaction_id, ob.split_id
+		from paid_back_matches pm join owed_back ob on ob.id = pm.owed_back_id
+		union all
+		select rl.household_id, ri.amount_cents, rl.counts_on, rl.transaction_id, null
+		from refund_links rl join income ri on ri.id = rl.income_id) m
+	join transactions t on t.id = m.transaction_id
 	left join splits p on p.id = coalesce(
-		(select q.id from splits q where q.transaction_id = t.id and q.id = o.split_id),
+		(select q.id from splits q where q.transaction_id = t.id and q.id = m.split_id),
 		(select q.id from splits q where q.transaction_id = t.id
 			order by q.amount_cents desc, q.position limit 1))`;
 

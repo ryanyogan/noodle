@@ -21,6 +21,7 @@ import { counts, incomeInTransfer } from "./counting";
 import type { Db } from "./index";
 import { loadMoneyInLine, type MoneyInLine } from "./money-in";
 import { changeableBy, othersAllowance, privateTotalId, type Viewer, visibleTo } from "./privacy";
+import { refundChargeRows, refundRowsByMonth, refundSpendingRows } from "./refund-links";
 import {
 	income,
 	members,
@@ -488,7 +489,7 @@ export async function loadPaidBackSpending(
 	until: DayKey,
 ): Promise<BucketSpend[]> {
 	const bucket = restoredBucket();
-	const rows = await db
+	const matched = await db
 		.select({
 			id: owedBack.transactionId,
 			splitId: sql<string | null>`${restoredSplit}`.as("restored_split_id"),
@@ -511,6 +512,8 @@ export async function loadPaidBackSpending(
 			),
 		)
 		.orderBy(paidBackMatches.countsOn, paidBackMatches.id);
+	// A Refund in checking linked to its purchase restores as a match does (refund-links.ts).
+	const rows = [...matched, ...(await refundSpendingRows(db, viewer, from, until))];
 	if (rows.length === 0) return [];
 	const seen = rows.filter((row) => !row.hidden);
 	// One JSON parameter each: D1 allows 100 bound parameters a statement.
@@ -603,7 +606,10 @@ export async function loadPaidBackCharges(
 		.orderBy(paidBackMatches.countsOn, paidBackMatches.id);
 	// Marked, so nothing reads one as a payment: not "paid this month", the payment history, or
 	// an "about" average.
-	return rows.map((row) => ({ ...row, paidBack: true })) as (Charge & { id: string })[];
+	const refunds = await refundChargeRows(db, viewer, from, to);
+	return [...rows, ...refunds].map((row) => ({ ...row, paidBack: true })) as (Charge & {
+		id: string;
+	})[];
 }
 
 /**
@@ -636,5 +642,6 @@ export async function loadPaidBackByMonth(
 			),
 		)
 		.groupBy(bucket, monthOf);
-	return rows as MonthlySpend[];
+	const refunds = await refundRowsByMonth(db, householdId, since, month);
+	return [...rows, ...refunds] as MonthlySpend[];
 }

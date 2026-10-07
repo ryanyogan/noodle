@@ -18,6 +18,7 @@ import {
 	members,
 	moneyInRules,
 	paidBackMatches,
+	refundLinks,
 	transactions,
 	transfers,
 } from "./schema";
@@ -212,6 +213,20 @@ export async function changeMoneyInKind(
 							and(
 								eq(paidBackMatches.householdId, householdId),
 								eq(paidBackMatches.incomeId, input.incomeId),
+								landed,
+							),
+						),
+				]),
+		// A line that stops being a Refund is money back for no purchase any more.
+		...(input.kind === "refund"
+			? []
+			: [
+					db
+						.delete(refundLinks)
+						.where(
+							and(
+								eq(refundLinks.householdId, householdId),
+								eq(refundLinks.incomeId, input.incomeId),
 								landed,
 							),
 						),
