@@ -12,7 +12,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { HouseholdChange } from "../household-changes";
 import { queueAi } from "./ai-queue";
-import { commitmentNameSchema } from "./commitments";
+import { commitmentNameSchema, setPaysDown } from "./commitments";
 import { getDb } from "./db";
 import { householdMiddleware, viewerOf } from "./household";
 import { notifyHousehold } from "./notify";
@@ -25,11 +25,15 @@ import { dayKeySchema, ulidSchema } from "./schemas";
 
 const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 
-/** What changes when lines are filed in a Commitment or put back: their months, and the Rules. */
-const filingChanges = (months: string[]): HouseholdChange[] => [
+/**
+ * What changes when lines are filed in a Commitment or put back: their months, and the Rules;
+ * with `paysDown`, what's owed on the card the Commitment pays down as well.
+ */
+const filingChanges = (months: string[], paysDown = false): HouseholdChange[] => [
 	...months.map((month) => `month:${month}` as HouseholdChange),
 	"months",
 	"rules",
+	...(paysDown ? (["goals"] as const) : []),
 ];
 
 /**
@@ -49,6 +53,9 @@ export function commitmentStart(
 	return { month: running, dueDate, moved: true };
 }
 
+/** Pays nothing down: what a Commitment made for a card goes back to before it leaves the Plan. */
+const UNLINKED = { accountId: null, carriedBalance: false };
+
 /** What fileCardPayment answers: with `madeIn`, the first month of the Commitment it made. */
 export type CardPaymentFiled = CardPaymentFiling & { madeIn?: MonthKey };
 
@@ -56,7 +63,8 @@ export type CardPaymentFiled = CardPaymentFiling & { madeIn?: MonthKey };
  * Files a card payment in the Commitment that is its spending, with the lines already here that
  * say the same, and states the Rule that files later ones. With `create`, the Commitment is made
  * first, in the line's month: the payment's amount, monthly, due on the payment's day, paying
- * nothing down (the card isn't in Noodle). When the line's month has ended the Commitment starts
+ * down `create.paysDown` (a card that is an Account here but isn't followed) or nothing (the card
+ * isn't in Noodle). When the line's month has ended the Commitment starts
  * this month instead and the line stays as it is (`stays`): later payments are filed.
  * Idempotent per `commitmentId` and `ruleId`.
  */
@@ -73,6 +81,7 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 					month: monthSchema,
 					amountCents: z.number().int().positive(),
 					dueDate: dayKeySchema,
+					paysDown: ulidSchema.optional(),
 				})
 				.optional(),
 		}),
@@ -99,6 +108,21 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 				cadence: "monthly",
 				dueDate: made.dueDate,
 			});
+			// Refused (the Account isn't a card or loan in use, or Noodle follows it): nothing is made.
+			const link = made.paysDown
+				? await setPaysDown(context, data.commitmentId, {
+						accountId: made.paysDown,
+						carriedBalance: false,
+					})
+				: null;
+			if (link && !link.ok) {
+				await endCommitmentInDb(db, {
+					...author,
+					commitmentId: data.commitmentId,
+					month: made.month,
+				});
+				return { ok: false };
+			}
 		}
 		const result = await fileCardPaymentInDb(db, viewerOf(context), {
 			transactionId: data.transactionId,
@@ -109,6 +133,7 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 		if (!result.ok) {
 			// Nothing half-made is left: a Commitment made for a line that couldn't go in leaves again.
 			if (made) {
+				if (made.paysDown) await setPaysDown(context, data.commitmentId, UNLINKED);
 				await endCommitmentInDb(db, {
 					...author,
 					commitmentId: data.commitmentId,
@@ -117,7 +142,10 @@ export const fileCardPayment = createServerFn({ method: "POST" })
 			}
 			return result;
 		}
-		await notifyHousehold(context.household.id, filingChanges(result.months));
+		await notifyHousehold(
+			context.household.id,
+			filingChanges(result.months, made?.paysDown !== undefined),
+		);
 		if (made) {
 			await queueAi({ ...author, kind: "commitment-changed", ids: [data.commitmentId] });
 		}
@@ -153,7 +181,28 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 				})
 				.nullish(),
 			months: z.array(monthSchema).max(240),
-			created: z.object({ commitmentId: ulidSchema, month: monthSchema }).optional(),
+			created: z
+				.object({
+					commitmentId: ulidSchema,
+					month: monthSchema,
+					/** It was made paying a card down: the link goes too. */
+					paysDown: z.boolean().optional(),
+				})
+				.optional(),
+			// The lines the answer took out of Review (fileCardPayment's `waited`): they wait again.
+			waited: z
+				.array(
+					z.object({
+						id: ulidSchema,
+						merchant: z.string().min(1).max(200),
+						method: z.enum(["rule", "similar", "model", "none"]).nullable(),
+						bucketId: ulidSchema.nullable(),
+						confidence: z.number().min(0).max(1).nullable(),
+						reason: z.string().max(200).nullable(),
+					}),
+				)
+				.max(2000)
+				.optional(),
 			// Answered from its card in Review: the line waits there again (as returnToReview's).
 			review: z
 				.object({
@@ -179,8 +228,10 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 			ruleId: data.ruleId,
 			ruleBefore: data.ruleBefore,
 			review: data.review,
+			waited: data.waited,
 		});
 		if (data.created) {
+			if (data.created.paysDown) await setPaysDown(context, data.created.commitmentId, UNLINKED);
 			await endCommitmentInDb(db, {
 				householdId: context.household.id,
 				memberId: context.parent.id,
@@ -188,7 +239,10 @@ export const undoCardPaymentFiling = createServerFn({ method: "POST" })
 				month: data.created.month as MonthKey,
 			});
 		}
-		await notifyHousehold(context.household.id, filingChanges(data.months));
+		await notifyHousehold(
+			context.household.id,
+			filingChanges(data.months, data.created?.paysDown === true),
+		);
 		// The line's version once it waits in Review again; null when it wasn't put back there.
 		return { restored, reviewVersion: reviewVersion ?? null };
 	});

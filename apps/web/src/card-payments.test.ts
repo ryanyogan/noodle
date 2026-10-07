@@ -3,6 +3,8 @@ import {
 	asksWhichCard,
 	cardNamedBy,
 	cardPaymentFiled,
+	cardPaymentIntro,
+	cardPaymentRefused,
 	commitmentNameFor,
 	paymentAsSpending,
 } from "./card-payments";
@@ -115,5 +117,44 @@ describe("a payment counted as spending", () => {
 		expect(commitmentStart({ month: "2026-01", dueDate: "2026-01-31" }, "2026-02")).toMatchObject({
 			dueDate: "2026-02-28",
 		});
+	});
+});
+
+describe("the words above “It’s a card payment”", () => {
+	const transfer = { commitment: null };
+	const spending = { commitment: { id: "c", name: "Apple Card" } };
+
+	it("say the payment isn't spending only when that is so for every card", () => {
+		expect(cardPaymentIntro([transfer, transfer])).toContain("isn’t spending");
+	});
+
+	it("never say it isn't spending above a card whose payment is the spending", () => {
+		for (const cards of [[spending], [transfer, spending], []]) {
+			expect(cardPaymentIntro(cards)).not.toContain("isn’t spending");
+			expect(cardPaymentIntro(cards)).toContain("is the spending");
+		}
+		expect(cardPaymentIntro(undefined)).toBe("Looks like a card payment.");
+	});
+});
+
+describe("what the toast says when a card payment couldn't be filed", () => {
+	it("says why when the Commitment isn't in the payment's month", () => {
+		expect(
+			cardPaymentRefused({ label: "APPLECARD", commitment: "Apple Card", notInPlan: "2026-08" }),
+		).toBe("Apple Card isn’t in August’s Plan, so APPLECARD can’t be filed in it.");
+	});
+
+	it("says only that it couldn't otherwise", () => {
+		expect(cardPaymentRefused({ label: "APPLECARD", commitment: "Apple Card" })).toBe(
+			"Couldn’t file APPLECARD in Apple Card.",
+		);
+	});
+});
+
+describe("a payment made a Commitment for a card that is an Account here", () => {
+	it("pays that Account down, and nothing when the card isn't in Noodle", () => {
+		const line = { id: "t", date: "2026-10-03", amountCents: 12_000 };
+		expect(paymentAsSpending(line, "DISCOVER", "acct").create.paysDown).toBe("acct");
+		expect(paymentAsSpending(line, "DISCOVER", null).create).not.toHaveProperty("paysDown");
 	});
 });

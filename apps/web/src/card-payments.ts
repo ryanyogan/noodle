@@ -51,9 +51,15 @@ export type CardPaymentFilingInput = {
 	label: string;
 	commitment: { id: string; name: string };
 	/** Set when the Commitment is made by this answer: its first month, amount and due day. */
-	create?: { month: MonthKey; amountCents: number; dueDate: string };
-	/** After the Undo has put everything back. */
-	onUndo?: () => void;
+	create?: {
+		month: MonthKey;
+		amountCents: number;
+		dueDate: string;
+		/** The card or loan Account it pays down: a card that is in Noodle but isn't followed. */
+		paysDown?: string;
+	};
+	/** After the Undo has put everything back; `stayed`: the line answered had stayed as it was. */
+	onUndo?: (was: { stayed: boolean }) => void;
 	/**
 	 * The Review card it was answered from: the Undo makes the line wait in Review again, in the
 	 * same request that unfiles it (filing took it out, and unfiling alone doesn't put it back).
@@ -68,9 +74,45 @@ export type CardPaymentFilingInput = {
 	undoBy?: () => void;
 	/** When it couldn't be filed. */
 	onFail?: () => void;
-	/** When the line stays as it is, its month having ended (Review puts its card back). */
-	onStays?: () => void;
+	/**
+	 * When the line stays as it is, its month having ended (Review puts its card back), with the
+	 * answer's Undo, as `onFiled` gets it.
+	 */
+	onStays?: (undo: () => void) => void;
 };
+
+const monthNamed = (month: string) =>
+	new Date(`${month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+
+/**
+ * What the toast says when a payment couldn't be filed in the Commitment. `notInPlan` is the
+ * payment's month when the Commitment isn't in that month's Plan (it starts later, or has ended):
+ * the reason is said plainly, since trying again won't help.
+ */
+export function cardPaymentRefused(refused: {
+	label: string;
+	commitment: string;
+	notInPlan?: string | undefined;
+}) {
+	return refused.notInPlan
+		? `${refused.commitment} isn’t in ${monthNamed(refused.notInPlan)}’s Plan, so ${refused.label} can’t be filed in it.`
+		: `Couldn’t file ${refused.label} in ${refused.commitment}.`;
+}
+
+/**
+ * The words above "It's a card payment" on a line that reads as one. They follow the same rule as
+ * the choice under them (a card with a `commitment` is one whose payment is the spending,
+ * cardPaymentIsSpending), so they never say "isn't spending" above a hint that says it is.
+ */
+export function cardPaymentIntro(cards: { commitment: unknown }[] | undefined) {
+	if (cards === undefined) return "Looks like a card payment.";
+	const spending = cards.filter((card) => card.commitment).length;
+	if (cards.length > 0 && spending === 0)
+		return "Looks like a card payment. What you bought on the card is already in your Buckets, so the payment itself isn’t spending: mark it as a Transfer and it counts nowhere.";
+	if (cards.length > 0 && spending === cards.length)
+		return "Looks like a card payment. For your card the payment itself is the spending: say which card it pays and it’s filed in the Commitment that pays the card down.";
+	return "Looks like a card payment. Say which card it pays: for some cards the payment is a Transfer and counts nowhere, for others the payment itself is the spending.";
+}
 
 /**
  * What the toast says once a card payment's answer "it's the spending" is in. A payment in a month
@@ -89,10 +131,7 @@ export function cardPaymentFiled(done: {
 	endedMonth?: string;
 }) {
 	if (done.endedMonth) {
-		const month = new Date(`${done.endedMonth}-15T12:00:00Z`).toLocaleDateString("en-US", {
-			month: "long",
-			timeZone: "UTC",
-		});
+		const month = monthNamed(done.endedMonth);
 		const others =
 			done.filed > 0
 				? ` ${done.filed === 1 ? "1 payment" : `${done.filed} payments`} worded like it since then ${done.filed === 1 ? "is" : "are"} filed there now.`
@@ -122,8 +161,13 @@ export function useCardPaymentFiling() {
 			queryClient.invalidateQueries({ queryKey: monthsKey }),
 			queryClient.invalidateQueries({ queryKey: rulesQuery().queryKey }),
 		]);
-	const couldnt = (input: CardPaymentFilingInput) => {
-		toast(`Couldn’t file ${input.label} in ${input.commitment.name}.`, { tone: "error" });
+	const couldnt = (input: CardPaymentFilingInput, notInPlan?: string) => {
+		toast(
+			cardPaymentRefused({ label: input.label, commitment: input.commitment.name, notInPlan }),
+			{
+				tone: "error",
+			},
+		);
 		input.onFail?.();
 	};
 	return useMutation({
@@ -138,11 +182,16 @@ export function useCardPaymentFiling() {
 			}),
 		onError: (_error, input) => couldnt(input),
 		onSuccess: (result, input) => {
-			if (!result.ok) return couldnt(input);
+			if (!result.ok)
+				return couldnt(input, result.reason === "not-in-plan" ? result.lineMonth : undefined);
 			// The Commitment's first month: the payment's, or this month when that one has ended.
 			const madeIn = result.madeIn ?? input.create?.month;
 			const created = input.create &&
-				madeIn && { commitmentId: input.commitment.id, month: madeIn };
+				madeIn && {
+					commitmentId: input.commitment.id,
+					month: madeIn,
+					paysDown: input.create.paysDown !== undefined,
+				};
 			const said = cardPaymentFiled({
 				label: input.label,
 				commitment: input.commitment.name,
@@ -173,6 +222,7 @@ export function useCardPaymentFiling() {
 						ruleBefore: result.ruleBefore,
 						months: result.months,
 						created,
+						waited: result.waited,
 						review: input.review && {
 							transactionId: input.transactionId,
 							merchant: input.review.merchant,
@@ -190,7 +240,7 @@ export function useCardPaymentFiling() {
 						// This screen's own write: the card's next change goes on the version it left.
 						if (undone.reviewVersion !== null)
 							noteVersion(input.transactionId, undone.reviewVersion);
-						if (!result.stays) input.onUndo?.();
+						input.onUndo?.({ stayed: result.stays });
 					})
 					.catch(() => toast("Couldn’t undo that.", { tone: "error" }))
 					.finally(refetch);
@@ -199,7 +249,7 @@ export function useCardPaymentFiling() {
 			const viaScreen = result.stays ? undefined : input.undoBy;
 			drop = toast(said, { tone: "success", action: edit || undefined, undo: viaScreen ?? undo });
 			if (!result.stays) input.onFiled?.(undo);
-			if (result.stays) input.onStays?.();
+			if (result.stays) input.onStays?.(undo);
 		},
 		onSettled: refetch,
 	});
@@ -258,11 +308,13 @@ export function commitmentNameFor(label: string) {
  * "Count this payment as spending? Yes": the payment's own Commitment, made in place (new ids
  * each time it's asked), monthly at the payment's amount and due on its day, with the payment
  * filed in it. The one way to it, from the choice's "Yes, make a Commitment" and from Review's
- * "Make it a Commitment" on a card that isn't in Noodle.
+ * "Make it a Commitment" on a card that isn't in Noodle, or (`paysDown`) on one that is an Account
+ * here but isn't followed: its Commitment then pays that Account down.
  */
 export function paymentAsSpending(
 	line: { id: string; date: string; amountCents: number },
 	label: string,
+	paysDown?: string | null,
 ): Pick<CardPaymentFilingInput, "transactionId" | "ruleId" | "label" | "commitment"> & {
 	create: NonNullable<CardPaymentFilingInput["create"]>;
 } {
@@ -275,6 +327,7 @@ export function paymentAsSpending(
 			month: line.date.slice(0, 7) as MonthKey,
 			amountCents: line.amountCents,
 			dueDate: line.date,
+			...(paysDown ? { paysDown } : {}),
 		},
 	};
 }

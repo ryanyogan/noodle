@@ -17,9 +17,11 @@ import { deleteRule, saveRule } from "./rules";
 import {
 	accounts,
 	cardPaymentRules,
+	categorizations,
 	monthCloses,
 	ruleFor,
 	rules,
+	transactionFor,
 	transactions,
 	transfers,
 } from "./schema";
@@ -748,8 +750,21 @@ export type CardPaymentFiling =
 			stays: boolean;
 			/** The month of the line answered. */
 			lineMonth: string;
+			/** The lines filed that waited in Review until then: Undo makes them wait there again. */
+			waited: CardPaymentWaited[];
 	  }
-	| { ok: false };
+	/** "not-in-plan": the Commitment isn't in the Plan of the line's month (`lineMonth`). */
+	| { ok: false; reason?: "not-in-plan"; lineMonth?: string };
+
+/** A line that waited in Review when an answer filed it, with the guess it had there. */
+export type CardPaymentWaited = {
+	id: string;
+	merchant: string;
+	method: "rule" | "similar" | "model" | "none" | null;
+	bucketId: string | null;
+	confidence: number | null;
+	reason: string | null;
+};
 
 /**
  * A payment to a card whose payment IS the spending (kept by hand and paid down by a Commitment,
@@ -820,6 +835,25 @@ export async function fileCardPayment(
 		const month = other.date.slice(0, 7);
 		byMonth.set(month, [...(byMonth.get(month) ?? []), other.id]);
 	}
+	// Filing takes a line out of Review; what waited there is read first, for the Undo.
+	const mayWait = JSON.stringify([line.id, ...alike.map((other) => other.id)]);
+	const waiting: CardPaymentWaited[] = await db
+		.select({
+			id: categorizations.transactionId,
+			merchant: categorizations.merchant,
+			method: categorizations.method,
+			bucketId: categorizations.bucketId,
+			confidence: categorizations.confidence,
+			reason: categorizations.reason,
+		})
+		.from(categorizations)
+		.where(
+			and(
+				eq(categorizations.householdId, householdId),
+				eq(categorizations.outcome, "review"),
+				sql`${categorizations.transactionId} in (select value from json_each(${mayWait}))`,
+			),
+		);
 	const undo: FiledBefore[] = [];
 	const months: string[] = [];
 	let filed = 0;
@@ -832,8 +866,10 @@ export async function fileCardPayment(
 		});
 		// The line answered must go in; another month's Plan without the Commitment is skipped.
 		if (!result.ok) {
-			if (ids.includes(line.id)) return { ok: false };
-			continue;
+			if (!ids.includes(line.id)) continue;
+			return result.reason === "not-in-plan"
+				? { ok: false, reason: "not-in-plan", lineMonth }
+				: { ok: false };
 		}
 		if (ids.includes(line.id) && result.filed + result.already === 0) return { ok: false };
 		if (result.filed > 0) months.push(month);
@@ -867,6 +903,12 @@ export async function fileCardPayment(
 					).map((row) => row.memberId),
 				}
 			: null;
+	// Only a line this answer filed from nowhere is put back in Review by its Undo.
+	const wasUnassigned = new Set(
+		undo
+			.filter((entry) => entry.bucketId === null && entry.commitmentId === null)
+			.map((entry) => entry.id),
+	);
 	const rule = pattern
 		? await saveRule(db, {
 				id: input.ruleId,
@@ -886,6 +928,7 @@ export async function fileCardPayment(
 		ruleBefore: rule?.ok ? before : null,
 		stays: left(lineMonth),
 		lineMonth,
+		waited: waiting.filter((row) => wasUnassigned.has(row.id)),
 	};
 }
 
@@ -914,6 +957,11 @@ export async function undoCardPaymentFiling(
 		 * there again, with the guess it had and For who it was For.
 		 */
 		review?: CardPaymentReview;
+		/**
+		 * The lines the answer took out of Review (fileCardPayment's `waited`): each waits there
+		 * again once unfiled, with the guess it had. `review` has the last word on its own line.
+		 */
+		waited?: CardPaymentWaited[];
 	},
 ): Promise<{ restored: number; reviewVersion?: number | null }> {
 	const { restored } = await unfileTransactions(db, viewer, input.undo);
@@ -921,6 +969,36 @@ export async function undoCardPaymentFiling(
 		input.review === undefined
 			? { restored }
 			: { restored, reviewVersion: await waitInReviewAgain(db, viewer, input.undo, input.review) };
+	const others = (input.waited ?? []).filter((line) => line.id !== input.review?.transactionId);
+	if (others.length > 0) {
+		// Who each is For stays as it is now (the unfiling has put back a For the filing changed).
+		const forNow = await db
+			.select({ id: transactionFor.transactionId, memberId: transactionFor.memberId })
+			.from(transactionFor)
+			.where(
+				and(
+					eq(transactionFor.householdId, viewer.householdId),
+					sql`${transactionFor.transactionId} in (select value from json_each(${JSON.stringify(
+						others.map((line) => line.id),
+					)}))`,
+				),
+			);
+		for (const line of others) {
+			await waitInReviewAgain(db, viewer, input.undo, {
+				transactionId: line.id,
+				merchant: line.merchant,
+				guess: line.bucketId
+					? {
+							bucketId: line.bucketId,
+							confidence: line.confidence,
+							method: line.method,
+							reason: line.reason,
+						}
+					: null,
+				for: forNow.filter((row) => row.id === line.id).map((row) => row.memberId),
+			});
+		}
+	}
 	if (!input.ruleId) return done;
 	if (input.ruleBefore) {
 		const { householdId, memberId } = viewer;
