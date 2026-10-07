@@ -637,6 +637,7 @@ export {
 	type SendCheck,
 } from "./invite-token";
 export { LOG_PAGE, type LogFilter, type LogPage, loadLog } from "./log";
+export { type LogEventRow, listLogEvents } from "./log-events";
 export {
 	loadMatch,
 	type MatchPeer,

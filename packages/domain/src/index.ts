@@ -277,14 +277,20 @@ export {
 	quickAddChoices,
 } from "./likely";
 export {
+	compareLogNames,
+	LOG_EVENT_KINDS,
 	LOG_ITEM_KINDS,
+	LOG_PAIR_DETAIL,
 	type LogCursor,
+	type LogEventKind,
 	type LogFreshStartStatus,
 	type LogItemKind,
 	type LogRow,
 	type LogSnapshotKind,
 	type LogSort,
+	logItemOfEvent,
 	logItemOfPlanChange,
+	logWhen,
 } from "./log";
 export {
 	autoMatches,

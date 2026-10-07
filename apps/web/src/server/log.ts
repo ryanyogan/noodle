@@ -1,13 +1,23 @@
 import { loadLog } from "@noodle/db";
-import { type DayKey, dayKeyAt, LOG_ITEM_KINDS, type LogCursor, type LogRow } from "@noodle/domain";
+import {
+	type DayKey,
+	dayKeyAt,
+	LOG_ITEM_KINDS,
+	type LogCursor,
+	type LogRow,
+	logWhen,
+} from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { monthKeySchema } from "./month";
 
-/** A row of the Log with the day it was made, in the Household's time zone. */
-export type DatedLogRow = LogRow & { day: DayKey };
+/**
+ * A row of the Log with the day it was made and `when` as the Log says it, day and time of day
+ * ("Oct 6, 3:42 PM"), both in the Household's time zone.
+ */
+export type DatedLogRow = LogRow & { day: DayKey; when: string };
 
 export type LogPageView = { rows: DatedLogRow[]; next: LogCursor | null };
 
@@ -48,11 +58,13 @@ export const getLog = createServerFn({ method: "GET" })
 				after: data.after,
 			},
 		);
-		// Days in the Household's time zone, so server and browser render the same dates.
+		// Days and times in the Household's time zone, so server and browser render the same.
+		const now = Date.now();
 		return {
 			rows: page.rows.map((row) => ({
 				...row,
 				day: dayKeyAt(new Date(row.at), household.timeZone),
+				when: logWhen(row.at, household.timeZone, now),
 			})),
 			next: page.next,
 		};

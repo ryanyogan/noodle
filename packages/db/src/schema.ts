@@ -3,6 +3,7 @@ import {
 	DEFAULT_CHECK_IN_DAY,
 	type DraftLabels,
 	INSIGHT_KINDS,
+	LOG_EVENT_KINDS,
 	MONEY_IN_KINDS,
 	PERK_KINDS,
 	PERK_RENEWALS,
@@ -1108,6 +1109,32 @@ export const cardPaymentRules = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 	},
 	(t) => [uniqueIndex("card_payment_rules_household_pattern_idx").on(t.householdId, t.pattern)],
+);
+
+// The Log's own record (issue 141): what leaves no other row behind. A Rule removed (and, written
+// at the same moment, the Rule as it was made, so "made" survives its row), a Bank Connection
+// disconnected, an Account archived. `name` is the item's name as it was, `detail` a short word
+// about it (what a Rule filed into, a money-in Rule's kind, the card a payment went to). A Rule
+// into a Personal Allowance keeps its Parent in `owner_member_id`, as `rules` does, and only they
+// read it (ADR-0003). The item's own ID is not kept as a foreign key: the item may be gone.
+export const logEvents = sqliteTable(
+	"log_events",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		kind: text("kind", { enum: LOG_EVENT_KINDS }).notNull(),
+		name: text("name"),
+		detail: text("detail"),
+		// Who did it; null when nobody is on record (the bank took access away, a Fresh start).
+		memberId: text("member_id").references(() => members.id),
+		ownerMemberId: text("owner_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("log_events_household_idx").on(t.householdId, t.createdAt)],
 );
 
 // Who a Rule files spending For: one row per Member, like `transaction_for` (ADR-0011). No rows

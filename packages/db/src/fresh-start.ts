@@ -75,6 +75,7 @@ export const HOUSEHOLD_TABLES = {
 	ruleStatements: s.ruleStatements,
 	moneyInRules: s.moneyInRules,
 	cardPaymentRules: s.cardPaymentRules,
+	logEvents: s.logEvents,
 	categorizations: s.categorizations,
 	captureCards: s.captureCards,
 	balanceCheckAsks: s.balanceCheckAsks,
@@ -104,6 +105,8 @@ export const KEPT_ON_FRESH_START: ReadonlySet<HouseholdTableName> = new Set([
 	"members",
 	"freshStarts",
 	"householdSnapshots",
+	// The Log's own record of what was removed stays readable (issue 141).
+	"logEvents",
 	// A one-time pass that ran stays run.
 	"householdPasses",
 ]);

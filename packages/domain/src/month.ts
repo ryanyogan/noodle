@@ -4,7 +4,7 @@ export type MonthKey = `${number}-${number}`;
 /** A calendar day, as "YYYY-MM-DD". */
 export type DayKey = `${number}-${number}-${number}`;
 
-function partsAt(instant: Date, timeZone: string) {
+export function partsAt(instant: Date, timeZone: string) {
 	const parts = new Intl.DateTimeFormat("en-US", {
 		timeZone,
 		year: "numeric",

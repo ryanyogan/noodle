@@ -1,4 +1,12 @@
-import { LOG_ITEM_KINDS, type LogCursor, type LogItemKind, type MonthKey } from "@noodle/domain";
+import {
+	LOG_ITEM_KINDS,
+	LOG_PAIR_DETAIL,
+	type LogCursor,
+	type LogItemKind,
+	MONEY_IN_KIND_LABELS,
+	type MoneyInKind,
+	type MonthKey,
+} from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { DataTable, type DataTableColumn } from "@noodle/ui/components/data-table";
 import { OptionSelect } from "@noodle/ui/components/select";
@@ -6,7 +14,7 @@ import type { TableSort } from "@noodle/ui/lib/data-table";
 import { infiniteQueryOptions, useInfiniteQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { History, X } from "lucide-react";
-import { fullDay, monthName } from "../format";
+import { monthName } from "../format";
 import { logKey } from "../household-changes";
 import { type DatedLogRow, getLog } from "../server/log";
 import { describeChange, fromScenario, scopeText } from "./plan-history";
@@ -77,6 +85,7 @@ const KIND_LABELS: Record<LogItemKind, string> = {
 	snapshot: "Snapshots",
 	"fresh-start": "Fresh starts",
 	"bank-connection": "Bank Connections",
+	account: "Accounts",
 };
 
 /** What one of an item's kind is called, under its name. */
@@ -89,7 +98,49 @@ const KIND_NOUNS: Record<LogItemKind, string> = {
 	snapshot: "Your data",
 	"fresh-start": "Your data",
 	"bank-connection": "Bank Connection",
+	account: "Account",
 };
+
+/** What a row's item is called, under its name: a Rule for money in and a card payment say so. */
+export function logNoun(row: DatedLogRow): string {
+	const kind = row.source === "event" ? row.event : row.source;
+	if (kind.startsWith("money-in-rule")) return "Rule for money in";
+	if (kind.startsWith("card-payment-rule")) return "Card payment";
+	return KIND_NOUNS[row.item];
+}
+
+/** "always Income", or what a remembered pair of Accounts always is. */
+const moneyInAlways = (kind: string | null, pair: boolean): string =>
+	pair || kind === LOG_PAIR_DETAIL
+		? "a Transfer between two of your Accounts"
+		: (MONEY_IN_KIND_LABELS[kind as MoneyInKind] ?? "one kind");
+
+/** What one of the Log's own records says: a Rule as it was made, or something removed. */
+function eventChange(row: Extract<DatedLogRow, { source: "event" }>): string {
+	const { detail } = row;
+	switch (row.event) {
+		case "rule-made":
+			return detail ? `Rule made · files into ${detail}` : "Rule made";
+		case "rule-removed":
+			return detail ? `Rule removed · it filed into ${detail}` : "Rule removed";
+		case "money-in-rule-made":
+			return `Rule made · always ${moneyInAlways(detail, false)}`;
+		case "money-in-rule-removed":
+			return `Rule removed · it was always ${moneyInAlways(detail, false)}`;
+		case "card-payment-rule-made":
+			return detail ? `Remembered as a payment to ${detail}` : "Remembered as a card payment";
+		case "card-payment-rule-removed":
+			return detail
+				? `No longer remembered as a payment to ${detail}`
+				: "No longer remembered as a card payment";
+		case "bank-connection-removed":
+			return "Disconnected";
+		case "bank-connection-disconnected":
+			return "Access was taken away at the bank";
+		case "account-archived":
+			return "Archived";
+	}
+}
 
 const SNAPSHOT_REASONS: Record<Extract<DatedLogRow, { source: "snapshot" }>["kind"], string> = {
 	manual: "Taken by hand",
@@ -125,6 +176,12 @@ export function logWhat(row: DatedLogRow): string {
 			return "Fresh start";
 		case "bank-connection":
 			return row.institution ?? "A bank";
+		case "money-in-rule":
+		case "card-payment-rule":
+			return `“${row.pattern}”`;
+		case "event":
+			if (row.item === "rule") return `“${row.name ?? ""}”`;
+			return row.name ?? (row.item === "account" ? "An Account" : "A bank");
 	}
 }
 
@@ -145,6 +202,14 @@ export function logChange(row: DatedLogRow): string {
 			return FRESH_START_SAID[row.status];
 		case "bank-connection":
 			return row.disconnected ? "Connected · disconnected since" : "Connected";
+		case "money-in-rule":
+			return `Rule made · always ${moneyInAlways(row.kind, row.pair)}`;
+		case "card-payment-rule":
+			return row.cardName
+				? `Remembered as a payment to ${row.cardName}`
+				: "Remembered as a card payment";
+		case "event":
+			return eventChange(row);
 	}
 }
 
@@ -158,12 +223,13 @@ const columns: DataTableColumn<DatedLogRow>[] = [
 	{
 		id: "when",
 		header: "When",
-		min: 6.5,
-		width: "6.5rem",
+		// Wide enough for "Oct 6, 2025, 12:42 PM" on one line.
+		min: 10.5,
+		width: "10.5rem",
 		stacked: "value",
 		sortable: { descFirst: true, said: { asc: "oldest first", desc: "newest first" } },
-		className: "text-muted-foreground",
-		cell: (row) => fullDay(row.day),
+		className: "text-muted-foreground whitespace-nowrap tabular-nums",
+		cell: (row) => row.when,
 	},
 	{
 		id: "who",
@@ -183,7 +249,7 @@ const columns: DataTableColumn<DatedLogRow>[] = [
 		cell: (row) => (
 			<span className="grid min-w-0">
 				<span className="min-w-0 font-medium break-words">{logWhat(row)}</span>
-				<span className="text-[13px] text-muted-foreground">{KIND_NOUNS[row.item]}</span>
+				<span className="text-[13px] text-muted-foreground">{logNoun(row)}</span>
 			</span>
 		),
 	},
@@ -219,6 +285,16 @@ const columns: DataTableColumn<DatedLogRow>[] = [
 const ANYONE = "";
 const ANYTHING = "";
 
+/** The orders the phone's Sort control offers: a phone shows no column headers to sort by. */
+const SORT_CHOICES = [
+	{ value: "newest", label: "Newest" },
+	{ value: "oldest", label: "Oldest" },
+	{ value: "who", label: "Who" },
+];
+
+const sortChoiceOf = (order: LogOrder | undefined) =>
+	order === undefined ? "newest" : order === "oldest" ? "oldest" : "who";
+
 /**
  * The Log's table with its filters. The filters are the page's address (`filters`), so a link
  * can open it narrowed to a month; `onFilter` asks the page for another address.
@@ -235,7 +311,7 @@ export function HouseholdLog({
 	const rows = log.data?.pages.flatMap((page) => page.rows) ?? [];
 	const narrowed = Boolean(filters.month || filters.who || filters.kind);
 	return (
-		<div className="grid min-w-0 gap-3">
+		<div className="@container/log grid min-w-0 gap-3">
 			<div className="flex flex-wrap items-center gap-2">
 				<OptionSelect
 					aria-label="Who made the change"
@@ -272,6 +348,23 @@ export function HouseholdLog({
 						<X />
 					</Button>
 				) : null}
+				{/* Shown while the table is stacked (the DataTable's own width), when it has no headers. */}
+				<div className="flex items-center gap-1.5 text-[13px] text-muted-foreground @2xl/log:hidden">
+					<span aria-hidden="true">Sort</span>
+					<OptionSelect
+						aria-label="Sort"
+						size="sm"
+						className="w-auto min-w-28"
+						value={sortChoiceOf(filters.order)}
+						onValueChange={(choice) =>
+							onFilter({
+								...filters,
+								order: choice === "newest" ? undefined : (choice as "oldest" | "who"),
+							})
+						}
+						choices={SORT_CHOICES}
+					/>
+				</div>
 			</div>
 			{log.isError ? (
 				<p className="text-[13px] text-muted-foreground" role="alert">
@@ -291,7 +384,7 @@ export function HouseholdLog({
 						<p className="px-(--card-pad) py-4 text-[13px] text-muted-foreground">
 							{narrowed
 								? "No changes match."
-								: "Changes to the Plan, Rules, snapshots and Bank Connections will show here."}
+								: "Changes to the Plan, Rules, snapshots, Bank Connections and Accounts will show here."}
 						</p>
 					}
 				/>

@@ -1,22 +1,34 @@
 import type { LogRow } from "@noodle/domain";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
 	addGoal,
 	addPersonalAllowance,
+	archiveAccount,
 	clearHouseholdRows,
 	createHouseholdForParent,
 	type Db,
+	deleteMoneyInRule,
+	deleteRule,
+	forgetCardPayment,
+	listLogEvents,
 	loadLog,
+	markBankConnectionDisconnected,
+	removeBankConnection,
+	saveMoneyInRule,
 	setAllowance,
 	setTakeHomePay,
 } from "./index";
 import {
 	accounts,
 	bankConnections,
+	cardPaymentRules,
 	freshStarts,
 	householdSnapshots,
+	logEvents,
 	members,
+	moneyInRules,
 	rules,
 } from "./schema";
 import { testDb } from "./test-db";
@@ -44,6 +56,12 @@ const said = (row: LogRow) => {
 			return `fresh-start:${row.status}`;
 		case "bank-connection":
 			return `bank:${row.institution}`;
+		case "money-in-rule":
+			return `money-in:${row.pattern}→${row.pair ? "pair" : row.kind}`;
+		case "card-payment-rule":
+			return `card-payment:${row.pattern}→${row.cardName}`;
+		case "event":
+			return `${row.event}:${row.name}→${row.detail}`;
 	}
 };
 
@@ -324,5 +342,242 @@ describe("The Log", () => {
 		});
 		expect((await whole(alex, { item: "goal" })).map(said)).toEqual(["goal-add:Trip"]);
 		expect(await whole({ householdId: "elsewhere", memberId: "alex" })).toEqual([]);
+	});
+
+	describe("what is removed (issue 141)", () => {
+		it("a removed Rule still shows as made, by who made it and when, and as removed", async () => {
+			await deleteRule(db, alex, "rule-shared");
+			const rows = await whole(alex, { item: "rule" });
+			// The Rules here were made on days in 2027, so today's removal sorts as the oldest.
+			expect(rows.map(said)).toEqual([
+				"rule:jeweler→Alex’s Personal Allowance",
+				"rule-made:costco→Groceries",
+				"rule-removed:costco→Groceries",
+			]);
+			// Made by Sam on the day she made it; removed by Alex just now.
+			expect(rows[1]).toMatchObject({ memberName: "Sam", at: later(1).getTime(), item: "rule" });
+			expect(rows[2]).toMatchObject({ memberName: "Alex", item: "rule", month: null });
+			expect(Math.abs((rows[2]?.at ?? 0) - Date.now())).toBeLessThan(60_000);
+			expect(await db.select().from(rules)).toHaveLength(1);
+			// Removing it again, or one that was never there, writes nothing more.
+			await deleteRule(db, alex, "rule-shared");
+			await deleteRule(db, alex, "no-such-rule");
+			expect(await db.select().from(logEvents)).toHaveLength(2);
+			// Sam, who made it, reads the same two rows.
+			expect((await whole(sam, { item: "rule" })).map(said)).toEqual([
+				"rule-made:costco→Groceries",
+				"rule-removed:costco→Groceries",
+			]);
+			expect((await whole(alex, { memberId: "sam", item: "rule" })).map(said)).toEqual([
+				"rule-made:costco→Groceries",
+			]);
+		});
+
+		it("never shows the other Parent a removed Rule into a Personal Allowance, nor lets them remove it", async () => {
+			// Sam can't see it, so she can't remove it, and nothing is recorded.
+			await deleteRule(db, sam, "rule-private");
+			expect(await db.select().from(logEvents)).toHaveLength(0);
+			expect(await db.select().from(rules)).toHaveLength(2);
+
+			await deleteRule(db, alex, "rule-private");
+			expect((await whole(alex, { item: "rule" })).map(said)).toEqual([
+				"rule-made:jeweler→Alex’s Personal Allowance",
+				"rule:costco→Groceries",
+				"rule-removed:jeweler→Alex’s Personal Allowance",
+			]);
+			for (const filter of [{}, { item: "rule" }, { memberId: "alex" }] as const) {
+				for (const sort of [
+					{ by: "when", desc: true },
+					{ by: "who", desc: false },
+				] as const) {
+					const sent = JSON.stringify(await whole(sam, { ...filter, sort }));
+					expect(sent).not.toContain("jeweler");
+					expect(sent).not.toContain("Personal Allowance");
+					expect(sent).not.toContain("rule-private");
+				}
+			}
+			expect(JSON.stringify(await listLogEvents(db, sam))).not.toContain("jeweler");
+			expect(
+				(await listLogEvents(db, alex)).map((e) => `${e.kind}:${e.name}:${e.memberName}`).sort(),
+			).toEqual(["rule-made:jeweler:Alex", "rule-removed:jeweler:Alex"]);
+		});
+
+		it("has Rules for money in and card payments remembered, as made and as removed", async () => {
+			await db.insert(accounts).values([
+				{ id: "checking", householdId, name: "Checking", kind: "checking" },
+				{ id: "visa", householdId, name: "Visa", kind: "credit-card" },
+			] as (typeof accounts.$inferInsert)[]);
+			await saveMoneyInRule(db, sam, { ruleId: "pay", wording: "ACME PAYROLL", kind: "income" });
+			await db.insert(moneyInRules).values({
+				id: "pair",
+				householdId,
+				pattern: "zelle from savings",
+				kind: "transfer",
+				createdByMemberId: "alex",
+				intoAccountId: "checking",
+				otherAccountId: "visa",
+				createdAt: later(6),
+			});
+			await db.insert(cardPaymentRules).values({
+				id: "card",
+				householdId,
+				pattern: "visa payment",
+				accountId: "visa",
+				createdByMemberId: "sam",
+				createdAt: later(7),
+			});
+			await db
+				.update(moneyInRules)
+				.set({ createdAt: later(8) })
+				.where(eq(moneyInRules.id, "pay"));
+			expect((await whole(sam, { item: "rule" })).map(said).slice(0, 3)).toEqual([
+				"money-in:acme payroll→income",
+				"card-payment:visa payment→Visa",
+				"money-in:zelle from savings→pair",
+			]);
+			expect((await whole(alex, { memberId: "sam", item: "rule" })).map(said)).toEqual([
+				"money-in:acme payroll→income",
+				"card-payment:visa payment→Visa",
+				"rule:costco→Groceries",
+			]);
+
+			await deleteMoneyInRule(db, householdId, "pay", "alex");
+			await deleteMoneyInRule(db, householdId, "pair", "alex");
+			await forgetCardPayment(db, householdId, "visa payment", "alex");
+			await forgetCardPayment(db, householdId, "visa payment", "alex");
+			expect(await db.select().from(moneyInRules)).toHaveLength(0);
+			expect(await db.select().from(cardPaymentRules)).toHaveLength(0);
+			const rows = await whole(alex, { item: "rule" });
+			expect(
+				rows
+					.map(said)
+					.filter((s) => !s.startsWith("rule:"))
+					.sort(),
+			).toEqual([
+				"card-payment-rule-made:visa payment→Visa",
+				"card-payment-rule-removed:visa payment→Visa",
+				"money-in-rule-made:acme payroll→income",
+				"money-in-rule-made:zelle from savings→pair",
+				"money-in-rule-removed:acme payroll→income",
+				"money-in-rule-removed:zelle from savings→pair",
+			]);
+			const made = rows.find((r) => r.key === "event:pay:made");
+			expect(made).toMatchObject({ memberName: "Sam", at: later(8).getTime() });
+			expect(rows.find((r) => r.key === "event:pay:removed")).toMatchObject({ memberName: "Alex" });
+			// Another Household's removal with the same IDs touches nothing here.
+			await deleteMoneyInRule(db, "elsewhere", "pay", "alex");
+			expect(await db.select().from(logEvents)).toHaveLength(6);
+		});
+
+		it("has a Bank Connection disconnected, by a Parent or at the bank, and an Account archived", async () => {
+			expect(await markBankConnectionDisconnected(db, householdId, "bank")).toBe(true);
+			expect(await markBankConnectionDisconnected(db, householdId, "bank")).toBe(false);
+			expect(await removeBankConnection(db, householdId, "bank", "alex")).toBe(true);
+			expect(await removeBankConnection(db, householdId, "bank", "alex")).toBe(false);
+			const bank = await whole(alex, { item: "bank-connection" });
+			expect(bank.map(said).sort()).toEqual([
+				"bank-connection-disconnected:First Bank→null",
+				"bank-connection-removed:First Bank→null",
+				"bank:First Bank",
+			]);
+			expect(
+				bank.find((r) => r.source === "event" && r.event === "bank-connection-removed"),
+			).toMatchObject({
+				memberName: "Alex",
+			});
+			expect(
+				bank.find((r) => r.source === "event" && r.event === "bank-connection-disconnected"),
+			).toMatchObject({ memberName: null, memberId: null });
+
+			await db.insert(accounts).values({
+				id: "old-card",
+				householdId,
+				name: "Old card",
+				kind: "credit-card",
+			} as typeof accounts.$inferInsert);
+			const now = new Date();
+			expect(
+				await archiveAccount(db, { householdId, accountId: "old-card", memberId: "sam", now }),
+			).toEqual({ ok: true });
+			// Archived already: refused, and nothing more is recorded.
+			expect(
+				await archiveAccount(db, { householdId, accountId: "old-card", memberId: "sam" }),
+			).toMatchObject({ ok: false });
+			const archived = await whole(alex, { item: "account" });
+			expect(archived.map(said)).toEqual(["account-archived:Old card→null"]);
+			expect(archived[0]).toMatchObject({ memberName: "Sam", item: "account", at: now.getTime() });
+			expect(await whole(alex, { item: "account", month: "2026-10" })).toEqual([]);
+		});
+
+		it("pages every order whole with removed things in it", async () => {
+			await deleteRule(db, alex, "rule-shared");
+			await removeBankConnection(db, householdId, "bank", "sam");
+			await saveMoneyInRule(db, sam, { ruleId: "pay", wording: "ACME PAYROLL", kind: "income" });
+			for (const sort of [
+				{ by: "when", desc: true },
+				{ by: "when", desc: false },
+				{ by: "who", desc: false },
+				{ by: "who", desc: true },
+			] as const) {
+				const all = (await whole(alex, { sort })).map((r) => r.key);
+				expect(all).toHaveLength(13);
+				expect(new Set(all).size).toBe(13);
+				for (const limit of [1, 2, 3, 7]) {
+					expect((await whole(alex, { sort }, limit)).map((r) => r.key)).toEqual(all);
+				}
+			}
+		});
+
+		it("is kept through a Fresh start, and cleared when the Household is deleted", async () => {
+			await deleteRule(db, alex, "rule-shared");
+			await removeBankConnection(db, householdId, "bank", "sam");
+			await clearHouseholdRows(db, householdId, "fresh-start");
+			expect((await whole()).map(said).sort()).toEqual([
+				"bank-connection-removed:First Bank→null",
+				"fresh-start:cancelled",
+				"rule-made:costco→Groceries",
+				"rule-removed:costco→Groceries",
+				"snapshot:manual",
+			]);
+			await clearHouseholdRows(db, householdId, "delete");
+			expect(await db.select().from(logEvents)).toHaveLength(0);
+		});
+	});
+
+	it("orders by who the same in the database and in the merge, with accents and emoji in names", async () => {
+		// "ﬁ" (U+FB01) sorts after an emoji in UTF-16 and before it by code point, as SQLite has it.
+		await db.update(members).set({ name: "ﬁona" }).where(eq(members.id, "alex"));
+		await db.update(members).set({ name: "😀 Sam" }).where(eq(members.id, "sam"));
+		await db.insert(members).values([
+			{ id: "em", householdId, kind: "parent", name: "Émile", clerkUserId: "clerk-em" },
+			{ id: "zo", householdId, kind: "parent", name: "Zoë", clerkUserId: "clerk-zo" },
+		]);
+		await setAllowance(db, {
+			householdId,
+			memberId: "em",
+			bucketId: "groceries",
+			month: "2026-11",
+			amountCents: 1,
+		});
+		await db.insert(rules).values({
+			id: "rule-zo",
+			householdId,
+			pattern: "aldi",
+			bucketId: "groceries",
+			createdByMemberId: "zo",
+			createdAt: later(9),
+		});
+		const order = ["Zoë", "Émile", "ﬁona", "😀 Sam"];
+		for (const desc of [false, true]) {
+			const sort = { by: "who", desc } as const;
+			const all = await whole(alex, { sort });
+			const names = all.map((r) => r.memberName);
+			expect([...new Set(names)]).toEqual(desc ? [...order].reverse() : order);
+			for (const limit of [1, 2, 3]) {
+				expect((await whole(alex, { sort }, limit)).map((r) => r.key)).toEqual(
+					all.map((r) => r.key),
+				);
+			}
+		}
 	});
 });

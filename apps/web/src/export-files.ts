@@ -156,6 +156,19 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		]);
 	}
 
+	// The Log's own record: Rules removed (each with the Rule as it was made), Bank Connections
+	// disconnected and Accounts archived.
+	const removed: (string | number | null)[][] = [["When", "Who", "What", "Name", "Detail"]];
+	for (const e of data.removed) {
+		removed.push([
+			new Date(e.at).toISOString(),
+			e.memberName ?? "",
+			e.kind,
+			e.name ?? "",
+			e.detail ?? "",
+		]);
+	}
+
 	const rules: (string | number | null)[][] = [
 		["Statement words", "Bucket", "For", "Private", "Filed so far", "Set by", "Owed back"],
 	];
@@ -226,6 +239,7 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		"accounts.csv": toCsv(accounts),
 		"plan.csv": toCsv(plan),
 		"plan-changes.csv": toCsv(changes),
+		"log-removed.csv": toCsv(removed),
 		"rules.csv": toCsv(rules),
 		"owed-back.csv": toCsv(owedBack),
 		"paid-back.csv": toCsv(paidBack),

@@ -178,6 +178,12 @@ describe("a fresh start", () => {
 
 		const after = await counts(a);
 		for (const [name, n] of Object.entries(after)) {
+			// The Log's own record is kept, and gains the Bank Connections the Fresh start
+			// disconnected (issue 141).
+			if (name === "logEvents") {
+				expect(n, name).toBeGreaterThanOrEqual(before.logEvents);
+				continue;
+			}
 			const kept = name === "households" || name === "members" || name === "freshStarts";
 			expect(n, name).toBe(kept ? before[name as HouseholdTableName] : 0);
 		}

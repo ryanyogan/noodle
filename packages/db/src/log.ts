@@ -1,31 +1,55 @@
 import {
+	compareLogNames,
+	LOG_EVENT_KINDS,
 	type LogCursor,
+	type LogEventKind,
 	type LogItemKind,
 	type LogRow,
 	type LogSnapshotKind,
 	type LogSort,
+	logItemOfEvent,
 	logItemOfPlanChange,
 	type MonthKey,
 } from "@noodle/domain";
-import { type AnyColumn, and, asc, desc, eq, isNull, ne, or, type SQL, sql } from "drizzle-orm";
+import {
+	type AnyColumn,
+	and,
+	asc,
+	desc,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	ne,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import type { Db } from "./index";
+import { visibleLogEvent } from "./log-events";
 import { planChangeOf, selectPlanChanges } from "./plan-log";
 import type { Viewer } from "./privacy";
 import {
+	accounts,
 	bankConnections,
 	buckets,
+	cardPaymentRules,
 	commitments,
 	freshStarts,
 	householdSnapshots,
+	logEvents,
 	members,
+	moneyInRules,
 	planChanges,
 	rules,
 } from "./schema";
 
 // The Log (issue 139): every change made to the Household that is on record, newest first, a
-// page at a time. It reads what is already kept, each from its own table: Plan changes, Rules
-// (as made; a removed Rule leaves no record), Household snapshots other than the nightly ones,
-// Fresh starts and Bank Connections. Changes to single Transactions are not in it.
+// page at a time. It reads what is already kept, each from its own table: Plan changes, Rules,
+// Rules for money in and card payments remembered (each as made), Household snapshots other than
+// the nightly ones, Fresh starts and Bank Connections; and its own record (`log_events`, issue
+// 141) of what leaves no row behind: a Rule removed, with the Rule as it was made, a Bank
+// Connection disconnected, an Account archived. Changes to single Transactions are not in it.
 //
 // The order is when (newest first), then the source in the order below, then the row's own ID
 // (newest first). Each source gives its next few rows after the cursor and the page is the
@@ -34,9 +58,19 @@ import {
 // Asked for oldest first, the order is that one backwards. Asked for by who, it is the Member's
 // name (A to Z, or Z to A; nobody on record counts as "") and each Member's changes in the
 // order above. Every order is total, so a cursor names one place in it and paging neither
-// repeats nor skips a row. Names compare as SQLite compares them (by bytes), here and there.
+// repeats nor skips a row. Names compare as SQLite compares them (by bytes, which is by code
+// point), in the selects and in the merge alike (`compareLogNames`).
 
-const SOURCES = ["plan", "rule", "snapshot", "fresh-start", "bank-connection"] as const;
+const SOURCES = [
+	"plan",
+	"rule",
+	"snapshot",
+	"fresh-start",
+	"bank-connection",
+	"money-in-rule",
+	"card-payment-rule",
+	"event",
+] as const;
 type Source = (typeof SOURCES)[number];
 const rankOf = (source: Source) => SOURCES.indexOf(source);
 
@@ -63,10 +97,13 @@ const whoKey = sql<string>`coalesce(${members.name}, '')`;
 
 export type LogPage = { rows: LogRow[]; next: LogCursor | null };
 
-const sourceOf = (item: LogItemKind): Source =>
-	item === "rule" || item === "snapshot" || item === "fresh-start" || item === "bank-connection"
-		? item
-		: "plan";
+/** The sources that hold changes to one kind of item. */
+const sourcesOf = (item: LogItemKind): readonly Source[] => {
+	if (item === "rule") return ["rule", "money-in-rule", "card-payment-rule", "event"];
+	if (item === "bank-connection") return ["bank-connection", "event"];
+	if (item === "account") return ["event"];
+	return item === "snapshot" || item === "fresh-start" ? [item] : ["plan"];
+};
 
 /** Plan changes about one kind of item, told from the kind stored (never the masked one). */
 const planItem = (item: LogItemKind): SQL => {
@@ -91,7 +128,7 @@ const newestFirst = (a: Ranked, b: Ranked) => {
 const inOrder = (sort: LogSort) => (a: Ranked, b: Ranked) => {
 	if (sort.by === "when") return sort.desc ? newestFirst(a, b) : newestFirst(b, a);
 	const [x, y] = [a.row.memberName ?? "", b.row.memberName ?? ""];
-	if (x !== y) return (x < y ? -1 : 1) * (sort.desc ? -1 : 1);
+	if (x !== y) return compareLogNames(x, y) * (sort.desc ? -1 : 1);
 	return newestFirst(a, b);
 };
 
@@ -106,10 +143,10 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 	const sort = filter.sort ?? NEWEST_FIRST;
 	// Within one Member's changes the order by who is newest first.
 	const newest = sort.by === "who" || sort.desc;
-	const only = filter.item === undefined ? null : sourceOf(filter.item);
+	const only = filter.item === undefined ? null : sourcesOf(filter.item);
 	// A source the filters leave out is still asked, for nothing: the batch keeps its shape.
 	const wanted = (source: Source): SQL | undefined =>
-		(only === null || only === source) && (filter.month === undefined || source === "plan")
+		(only === null || only.includes(source)) && (filter.month === undefined || source === "plan")
 			? undefined
 			: sql`0`;
 	/** Rows of `source` that come after the cursor, by its `at` and `id` columns. */
@@ -143,14 +180,23 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 	const by = (column: AnyColumn) => (memberId === undefined ? undefined : eq(column, memberId));
 	const who = (column: AnyColumn) => eq(members.id, column);
 
-	const [plan, ruleRows, snapshotRows, freshStartRows, bankRows] = await db.batch([
+	const [
+		plan,
+		ruleRows,
+		snapshotRows,
+		freshStartRows,
+		bankRows,
+		moneyInRows,
+		cardPaymentRows,
+		eventRows,
+	] = await db.batch([
 		selectPlanChanges(
 			db,
 			viewer,
 			and(
 				wanted("plan"),
 				filter.month === undefined ? undefined : eq(planChanges.month, filter.month),
-				filter.item === undefined || only !== "plan" ? undefined : planItem(filter.item),
+				filter.item === undefined || !only?.includes("plan") ? undefined : planItem(filter.item),
 				by(planChanges.memberId),
 				afterCursor("plan", planChanges.createdAt, planChanges.id),
 			),
@@ -250,6 +296,80 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 			)
 			.orderBy(...ordered(bankConnections.createdAt, bankConnections.id))
 			.limit(limit + 1),
+		// Rules for money in are the Household's, never private (ADR-0057).
+		db
+			.select({
+				id: moneyInRules.id,
+				at: moneyInRules.createdAt,
+				memberId: moneyInRules.createdByMemberId,
+				memberName: sql<string | null>`${members.name}`.as("member_name"),
+				pattern: moneyInRules.pattern,
+				kind: moneyInRules.kind,
+				pair: sql<number>`${isNotNull(moneyInRules.intoAccountId)}`.as("pair"),
+			})
+			.from(moneyInRules)
+			.leftJoin(members, who(moneyInRules.createdByMemberId))
+			.where(
+				and(
+					eq(moneyInRules.householdId, viewer.householdId),
+					wanted("money-in-rule"),
+					by(moneyInRules.createdByMemberId),
+					afterCursor("money-in-rule", moneyInRules.createdAt, moneyInRules.id),
+				),
+			)
+			.orderBy(...ordered(moneyInRules.createdAt, moneyInRules.id))
+			.limit(limit + 1),
+		db
+			.select({
+				id: cardPaymentRules.id,
+				at: cardPaymentRules.createdAt,
+				memberId: cardPaymentRules.createdByMemberId,
+				memberName: sql<string | null>`${members.name}`.as("member_name"),
+				pattern: cardPaymentRules.pattern,
+				cardName: sql<string | null>`${accounts.name}`.as("card_name"),
+			})
+			.from(cardPaymentRules)
+			.leftJoin(members, who(cardPaymentRules.createdByMemberId))
+			.leftJoin(accounts, eq(accounts.id, cardPaymentRules.accountId))
+			.where(
+				and(
+					eq(cardPaymentRules.householdId, viewer.householdId),
+					wanted("card-payment-rule"),
+					by(cardPaymentRules.createdByMemberId),
+					afterCursor("card-payment-rule", cardPaymentRules.createdAt, cardPaymentRules.id),
+				),
+			)
+			.orderBy(...ordered(cardPaymentRules.createdAt, cardPaymentRules.id))
+			.limit(limit + 1),
+		db
+			.select({
+				id: logEvents.id,
+				at: logEvents.createdAt,
+				memberId: logEvents.memberId,
+				memberName: sql<string | null>`${members.name}`.as("member_name"),
+				event: sql<LogEventKind>`${logEvents.kind}`.as("event"),
+				itemName: sql<string | null>`${logEvents.name}`.as("item_name"),
+				detail: logEvents.detail,
+			})
+			.from(logEvents)
+			.leftJoin(members, who(logEvents.memberId))
+			.where(
+				and(
+					// A removed Rule into a Personal Allowance is its Parent's alone (ADR-0003).
+					visibleLogEvent(viewer),
+					wanted("event"),
+					filter.item === undefined
+						? undefined
+						: inArray(
+								logEvents.kind,
+								LOG_EVENT_KINDS.filter((kind) => logItemOfEvent(kind) === filter.item),
+							),
+					by(logEvents.memberId),
+					afterCursor("event", logEvents.createdAt, logEvents.id),
+				),
+			)
+			.orderBy(...ordered(logEvents.createdAt, logEvents.id))
+			.limit(limit + 1),
 	]);
 
 	const ranked = <S extends Source>(source: S, id: string | number, row: LogRow): Ranked => ({
@@ -318,6 +438,38 @@ export async function loadLog(db: Db, viewer: Viewer, filter: LogFilter = {}): P
 				source: "bank-connection",
 				institution: row.institution,
 				disconnected: row.status === "disconnected",
+			}),
+		),
+		...moneyInRows.map((row) =>
+			ranked("money-in-rule", row.id, {
+				...head("money-in-rule", row),
+				item: "rule",
+				month: null,
+				source: "money-in-rule",
+				pattern: row.pattern,
+				kind: row.kind,
+				pair: Boolean(row.pair),
+			}),
+		),
+		...cardPaymentRows.map((row) =>
+			ranked("card-payment-rule", row.id, {
+				...head("card-payment-rule", row),
+				item: "rule",
+				month: null,
+				source: "card-payment-rule",
+				pattern: row.pattern,
+				cardName: row.cardName,
+			}),
+		),
+		...eventRows.map((row) =>
+			ranked("event", row.id, {
+				...head("event", row),
+				item: logItemOfEvent(row.event),
+				month: null,
+				source: "event",
+				event: row.event,
+				name: row.itemName,
+				detail: row.detail,
 			}),
 		),
 	].sort(inOrder(sort));
