@@ -4,10 +4,17 @@ import type { BucketState, MonthState } from "./month-state";
 // with these; nothing here knows how a Nudge is delivered.
 
 /**
- * What a Nudge is about. `check-in` is the weekly Check-in's; `test` is one a Parent sends
- * themselves to check a device.
+ * What a Nudge is about. `check-in` is the weekly Check-in's; `balance-check` is the monthly
+ * Balance check of a card kept by hand, once its statement has closed; `test` is one a Parent
+ * sends themselves to check a device.
  */
-export type NudgeKind = "bucket-pace" | "quick-add" | "windfall" | "check-in" | "test";
+export type NudgeKind =
+	| "bucket-pace"
+	| "quick-add"
+	| "windfall"
+	| "balance-check"
+	| "check-in"
+	| "test";
 
 /**
  * A daily window when a Parent gets no Nudges, as minutes after local midnight (0–1439). It
@@ -20,19 +27,22 @@ export type NudgePreferences = {
 	bucketPace: boolean;
 	otherParentQuickAdds: boolean;
 	windfalls: boolean;
+	/** A card kept by hand's statement has closed and its balance is wanted (the Balance check). */
+	balanceChecks: boolean;
 	quietHours: QuietHours | null;
 	/** The IANA zone the quiet hours are in: the Parent's own, which may differ from the Household's. */
 	timeZone: string;
 };
 
 /**
- * Before a Parent has chosen: Buckets passing Pace and Extra income, never the other Parent's
- * Quick Adds, and quiet from 9 PM to 7 AM in the Household's time zone.
+ * Before a Parent has chosen: Buckets passing Pace, Extra income and the monthly Balance check,
+ * never the other Parent's Quick Adds, and quiet from 9 PM to 7 AM in the Household's time zone.
  */
 export const defaultNudgePreferences = (timeZone: string): NudgePreferences => ({
 	bucketPace: true,
 	otherParentQuickAdds: false,
 	windfalls: true,
+	balanceChecks: true,
 	quietHours: { start: 21 * 60, end: 7 * 60 },
 	timeZone,
 });
@@ -49,6 +59,8 @@ export function wantsNudge(preferences: NudgePreferences, kind: NudgeKind): bool
 			return preferences.otherParentQuickAdds;
 		case "windfall":
 			return preferences.windfalls;
+		case "balance-check":
+			return preferences.balanceChecks;
 		case "check-in":
 		case "test":
 			return true;

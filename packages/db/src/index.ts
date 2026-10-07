@@ -421,6 +421,15 @@ export async function acceptInvite(
 
 export * from "./account-archive";
 export {
+	type BalanceCheckDue,
+	isCardKeptByHand,
+	listBalanceCheckHouseholds,
+	loadBalanceChecksDue,
+	loadBalanceChecksPutAway,
+	markBalanceChecksNudged,
+	putAwayBalanceCheck,
+} from "./balance-checks";
+export {
 	type AddBankConnectionResult,
 	addBankConnection,
 	BANK_SYNC_STALE_MS,

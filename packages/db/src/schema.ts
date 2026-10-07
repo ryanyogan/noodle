@@ -398,6 +398,25 @@ export const captureCards = sqliteTable(
 	(t) => [index("capture_cards_household_idx").on(t.householdId)],
 );
 
+// One statement of a card kept by hand that's due a Balance check: when its Nudge went to the
+// Parents (so it goes once per statement), and when a Parent said "Not now" (so it stays away on
+// every device until the next statement closes). `id` is the Account's id, ":", the statement's
+// day. No row until either happens.
+export const balanceCheckAsks = sqliteTable(
+	"balance_check_asks",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		accountId: text("account_id").notNull(),
+		statementDay: text("statement_day").notNull(),
+		nudgedAt: integer("nudged_at", { mode: "timestamp_ms" }),
+		putAwayAt: integer("put_away_at", { mode: "timestamp_ms" }),
+	},
+	(t) => [index("balance_check_asks_household_idx").on(t.householdId)],
+);
+
 // A balance a Parent entered for an Account. Appended, never updated: the latest one is the
 // balance, less Goal spending recorded after it (see accountBalance in @noodle/domain).
 export const accountBalances = sqliteTable(
@@ -869,6 +888,8 @@ export const nudgePreferences = sqliteTable("nudge_preferences", {
 	bucketPace: integer("bucket_pace", { mode: "boolean" }).notNull(),
 	otherParentQuickAdds: integer("other_parent_quick_adds", { mode: "boolean" }).notNull(),
 	windfalls: integer("windfalls", { mode: "boolean" }).notNull(),
+	// The monthly Balance check of a card kept by hand; null (never chosen) is on.
+	balanceChecks: integer("balance_checks", { mode: "boolean" }),
 	quietStart: integer("quiet_start"),
 	quietEnd: integer("quiet_end"),
 	timeZone: text("time_zone").notNull(),

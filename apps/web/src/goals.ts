@@ -383,7 +383,11 @@ export const withBalance = (data: GoalsData, v: BalanceVariables): GoalsData => 
 				owed: canPayOff(a.kind)
 					? owedOn(
 							{ amount: v.amountCents, day },
-							data.payments.filter((p) => p.accountId === a.id),
+							[
+								...data.payments,
+								// A Transfer naming a card kept by hand comes off too.
+								...(data.sent ?? []).filter((p) => p.comesOff),
+							].filter((p) => p.accountId === a.id),
 							a.bankConnectionId !== null,
 						)
 					: null,

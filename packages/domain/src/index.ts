@@ -244,10 +244,13 @@ export {
 	balanceCheck,
 	type CardKept,
 	cardKept,
+	cardKeptUnasked,
 	cardPaymentIsSpending,
 	PURCHASES_GET_IN,
 	type PurchasesGetIn,
+	STATEMENTS_FOLLOWED_DAYS,
 	statementCheckDue,
+	statementsFollowed,
 } from "./hand-kept";
 export {
 	findInsights,

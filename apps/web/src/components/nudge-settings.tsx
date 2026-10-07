@@ -171,6 +171,12 @@ function NudgePreferencesForm({ saved }: { saved: NudgePreferences }) {
 					checked={preferences.windfalls}
 					onChange={(windfalls) => change({ windfalls })}
 				/>
+				<Switch
+					label="A statement’s Balance check is due"
+					hint="Once a month for a card you keep by hand, after its statement closes."
+					checked={preferences.balanceChecks}
+					onChange={(balanceChecks) => change({ balanceChecks })}
+				/>
 				<div className="grid gap-3 pb-(--card-pad)">
 					<Switch
 						label="Quiet hours"

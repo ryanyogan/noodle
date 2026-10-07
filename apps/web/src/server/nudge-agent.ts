@@ -30,7 +30,7 @@ export type HouseholdEvent =
 /** Writes that land within this long of each other are looked at together. */
 const SETTLE_MS = 3_000;
 
-/** What's still to look at, and a week's Check-in Nudges still to be held. */
+/** What's still to look at, and Nudges already decided (a week's Check-in, Balance checks) still to be held. */
 type Pending = { checkPace: boolean; events: HouseholdEvent[]; checkIns: ScheduledNudge[] };
 
 const HOUSEHOLD_KEY = "household-id";
@@ -108,6 +108,18 @@ export class HouseholdNudges {
 		this.addPending({ checkPace: false, events: [], checkIns: nudges });
 		await this.wakeBy(Date.now());
 		return true;
+	}
+
+	/**
+	 * Holds Nudges decided elsewhere (the nightly run's Balance checks) until each is due. Whoever
+	 * hands them over makes sure they're handed once.
+	 */
+	async hold(householdId: string, nudges: ScheduledNudge[]) {
+		if (nudges.length === 0) return;
+		this.kv.put(HOUSEHOLD_KEY, householdId);
+		// Handed to the alarm, the only thing that changes what's held.
+		this.addPending({ checkPace: false, events: [], checkIns: nudges });
+		await this.wakeBy(Date.now());
 	}
 
 	/** Runs on the Agent's alarm: decides on anything pending, then sends what's due. */

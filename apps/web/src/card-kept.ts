@@ -1,7 +1,7 @@
 import type { PurchasesGetIn } from "@noodle/domain";
 import { queryOptions } from "@tanstack/react-query";
-import { monthsKey } from "./queries";
-import { getWalletQuestions } from "./server/card-kept";
+import { goalsQuery, monthsKey } from "./queries";
+import { getBalanceChecksPutAway, getWalletQuestions } from "./server/card-kept";
 
 // How a card's purchases get into Noodle (issue 136): the words for each answer, and the Wallet
 // cards a Parent is asked about once.
@@ -23,4 +23,14 @@ export const walletQuestionsQuery = () =>
 	queryOptions({
 		queryKey: [...monthsKey, "wallet-questions"],
 		queryFn: () => getWalletQuestions(),
+	});
+
+/**
+ * The Balance checks the Household said "Not now" to, each as `account:statement day`; under the
+ * goals' key, so the other Parent's "Not now" (a `goals` change) refetches it.
+ */
+export const balanceChecksPutAwayQuery = () =>
+	queryOptions({
+		queryKey: [...goalsQuery().queryKey, "balance-checks-put-away"],
+		queryFn: () => getBalanceChecksPutAway(),
 	});

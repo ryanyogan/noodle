@@ -7,6 +7,7 @@ import {
 	type FiledBefore,
 	type FilingResult,
 	fileTransactions as fileTransactionsInDb,
+	isCardKeptByHand,
 	loadBucketsInMonths,
 	loadBucketUses,
 	loadRules,
@@ -75,6 +76,10 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 		const db = getDb();
 		const viewer = viewerOf(context);
 		const today = dayKeyAt(new Date(), context.household.timeZone);
+		// Only a card kept by hand takes a Quick Add as its record: any other Account is refused.
+		if (data.accountId && !(await isCardKeptByHand(db, context.household.id, data.accountId))) {
+			throw new Error("That isn’t a card this Household keeps by hand.");
+		}
 		// A retry after the Receipt was attached finds it filed: the Quick Add is already written.
 		const receipt = data.receiptId ? await loadUnfiledReceipt(db, viewer, data.receiptId) : null;
 		const result = await addQuickAddInDb(db, {

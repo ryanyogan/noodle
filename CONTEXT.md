@@ -190,7 +190,7 @@ How a credit card's purchases get into Noodle when no Bank Connection reaches it
 _Avoid_: manual card, offline card
 
 **Balance check**:
-Once a month, after a card kept by hand's statement closes, Noodle asks a Parent to type the statement's balance and compares it with what's recorded up to that day: "That matches", or how much higher (something's missing: add it, or import the statement) or lower (a payment or money back is missing, or something was added twice). The statement's balance becomes the card's balance as of that day either way.
+Once a month, after a card kept by hand's statement closes, Noodle asks a Parent to type the statement's balance and compares it with what's recorded up to that day: "That matches", or how much higher (something's missing: add it, or import the statement) or lower (a payment or money back is missing, or something was added twice). The statement's balance becomes the card's balance as of that day either way. It asks once per statement: one Nudge to each Parent who wants it, and on Accounts, where "Not now" puts it away for the whole Household until the next statement closes (the card's page still offers it).
 _Avoid_: reconciliation, reconcile
 
 **Bank Connection**:
@@ -235,7 +235,7 @@ The Household's one email address for forwarding Receipts (`receipts+<key>@…`)
 _Avoid_: Inbox, drop box
 
 **Nudge**:
-A notification the app sends on its own because something changed that a Parent would want to know now (a Bucket passing Pace, Extra income arriving, the other Parent's Quick Add).
+A notification the app sends on its own because something changed that a Parent would want to know now (a Bucket passing Pace, Extra income arriving, the other Parent's Quick Add, a Balance check coming due).
 _Avoid_: Alert, push, reminder
 
 **Review**:

@@ -4,9 +4,12 @@ import {
 	accountForWalletCard,
 	balanceCheck,
 	cardKept,
+	cardKeptUnasked,
 	cardPaymentIsSpending,
 	statementCheckDue,
+	statementsFollowed,
 } from "./hand-kept";
+import type { DayKey } from "./month";
 
 describe("how a card's purchases get into Noodle", () => {
 	it("is its bank's when it syncs, whatever was answered", () => {
@@ -111,5 +114,38 @@ describe("the monthly balance check", () => {
 		expect(due("2027-03-02", "2027-01-30")).toBe("2027-02-28");
 		expect(due("2027-01-03", "2026-11-30")).toBe("2026-12-30");
 		expect(due("2026-11-04", null, null)).toBeNull();
+	});
+});
+
+describe("asking how a card's purchases get in", () => {
+	const card = {
+		kind: "credit-card",
+		bankConnectionId: null,
+		purchases: null,
+		lastStatementDate: null,
+	} as const;
+	const today = "2026-10-06" as DayKey;
+
+	it("asks about a card nobody has answered for", () => {
+		expect(cardKeptUnasked(card, today)).toBe(true);
+	});
+
+	it("doesn't ask about a card whose statements were imported in the last 60 days", () => {
+		expect(cardKeptUnasked({ ...card, lastStatementDate: "2026-08-07" as DayKey }, today)).toBe(
+			false,
+		);
+		expect(statementsFollowed("2026-08-07" as DayKey, today)).toBe(true);
+	});
+
+	it("asks again once its last statement is more than 60 days old", () => {
+		expect(cardKeptUnasked({ ...card, lastStatementDate: "2026-08-06" as DayKey }, today)).toBe(
+			true,
+		);
+	});
+
+	it("never asks about a connected card, an answered one, or another kind of Account", () => {
+		expect(cardKeptUnasked({ ...card, bankConnectionId: "bank" }, today)).toBe(false);
+		expect(cardKeptUnasked({ ...card, purchases: "none" }, today)).toBe(false);
+		expect(cardKeptUnasked({ ...card, kind: "loan" }, today)).toBe(false);
 	});
 });

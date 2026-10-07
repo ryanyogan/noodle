@@ -1,5 +1,5 @@
 import type { Cents } from "./money";
-import { type DayKey, daysInMonth, type MonthKey, monthOfDay } from "./month";
+import { type DayKey, daysBetween, daysInMonth, type MonthKey, monthOfDay } from "./month";
 
 // A card Account says how its purchases get into Noodle (issue 136, spec 130 items 7 and 8), and
 // what follows for one kept by hand (an Apple Card, which no bank connection reaches): the Wallet
@@ -25,6 +25,29 @@ export function cardKept(account: {
 	if (account.bankConnectionId !== null) return "bank";
 	return account.purchases ?? (account.followed ? "statements" : null);
 }
+
+/** How long after a statement's last line a card still counts as kept by its statements (ADR-0050). */
+export const STATEMENTS_FOLLOWED_DAYS = 60;
+
+/** Whether a card's statements came in lately: its newest imported line is at most 60 days old. */
+export const statementsFollowed = (lastStatementDate: DayKey | null, today: DayKey): boolean =>
+	lastStatementDate !== null && daysBetween(lastStatementDate, today) <= STATEMENTS_FOLLOWED_DAYS;
+
+/**
+ * Whether to ask a Parent how a credit card's purchases get in: nobody has said, no bank brings
+ * them, and no statement was imported lately (that card is read as kept by its statements).
+ */
+export const cardKeptUnasked = (
+	account: {
+		kind: string;
+		bankConnectionId: string | null;
+		purchases: PurchasesGetIn | null;
+		lastStatementDate: DayKey | null;
+	},
+	today: DayKey,
+): boolean =>
+	account.kind === "credit-card" &&
+	cardKept({ ...account, followed: statementsFollowed(account.lastStatementDate, today) }) === null;
 
 /**
  * Whether a payment to a card is itself the spending, so "It's a card payment" files it in the

@@ -2,7 +2,9 @@ import {
 	answerWalletCard as answerWalletCardInDb,
 	checkStatementBalance as checkStatementBalanceInDb,
 	dismissWalletCard as dismissWalletCardInDb,
+	loadBalanceChecksPutAway,
 	loadWalletQuestions,
+	putAwayBalanceCheck as putAwayBalanceCheckInDb,
 	setCardKept as setCardKeptInDb,
 	type WalletQuestion,
 } from "@noodle/db";
@@ -73,6 +75,29 @@ export const checkStatementBalance = createServerFn({ method: "POST" })
 			createdByMemberId: context.parent.id,
 			...data,
 			asOf: data.asOf < now ? data.asOf : now,
+		});
+		if (result.ok) await notifyHousehold(context.household.id, ["goals"]);
+		return result;
+	});
+
+/** The Balance checks the Household said "Not now" to, each as `account:statement day`. */
+export const getBalanceChecksPutAway = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(
+		({ context }): Promise<string[]> => loadBalanceChecksPutAway(getDb(), context.household.id),
+	);
+
+/**
+ * "Not now" on a statement's Balance check: it stays away on every device of the Household until
+ * the card's next statement closes, and its Nudge isn't sent if it hasn't been.
+ */
+export const putAwayBalanceCheck = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ accountId: ulidSchema, day: dayKeySchema }))
+	.handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+		const result = await putAwayBalanceCheckInDb(getDb(), {
+			householdId: context.household.id,
+			...data,
 		});
 		if (result.ok) await notifyHousehold(context.household.id, ["goals"]);
 		return result;
