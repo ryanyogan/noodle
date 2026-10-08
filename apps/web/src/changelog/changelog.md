@@ -28,6 +28,11 @@ Rules (changelog.test.ts checks them):
 - The Plan's Commitments are grouped by what each one is: Credit cards, then Loans, then Bills.
 - Every list a Bucket, bill or Goal is picked from is the same list, each Bucket with its colour and letter as in the Plan.
 - Household settings has three tabs: Settings, Logs and this Changelog.
+- A paycheck that counts on its pay day is listed, and counted in Money in, on the Transactions page of the month it counts in.
+- A charge that names a lender you have a loan with is offered in Review as a payment on that loan, and a Rule sends each later payment to the loan whose payment it is.
+- A loan's page lists each month's payment against its schedule, and a loan that is paid off stops being planned from the next month.
+- Reports › People shows where the money went for every Member, Parents too, with Everyone on its own, and a Bucket's page can be narrowed by who it was for.
+- Review offers who a Transaction was For when the same merchant was For the same person before.
 
 ## 2026-10-07: Refunds, whose Account it is, and a shorter Free to Spend
 
