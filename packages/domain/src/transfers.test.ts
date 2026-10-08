@@ -270,6 +270,26 @@ describe("Review's tree for a payment to a card or loan", () => {
 		).toEqual({ kind: "not-followed", card: null, accountId: null });
 	});
 
+	it("says which followed cards a payment that names none may be paying", () => {
+		// A card kept by hand under a name its bank's line doesn't have, and no Commitment for it.
+		const titanium = account("titanium", "Titanium", "credit-card", true);
+		const unnamed = { kind: "not-followed", card: null, accountId: null };
+		expect(paymentCase(out("CARDMEMBER SERV WEB PYMT"), [titanium, amex], [])).toEqual({
+			...unnamed,
+			mayBe: ["Titanium"],
+		});
+		// A name that says no issuer can be any issuer's card; one that says another's can't be it.
+		expect(paymentCase(out("DISCOVER E-PAYMENT 4410"), [titanium, sapphire], [])).toEqual({
+			...unnamed,
+			mayBe: ["Titanium"],
+		});
+		expect(paymentCase(out("DISCOVER E-PAYMENT 4410"), [sapphire], [])).toEqual(unnamed);
+		// Never a card Noodle doesn't follow: its payment is the spending.
+		expect(
+			paymentCase(out("CARDMEMBER SERV WEB PYMT"), [account("gold", "Gold card")], []),
+		).toEqual(unnamed);
+	});
+
 	it("tells two cards with similar names apart by their words, else only by an exact amount", () => {
 		const freedom = account("freedom", "Chase Freedom");
 		const unfollowed = { ...sapphire, followed: false };

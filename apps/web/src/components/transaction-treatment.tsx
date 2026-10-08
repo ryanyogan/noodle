@@ -48,8 +48,9 @@ const types = (
 	names: readonly string[],
 ): Record<Exclude<Mode, "default">, { name: string; means: string; icon: typeof Sparkles }> => ({
 	payment: {
-		name: "Credit card payment",
-		means: "Paying a card’s bill. What was bought on the card is already counted.",
+		name: "Card payment",
+		// True of every card (issue 150): one whose purchases aren't in Noodle is paid as spending.
+		means: "Paying a card’s bill. It isn’t spending when the card’s purchases are in Noodle.",
 		icon: CreditCard,
 	},
 	transfer: {
@@ -89,7 +90,7 @@ function wordingHint(
 	if (transaction.amountCents <= 0) return null;
 	const text = transaction.note || transaction.merchantName;
 	if (looksLikeCardPayment(text))
-		return "Looks like a card payment. If it is, choose Credit card payment.";
+		return "Looks like a card payment. If it is, choose Card payment.";
 	if (!offered.includes("between-us")) return null;
 	const named = parentNamedIn(text, names);
 	if (named) return `Looks like money sent to ${named}. If it is, choose Between us.`;
@@ -119,7 +120,7 @@ export function TransactionTreatment({
 }) {
 	const hydrated = useHydrated();
 	// The row's own "It’s a card payment" may have asked already (askCardPayment): the tiles then
-	// open on Credit card payment, at "Payment to". Review's cards ask in their own way.
+	// open on Card payment, at "Payment to". Review's cards ask in their own way.
 	const [mode, setMode] = useState<Mode>(() =>
 		!renderHeader && takeAskedCardPayment(transaction.id) ? "payment" : "default",
 	);
@@ -312,7 +313,7 @@ export function TransactionTreatment({
 			{payment ? (
 				<div className="grid max-w-xl gap-4">
 					<p className="text-sm text-muted-foreground">
-						Choose the card this {formatMoney(transaction.amountCents)} pays. Cards you keep by hand
+						Which card does this {formatMoney(transaction.amountCents)} pay? Cards you keep by hand
 						are included.
 					</p>
 					{cards.isError ? (
@@ -352,14 +353,15 @@ export function TransactionTreatment({
 							{card ? (
 								<p className="text-sm text-muted-foreground">
 									{card.commitment
-										? `This payment will be filed in ${card.commitment.name}, which pays down ${card.name}.`
-										: `This becomes a Transfer to ${card.name}, so it won’t count as spending in a Bucket.`}{" "}
-									Payments with the same bank wording will be remembered too.
+										? `${card.name}’s purchases aren’t in Noodle, so this payment is the spending: it’s filed in ${card.commitment.name}.`
+										: `${card.name}’s purchases are in Noodle, so this payment isn’t spending: it’s a Transfer to ${card.name}.`}{" "}
+									Payments worded like it will be too.
 								</p>
 							) : null}
 							<div className="flex gap-2">
 								<Button type="button" disabled={!card || busy} onClick={() => void save()}>
-									{busy ? "Saving…" : "Link payment"}
+									{/* The words Review and the row's menu say it in (issue 150). */}
+									{busy ? "Saving…" : "It’s a card payment"}
 								</Button>
 								<Button
 									type="button"

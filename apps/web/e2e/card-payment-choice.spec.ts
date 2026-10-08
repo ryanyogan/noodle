@@ -103,15 +103,15 @@ const detail = (page: Page) =>
 		.locator("[role=dialog], [data-slot=transaction-detail]")
 		.filter({ has: page.getByRole("group", { name: "Transaction type" }) });
 
-/** Opens the detail of this month's unassigned line of `amount`, on its "Credit card payment" tile. */
+/** Opens the detail of this month's unassigned line of `amount`, on its "Card payment" tile. */
 async function openLine(page: Page, amount: string) {
 	await expect(unassigned(page, amount)).toBeVisible();
 	await unassigned(page, amount).click();
-	const tile = detail(page).getByRole("button", { name: "Credit card payment", exact: true });
+	const tile = detail(page).getByRole("button", { name: "Card payment", exact: true });
 	await expect(tile).toBeEnabled();
 	// The bank's wording is read once, under the tiles, and points at this one.
 	await expect(detail(page).locator("[data-slot=type-hint]")).toHaveText(
-		"Looks like a card payment. If it is, choose Credit card payment.",
+		"Looks like a card payment. If it is, choose Card payment.",
 	);
 	await expect(detail(page).getByRole("button", { name: "It’s a card payment" })).toHaveCount(0);
 	await tile.click();
@@ -167,8 +167,8 @@ test("“It’s a card payment” asks which card, names it on the Transfer, and
 	const answerVisa = async () => {
 		const sheet = await openLine(page, "250");
 		await choose(sheet, "Payment to", "Visa");
-		await expect(sheet).toContainText("This becomes a Transfer to Visa");
-		await sheet.getByRole("button", { name: "Link payment", exact: true }).click();
+		await expect(sheet).toContainText("this payment isn’t spending: it’s a Transfer to Visa.");
+		await sheet.getByRole("button", { name: "It’s a card payment", exact: true }).click();
 		await expect(
 			toast(page, "marked as a Transfer to Visa, with 1 more worded like it"),
 		).toContainText("Payments worded like it will be too.");
@@ -198,7 +198,7 @@ test("“It’s a card payment” asks which card, names it on the Transfer, and
 	await amex.getByRole("button", { name: /^More for / }).click();
 	await page.getByRole("menuitem", { name: "It’s a card payment" }).click();
 	await expect(
-		detail(page).getByRole("button", { name: "Credit card payment", exact: true }),
+		detail(page).getByRole("button", { name: "Card payment", exact: true }),
 	).toHaveAttribute("aria-pressed", "true");
 	let choice = await notInNoodle(detail(page));
 	await choice.getByRole("button", { name: "No, it’s a Transfer" }).click();
@@ -325,9 +325,9 @@ test("a payment to a card whose purchases aren’t in Noodle is filed in the Com
 	const sheet = await openLine(page, "300");
 	await choose(sheet, "Payment to", "Apple Card");
 	await expect(sheet).toContainText(
-		"This payment will be filed in Apple Card bill, which pays down Apple Card.",
+		"Apple Card’s purchases aren’t in Noodle, so this payment is the spending: it’s filed in Apple Card bill.",
 	);
-	await sheet.getByRole("button", { name: "Link payment", exact: true }).click();
+	await sheet.getByRole("button", { name: "It’s a card payment", exact: true }).click();
 	// Both lines that say the same go in; the corner store stays.
 	await expect(toast(page, "filed in Apple Card bill, with 1 more worded like it.")).toContainText(
 		"Payments worded like it will be too.",
@@ -435,6 +435,71 @@ test("Review asks which card for a payment to a card Noodle doesn't follow, and 
 	await expect(toast(page, "marked as a Transfer to Titanium")).toBeVisible();
 	await expect(asking).toBeHidden();
 	await expect(page.getByTestId("review-card")).toHaveCount(0);
+});
+
+test("Review leads with “It’s a card payment” when the bank doesn't say which card and a card Noodle follows may be it", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const thisMonth = page.url();
+	const day = await today(page);
+	// Noodle follows the card (a purchase on it is here), under a name that says no issuer; and
+	// the bank's wording for its payment names no card at all.
+	await uploadStatement(
+		page,
+		{ name: "Titanium", kind: "credit-card", balance: "900" },
+		"titanium.csv",
+		[HEADER, `DEBIT,${day},"REI #44 SEATTLE",-60.00,DEBIT_CARD,,`],
+	);
+	await uploadStatement(
+		page,
+		{ name: "Checking", kind: "checking", balance: "2,500" },
+		"checking.csv",
+		[HEADER, `DEBIT,${day},"CARDMEMBER SERV WEB PYMT",-250.00,ACH_DEBIT,2250.00,`],
+	);
+
+	const payment = page.locator("[data-testid=review-card][data-payment=not-followed]");
+	await reloadUntil(page, new URL("/review?view=list", thisMonth).href, () =>
+		expect(payment).toHaveCount(1, { timeout: 2_000 }),
+	);
+	await expect(payment).toContainText("Card payment · which card does it pay?");
+	await expect(payment.getByTestId("review-payment-why")).toContainText(
+		"The bank doesn’t say which card. If it pays Titanium, it isn’t spending; for a card that isn’t in Noodle, the payment is the spending.",
+	);
+	// Which card is the first question: "Make it a Commitment" comes after it.
+	const mark = payment.getByRole("button", { name: "It’s a card payment" });
+	const make = payment.getByRole("button", { name: "Make it a Commitment" });
+	await expect(mark).toHaveCount(1);
+	await expect(make).toHaveCount(1);
+	// (Enabled once the page is hydrated.)
+	await expect(mark).toBeEnabled({ timeout: 30_000 });
+	const [first, second] = await Promise.all([mark.boundingBox(), make.boundingBox()]);
+	if (!first || !second) throw new Error("the card's two buttons aren't drawn");
+	expect(
+		first.y + first.height <= second.y || (first.y <= second.y && first.x < second.x),
+		"“It’s a card payment” is before “Make it a Commitment”",
+	).toBe(true);
+
+	await mark.click();
+	// Nothing is marked on the click: it asks, with the card that may be the one.
+	const asking = page.getByRole("dialog", { name: "It’s a card payment" });
+	const choice = asking.getByTestId("card-payment-choice");
+	await expect(choice).toContainText("Which card does it pay?");
+	await expect(choice.getByRole("button", { name: "A card that isn’t in Noodle" })).toBeVisible();
+	await expect(page.getByTestId("review-card").filter({ hasText: "CARDMEMBER" })).toHaveCount(1);
+	await choice.getByRole("button", { name: "Titanium", exact: true }).click();
+	await expect(toast(page, "marked as a Transfer to Titanium")).toBeVisible();
+	await expect(asking).toBeHidden();
+	await expect(payment).toHaveCount(0, SETTLED);
+
+	// It's a Transfer to the card, not spending: nothing of it waits to be assigned.
+	await openTransactions(page, thisMonth);
+	await expect(
+		page.getByText("Checking → Titanium", { exact: true }).filter({ visible: true }).first(),
+	).toBeVisible();
+	await expect(unassigned(page, "250")).toHaveCount(0);
 });
 
 /** The payment cards waiting in Review, in the view at `view` ("" is one by one). */
@@ -626,7 +691,7 @@ test("a payment to a card kept by hand, with Quick Adds on it, is a Transfer fir
 	// Review: not spending, the Transfer is the card's action, and no Commitment is offered.
 	const cardsWaiting = await reviewCards(page, thisMonth, "?view=list", "APPLECARD");
 	const card = cardsWaiting.first();
-	await expect(card).toContainText("Card payment — not spending");
+	await expect(card).toContainText("Payment to Apple Card · isn’t spending");
 	await expect(card.getByTestId("review-payment-why")).toContainText(
 		"What you bought on Apple Card is already in your Buckets, so the payment itself isn’t spending.",
 	);
@@ -685,7 +750,7 @@ test("a card whose purchases won’t come into Noodle says so where its payment 
 	const sheet = await openLine(page, "300");
 	await choose(sheet, "Payment to", "Apple Card");
 	await expect(sheet).toContainText(
-		"This payment will be filed in Apple Card bill, which pays down Apple Card.",
+		"Apple Card’s purchases aren’t in Noodle, so this payment is the spending: it’s filed in Apple Card bill.",
 	);
 	if (process.env.CARD_PAYMENT_SHOTS) {
 		await page.screenshot({ path: `${process.env.CARD_PAYMENT_SHOTS}/they-wont-hint.png` });
@@ -736,9 +801,9 @@ test("an assigned Apple payment links to a manually added card from Transactions
 		fullPage: true,
 		animations: "disabled",
 	});
-	await editor.getByRole("button", { name: "Credit card payment", exact: true }).click();
+	await editor.getByRole("button", { name: "Card payment", exact: true }).click();
 	await choose(editor, "Payment to", "Apple Card");
-	await expect(editor).toContainText("won’t count as spending in a Bucket");
+	await expect(editor).toContainText("this payment isn’t spending: it’s a Transfer to Apple Card.");
 	await page.screenshot({
 		path: "/tmp/noodle-transactions-payment.png",
 		fullPage: true,
@@ -754,7 +819,7 @@ test("an assigned Apple payment links to a manually added card from Transactions
 	});
 	await page.setViewportSize({ width: 1440, height: 1000 });
 	await page.emulateMedia({ reducedMotion: "reduce" });
-	await editor.getByRole("button", { name: "Link payment", exact: true }).click();
+	await editor.getByRole("button", { name: "It’s a card payment", exact: true }).click();
 	await expect(editor).toBeHidden(SETTLED);
 	await expect(page.getByTestId("month-total")).toHaveText("$0", SETTLED);
 	// The row is a Transfer to the card now, and says so by name: saving it into a Bucket earlier

@@ -9,7 +9,7 @@ Paying a credit card is not spending. The spending happened when you used the ca
 
 ## It's a card payment
 
-When Review shows a payment to a card, choose **It's a card payment**. Noodle asks **Which card does it pay?**
+When Review shows a payment to a card, choose **It's a card payment**. Noodle asks **Which card does it pay?** An open Transaction asks the same under **Card payment**.
 
 - **A card whose purchases are in Noodle**, from a bank, from statements, or added by hand: the payment is a Transfer. The purchases are already counted.
 - **A card whose purchases are not in Noodle, with a Commitment that pays it down**: the payment is the spending, so it is filed in that Commitment.
@@ -25,7 +25,7 @@ Open **Rules**. Under **Card payments** each remembered answer is listed, like "
 
 Some cards cannot be connected to Noodle. Add the card as an Account and keep it by hand. When you add a card, Noodle asks **How do its purchases get into Noodle?** Pick **From its statements** if you upload them, **I add them by hand**, or **They won’t** if its purchases will not come in.
 
-For a card kept by hand, each Quick Add on it is the record of the purchase and raises what is owed. Paying the card is a Transfer: Review shows "Card payment — not spending", and **It's a card payment** marks it. Do not plan the payment as a Commitment as well, or what you bought counts twice. A Commitment can pay the card down only as a set payment on a balance you are carrying.
+For a card kept by hand, each Quick Add on it is the record of the purchase and raises what is owed. Paying the card is a Transfer: Review shows "Payment to Apple Card · isn’t spending", and **It's a card payment** marks it. Where the bank's words don't name the card, Review asks which card first. Do not plan the payment as a Commitment as well, or what you bought counts twice. A Commitment can pay the card down only as a set payment on a balance you are carrying.
 
 If a Commitment already pays down a card kept by hand, Plan health says its payments "would count twice". End the Commitment there, or keep it for a balance you are carrying. Until you do, Noodle stops filing the card's payments in it, even where a Rule says to, and they wait in Review.
 

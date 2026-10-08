@@ -248,7 +248,8 @@ export function likelyCardPayment(
 //   followed:     the line names a card Noodle follows: a Transfer, since what was bought on it
 //                 is already in the Buckets.
 //   not-followed: a card payment to a card Noodle can't see into, with no Commitment for it: the
-//                 payment is the spending, so plan it as a Commitment, or connect the card.
+//                 payment is the spending, so plan it as a Commitment, or connect the card. Where
+//                 the line names no card and one Noodle follows may be it, which card is asked first.
 
 /** A credit card or loan of the Household's, as the tree reads it. */
 export type PaymentAccount = {
@@ -287,7 +288,17 @@ export type PaymentCase =
 			 */
 			commitment?: string;
 	  }
-	| { kind: "not-followed"; card: string | null; accountId: string | null };
+	| {
+			kind: "not-followed";
+			card: string | null;
+			accountId: string | null;
+			/**
+			 * The line names no card for sure, and these cards Noodle follows may be the one it pays
+			 * (their names say no other issuer than the line's): Review then asks which card first,
+			 * since paying one of them is a Transfer, and "Make it a Commitment" comes second (issue 150).
+			 */
+			mayBe?: string[];
+	  };
 
 /** Money sent to a person, a purchase, or a bill that is never a card's or a loan's payment. */
 const NOT_A_PAYMENT =
@@ -421,7 +432,24 @@ export function paymentCase(
 	}
 	// Several of the Household's cards fit and Noodle follows them all: a Transfer, whichever it is.
 	const fitting = best.filter((candidate) => candidate.kind === "credit-card");
-	return fitting.length > 1 && fitting.every((candidate) => candidate.followed)
-		? { kind: "followed", card: null }
-		: { kind: "not-followed", card: null, accountId: null };
+	if (fitting.length > 1 && fitting.every((candidate) => candidate.followed))
+		return { kind: "followed", card: null };
+	// It names no card for sure. A card Noodle follows under a name the bank doesn't use ("Titanium"
+	// for "APPLECARD GSBANK PAYMENT") may still be the one, unless the line names another issuer.
+	const named = issuersIn(text);
+	const mayBe = cards
+		.filter((candidate) => {
+			const theirs = issuersIn(candidate.name);
+			return (
+				candidate.followed &&
+				(theirs.length === 0 || named.every((issuer) => theirs.includes(issuer)))
+			);
+		})
+		.map((candidate) => candidate.name);
+	return {
+		kind: "not-followed",
+		card: null,
+		accountId: null,
+		...(mayBe.length > 0 ? { mayBe } : {}),
+	};
 }

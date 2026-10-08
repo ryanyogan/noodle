@@ -282,7 +282,7 @@ for (const purchases of ["hand", null] as const) {
 			expect(await totals()).toEqual(RIGHT);
 		});
 
-		it("is read by Review as a card Noodle follows: “Card payment — not spending”, the Transfer first", async () => {
+		it("is read by Review as a card Noodle follows: “Payment to … · isn’t spending”, the Transfer first", async () => {
 			expect(await reading()).toMatchObject({ review: "followed", followed: true });
 		});
 

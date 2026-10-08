@@ -228,7 +228,7 @@ test("a payment to a card Noodle doesn't follow is the spending: Review offers a
 	// spending, so it's planned as a Commitment, or the card is connected.
 	const payment = page
 		.getByTestId("review-card")
-		.filter({ hasText: "Payment to a card Noodle doesn’t follow" });
+		.filter({ hasText: "Payment to a card that isn’t in Noodle · is the spending" });
 	await reloadUntil(page, new URL("/review?view=list", thisMonth).href, () =>
 		expect(payment).toHaveCount(1, { timeout: 2_000 }),
 	);

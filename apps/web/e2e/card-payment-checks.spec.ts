@@ -308,7 +308,7 @@ test("Review asks before a payment to a card Noodle follows is filed in a Bucket
 		await expect(caution).toContainText(
 			"What was bought on the card is already counted, so this counts it twice.",
 		);
-		await expect(caution.getByRole("button", { name: "Mark as Transfer" })).toBeVisible();
+		await expect(caution.getByRole("button", { name: "It’s a card payment" })).toBeVisible();
 		await expect(caution.getByRole("button", { name: "File anyway" })).toBeVisible();
 		// Nothing is filed until the Parent answers.
 		await expect(cards).toHaveCount(waiting);
@@ -321,9 +321,9 @@ test("Review asks before a payment to a card Noodle follows is filed in a Bucket
 	await expect(cards).toHaveCount(1);
 	await expect(page.getByTestId("review-payment-caution")).toHaveCount(0);
 
-	// "Mark as Transfer" files it nowhere.
+	// "It’s a card payment" files it nowhere.
 	caution = await pickGroceries(1);
-	await caution.getByRole("button", { name: "Mark as Transfer" }).click();
+	await caution.getByRole("button", { name: "It’s a card payment" }).click();
 	await expect(toast(page, "marked as a Transfer")).toBeVisible();
 	await expect(cards).toHaveCount(0);
 });
