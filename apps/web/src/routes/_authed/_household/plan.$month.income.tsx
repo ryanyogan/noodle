@@ -81,7 +81,6 @@ function PlanIncome() {
 			{/* This Month's Income section, with Add income and the same row actions; here the
 			    entries are a table a Parent works in (issue 133). The total is said above. */}
 			<MonthIncome
-				showBetweenUs={false}
 				showReceived={false}
 				month={month}
 				asOf={state.asOf}

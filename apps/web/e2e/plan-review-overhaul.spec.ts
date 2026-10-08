@@ -41,13 +41,13 @@ test("income includes deposits of every kind and can count them as income", asyn
 	// Each deposit is on the page once, under what it counts as (issue 145).
 	const once = async (name: string) =>
 		expect(page.getByText(name, { exact: true })).toHaveCount(1, { timeout: 30_000 });
-	for (const name of ["Side job", "Reimbursement", "Returned deposit", "Client deposit"])
-		await once(name);
+	for (const name of ["Side job", "Reimbursement", "Returned deposit"]) await once(name);
 	await expect(notCounted).toContainText("Reimbursement");
 	await expect(notCounted).toContainText("Returned deposit");
-	await expect(notCounted).toContainText("Client deposit");
+	// A Transfer is money the Household had already, moved: it isn't other money in (issue 152).
+	await expect(page.getByText("Client deposit", { exact: true })).toHaveCount(0);
 	// Their total is said once, under them; nothing counts as Income yet.
-	await expect(notCounted).toContainText("$325");
+	await expect(notCounted).toContainText("$250");
 	await expect(summary).toContainText("$0");
 	// What waits in Review is named there: here it has a link, and none of Review's controls.
 	await expect(waiting).toContainText("Side job");
@@ -57,23 +57,23 @@ test("income includes deposits of every kind and can count them as income", asyn
 		"/review",
 	);
 	// One control per deposit changes what it counts as.
-	await expect(notCounted.getByRole("button")).toHaveCount(3);
+	await expect(notCounted.getByRole("button")).toHaveCount(2);
 	await expect(page.getByRole("button", { name: /as income$/i })).toHaveCount(0);
-	const change = notCounted.getByRole("button", { name: "Change what Client deposit is" });
+	const change = notCounted.getByRole("button", { name: "Change what Returned deposit is" });
 	await hydrated(change);
 	await change.click();
-	const dialog = page.getByRole("dialog", { name: "Client deposit" });
+	const dialog = page.getByRole("dialog", { name: "Returned deposit" });
 	await dialog.getByRole("button", { name: "Income", exact: true }).click();
-	await dialog.getByRole("button", { name: "Done with Client deposit" }).click();
-	await expect(table).toContainText("Client deposit");
-	await expect(notCounted).not.toContainText("Client deposit");
-	await once("Client deposit");
-	await expect(summary).toContainText("$75");
-	await expect(notCounted).toContainText("$250");
+	await dialog.getByRole("button", { name: "Done with Returned deposit" }).click();
+	await expect(table).toContainText("Returned deposit");
+	await expect(notCounted).not.toContainText("Returned deposit");
+	await once("Returned deposit");
+	await expect(summary).toContainText("$125");
+	await expect(notCounted).toContainText("$125");
 	await page.reload();
-	await expect(table).toContainText("Client deposit");
-	await expect(notCounted.getByRole("button")).toHaveCount(2);
-	await once("Client deposit");
+	await expect(table).toContainText("Returned deposit");
+	await expect(notCounted.getByRole("button")).toHaveCount(1);
+	await once("Returned deposit");
 	await page.setViewportSize({ width: 390, height: 844 });
 	await expect(
 		notCounted.getByRole("button", { name: "Change what Reimbursement is" }),

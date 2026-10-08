@@ -569,7 +569,8 @@ test("a payment to a card kept by hand, with Quick Adds on it, is a Transfer fir
 	});
 	// Two Quick Adds on the card, filed in Groceries: written straight in, as Quick Add leaves them.
 	const [cards] = await seedSql([
-		"select id, household_id from accounts where name = 'Apple Card' order by created_at desc limit 1",
+		// This Parent's own card: another test running beside this one has an "Apple Card" too.
+		`select id, household_id from accounts where name = 'Apple Card' and household_id = (select household_id from members where clerk_user_id = '${parent.userId}') order by created_at desc limit 1`,
 	]);
 	const cardId = String(cards?.[0]?.id);
 	const householdId = String(cards?.[0]?.household_id);

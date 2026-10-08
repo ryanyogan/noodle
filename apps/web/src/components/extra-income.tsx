@@ -1,4 +1,4 @@
-import type { BetweenUsIncome, IncomeRecord } from "@noodle/db";
+import type { IncomeRecord } from "@noodle/db";
 import {
 	type BucketState,
 	type Cents,
@@ -38,7 +38,7 @@ import { ulid } from "ulid";
 import { useBetweenUs, useIncome } from "../extra-income";
 import { formatMoney, formatMoneyInput, shortDay } from "../format";
 import type { GoalView } from "../goals";
-import { membersQuery, monthQuery } from "../queries";
+import { membersQuery } from "../queries";
 import { AmountInput, AmountSheet } from "./goals";
 import { parentNames } from "./review-between-us";
 import { TermHelp } from "./term-help";
@@ -53,14 +53,11 @@ export function MonthIncome({
 	baseline,
 	income,
 	renderList,
-	showBetweenUs = true,
 	showReceived = true,
 }: {
 	/** False where the page says the Income received itself (Plan › Income, issue 145). */
 	showReceived?: boolean;
 	month: MonthKey;
-	/** The Income page lists these with the other inbound deposits. */
-	showBetweenUs?: boolean;
 	/** Today: income is recorded on it, so only this month takes it. */
 	asOf: DayKey;
 	baseline: Cents | null;
@@ -72,11 +69,6 @@ export function MonthIncome({
 	const [adding, setAdding] = useState(false);
 	const writes = useIncome();
 	const between = useBetweenUs();
-	// Read beside the month's inputs, so both pages that list Income show it without passing it on.
-	const { data: betweenUs } = useQuery({
-		...monthQuery(month),
-		select: (data) => data.betweenUs,
-	});
 	return (
 		<>
 			<IncomeSection
@@ -84,11 +76,7 @@ export function MonthIncome({
 				showReceived={showReceived}
 				baseline={baseline}
 				income={income}
-				betweenUs={showBetweenUs ? betweenUs : []}
 				onBetweenUs={(entry) => between.mark.mutate({ transferId: ulid(), month, entry })}
-				onCountAgain={(entry) =>
-					between.unmark.mutate({ transferId: entry.transferId, month, entry })
-				}
 				canRecord={monthOfDay(asOf) === month}
 				onAdd={() => setAdding(true)}
 				onRemove={(entry) =>
@@ -123,7 +111,7 @@ export function MonthIncome({
 
 /**
  * The month's income against the Take-home pay: what came in, and each entry (removable this
- * month). Income a Parent marked as "Between us" is listed under it, outside the total.
+ * month). Income a Parent marked as "Between us" leaves the list: it is on Transactions (issue 152).
  */
 /** What a list of income entries can do to one of them. */
 export type IncomeListActions = {
@@ -136,23 +124,18 @@ export function IncomeSection({
 	renderList,
 	baseline,
 	income,
-	betweenUs = [],
 	canRecord,
 	onAdd,
 	onRemove,
 	onBetweenUs,
-	onCountAgain,
 	showReceived = true,
 }: {
 	showReceived?: boolean;
 	baseline: Cents | null;
 	/** This month's income. */
 	income: IncomeRecord[];
-	/** This month's income marked as money between the two Parents: not in the total. */
-	betweenUs?: BetweenUsIncome[];
 	/** Marks an entry as money from the other Parent; without it the choice isn't offered. */
 	onBetweenUs?: (income: IncomeRecord) => void;
-	onCountAgain?: (income: BetweenUsIncome) => void;
 	/** Income is recorded today, so only this month takes it. */
 	canRecord: boolean;
 	onAdd: () => void;
@@ -163,7 +146,6 @@ export function IncomeSection({
 	// The Parents' names: a deposit naming one of them reads as money between the two.
 	const names = parentNames(useQuery(membersQuery()).data ?? []);
 	const received = income.reduce((sum, i) => sum + i.amount, 0);
-	const between = betweenUs.reduce((sum, i) => sum + i.amount, 0);
 	return (
 		<Section aria-labelledby="income">
 			<SectionHeader
@@ -258,45 +240,6 @@ export function IncomeSection({
 						/>
 					))}
 				</List>
-			) : null}
-			{betweenUs.length > 0 ? (
-				<section aria-label="Between us" className="grid gap-2 pt-4">
-					<p className="text-sm text-muted-foreground sm:px-1">
-						<span className="font-medium text-foreground">Between us</span>{" "}
-						<span className="tabular-nums">{formatMoney(between)}</span> one of you moved to the
-						other. It isn’t Income and it isn’t spending.
-					</p>
-					<List>
-						{betweenUs.map((entry) => (
-							<ListRow
-								key={entry.id}
-								title={entry.note ?? "Money in"}
-								meta={`Between us · ${shortDay(entry.date)}`}
-								trailing={
-									// On the narrowest phones the amount sits over the button, so the name and its
-									// date keep a line each.
-									<div className="flex items-center gap-1 max-[359px]:flex-col max-[359px]:items-end max-[359px]:gap-0">
-										<span className="text-muted-foreground tabular-nums">
-											{formatMoney(entry.amount)}
-										</span>
-										{onCountAgain ? (
-											<Button
-												variant="ghost"
-												size="sm"
-												className="max-[359px]:-mr-2.5"
-												disabled={!hydrated}
-												aria-label={`Count ${formatMoney(entry.amount)} as Income`}
-												onClick={() => onCountAgain(entry)}
-											>
-												Count as Income
-											</Button>
-										) : null}
-									</div>
-								}
-							/>
-						))}
-					</List>
-				</section>
 			) : null}
 		</Section>
 	);

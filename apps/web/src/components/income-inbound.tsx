@@ -16,8 +16,10 @@ import { type MoneyInLine, moneyInKindText, moneyInLabel, moneyInQuery } from ".
 import { MoneyInFollowUpAsk, MoneyInKindChoice } from "./money-in";
 
 // The month's money in that isn't Income, under the Income table on Plan › Income (issue 145).
-// A deposit is in one group only: what a Parent said isn't Income (a Refund, Paid back, a
-// Transfer, Between us), or what nobody has named yet, which is named in Review and not here.
+// A deposit is in one group only: what a Parent said isn't Income (a Refund or Paid back), or what
+// nobody has named yet, which is named in Review and not here. A Transfer or money between the
+// Parents is neither: that money was the Household's already and only moved (issue 152), so it
+// is listed on Transactions alone.
 // The columns are the Income table's, so the three lists read as one.
 
 /** The Income table's columns, for money in that isn't Income; `last` is the row's one control. */
@@ -107,7 +109,9 @@ export function MoneyInNotIncome({ month, today }: { month: MonthKey; today: str
 	const open = query.data?.find((line) => line.id === editing?.id) ?? editing;
 	const lines = (query.data ?? []).filter((line) => line.amount > 0);
 	const waiting = lines.filter((line) => line.needsReview);
-	const notCounted = lines.filter((line) => !line.needsReview && line.kind !== "income");
+	const notCounted = lines.filter(
+		(line) => !line.needsReview && (line.kind === "refund" || line.kind === "paid-back"),
+	);
 	const accountOf = (line: MoneyInLine) =>
 		line.accountId
 			? (accounts.find((account) => account.id === line.accountId)?.name ?? "An Account")
@@ -138,8 +142,8 @@ export function MoneyInNotIncome({ month, today }: { month: MonthKey; today: str
 						count={notCounted.length}
 					/>
 					<p className="text-sm text-muted-foreground">
-						Refunds, money Paid back and Transfers: not counted as Income. If one of them is pay,
-						change what it is.
+						Refunds and money Paid back: not counted as Income. If one of them is pay, change what
+						it is.
 					</p>
 					<DataTable
 						label={`Money in that isn’t Income in ${monthName(month)}`}

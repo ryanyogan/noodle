@@ -428,11 +428,11 @@ test.beforeAll(async ({ browser }) => {
 	});
 	/** Plan › Income with the Zelle from Sam counted as Income (`marked` false) or between us. */
 	const zelleFromSam = async (page: Page, marked: boolean) => {
-		const region = page.locator('section[aria-label="Between us"]:visible').first();
+		// Marked, the line leaves Plan › Income (issue 152): its hint is how the page says which.
 		const hint = page.getByText(/\? It’s between us$/).first();
 		if (marked) {
 			await expect(async () => {
-				if (!(await region.isVisible())) {
+				if (await hint.isVisible()) {
 					await page
 						.getByRole("button", { name: "Actions for $1,500 of income" })
 						.first()
@@ -441,7 +441,7 @@ test.beforeAll(async ({ browser }) => {
 						.getByRole("menuitem", { name: "It’s between us · not Income" })
 						.click({ timeout: 2000 });
 				}
-				await expect(region).toBeVisible({ timeout: 5000 });
+				await expect(hint).toBeHidden({ timeout: 5000 });
 			}).toPass({ timeout: 30_000 });
 			// The toast has gone before the picture: it would sit over the rows on a phone. It comes
 			// only when the server has answered, after the row has already moved, so it is waited
@@ -452,15 +452,16 @@ test.beforeAll(async ({ browser }) => {
 			await page.mouse.move(1, 1);
 			await expect(toast).toHaveCount(0, { timeout: 20_000 });
 		} else {
-			await expect(async () => {
-				if (await region.isVisible())
-					await region
-						.getByRole("button", { name: "Count $1,500 as Income" })
-						.click({ timeout: 2000 });
-				await expect(hint).toBeVisible({ timeout: 5000 });
-			}).toPass({ timeout: 30_000 });
+			// Marked by an earlier width: unmarked in the database, as Transactions' row would.
+			if (!(await hint.isVisible())) {
+				await seedSql([
+					`update transfers set removed_at = unixepoch() * 1000 where household_id = '${householdId}' and removed_at is null and in_income_id in (select id from income where household_id = '${householdId}' and note like 'Zelle%')`,
+				]);
+				await page.reload();
+			}
+			await expect(hint).toBeVisible({ timeout: 30_000 });
 		}
-		const shown = marked ? region : hint;
+		const shown = marked ? page.getByRole("region", { name: "Income" }).first() : hint;
 		await shown.evaluate((node) => node.scrollIntoView({ block: "center" }));
 	};
 
@@ -2399,7 +2400,7 @@ test.beforeAll(async ({ browser }) => {
 			ready: (page) => zelleFromSam(page, false),
 		},
 		{
-			// Marked: out of the Income total and listed under "Between us" with "Count as Income".
+			// Marked: out of the Income total and off the page (it is a row on Transactions).
 			name: "41-income-between-us",
 			path: `/plan/${month}/income`,
 			window: true,

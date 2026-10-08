@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openMoneyIn } from "./money-in-rows";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, signedInPage } from "./session";
 
@@ -53,25 +54,25 @@ test("a Zelle from the other Parent marked as between us isn't Income or Extra i
 	const marked = toast(page, "$1,500 is between you, so it isn’t Income");
 	await expect(marked).toBeVisible();
 
-	// Out of the Income total, listed as between us, and nothing else moved.
+	// Out of the Income total and off the Income list (it only moved between the two Parents, so
+	// it is a row on Transactions and nowhere here), and nothing else moved.
 	await expect(income(page)).toContainText("$5,000 received of $5,000 usual take-home pay");
-	await expect(betweenUs(page)).toContainText("Zelle from Sam");
-	await expect(betweenUs(page)).toContainText(
-		"$1,500 one of you moved to the other. It isn’t Income and it isn’t spending.",
-	);
+	await expect(income(page)).not.toContainText("Zelle from Sam");
+	await expect(betweenUs(page)).toHaveCount(0);
 	await expect(extraIncome(page)).toBeHidden();
 	await expect(freeToSpend(page).getByText("$3,800", { exact: true }).first()).toBeVisible();
 
 	// It stays that way after a reload: the server keeps it, not just this screen.
 	await page.reload();
 	await expect(income(page)).toContainText("$5,000 received of $5,000 usual take-home pay");
-	await expect(betweenUs(page)).toContainText("Zelle from Sam");
+	await expect(income(page)).not.toContainText("Zelle from Sam");
 
-	// "Count as Income" is the same undo, from the list.
-	await betweenUs(page).getByRole("button", { name: "Count $1,500 as Income" }).click();
-	await expect(toast(page, "$1,500 counts as Income again")).toBeVisible();
+	// On Transactions it is a row like any other, where a Parent can say it is Income after all.
+	await page.goto("/transactions");
+	const { editor } = await openMoneyIn(page, "Zelle from Sam");
+	await editor.getByRole("button", { name: "Income", exact: true }).click();
+	await page.goto("/");
 	await expect(income(page)).toContainText("$6,500 received of $5,000 usual take-home pay");
-	await expect(betweenUs(page)).toBeHidden();
 
 	// And the toast's Undo right after marking.
 	await income(page).getByRole("button", { name: "Actions for $1,500 of income" }).click();
