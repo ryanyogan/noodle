@@ -2,6 +2,7 @@ import type { MonthKey } from "@noodle/domain";
 import type { QueryKey } from "@tanstack/react-query";
 import {
 	bankConnectionsQuery,
+	bellQuery,
 	bucketPagesKey,
 	bucketUsesQuery,
 	checkInQuery,
@@ -76,6 +77,8 @@ const changedQueries = {
 	suggestions: suggestionsQuery().queryKey,
 	/** Perk Sources and their Perks. */
 	perks: perkSourcesQuery().queryKey,
+	/** The bell: a Nudge was sent to a Parent, or a Parent read theirs on another device. */
+	bell: bellQuery().queryKey,
 	/** The Check-in day, and who has finished this week's Check-in. */
 	"check-in": checkInQuery().queryKey,
 	/** The Household's Receipt address. */

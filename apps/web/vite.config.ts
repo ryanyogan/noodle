@@ -14,7 +14,12 @@ const aiStub = process.env.AI_MODEL === "stub";
 // Names this build (issue 140): the same in the Worker and in the page's own script, so an open
 // page can tell that a newer one was deployed (src/build-id.ts). The commit where CI builds and
 // deploys; anywhere else the moment the build (or the dev server) started.
-const buildId = process.env.GITHUB_SHA?.slice(0, 12) ?? `local-${Date.now().toString(36)}`;
+// A build reads this file more than once (the page's script and the Worker each got their own
+// moment, so every page of a local build took the Worker for a newer deploy and refreshed itself
+// once): the first reading's answer is kept in the environment for the others.
+process.env.NOODLE_BUILD_ID ??=
+	process.env.GITHUB_SHA?.slice(0, 12) ?? `local-${Date.now().toString(36)}`;
+const buildId = process.env.NOODLE_BUILD_ID;
 
 // The Docs (issue 126) are built ahead of time: a build renders /docs and each article once and
 // writes the HTML beside the client's files (docs.html, docs/<slug>.html), which the Worker's

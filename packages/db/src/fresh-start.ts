@@ -67,6 +67,8 @@ export const HOUSEHOLD_TABLES = {
 	moves: s.moves,
 	pushSubscriptions: s.pushSubscriptions,
 	nudgePreferences: s.nudgePreferences,
+	sentNudges: s.sentNudges,
+	bellSeen: s.bellSeen,
 	scenarios: s.scenarios,
 	planChanges: s.planChanges,
 	monthCloses: s.monthCloses,

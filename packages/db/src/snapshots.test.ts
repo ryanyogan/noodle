@@ -36,12 +36,14 @@ describe("a snapshot's tables", () => {
 		expect(snapshotted.has("households")).toBe(true);
 	});
 
-	it("leaves out only the snapshot list, Fresh starts, one-time passes that ran and the Log's record", () => {
+	it("leaves out only the snapshot list, Fresh starts, one-time passes that ran, the Log's record and the bell's", () => {
 		expect(Object.keys(NOT_SNAPSHOTTED).sort()).toEqual([
+			"bellSeen",
 			"freshStarts",
 			"householdPasses",
 			"householdSnapshots",
 			"logEvents",
+			"sentNudges",
 		]);
 		for (const name of SNAPSHOT_TABLES) expect(HOUSEHOLD_TABLES[name]).toBeDefined();
 	});

@@ -24,6 +24,9 @@ export const NOT_SNAPSHOTTED: Readonly<Partial<Record<HouseholdTableName, string
 	// History, not state (issue 141): what was removed stays said through a restore, as it does
 	// through a Fresh start, and so does what the restore itself disconnected.
 	logEvents: "the Log's record of what happened isn't rewound by a restore",
+	// The bell (issue 157): what was sent stays sent, and what a Parent read stays read.
+	sentNudges: "a Nudge that was sent isn't unsent by a restore",
+	bellSeen: "what a Parent has read in the bell isn't rewound by a restore",
 };
 
 /** Every table a snapshot holds, parents before children (so a restore inserts in this order). */

@@ -748,14 +748,19 @@ export {
 } from "./moves";
 export {
 	forgetPushSubscription,
+	loadBell,
 	loadNudgePreferences,
 	loadNudgeRecipients,
 	loadPushSubscriptions,
 	loadQuickAddForNudge,
+	markBellSeen,
 	type NudgeRecipient,
 	type PushSubscriptionKeys,
 	type QuickAddForNudge,
+	recordSentNudges,
 	removePushSubscription,
+	SENT_NUDGES_KEPT_MS,
+	type SentNudge,
 	saveNudgePreferences,
 	savePushSubscription,
 } from "./nudges";

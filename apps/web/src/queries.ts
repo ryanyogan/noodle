@@ -1,6 +1,7 @@
 import { type MonthKey, type MonthState, monthState } from "@noodle/domain";
 import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { getBankConnections } from "./server/bank-connections";
+import { getBell } from "./server/bell";
 import { getBucket } from "./server/buckets";
 import { getCaptureToken } from "./server/capture-tokens";
 import { getCheckIn, getCheckInStatus } from "./server/check-in";
@@ -227,6 +228,13 @@ export const checkInQuery = () =>
 		queryKey: [...monthsKey, "check-in"],
 		queryFn: () => getCheckIn(),
 		staleTime: 0,
+	});
+
+/** The bell in the app's frame: what's new for this Parent, and how many of it are unread. */
+export const bellQuery = () =>
+	queryOptions({
+		queryKey: ["bell"],
+		queryFn: () => getBell(),
 	});
 
 /**
