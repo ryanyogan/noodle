@@ -66,7 +66,8 @@ test("Wallet captures land on the card they name, an unknown card is asked about
 	// A card from before the question, a checking Account, and a payment from it marked as a
 	// Transfer naming the Apple Card: written straight in, as Setup and Review would leave them.
 	const [found] = await seedSql([
-		`select id, household_id from accounts where name = '${apple}' order by created_at desc limit 1`,
+		// This Parent's own card: another test running beside this one may have one of that name.
+		`select id, household_id from accounts where name = '${apple}' and household_id = (select household_id from members where clerk_user_id = '${parent.userId}') order by created_at desc limit 1`,
 	]);
 	const appleId = String(found?.[0]?.id);
 	const householdId = String(found?.[0]?.household_id);

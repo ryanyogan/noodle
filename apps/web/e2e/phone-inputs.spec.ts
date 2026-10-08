@@ -77,7 +77,13 @@ test("fields on a phone bring up the right keyboard", async ({ browser }) => {
 	// The first row with a button (day headings carry no button), once hydrated: before then a
 	// press on a row does nothing.
 	await expect(search).toBeEnabled(clientRendered);
-	await page.locator("[data-index]").getByRole("button").first().click();
+	// Spending, not money in: its row opens another editor, with no amount to change (issue 152).
+	await page
+		.locator("[data-index]:not([data-money-in])")
+		.filter({ hasNot: page.locator("[data-money-in]") })
+		.getByRole("button")
+		.first()
+		.click();
 	const amount = page.locator("#transaction-amount");
 	await expect(amount).toHaveAttribute("inputmode", "decimal");
 	await expect(amount).toHaveAttribute("enterkeyhint", "done");
