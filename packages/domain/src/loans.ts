@@ -142,3 +142,169 @@ export function loanPaid(borrowed: Cents | null, owed: Cents | null): Cents | nu
 	if (borrowed === null || owed === null) return null;
 	return Math.max(0, borrowed - owed);
 }
+
+// --- Paid off, and the payments made against the schedule (issue 153, phase d) ----------------
+
+/** A payment made to a loan: the day it is dated and what it was (below 0 for one handed back). */
+export type LoanPayment = { date: DayKey; amount: Cents };
+
+/**
+ * The day a loan was paid off: the day what's owed (owedOn) came to $0 or under and stayed
+ * there. Kept by hand, that is the day of the payment that brought it there, or the balance's own
+ * day when the balance says nothing is owed; a payment on the balance's day or before is already
+ * in it. Connected, only the bank's balance says so. Null while anything is owed, or with no
+ * balance: deleting or moving the payment that paid it off, or a balance entered above $0, makes
+ * it null again with nothing written (ADR-0050).
+ */
+export function loanPaidOffOn(
+	latest: { amount: Cents; day: DayKey } | null,
+	payments: readonly LoanPayment[],
+	connected = false,
+): DayKey | null {
+	if (latest === null) return null;
+	let owed = latest.amount;
+	let since: DayKey | null = owed <= 0 ? latest.day : null;
+	if (connected) return since;
+	const after = payments
+		.filter((payment) => payment.date > latest.day)
+		.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+	for (const payment of after) {
+		owed -= payment.amount;
+		if (owed > 0) since = null;
+		else if (since === null) since = payment.date;
+	}
+	return since;
+}
+
+/**
+ * The first month a Commitment is no longer in the Plan: the month a Parent ended it from, or the
+ * month after the loan it pays down was paid off, whichever comes first. The month it was paid
+ * off in still plans it, once.
+ */
+export function endedOrPaidOff(ended: MonthKey | null, paidOffOn: DayKey | null): MonthKey | null {
+	if (paidOffOn === null) return ended;
+	const after = addMonths(monthOfDay(paidOffOn), 1);
+	return ended !== null && ended <= after ? ended : after;
+}
+
+/**
+ * A loan's payment and due day while a monthly Commitment in the Plan pays it down: the
+ * Commitment's terms this month are the ones that count, so the two can't disagree. With no such
+ * Commitment (or one that isn't monthly) the facts stand as a Parent gave them.
+ */
+export function loanInStep(
+	facts: LoanFacts,
+	terms: { amount: Cents; cadence: string; dueDate: DayKey } | null | undefined,
+): LoanFacts {
+	if (terms?.cadence !== "monthly") return facts;
+	return { ...facts, payment: terms.amount, dueDay: Number(terms.dueDate.slice(8)) };
+}
+
+/**
+ * Where a scheduled payment stands. "paid": that month's payments came to the payment or more
+ * (or paid the loan off). "partly": something was paid, but less. "missed": an earlier month with
+ * nothing paid. "due": this month's, its due day here or gone, with nothing paid yet. "to-come":
+ * a later due day.
+ */
+export type PaymentState = "paid" | "partly" | "missed" | "due" | "to-come";
+
+export type SchedulePayment = {
+	/** The day it is, or was, due. */
+	date: DayKey;
+	/** What the schedule asks for that day. */
+	amount: Cents;
+	state: PaymentState;
+	/** What was really paid in that day's month, and the day of the latest payment in it. */
+	paid: Cents;
+	paidOn: DayKey | null;
+	/** How many payments that month's total is. */
+	payments: number;
+};
+
+export type PaymentSchedule = {
+	/**
+	 * Every scheduled payment, the earliest first: one for each month from the first payment made,
+	 * then those still to be made (at most MAX_SCHEDULED_PAYMENTS of them).
+	 */
+	payments: SchedulePayment[];
+	/** How many are still to be made ("due" and "to-come"), listed or not. */
+	left: number;
+	/** The day of the last payment still to be made; null when nothing is owed. */
+	paidOffOn: DayKey | null;
+};
+
+/**
+ * A loan's payments against its schedule: each month's due day with what was really paid in that
+ * month, then the payments still to be made (loanSchedule, from what's owed now). A month's
+ * payments are judged together, so two halves make it paid, and whatever a missed or short month
+ * left unpaid is in what's owed and so in the payments to come, not asked for twice. Null when
+ * there is no schedule to hold them against (loanSchedule's rule).
+ */
+export function paymentSchedule(input: {
+	owed: Cents | null;
+	payment: Cents | null;
+	dueDay: number | null;
+	endsOn: DayKey | null;
+	today: DayKey;
+	/** Every payment made to the loan, in any order. */
+	payments: readonly LoanPayment[];
+}): PaymentSchedule | null {
+	const { owed, payment, dueDay, endsOn, today } = input;
+	if (owed === null || dueDay === null) return null;
+	if (owed > 0 && (payment === null || payment <= 0) && endsOn === null) return null;
+	const current = monthOfDay(today);
+	const months = new Map<MonthKey, { paid: Cents; paidOn: DayKey; payments: number }>();
+	for (const made of input.payments) {
+		// A payment dated ahead of today isn't made yet.
+		if (made.date > today) continue;
+		const month = monthOfDay(made.date);
+		const so = months.get(month);
+		months.set(month, {
+			paid: (so?.paid ?? 0) + made.amount,
+			paidOn: so && so.paidOn > made.date ? so.paidOn : made.date,
+			payments: (so?.payments ?? 0) + 1,
+		});
+	}
+	// A month whose payments were all handed back paid nothing.
+	for (const [month, so] of months) if (so.paid <= 0) months.delete(month);
+	const paidMonths = [...months.keys()].sort();
+	const first = paidMonths[0];
+	const last = paidMonths[paidMonths.length - 1];
+	const rows: SchedulePayment[] = [];
+	if (first !== undefined && last !== undefined) {
+		// Once nothing is owed the schedule stops at the payment that paid it off.
+		const until = owed <= 0 ? last : current;
+		for (let month = first; month <= until; month = addMonths(month, 1)) {
+			const so = months.get(month);
+			const date = dayIn(month, dueDay);
+			if (so) {
+				const asked = payment !== null && payment > 0 ? payment : so.paid;
+				const paidOff = owed <= 0 && month === last;
+				rows.push({
+					date,
+					amount: asked,
+					state: so.paid >= asked || paidOff ? "paid" : "partly",
+					...so,
+				});
+			} else if (month < current && payment !== null && payment > 0) {
+				rows.push({ date, amount: payment, state: "missed", paid: 0, paidOn: null, payments: 0 });
+			}
+		}
+	}
+	// This month's is made once a payment is dated in it; otherwise it is the first still to be
+	// made, even when its due day has gone by.
+	const from = months.has(current)
+		? (`${addMonths(current, 1)}-01` as DayKey)
+		: (`${current}-01` as DayKey);
+	const toCome = loanSchedule({ owed, payment, dueDay, endsOn, from });
+	for (const next of toCome?.payments ?? []) {
+		rows.push({
+			...next,
+			state: next.date <= today ? "due" : "to-come",
+			paid: 0,
+			paidOn: null,
+			payments: 0,
+		});
+	}
+	return { payments: rows, left: toCome?.count ?? 0, paidOffOn: toCome?.paidOffOn ?? null };
+}

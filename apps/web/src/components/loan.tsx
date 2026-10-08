@@ -1,17 +1,21 @@
 import {
+	addMonths,
 	type Cents,
 	type DayKey,
 	endsAfter,
 	type LoanFacts,
+	loanInStep,
 	loanPaid,
-	loanSchedule,
+	loanPaidOffOn,
 	MAX_SCHEDULED_PAYMENTS,
 	monthOfDay,
 	NO_LOAN_FACTS,
 	parseDollars,
+	paymentSchedule,
 	paymentsUntil,
-	scheduleFrom,
+	type SchedulePayment,
 } from "@noodle/domain";
+import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
@@ -31,9 +35,9 @@ import { toast } from "@noodle/ui/components/toast";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
 import { Pencil, Plus } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
 import { ulid } from "ulid";
-import { formatMoney, formatMoneyInput, fullDay } from "../format";
+import { formatMoney, formatMoneyInput, fullDay, monthName, shortDay } from "../format";
 import {
 	type AccountView,
 	type PaymentCommitmentVariables,
@@ -45,8 +49,9 @@ import { commitmentsQuery, followedCardsQuery, goalsQuery } from "../queries";
 import { AmountInput } from "./goals";
 import { SaveFailed } from "./plan-editing";
 
-// A loan's facts, the payments still to come, and the monthly Commitment for an Account's
-// payments (issue 153): the fields the add-Account form and the loan's own page share.
+// A loan's facts, its payments made and still to come against the schedule, the day it was paid
+// off, and the monthly Commitment for an Account's payments (issue 153): the fields the
+// add-Account form and the loan's own page share.
 
 /** The choice's words, wherever it is offered. */
 export const PAYMENT_COMMITMENT = "Add a monthly Commitment for its payments";
@@ -301,46 +306,175 @@ function usePaying(accountId: string) {
 	);
 }
 
-/** How many of a loan's payments to come its page lists before "Show all". */
+/** How many of a loan's payments to come, and of those made, its page lists before "Show all". */
 const PAYMENTS_TO_COME = 6;
+const PAYMENTS_MADE = 6;
 
 /**
- * A loan's own section on its Account page: what was borrowed and paid so far, the payment and
- * its due day, the payments still to come with the day it is paid off, and, while no Commitment
- * pays it down, the offer to add one. What's owed is the Account's, shown above it.
+ * A loan as its page reads it (issue 153, phase d): its facts in step with the monthly Commitment
+ * that pays it down, every payment that moved what's owed held against the schedule, and the day
+ * it was paid off. `listsEvery` says the schedule shows every payment the Payments section would,
+ * so that section needn't list them again.
  */
-export function LoanSection({ account }: { account: AccountView }) {
-	const hydrated = useHydrated();
+export function useLoan(
+	account: AccountView,
+	balanceDay: DayKey | null,
+	connected: boolean,
+	/** A payment and due day just saved: shown at once, until the Commitment's terms are read again. */
+	saved?: { payment: Cents; dueDay: number } | null,
+) {
 	const data = useGoals();
-	const [editing, setEditing] = useState(false);
-	const [showAll, setShowAll] = useState(false);
-	const setFacts = useSetLoanFacts();
-	const loan = account.loan ?? NO_LOAN_FACTS;
-	const said = Object.values(loan).some((fact) => fact !== null);
 	const records = useSuspenseQuery(goalsQuery()).data;
-	const lastPaid = [...records.payments, ...(records.sent ?? [])]
-		.filter((p) => p.accountId === account.id)
-		.reduce<DayKey | null>(
-			(latest, p) => (latest === null || p.date > latest ? p.date : latest),
-			null,
-		);
-	const schedule = loanSchedule({
+	const plan = useQuery(commitmentsQuery()).data;
+	const linked = plan?.commitments.filter((c) => c.accountId === account.id) ?? [];
+	const paying = linked.filter(
+		(c) =>
+			c.fromMonth <= data.month && (c.endedFromMonth === null || c.endedFromMonth > data.month),
+	);
+	// The terms in force this month of the first monthly Commitment paying it down.
+	const inStep = paying
+		.map((commitment) => ({
+			commitment,
+			terms: plan?.commitmentTerms
+				.filter((t) => t.commitmentId === commitment.id && t.month <= data.month)
+				.reduce<(typeof plan.commitmentTerms)[number] | null>(
+					(latest, t) => (latest === null || t.month > latest.month ? t : latest),
+					null,
+				),
+		}))
+		.find(({ terms }) => terms?.cadence === "monthly");
+	const inForce = loanInStep(account.loan ?? NO_LOAN_FACTS, inStep?.terms);
+	const loan = saved && inStep ? { ...inForce, ...saved } : inForce;
+	const filed = records.payments.filter((p) => p.accountId === account.id);
+	// A payment marked as a Transfer counts where it moved what's owed: the bank's own figure
+	// has it on a connected loan, and by hand only one that came off.
+	const sent = (records.sent ?? []).filter((p) => p.accountId === account.id);
+	const moved = sent.filter((p) => connected || p.comesOff);
+	const schedule = paymentSchedule({
 		owed: account.owed,
 		payment: loan.payment,
 		dueDay: loan.dueDay,
 		endsOn: loan.endsOn,
-		from: scheduleFrom(data.asOf, lastPaid),
+		today: data.asOf,
+		payments: [...filed, ...moved],
 	});
+	const paidOffOn =
+		account.latestBalance && balanceDay
+			? loanPaidOffOn({ amount: account.latestBalance.amount, day: balanceDay }, filed, connected)
+			: null;
+	const made = schedule?.payments.filter((p) => p.paid > 0 || p.state === "missed") ?? [];
+	return {
+		loan,
+		/** The Commitment whose terms are the loan's payment and due day, when one is. */
+		commitment: inStep?.commitment ?? null,
+		/** The Commitment that left the Plan because the loan was paid off. */
+		ended:
+			paidOffOn === null
+				? null
+				: (linked.find(
+						(c) => c.paidOffOn && c.endedFromMonth === addMonths(monthOfDay(c.paidOffOn), 1),
+					) ?? null),
+		schedule,
+		made,
+		toCome: schedule?.payments.filter((p) => p.state === "due" || p.state === "to-come") ?? [],
+		paidOffOn,
+		listsEvery: made.length > 0 && moved.length === sent.length,
+	};
+}
+
+const STATE_NAMES = { paid: "Paid", partly: "Partly paid", missed: "Missed" } as const;
+
+/** A payment made, or missed, against the schedule: its state, then what was really paid and when. */
+function MadeRow({ payment, year }: { payment: SchedulePayment; year: string }) {
+	const when = (day: DayKey) => (day.slice(0, 4) === year ? shortDay(day) : fullDay(day));
+	const state = payment.state === "paid" || payment.state === "partly" ? payment.state : "missed";
+	const paidOn = payment.paidOn
+		? payment.payments > 1
+			? `${payment.payments} payments, the last ${when(payment.paidOn)}`
+			: `Paid ${when(payment.paidOn)}`
+		: "Nothing paid that month";
+	return (
+		<ListRow
+			data-payment-state={state}
+			title={`Due ${when(payment.date)}`}
+			badge={
+				<Badge dot={state === "paid"} variant={state === "paid" ? "default" : "pace"}>
+					{STATE_NAMES[state]}
+				</Badge>
+			}
+			meta={
+				state === "partly"
+					? `${paidOn} · ${formatMoney(payment.paid)} of ${formatMoney(payment.amount)}`
+					: paidOn
+			}
+			trailing={
+				<span className="text-sm font-semibold tabular-nums">{formatMoney(payment.paid)}</span>
+			}
+		/>
+	);
+}
+
+/**
+ * A loan's own section on its Account page: what was borrowed and paid so far, the payment and
+ * its due day, each payment made held against the schedule, the payments still to come with the
+ * day it is paid off (or the day it was), and, while no Commitment pays it down, the offer to add
+ * one. What's owed is the Account's, shown above it.
+ */
+export function LoanSection({
+	account,
+	balanceDay,
+	connected,
+}: {
+	account: AccountView;
+	/** The day its latest balance was true, and whether its bank keeps what's owed. */
+	balanceDay: DayKey | null;
+	connected: boolean;
+}) {
+	const hydrated = useHydrated();
+	const data = useGoals();
+	const [editing, setEditing] = useState(false);
+	const [showAll, setShowAll] = useState(false);
+	const [showAllMade, setShowAllMade] = useState(false);
+	// The payment and due day last saved here, which are the Commitment's terms from this month
+	// on: shown at once, without waiting for every Commitment to be read again.
+	const [saved, setSaved] = useState<{ payment: Cents; dueDay: number } | null>(null);
+	const { loan, commitment, ended, schedule, made, toCome, paidOffOn } = useLoan(
+		account,
+		balanceDay,
+		connected,
+		saved,
+	);
+	// What the Commitment's terms become with the facts being saved, said once they have.
+	const changing = useRef<string | null>(null);
+	const setFacts = useSetLoanFacts({
+		onSuccess: () => {
+			if (changing.current) toast(changing.current);
+			changing.current = null;
+		},
+		onError: () => setSaved(null),
+	});
+	const said = Object.values(loan).some((fact) => fact !== null);
 	const paid = loanPaid(loan.borrowed, account.owed);
 	const paidOff = account.owed !== null && account.owed <= 0;
-	const shown = schedule?.payments.slice(0, showAll ? undefined : PAYMENTS_TO_COME) ?? [];
+	const lastDay = schedule?.paidOffOn ?? null;
+	const shown = toCome.slice(0, showAll ? undefined : PAYMENTS_TO_COME);
+	const shownMade = showAllMade ? made : made.slice(-PAYMENTS_MADE);
+	// Past the day a Parent said it ends with money still owed: said plainly, and its Commitment
+	// stays in the Plan until it is paid off (ADR-0050).
+	const pastEnd =
+		!paidOff && loan.endsOn !== null && loan.endsOn < data.asOf && account.owed !== null
+			? loan.endsOn
+			: null;
 	// The end a Parent gave and the one the payment makes are different months: say both.
 	const saidEnd =
-		schedule?.paidOffOn && loan.payment !== null && loan.endsOn !== null
-			? monthOfDay(schedule.paidOffOn) === monthOfDay(loan.endsOn)
+		pastEnd === null && lastDay && loan.payment !== null && loan.endsOn !== null
+			? monthOfDay(lastDay) === monthOfDay(loan.endsOn)
 				? null
 				: loan.endsOn
 			: null;
+	// Its payoff Goal counts from what was owed when the Goal began, the loan from what was borrowed.
+	const goal = data.goals.find((g) => g.id === account.payoffGoal?.id && g.state === "active");
+	const goalDiffers = goal && paid !== null && goal.progress.saved !== paid ? goal : null;
 	return (
 		<Section aria-labelledby="account-loan">
 			<SectionHeader
@@ -376,12 +510,11 @@ export function LoanSection({ account }: { account: AccountView }) {
 								note={loan.dueDay !== null ? `Due on ${dayOfMonth(loan.dueDay)}` : undefined}
 							/>
 						) : null}
-						{schedule && schedule.count > 0 ? (
-							<Stat label="Payments left" value={String(schedule.count)} />
+						{schedule && schedule.left > 0 ? (
+							<Stat label="Payments left" value={String(schedule.left)} />
 						) : null}
-						{schedule?.paidOffOn ? (
-							<Stat label="Paid off on" value={fullDay(schedule.paidOffOn)} />
-						) : null}
+						{lastDay ? <Stat label="Paid off on" value={fullDay(lastDay)} /> : null}
+						{paidOff && paidOffOn ? <Stat label="Paid off" value={fullDay(paidOffOn)} /> : null}
 					</StatGrid>
 				) : (
 					<>
@@ -403,7 +536,17 @@ export function LoanSection({ account }: { account: AccountView }) {
 				)}
 				{paidOff ? (
 					<p data-slot="loan-paid-off" className="text-sm font-medium">
-						Nothing is owed on it: it’s paid off.
+						{paidOffOn
+							? `Paid off ${fullDay(paidOffOn)}.`
+							: "Nothing is owed on it: it’s paid off."}
+						{ended && paidOffOn ? (
+							<span className="font-normal text-muted-foreground">
+								{" "}
+								{ended.name}, its Commitment, is in the Plan through{" "}
+								{monthName(monthOfDay(paidOffOn))} and not after. A payment taken back, or what’s
+								owed set above $0, plans it again.
+							</span>
+						) : null}
 					</p>
 				) : said && schedule === null ? (
 					<p className="text-[13px] text-muted-foreground">
@@ -412,14 +555,57 @@ export function LoanSection({ account }: { account: AccountView }) {
 							: "Add the payment and the day it’s due and Noodle lists the payments still to come."}
 					</p>
 				) : null}
-				{saidEnd && schedule?.paidOffOn && loan.payment !== null ? (
+				{pastEnd && account.owed !== null ? (
+					<p data-slot="loan-past-end" className="text-sm font-medium">
+						Its last payment was to be {fullDay(pastEnd)}, and {formatMoney(account.owed)} is still
+						owed.
+						<span className="font-normal text-muted-foreground">
+							{" "}
+							{commitment
+								? `${commitment.name} stays in the Plan until it’s paid off.`
+								: "The payments to come are worked out from what’s owed."}
+						</span>
+					</p>
+				) : null}
+				{saidEnd && lastDay && loan.payment !== null ? (
 					<p className="text-[13px] text-muted-foreground">
 						You said its last payment is {fullDay(saidEnd)}. At {formatMoney(loan.payment)} a month
-						with no interest, what’s owed is paid off {fullDay(schedule.paidOffOn)}.
+						with no interest, what’s owed is paid off {fullDay(lastDay)}.
+					</p>
+				) : null}
+				{goalDiffers ? (
+					<p data-slot="loan-goal" className="text-[13px] text-muted-foreground">
+						Paid so far counts from what was borrowed. {goalDiffers.name}, its payoff Goal, counts
+						from the {formatMoney(goalDiffers.target)} owed when it began: both read the same what’s
+						owed.
 					</p>
 				) : null}
 			</Card>
-			{schedule && schedule.payments.length > 0 ? (
+			{made.length > 0 ? (
+				<>
+					<p className="px-1 text-[13px] font-medium text-muted-foreground">
+						Payments made · each month’s against the schedule
+					</p>
+					{made.length > PAYMENTS_MADE && !showAllMade ? (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="justify-self-start"
+							disabled={!hydrated}
+							onClick={() => setShowAllMade(true)}
+						>
+							Show all {made.length} months
+						</Button>
+					) : null}
+					<List aria-label={`Payments made on ${account.name}`}>
+						{shownMade.map((payment) => (
+							<MadeRow key={payment.date} payment={payment} year={data.asOf.slice(0, 4)} />
+						))}
+					</List>
+				</>
+			) : null}
+			{toCome.length > 0 && schedule ? (
 				<>
 					<p className="px-1 text-[13px] font-medium text-muted-foreground">
 						Payments to come · no interest counted; what the lender takes is what counts
@@ -428,11 +614,13 @@ export function LoanSection({ account }: { account: AccountView }) {
 						{shown.map((payment, index) => (
 							<ListRow
 								key={payment.date}
+								data-payment-state={payment.state}
 								title={fullDay(payment.date)}
+								badge={payment.state === "due" ? <Badge variant="pace">Due</Badge> : undefined}
 								meta={
-									index === schedule.count - 1
+									index === schedule.left - 1
 										? "Last payment"
-										: `Payment ${index + 1} of ${schedule.count}`
+										: `Payment ${index + 1} of ${schedule.left}`
 								}
 								trailing={
 									<span className="text-sm font-semibold tabular-nums">
@@ -442,7 +630,7 @@ export function LoanSection({ account }: { account: AccountView }) {
 							/>
 						))}
 					</List>
-					{schedule.payments.length > PAYMENTS_TO_COME && !showAll ? (
+					{toCome.length > PAYMENTS_TO_COME && !showAll ? (
 						<Button
 							type="button"
 							variant="ghost"
@@ -451,7 +639,7 @@ export function LoanSection({ account }: { account: AccountView }) {
 							disabled={!hydrated}
 							onClick={() => setShowAll(true)}
 						>
-							Show all {schedule.payments.length} payments
+							Show all {toCome.length} payments
 						</Button>
 					) : null}
 				</>
@@ -463,13 +651,31 @@ export function LoanSection({ account }: { account: AccountView }) {
 					<SheetContent>
 						<SheetHeader
 							title={`${account.name}’s loan`}
-							description="All optional. What’s owed is updated above, on the Account."
+							description={
+								commitment
+									? `A new payment or due day changes ${commitment.name}, its Commitment, from ${monthName(data.month)} on.`
+									: "All optional. What’s owed is updated above, on the Account."
+							}
 						/>
 						<LoanFactsForm
 							loan={loan}
 							today={data.asOf}
+							paidDown={commitment !== null}
 							onSave={(facts) => {
 								setEditing(false);
+								const payment = facts.payment ?? loan.payment;
+								const dueDay = facts.dueDay ?? loan.dueDay;
+								const changed =
+									commitment !== null &&
+									payment !== null &&
+									dueDay !== null &&
+									(payment !== loan.payment || dueDay !== loan.dueDay)
+										? { name: commitment.name, payment, dueDay }
+										: null;
+								changing.current = changed
+									? `${changed.name} is ${formatMoney(changed.payment)} on ${dayOfMonth(changed.dueDay)} of each month from ${monthName(data.month)} on.`
+									: null;
+								if (changed) setSaved({ payment: changed.payment, dueDay: changed.dueDay });
 								setFacts.mutate({ accountId: account.id, ...facts });
 							}}
 						/>
@@ -483,23 +689,26 @@ export function LoanSection({ account }: { account: AccountView }) {
 function LoanFactsForm({
 	loan,
 	today,
+	paidDown,
 	onSave,
 }: {
 	loan: LoanFacts;
 	today: DayKey;
+	/** A monthly Commitment pays it down: its payment and due day are that Commitment's, so needed. */
+	paidDown: boolean;
 	onSave: (facts: LoanFacts) => void;
 }) {
 	const hydrated = useHydrated();
 	const id = useId();
-	const fields = useLoanFields(loan, today);
+	const fields = useLoanFields(loan, today, paidDown);
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const facts = fields.check(false);
+		const facts = fields.check(paidDown);
 		if (facts) onSave(facts);
 	}
 	return (
 		<form onSubmit={onSubmit} noValidate className="grid gap-4">
-			<LoanFieldset id={id} fields={fields} commitment={false} disabled={!hydrated} />
+			<LoanFieldset id={id} fields={fields} commitment={paidDown} disabled={!hydrated} />
 			<SheetFooter>
 				<SheetCancel />
 				<Button type="submit" disabled={!hydrated}>

@@ -117,12 +117,16 @@ test("a loan added with its facts gets a Commitment under Loans and shows its pa
 		"Paid down by Sofa instalments",
 	);
 
-	// Its facts can be changed there: two payments left, with no payment said, spreads what's owed.
+	// Its facts can be changed there. The payment is its Commitment's too, so it can't be left
+	// unsaid; $500 with two left is two payments, and the Commitment is $500 from this month on.
 	await loan.getByRole("button", { name: "Edit Sofa instalments’s loan" }).click();
 	const sheet = page.getByRole("dialog", { name: "Sofa instalments’s loan" });
 	await expect(sheet.getByLabel("Borrowed")).toHaveValue("1,000");
 	await sheet.getByLabel("Payment", { exact: true }).fill("");
 	await sheet.getByLabel("Payments left").fill("2");
+	await sheet.getByRole("button", { name: "Save", exact: true }).click();
+	await expect(sheet.getByText("Say what one payment is.")).toBeVisible();
+	await sheet.getByLabel("Payment", { exact: true }).fill("500");
 	const factsSaved = savedBy(page, "setLoanFacts");
 	await sheet.getByRole("button", { name: "Save", exact: true }).click();
 	await factsSaved;

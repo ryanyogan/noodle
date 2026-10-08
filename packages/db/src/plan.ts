@@ -2,6 +2,7 @@ import {
 	addMonths,
 	type Cents,
 	cleanGroupName,
+	endedOrPaidOff,
 	type MonthKey,
 	type PlanRecords,
 	type PlanScope,
@@ -10,6 +11,7 @@ import {
 import { and, eq, gt, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
+import { paidOffDays, paidOffQueries } from "./loan-paid-off";
 import { type Author, inForce, logChange } from "./plan-log";
 import { assignableBy } from "./privacy";
 import {
@@ -27,80 +29,100 @@ import {
 // retried save lands once). Every query is scoped by household_id; bucket IDs from the client
 // are only ever used together with it.
 
-/** Every Plan record that can affect `month` or earlier, for planForMonth. */
+/**
+ * Every Plan record that can affect `month` or earlier, for planForMonth. A Commitment that pays
+ * down a loan since paid off is read as ended from the month after (issue 153): `endedFromMonth`
+ * is the earlier of that and a Parent's own end, which stays as they set it in the table.
+ */
 export async function loadPlanRecords(
 	db: Db,
 	householdId: string,
 	month: MonthKey,
 ): Promise<PlanRecords> {
-	const [takeHomePayRows, bucketRows, allowanceRows, commitmentRows, termRows, carriesOverRows] =
-		await db.batch([
-			db
-				.select({ month: baselines.month, amount: baselines.amountCents })
-				.from(baselines)
-				.where(and(eq(baselines.householdId, householdId), lte(baselines.month, month))),
-			db
-				.select({
-					id: buckets.id,
-					name: buckets.name,
-					color: buckets.color,
-					position: buckets.position,
-					fromMonth: buckets.fromMonth,
-					archivedFromMonth: buckets.archivedFromMonth,
-					owner: buckets.ownerMemberId,
-					group: buckets.groupName,
-				})
-				.from(buckets)
-				.where(and(eq(buckets.householdId, householdId), lte(buckets.fromMonth, month))),
-			db
-				.select({
-					bucketId: bucketAllowances.bucketId,
-					month: bucketAllowances.month,
-					amount: bucketAllowances.amountCents,
-				})
-				.from(bucketAllowances)
-				.where(
-					and(eq(bucketAllowances.householdId, householdId), lte(bucketAllowances.month, month)),
-				),
-			db
-				.select({
-					id: commitments.id,
-					name: commitments.name,
-					fromMonth: commitments.fromMonth,
-					endedFromMonth: commitments.endedFromMonth,
-					accountId: commitments.accountId,
-					carriedBalance: commitments.carriedBalance,
-					about: commitments.about,
-				})
-				.from(commitments)
-				.where(and(eq(commitments.householdId, householdId), lte(commitments.fromMonth, month))),
-			db
-				.select({
-					commitmentId: commitmentTerms.commitmentId,
-					month: commitmentTerms.month,
-					amount: commitmentTerms.amountCents,
-					cadence: commitmentTerms.cadence,
-					dueDate: commitmentTerms.dueDate,
-				})
-				.from(commitmentTerms)
-				.where(
-					and(eq(commitmentTerms.householdId, householdId), lte(commitmentTerms.month, month)),
-				),
-			db
-				.select({
-					bucketId: bucketRolling.bucketId,
-					month: bucketRolling.month,
-					rolling: bucketRolling.rolling,
-				})
-				.from(bucketRolling)
-				.where(and(eq(bucketRolling.householdId, householdId), lte(bucketRolling.month, month))),
-		]);
+	const [
+		takeHomePayRows,
+		bucketRows,
+		allowanceRows,
+		commitmentRows,
+		termRows,
+		carriesOverRows,
+		...paidOffRows
+	] = await db.batch([
+		db
+			.select({ month: baselines.month, amount: baselines.amountCents })
+			.from(baselines)
+			.where(and(eq(baselines.householdId, householdId), lte(baselines.month, month))),
+		db
+			.select({
+				id: buckets.id,
+				name: buckets.name,
+				color: buckets.color,
+				position: buckets.position,
+				fromMonth: buckets.fromMonth,
+				archivedFromMonth: buckets.archivedFromMonth,
+				owner: buckets.ownerMemberId,
+				group: buckets.groupName,
+			})
+			.from(buckets)
+			.where(and(eq(buckets.householdId, householdId), lte(buckets.fromMonth, month))),
+		db
+			.select({
+				bucketId: bucketAllowances.bucketId,
+				month: bucketAllowances.month,
+				amount: bucketAllowances.amountCents,
+			})
+			.from(bucketAllowances)
+			.where(
+				and(eq(bucketAllowances.householdId, householdId), lte(bucketAllowances.month, month)),
+			),
+		db
+			.select({
+				id: commitments.id,
+				name: commitments.name,
+				fromMonth: commitments.fromMonth,
+				endedFromMonth: commitments.endedFromMonth,
+				accountId: commitments.accountId,
+				carriedBalance: commitments.carriedBalance,
+				about: commitments.about,
+			})
+			.from(commitments)
+			.where(and(eq(commitments.householdId, householdId), lte(commitments.fromMonth, month))),
+		db
+			.select({
+				commitmentId: commitmentTerms.commitmentId,
+				month: commitmentTerms.month,
+				amount: commitmentTerms.amountCents,
+				cadence: commitmentTerms.cadence,
+				dueDate: commitmentTerms.dueDate,
+			})
+			.from(commitmentTerms)
+			.where(and(eq(commitmentTerms.householdId, householdId), lte(commitmentTerms.month, month))),
+		db
+			.select({
+				bucketId: bucketRolling.bucketId,
+				month: bucketRolling.month,
+				rolling: bucketRolling.rolling,
+			})
+			.from(bucketRolling)
+			.where(and(eq(bucketRolling.householdId, householdId), lte(bucketRolling.month, month))),
+		...paidOffQueries(db, householdId),
+	]);
+	const paidOff = paidOffDays(...paidOffRows);
 	// Months and days are always written as MonthKeys and DayKeys by the functions that write them.
 	return {
 		baselines: takeHomePayRows as PlanRecords["baselines"],
 		buckets: bucketRows as PlanRecords["buckets"],
 		allowances: allowanceRows as PlanRecords["allowances"],
-		commitments: commitmentRows as PlanRecords["commitments"],
+		commitments: (commitmentRows as PlanRecords["commitments"]).map((commitment) => {
+			const paidOffOn = commitment.accountId ? paidOff.get(commitment.accountId) : undefined;
+			return paidOffOn
+				? {
+						...commitment,
+						endedFromMonth: endedOrPaidOff(commitment.endedFromMonth, paidOffOn),
+						paidOffOn,
+					}
+				: commitment;
+		}),
 		commitmentTerms: termRows as PlanRecords["commitmentTerms"],
 		rolling: carriesOverRows as PlanRecords["rolling"],
 	};

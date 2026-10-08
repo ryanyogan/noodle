@@ -53,7 +53,7 @@ import {
 	GoalProgressBar,
 	LinkRow,
 } from "../../../components/goals";
-import { LoanSection, PaymentCommitmentOffer } from "../../../components/loan";
+import { LoanSection, PaymentCommitmentOffer, useLoan } from "../../../components/loan";
 import { DetailHeader, DetailPending } from "../../../components/master-detail";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { StatementBalanceNote, StatementsSection } from "../../../components/statements";
@@ -430,7 +430,9 @@ function AccountDetails({ account }: { account: AccountView }) {
 						</>
 					) : null}
 					{/* A loan's facts and the payments still to come, straight after what's owed (issue 153). */}
-					{account.kind === "loan" ? <LoanSection account={account} /> : null}
+					{account.kind === "loan" ? (
+						<LoanSection account={account} balanceDay={balanceDay} connected={connected !== null} />
+					) : null}
 					<AccountWhose account={account} />
 					<SaveFailed change={updateBalance} />
 					<SaveFailed change={rename} />
@@ -703,7 +705,9 @@ const ACCOUNT_PAYMENTS = 6;
  * ones (issue 150); how paying it counts, and the Commitment that pays it down, are in the
  * section after it. A loan has it once a Commitment pays it down, with those Commitments named.
  * Kept by hand, each payment says whether it came off what's owed (dated after the balance) or
- * was already in it. Each opens where it is: its Commitment, or its month's Transactions.
+ * was already in it. Each opens where it is: its Commitment, or its month's Transactions. A loan
+ * whose schedule already shows every one of them (useLoan) keeps the section's first line and
+ * leaves the list to the schedule, so nothing is said twice.
  */
 function PaidDown({
 	account,
@@ -721,6 +725,7 @@ function PaidDown({
 	const commitments = useQuery(commitmentsQuery()).data?.commitments ?? [];
 	const [showAll, setShowAll] = useState(false);
 	const isCard = account.kind === "credit-card";
+	const scheduled = useLoan(account, balanceDay, connected).listsEvery && !isCard;
 	const payments = [
 		...data.payments
 			.filter((p) => p.accountId === account.id)
@@ -814,6 +819,7 @@ function PaidDown({
 				{connected
 					? "Its bank keeps what’s owed up to date."
 					: "A payment dated after what’s owed was last updated comes off it."}
+				{scheduled ? " Each month’s are listed against the schedule above." : null}
 			</p>
 			{waits > 0 ? (
 				<p className="px-1 text-sm">
@@ -822,7 +828,7 @@ function PaidDown({
 					</Link>
 				</p>
 			) : null}
-			{payments.length > 0 ? (
+			{scheduled ? null : payments.length > 0 ? (
 				<>
 					{thisMonth.length > 0 ? (
 						<>
@@ -846,7 +852,7 @@ function PaidDown({
 						: "No payments to it are in Noodle yet. One marked as a Transfer to it, or filed in a Commitment that pays it down, shows here."}
 				</Card>
 			)}
-			{payments.length > ACCOUNT_PAYMENTS && !showAll ? (
+			{!scheduled && payments.length > ACCOUNT_PAYMENTS && !showAll ? (
 				<Button
 					type="button"
 					variant="ghost"

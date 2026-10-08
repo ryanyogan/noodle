@@ -8,6 +8,7 @@ import {
 	type Cents,
 	type DayKey,
 	dayKeyAt,
+	dueDateOn,
 	type GoalFunding,
 	type GoalKind,
 	holdsMoney,
@@ -28,6 +29,7 @@ import {
 	inArray,
 	isNotNull,
 	isNull,
+	lte,
 	ne,
 	notExists,
 	type SQL,
@@ -35,7 +37,7 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { ArchivedAccount } from "./account-archive";
-import { commitmentAdd, inPlanFor, mayPayDown } from "./commitments";
+import { commitmentAdd, commitmentTermsSet, inPlanFor, mayPayDown } from "./commitments";
 import { counts, countsRaw } from "./counting";
 import type { Db } from "./index";
 import { freeToSpendSql } from "./moves";
@@ -46,6 +48,7 @@ import {
 	accounts,
 	buckets,
 	commitments,
+	commitmentTerms,
 	earmarkClaims,
 	goals,
 	households,
@@ -243,31 +246,108 @@ export async function addAccount(
 	]);
 }
 
+/** The Commitment a change to a loan's payment or due day changed with it. */
+export type LoanCommitmentChange = { id: string; name: string; amountCents: Cents; dueDay: number };
+
 /**
  * Records a loan's facts (issue 153): what was borrowed, the payment, its due day and the day it
  * ends, each null for "not said". Refused unless it is the Household's loan, in use.
+ *
+ * With `plan`, a payment or due day that differs from the terms of a monthly Commitment in the
+ * Plan paying the loan down changes those terms from `plan.month` on in the same batch: one Plan
+ * change ("commitment-terms"), undone as any other, so the loan and its Commitment say the same.
+ * The Commitment changed is handed back. A fact left unsaid leaves that term as it is.
  */
 export async function setLoanFacts(
 	db: Db,
-	input: { householdId: string; accountId: string } & LoanFacts,
-): Promise<{ ok: boolean }> {
-	const changed = await db
-		.update(accounts)
-		.set({
-			borrowedCents: input.borrowed,
-			paymentCents: input.payment,
-			dueDay: input.dueDay,
-			endsOn: input.endsOn,
-		})
-		.where(
-			and(
-				ownAccount(input.householdId, input.accountId),
-				eq(accounts.kind, "loan"),
-				isNull(accounts.archivedAt),
-			),
-		)
-		.returning({ id: accounts.id });
-	return { ok: changed.length > 0 };
+	input: { householdId: string; accountId: string } & LoanFacts & {
+			plan?: { memberId: string; month: MonthKey; today: DayKey };
+		},
+): Promise<{ ok: boolean; commitment?: LoanCommitmentChange }> {
+	const { plan } = input;
+	const ownLoan = and(
+		ownAccount(input.householdId, input.accountId),
+		eq(accounts.kind, "loan"),
+		isNull(accounts.archivedAt),
+	);
+	const paying =
+		plan && (input.payment !== null || input.dueDay !== null)
+			? await db
+					.select({
+						commitmentId: commitmentTerms.commitmentId,
+						name: commitments.name,
+						month: commitmentTerms.month,
+						amountCents: commitmentTerms.amountCents,
+						cadence: commitmentTerms.cadence,
+						dueDate: commitmentTerms.dueDate,
+					})
+					.from(commitmentTerms)
+					.innerJoin(commitments, eq(commitments.id, commitmentTerms.commitmentId))
+					.innerJoin(accounts, eq(accounts.id, commitments.accountId))
+					.where(
+						and(
+							eq(commitments.householdId, input.householdId),
+							eq(commitments.accountId, input.accountId),
+							inPlanFor(plan.month),
+							lte(commitmentTerms.month, plan.month),
+							ownLoan,
+						),
+					)
+					.orderBy(desc(commitmentTerms.month))
+			: [];
+	const changes: (LoanCommitmentChange & { dueDate: DayKey })[] = [];
+	for (const terms of paying) {
+		// The terms in force this month are the first read for each Commitment.
+		if (paying.find((row) => row.commitmentId === terms.commitmentId) !== terms) continue;
+		if (terms.cadence !== "monthly" || !plan) continue;
+		const dueDay = input.dueDay ?? Number(terms.dueDate.slice(8));
+		const dueDate =
+			Number(terms.dueDate.slice(8)) === dueDay
+				? (terms.dueDate as DayKey)
+				: dueDateOn(dueDay, plan.today);
+		const amountCents = input.payment ?? terms.amountCents;
+		if (amountCents === terms.amountCents && dueDate === terms.dueDate) continue;
+		changes.push({ id: terms.commitmentId, name: terms.name, amountCents, dueDay, dueDate });
+	}
+	const [changed] = await db.batch([
+		db
+			.update(accounts)
+			.set({
+				borrowedCents: input.borrowed,
+				paymentCents: input.payment,
+				dueDay: input.dueDay,
+				endsOn: input.endsOn,
+			})
+			.where(ownLoan)
+			.returning({ id: accounts.id }),
+		...(plan
+			? changes.flatMap((change) =>
+					commitmentTermsSet(db, {
+						householdId: input.householdId,
+						memberId: plan.memberId,
+						commitmentId: change.id,
+						month: plan.month,
+						amountCents: change.amountCents,
+						cadence: "monthly",
+						dueDate: change.dueDate,
+					}),
+				)
+			: []),
+	]);
+	const [first] = changes;
+	return {
+		ok: changed.length > 0,
+		...(first
+			? {
+					commitment: {
+						id: first.id,
+						name: first.name,
+						amountCents: first.amountCents,
+						dueDay: first.dueDay,
+					},
+				}
+			: {}),
+	};
 }
 
 export type PaymentCommitmentResult =

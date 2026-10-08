@@ -9,6 +9,7 @@ import {
 	fundGoal as fundGoalInDb,
 	type GoalRecords,
 	type GoalWriteResult,
+	type LoanCommitmentChange,
 	loadFreeCarriedInto,
 	loadGoals,
 	owedNow,
@@ -176,11 +177,34 @@ export const addAccount = createServerFn({ method: "POST" })
 export const setLoanFacts = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(loanFactsSchema.extend({ accountId: ulidSchema }))
-	.handler(async ({ data, context }): Promise<{ ok: boolean }> => {
-		const result = await setLoanFactsInDb(getDb(), { householdId: context.household.id, ...data });
-		if (result.ok) await notifyHousehold(context.household.id, ["goals"]);
-		return result;
-	});
+	.handler(
+		async ({ data, context }): Promise<{ ok: boolean; commitment?: LoanCommitmentChange }> => {
+			// Its payment and due day are its Commitment's terms too, from this month on.
+			const result = await setLoanFactsInDb(getDb(), {
+				householdId: context.household.id,
+				...data,
+				plan: {
+					memberId: context.parent.id,
+					month: currentMonth(context.household),
+					today: today(context.household),
+				},
+			});
+			if (!result.ok) return result;
+			await notifyHousehold(
+				context.household.id,
+				result.commitment ? ["goals", "months"] : ["goals"],
+			);
+			if (result.commitment) {
+				await queueAi({
+					householdId: context.household.id,
+					memberId: context.parent.id,
+					kind: "commitment-changed",
+					ids: [result.commitment.id],
+				});
+			}
+			return result;
+		},
+	);
 
 /**
  * Adds a monthly Commitment for the payments of a loan or card the Household has already, named
