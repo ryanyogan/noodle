@@ -281,7 +281,10 @@ describe("loadExportData", () => {
 			.update(income)
 			.set({ accountId: "checking", bankTookBackOn: "2026-10-03", bankAmountCents: 1_500 })
 			.where(eq(income.id, "back"));
-		await db.update(income).set({ payMemberId: "sam" }).where(eq(income.id, "pay"));
+		await db
+			.update(income)
+			.set({ payMemberId: "sam", payDay: "2026-09-16" })
+			.where(eq(income.id, "pay"));
 		await db
 			.update(transactions)
 			.set({ bankTookBackOn: "2026-10-04", bankAmountCents: null })
@@ -298,6 +301,7 @@ describe("loadExportData", () => {
 				account: "Checking",
 				otherAccount: null,
 				payMemberId: null,
+				payDay: null,
 				bankTookBackOn: "2026-10-03",
 				bankAmountCents: 1_500,
 			},
@@ -309,6 +313,8 @@ describe("loadExportData", () => {
 				account: null,
 				otherAccount: null,
 				payMemberId: "sam",
+				// The Pay day it counts on, kept beside the day it landed.
+				payDay: "2026-09-16",
 				bankTookBackOn: null,
 				bankAmountCents: null,
 			},

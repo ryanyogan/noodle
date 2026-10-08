@@ -96,6 +96,11 @@ export type ExportData = {
 		otherAccount: string | null;
 		/** Whose pay it is; null for the Household's. */
 		payMemberId: string | null;
+		/**
+		 * The Pay day Income is the pay for, which it counts on in place of `date` (ADR-0063); null
+		 * for a line that counts on the day it landed.
+		 */
+		payDay: string | null;
 		/** The day the bank took it back or changed it after its month ended (issue 141)… */
 		bankTookBackOn: string | null;
 		/** …and what the bank says it is now; null when it took the whole line back. */
@@ -451,6 +456,7 @@ export async function loadExportData(
 				account: nameOf(line.accountId),
 				otherAccount: nameOf(line.otherAccountId),
 				payMemberId: line.whosePay,
+				payDay: line.payDay,
 				bankTookBackOn: line.bankTookBackOn,
 				bankAmountCents: line.bankAmount,
 			}))

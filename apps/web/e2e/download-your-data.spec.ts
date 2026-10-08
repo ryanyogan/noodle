@@ -294,14 +294,26 @@ test("the download's money-in.csv, money-in-rules.csv and card-payment-rules.csv
 		"Kind",
 		"From Account",
 		"Whose pay",
+		"Pay day",
 		"Bank took it back on",
 		"Bank changed it to",
 	]);
 	expect(moneyIn).toHaveLength(3);
 	const paycheck = moneyIn.find((line) => line[3] === "1840");
-	expect(paycheck).toEqual([iso, "Checking", PAY, "1840", "Income", "", "", "", ""]);
+	expect(paycheck).toEqual([iso, "Checking", PAY, "1840", "Income", "", "", "", "", ""]);
 	const transfer = moneyIn.find((line) => line[3] === "75");
-	expect(transfer).toEqual([iso, "Checking", JORDAN, "75", "Transfer", "Ally savings", "", "", ""]);
+	expect(transfer).toEqual([
+		iso,
+		"Checking",
+		JORDAN,
+		"75",
+		"Transfer",
+		"Ally savings",
+		"",
+		"",
+		"",
+		"",
+	]);
 	// The payment to the card is money out: it is not in this file.
 	expect(strFromU8(files["money-in.csv"] as Uint8Array)).not.toContain("CARDMEMBER");
 

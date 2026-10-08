@@ -201,7 +201,8 @@ export function exportFiles(data: ExportData): Record<string, string> {
 	}
 
 	// Money in, every line with its kind (ADR-0057), and what the Household's Rules for it
-	// remember. They are the Household's, so both Parents get the same.
+	// remember. They are the Household's, so both Parents get the same. "Pay day" is the day a
+	// paycheck counts on in place of its date (ADR-0063), so the month it counts in can be rebuilt.
 	const whosePay = (id: string | null) => (id ? (memberName.get(id) ?? "") : "");
 	const moneyIn: (string | number | null)[][] = [
 		[
@@ -212,6 +213,7 @@ export function exportFiles(data: ExportData): Record<string, string> {
 			"Kind",
 			"From Account",
 			"Whose pay",
+			"Pay day",
 			"Bank took it back on",
 			"Bank changed it to",
 		],
@@ -225,6 +227,7 @@ export function exportFiles(data: ExportData): Record<string, string> {
 			line.needsReview ? "Needs review" : MONEY_IN_KIND_LABELS[line.kind],
 			line.otherAccount ?? "",
 			whosePay(line.payMemberId),
+			line.payDay ?? "",
 			line.bankTookBackOn ?? "",
 			dollars(line.bankAmountCents),
 		]);
