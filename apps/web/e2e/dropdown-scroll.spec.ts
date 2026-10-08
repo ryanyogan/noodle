@@ -145,6 +145,7 @@ test("a Rule's list shows each Bucket's colour and Bills under their own heading
 
 test("on a 320px phone a Rule's list fits the screen, scrolls under a finger's wheel, and Esc leaves the sheet open @phone", async ({
 	browser,
+	browserName,
 }) => {
 	test.slow();
 	const page = await signedInPage(browser, parent.email);
@@ -166,8 +167,12 @@ test("on a 320px phone a Rule's list fits the screen, scrolls under a finger's w
 	const row = await page.getByRole("option").first().boundingBox();
 	expect(Math.round(row?.height ?? 0)).toBeGreaterThanOrEqual(44);
 	const box = await scroller.boundingBox();
-	await page.mouse.move((box?.x ?? 0) + 40, (box?.y ?? 0) + 60);
-	await page.mouse.wheel(0, 200);
+	// Mobile WebKit has no wheel to send: there the list is only shown to be one that scrolls.
+	if (browserName === "webkit") await scroller.evaluate((el) => el.scrollBy(0, 200));
+	else {
+		await page.mouse.move((box?.x ?? 0) + 40, (box?.y ?? 0) + 60);
+		await page.mouse.wheel(0, 200);
+	}
 	await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
 	await page.keyboard.press("Escape");
 	await expect(scroller).toBeHidden();
