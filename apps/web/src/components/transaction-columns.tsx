@@ -143,7 +143,15 @@ function What({ view, stacked = false }: { view: RowView; stacked?: boolean }) {
 				Needs review
 			</Badge>
 		) : (
-			kind
+			<>
+				{kind}
+				{/* A paycheck listed on the day it landed: the pay day it counts on (ADR-0063). */}
+				{!stacked && view.payFor ? (
+					<span data-slot="row-pay-for" className="min-w-0 truncate text-muted-foreground">
+						{view.payFor}
+					</span>
+				) : null}
+			</>
 		);
 	if (view.kind === "goal")
 		return (

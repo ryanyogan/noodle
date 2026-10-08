@@ -76,6 +76,9 @@ const whoChoices = (parents: Parent[]) => [
 export const payRangeText = (soFar: Cents, usual: NonNullable<PayRange["usual"]>) =>
 	`${formatMoney(soFar)} so far · usually ${formatMoney(usual.low)}–${formatMoney(usual.high)}`;
 
+/** On a paycheck that landed on another day than the pay day it counts on (ADR-0063). */
+const payFor = (payDay: string) => `pay for ${shortDay(payDay)}`;
+
 /** An Income entry of the month, with what the money-in read knows of it once it has loaded. */
 type Row = IncomeRecord & { line: MoneyInLine | null };
 
@@ -152,7 +155,14 @@ export function IncomeTable({
 		.map((entry) => {
 			const line = lines?.find((candidate) => candidate.id === entry.id) ?? null;
 			return line
-				? { ...entry, amount: line.amount, date: line.date, note: line.note, line }
+				? {
+						...entry,
+						amount: line.amount,
+						date: line.date,
+						note: line.note,
+						payDay: line.payDay,
+						line,
+					}
 				: { ...entry, line };
 		})
 		.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
@@ -185,6 +195,7 @@ export function IncomeTable({
 					{shortDay(row.date)}
 					{/* Stacked (a phone), the Account has no column of its own: it follows the day. */}
 					{waiting ? null : <span className="@2xl/dt:hidden"> · {accountOf(row)}</span>}
+					{row.payDay ? <span className="@2xl/dt:hidden"> · {payFor(row.payDay)}</span> : null}
 				</>
 			),
 		},
@@ -194,7 +205,20 @@ export function IncomeTable({
 			min: 7,
 			width: "minmax(0,2fr)",
 			stacked: "title",
-			cell: (row) => row.note ?? "Income",
+			cell: (row) => (
+				<>
+					{row.note ?? "Income"}
+					{/* In columns the day it landed has its own; this says the month it counts in. */}
+					{row.payDay ? (
+						<span
+							className="ms-1.5 hidden text-muted-foreground @2xl/dt:inline"
+							data-testid="income-pay-for"
+						>
+							· {payFor(row.payDay)}
+						</span>
+					) : null}
+				</>
+			),
 		},
 		{
 			id: "whose",

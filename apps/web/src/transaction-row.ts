@@ -1,6 +1,6 @@
 import { displayMerchant, MONEY_IN_KIND_LABELS, type Plan } from "@noodle/domain";
 import { asBucketColor } from "./buckets";
-import { formatMoney } from "./format";
+import { formatMoney, shortDay } from "./format";
 import { forLabel, type MemberSummary, pickableMembers } from "./members";
 import type { MoneyInLine } from "./money-in";
 import { forNow } from "./transaction-cells";
@@ -61,6 +61,8 @@ export type RowView = {
 	 * would be, since it is assigned to nothing.
 	 */
 	kindOnly: boolean;
+	/** A paycheck that counts on another day than it landed (ADR-0063): "pay for Oct 1". */
+	payFor?: string;
 	/** Who it was For, a name each (the row's chips): ["Everyone"] for the whole Household. */
 	forNames: string[];
 	/** The second line of a two-line row: what it's assigned to, who it was For, where it came from. */
@@ -258,6 +260,11 @@ function moneyInView(transaction: TransactionRow, line: MoneyInLine): RowView {
 	const kind = line.needsReview ? "Needs review" : MONEY_IN_KIND_LABELS[line.kind];
 	const account = transaction.importedFrom ?? "Typed in";
 	const [, accountName = account, accountDigits = ""] = /^(.*?)( ••\d{4})$/.exec(account) ?? [];
+	// A paycheck listed on the day it landed says which pay day it is the pay for, since that is
+	// the month it counts in (ADR-0063): "Income · pay for Oct 1 · Checking". Before the Account,
+	// which is what a narrow row cuts short.
+	const payFor = line.payDay && !line.needsReview ? `pay for ${shortDay(line.payDay)}` : null;
+	const source = payFor ? `${payFor} · ${account}` : account;
 	return {
 		kind: "plain",
 		title,
@@ -265,19 +272,20 @@ function moneyInView(transaction: TransactionRow, line: MoneyInLine): RowView {
 		moneyIn: true,
 		kindWord: line.needsReview ? null : kind,
 		kindOnly: true,
+		...(payFor ? { payFor } : {}),
 		forNames: [],
-		detail: `${kind} · ${account}`,
+		detail: `${kind} · ${source}`,
 		aroundFor: null,
 		assignment: { name: kind, color: null },
 		splitNames: [],
 		route: "",
-		source: account,
+		source,
 		needsReview: line.needsReview,
 		assigned: kind,
 		who: "",
 		accountName,
 		accountDigits,
-		label: `${title}, ${amount}, ${kind}, ${transaction.importedFrom ? `into ${account}` : "typed in"}`,
+		label: `${title}, ${amount}, ${kind}, ${transaction.importedFrom ? `into ${account}` : "typed in"}${payFor ? `, ${payFor}` : ""}`,
 		pending: false,
 		autoFiled: false,
 		matched: false,
