@@ -31,6 +31,11 @@ export type MoneyInRowsFilter = {
 	 * nobody, so none of it is listed.
 	 */
 	none?: boolean;
+	/**
+	 * Leave out the arriving side of a Transfer whose leaving side is in Noodle too: that Transfer
+	 * is one row of the list, the side the money left (ADR-0062).
+	 */
+	unpaired?: boolean;
 };
 
 /** How a list's order compares two rows: by amount, by a text key, or by date alone. */
@@ -87,6 +92,10 @@ export function listOrder(sort: TransactionSort): (a: ListPlace, b: ListPlace) =
 const inTransfer = sql`exists (select 1 from transfers x where x.in_income_id = ${income.id}
 	and x.removed_at is null)`;
 
+/** That Transfer's leaving side is in Noodle too: a Transaction of the Household's. */
+const inPair = sql`exists (select 1 from transfers x where x.in_income_id = ${income.id}
+	and x.out_transaction_id is not null and x.removed_at is null)`;
+
 /** It waits in Review for a Parent to say its kind, as `loadMoneyIn` reads it. */
 const waits = sql`(${income.needsReview} = 1 and ${income.kind} is null and not ${inTransfer})`;
 
@@ -98,6 +107,7 @@ function matching(householdId: string, filter: MoneyInRowsFilter): SQL | undefin
 		filter.accountId ? eq(income.accountId, filter.accountId) : undefined,
 		filter.like ? sql`${income.note} like ${`%${filter.like}%`} escape '!'` : undefined,
 		filter.review ? waits : undefined,
+		filter.unpaired ? sql`not ${inPair}` : undefined,
 	);
 }
 
