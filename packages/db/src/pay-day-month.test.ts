@@ -1,21 +1,28 @@
-import type { Cents, DayKey, MonthKey } from "@noodle/domain";
+import type { Cents, DayKey, MonthKey, StatementLine } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+	addAccount,
+	addBucket,
 	addIncome,
 	createHouseholdForParent,
 	type Db,
 	decideExtraIncome,
 	editMoneyIn,
+	importStatement,
+	loadFreeCarryMonths,
 	loadIncome,
 	loadIncomeCells,
+	loadMoneyIn,
 	loadMoneyInLine,
+	loadPlanRecords,
 	matchPayDays,
 	removeIncome,
 	setParentPay,
 	setPayDayByHand,
 	setTakeHomePay,
+	stateWhosePay,
 } from "./index";
-import { monthCloses } from "./schema";
+import { members, monthCloses } from "./schema";
 import { testDb } from "./test-db";
 
 // A paycheck counts on its pay day (issue 156, phase 2; ADR-0063): every read that puts Income in
@@ -233,5 +240,160 @@ describe("a paycheck counts on its pay day", () => {
 		expect(await removeIncome(db, { householdId, incomeId: "pay-oct-01", month: sep })).toEqual({
 			ok: true,
 		});
+	});
+});
+
+describe("the Carry-over with a paycheck across a month's end", () => {
+	const nov: MonthKey = "2026-11";
+	/** What September and October each left of their own, and what October hands on, both ended. */
+	const carried = async () => {
+		const months = await loadFreeCarryMonths(
+			db,
+			viewer,
+			await loadPlanRecords(db, householdId, nov),
+			nov,
+			nov,
+		);
+		const of = (month: MonthKey) => months.find((one) => one.month === month);
+		return { sep: of(sep)?.own, oct: of(oct)?.own, handedOn: of(oct)?.left };
+	};
+
+	it("takes it from the month it landed in and gives it to the pay day's, the sum unchanged", async () => {
+		await addBucket(db, {
+			householdId,
+			memberId: parentId,
+			bucketId: "fun",
+			name: "Fun",
+			color: 1,
+			month: sep,
+			allowanceCents: 100_000,
+		});
+		// Nothing was spent, so each ended month leaves the Income that counted in it.
+		const before = await carried();
+		expect(before).toEqual({ sep: 495_000, oct: 250_000, handedOn: 745_000 });
+
+		await salaried();
+		await matchPayDays(db, householdId, { claim: true });
+		expect(await carried()).toEqual({ sep: 250_000, oct: 495_000, handedOn: 745_000 });
+		expect(await counted()).toEqual({ sep: 250_000, oct: 495_000 });
+
+		// And back, by hand.
+		await setPayDayByHand(db, viewer, { incomeId: "pay-oct-01", payDay: null });
+		expect(await carried()).toEqual(before);
+	});
+});
+
+describe("a paycheck that arrives by Import", () => {
+	const PAY = "NORTHWIND PAYROLL";
+	let nextId = 0;
+	const line = (date: string, amount: number, description = PAY): StatementLine => ({
+		date: date as DayKey,
+		amount: amount as Cents,
+		description,
+		bankId: null,
+	});
+	const importInto = (importId: string, lines: StatementLine[]) =>
+		importStatement(db, {
+			householdId,
+			importId,
+			accountId: "checking",
+			source: "csv",
+			fileName: null,
+			fileKey: null,
+			lines,
+			closingBalance: null,
+			csvMapping: null,
+			createdByMemberId: parentId,
+			newId: () => `row-${String(++nextId).padStart(4, "0")}`,
+		});
+	const landed = async (date: string) => {
+		const found = (await loadMoneyIn(db, householdId)).find((row) => row.date === date);
+		if (!found) throw new Error(`no money in on ${date}`);
+		return found;
+	};
+	const sum = (lines: { amount: number }[]) => lines.reduce((total, l) => total + l.amount, 0);
+
+	beforeEach(async () => {
+		nextId = 0;
+		await addAccount(db, {
+			householdId,
+			accountId: "checking",
+			name: "Checking",
+			kind: "checking",
+			balanceCents: 0,
+			balanceId: "checking-balance",
+			createdByMemberId: parentId,
+		});
+		await salaried();
+		await stateWhosePay(db, viewer, { ruleId: "rule-pay", wording: PAY, payMemberId: parentId });
+	});
+
+	it("is the pay for the pay day it landed near, and counts in that day's month", async () => {
+		await importInto("import-1", [
+			line("2026-10-30", 248_000),
+			// Nobody's pay by any Rule: it counts where it landed, though it fits a pay day.
+			line("2026-10-31", 250_000, "MOBILE DEPOSIT"),
+			// The Parent's pay, and nowhere near a paycheck.
+			line("2026-10-29", 40_000),
+		]);
+		expect(await landed("2026-10-30")).toMatchObject({
+			whosePay: parentId,
+			payDay: "2026-11-01",
+			payDayByHand: false,
+		});
+		expect(await landed("2026-10-31")).toMatchObject({ whosePay: null, payDay: null });
+		expect(await landed("2026-10-29")).toMatchObject({ whosePay: parentId, payDay: null });
+		// October: its own typed paycheck and the two lines that stayed.
+		expect(sum(await loadIncome(db, householdId, oct, "2026-11"))).toBe(540_000);
+		expect(sum(await loadIncome(db, householdId, "2026-11", "2026-12"))).toBe(248_000);
+		// The same statement again writes nothing and moves nothing.
+		await importInto("import-2", [line("2026-10-30", 248_000)]);
+		expect(sum(await loadIncome(db, householdId, "2026-11", "2026-12"))).toBe(248_000);
+	});
+
+	it("leaves a second deposit near the same pay day as ordinary Income", async () => {
+		await importInto("import-1", [line("2026-10-30", 248_000), line("2026-10-31", 262_000)]);
+		// The closest in amount takes the pay day (the owner's rule on the issue).
+		expect(await landed("2026-10-30")).toMatchObject({ payDay: "2026-11-01" });
+		expect(await landed("2026-10-31")).toMatchObject({ payDay: null });
+		expect(sum(await loadIncome(db, householdId, oct, "2026-12"))).toBe(760_000);
+	});
+});
+
+describe("two salaried Parents", () => {
+	const otherId = "other-parent";
+	const whose = async (incomeId: string) => {
+		const line = await loadMoneyInLine(db, householdId, incomeId);
+		return { whosePay: line?.whosePay, payDay: line?.payDay };
+	};
+
+	beforeEach(async () => {
+		await db.insert(members).values({ id: otherId, householdId, kind: "parent", name: "Sam" });
+		await salaried();
+		// Sam: $2,600 once a month on the 1st, within $300 of Alex's paycheck.
+		await setParentPay(db, {
+			householdId,
+			memberId: otherId,
+			pay: { paycheck: 260_000 as Cents, schedule: { kind: "monthly", day: 1 } },
+		});
+	});
+
+	it("never guesses whose paycheck a deposit is when it could be either Parent's", async () => {
+		const result = await matchPayDays(db, householdId, { claim: true });
+		// The 15ths are only Alex's pay day; the deposit for the 1st fits both.
+		expect(result.matched).toBe(2);
+		expect(await whose("pay-sep-15")).toEqual({ whosePay: parentId, payDay: "2026-09-15" });
+		expect(await whose("pay-oct-01")).toEqual({ whosePay: null, payDay: null });
+		expect(await counted()).toEqual({ sep: 495_000, oct: 250_000 });
+	});
+
+	it("gives each Parent their own pay day on the same day, each line counted once", async () => {
+		await receive("sam-oct-01", "2026-10-02", 2600);
+		await editMoneyIn(db, viewer, { incomeId: "pay-oct-01", edit: { whosePay: parentId } });
+		await editMoneyIn(db, viewer, { incomeId: "sam-oct-01", edit: { whosePay: otherId } });
+		await matchPayDays(db, householdId, { claim: true });
+		expect(await whose("pay-oct-01")).toEqual({ whosePay: parentId, payDay: "2026-10-01" });
+		expect(await whose("sam-oct-01")).toEqual({ whosePay: otherId, payDay: "2026-10-01" });
+		expect(await counted()).toEqual({ sep: 250_000, oct: 755_000 });
 	});
 });
