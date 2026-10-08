@@ -2,6 +2,7 @@ import {
 	addAccount,
 	addBucket,
 	addCapture,
+	addCommitment,
 	addPersonalAllowance,
 	createCaptureToken,
 	createHouseholdForParent,
@@ -13,7 +14,7 @@ import {
 	setTakeHomePay,
 	updateTransaction,
 } from "@noodle/db";
-import { categorizations, members, transactions } from "@noodle/db/schema";
+import { categorizations, commitments, members, transactions } from "@noodle/db/schema";
 import { testDb } from "@noodle/db/test-db";
 import { merchantKey, type StatementLine } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -652,5 +653,63 @@ describe("categorizing a captured Quick Add", () => {
 			suggestion: null,
 		});
 		expect(model.asked[0]?.buckets.map((bucket) => bucket.id)).not.toContain("sam-pa");
+	});
+});
+
+// Issue 151: a Rule stated by an earlier "Make it a Commitment" files a card's payments in the
+// Commitment that pays the card down. Once the card's purchases are in Buckets (kept by hand),
+// that would count them twice, so the Rule is matched but not applied.
+describe("a Rule that files a card's payment in the Commitment paying the card down", () => {
+	const WORDING = "APPLECARD GSBANK PAYMENT 8841";
+	async function household(purchases: "hand" | "none") {
+		await addAccount(db, {
+			householdId,
+			accountId: "apple",
+			name: "Apple Card",
+			kind: "credit-card",
+			balanceCents: 0,
+			balanceId: "balance-apple",
+			createdByMemberId: "alex",
+			purchases,
+		});
+		await addCommitment(db, {
+			householdId,
+			memberId: "alex",
+			commitmentId: "bill",
+			name: "Apple Card bill",
+			month,
+			amountCents: 30_000,
+			cadence: "monthly",
+			dueDate: "2026-09-05",
+		});
+		// Linked as the app allowed before the fix.
+		// (the only Commitment there is)
+		await db.update(commitments).set({ accountId: "apple" });
+		await saveRule(db, {
+			id: "rule-apple",
+			householdId,
+			memberId: "alex",
+			pattern: "applecard gsbank payment",
+			commitmentId: "bill",
+		});
+		const importId = await importLines("alex", [line(WORDING, 300)]);
+		const model = fakeModel({ applecard: { bucketId: "fun", confidence: 0.99 } });
+		const result = await categorizeImport(deps(model.classifier), alex, importId);
+		const row = (await db.select().from(transactions)).find((each) => each.note === WORDING);
+		return { result, row, asked: model.asked };
+	}
+
+	it("is applied while the card's purchases never get in: the payment is the spending", async () => {
+		const { result, row } = await household("none");
+		expect(result).toMatchObject({ filed: 1, review: 0 });
+		expect(row).toMatchObject({ commitmentId: "bill", bucketId: null });
+	});
+
+	it("is not applied once the card is kept by hand: the payment waits in Review with no guess, and the model isn't asked", async () => {
+		const { result, row, asked } = await household("hand");
+		expect(result).toMatchObject({ filed: 0, review: 1, methods: { rule: 0, none: 1 } });
+		expect(row).toMatchObject({ commitmentId: null, bucketId: null });
+		expect(asked).toEqual([]);
+		expect((await outcomes())[WORDING]).toMatchObject({ outcome: "review", suggestion: null });
 	});
 });

@@ -1,5 +1,6 @@
 import {
 	type CategorizationDecision,
+	countingTwice,
 	type Db,
 	fileCategorizations,
 	loadCategorizableBuckets,
@@ -14,6 +15,7 @@ import {
 	type Viewer,
 } from "@noodle/db";
 import {
+	type DayKey,
 	decideCategorization,
 	feesBucketIn,
 	feesOffer,
@@ -107,18 +109,29 @@ async function categorize(
 	const { db } = deps;
 	if (rows.length === 0) return { filed: 0, review: 0, months: [], methods: noMethods() };
 	const months = [...new Set(rows.map((row) => row.date.slice(0, 7)))].sort();
-	const [buckets, allRules] = await Promise.all([
+	const [buckets, allRules, twice] = await Promise.all([
 		loadCategorizableBuckets(db, viewer, months[0] as string, months.at(-1) as string),
 		// Never the other Parent's private Rules.
 		loadRules(db, viewer),
+		// As of the day this runs (UTC): a day either way moves only the 60-day edge.
+		countingTwice(db, viewer.householdId, new Date().toISOString().slice(0, 10) as DayKey),
 	]);
+	// A Rule that files a card's payment in the Commitment paying it down is not applied once the
+	// card's purchases are in Buckets (issue 151): the line waits in Review with no guess, where
+	// its card offers the Transfer. The Rule itself is left as the Parent stated it.
+	const countsTwice = new Set(twice);
+	const held = new Set(
+		allRules
+			.filter((rule) => rule.commitmentId != null && countsTwice.has(rule.commitmentId))
+			.map((rule) => rule.id),
+	);
 	const choosable = new Set(buckets.map((bucket) => bucket.id));
 	// Nor one into a Bucket this Parent can't assign, or that isn't in the Plan for these months.
 	// A Rule into a Commitment is kept: filing checks it's in the Plan for each one's month.
 	const rules = allRules.filter((rule) =>
 		rule.bucketId ? choosable.has(rule.bucketId) : rule.commitmentId != null,
 	);
-	const decisions = await decideRows(deps, viewer.householdId, buckets, rules, rows, label);
+	const decisions = await decideRows(deps, viewer.householdId, buckets, rules, rows, label, held);
 	await fileCategorizations(db, viewer, decisions);
 	const filed = decisions.filter((d) => d.categorization.outcome === "filed").length;
 	const methods = noMethods();
@@ -139,6 +152,8 @@ export async function decideRows<R extends Rule & { id: string }>(
 	rows: Uncategorized[],
 	/** What's categorized, for the logs: an ID, never a merchant. */
 	label: string,
+	/** Rules that are matched but not applied: their lines wait in Review with no guess. */
+	held: ReadonlySet<string> = new Set(),
 ): Promise<CategorizationDecision[]> {
 	const choosable = new Set(buckets.map((bucket) => bucket.id));
 
@@ -195,7 +210,7 @@ export async function decideRows<R extends Rule & { id: string }>(
 		const merchant = merchantOf.get(row.id) as string;
 		const guess = modelled.get(merchant);
 		const rule = ruleOf(merchant, row);
-		if (!rule && cardPayment(row)) {
+		if ((!rule && cardPayment(row)) || (rule && held.has(rule.id))) {
 			return { transactionId: row.id, merchant, categorization: decideCategorization({}) };
 		}
 		const categorization = decideCategorization({

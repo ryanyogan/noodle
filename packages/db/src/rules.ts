@@ -8,6 +8,7 @@ import {
 import { and, asc, eq, gt, isNull, lt, ne, or, type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { type CategorizationDecision, fileCategorizations } from "./categorize";
+import { countingTwice } from "./commitments";
 import { counts } from "./counting";
 import { purchaseMayMove } from "./ended-months";
 import type { Db } from "./index";
@@ -540,6 +541,14 @@ export async function applyRule(
 ): Promise<{ filed: number; months: string[]; kept: number }> {
 	const rule = (await loadRules(db, viewer)).find((r) => r.id === ruleId);
 	if (!rule) return { filed: 0, months: [], kept: 0 };
+	// A Rule into a Commitment that pays down a card whose purchases are already in Buckets files
+	// nothing: each payment would count them twice (issue 151). Its lines wait in Review.
+	if (rule.commitmentId) {
+		const today = options.today ?? (new Date().toISOString().slice(0, 10) as DayKey);
+		if ((await countingTwice(db, viewer.householdId, today)).includes(rule.commitmentId)) {
+			return { filed: 0, months: [], kept: 0 };
+		}
+	}
 	const rows = await db
 		.select({
 			id: transactions.id,

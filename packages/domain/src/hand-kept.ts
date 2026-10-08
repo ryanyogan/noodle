@@ -14,8 +14,9 @@ export type CardKept = "bank" | PurchasesGetIn;
 
 /**
  * How a card's purchases get into Noodle. One that syncs with its bank is "bank" whatever was
- * answered; else the Parent's answer; else "statements" when a statement's purchases came in
- * lately (`followed`, ADR-0050); else null: not asked yet.
+ * answered; else the Parent's answer; else "statements" when Noodle follows it anyway (`followed`,
+ * ADR-0050: purchases came in on it lately, from a statement or, on a card nobody was asked
+ * about, added by hand; either way they are in Buckets); else null: not asked, nothing seen on it.
  */
 export function cardKept(account: {
 	bankConnectionId: string | null;
@@ -52,12 +53,15 @@ export const cardKeptUnasked = (
 /**
  * Whether a payment to a card is itself the spending, so "It's a card payment" files it in the
  * Commitment that pays the card down. It is when there is such a Commitment and the card's
- * purchases aren't in Noodle one by one from its bank or its statements: a card kept by hand, one
- * whose purchases never come in, and one not asked yet (a Household from before the question).
- * Otherwise the payment is a Transfer naming the card: the purchases are the spending.
+ * purchases aren't in Noodle at all: a Parent said they won't get in ("none"), or nobody was asked
+ * and nothing has been seen on the card lately (null, as cardKept gives it with `followed`: a
+ * Household from before the question). Otherwise the payment is a Transfer naming the card: its
+ * purchases are in Buckets, from its bank, its statements or added by hand, and they are the
+ * spending. A card kept by hand was read as "the payment is the spending" until issue 151: its
+ * purchases and its payment both counted.
  */
 export function cardPaymentIsSpending(kept: CardKept | null, paidDownByCommitment: boolean) {
-	return paidDownByCommitment && kept !== "bank" && kept !== "statements";
+	return paidDownByCommitment && (kept === "none" || kept === null);
 }
 
 /** Lower case, letters and digits only, single spaces: how two card names are compared. */

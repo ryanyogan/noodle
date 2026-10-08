@@ -253,7 +253,7 @@ describe("planHealth: payoff Goals (ADR-0019)", () => {
 		const cards = [
 			{ id: "amex", name: "American Express", connected: true, followed: true },
 			{ id: "visa", name: "Visa", connected: false, followed: true },
-			// Kept by hand, nothing imported lately: its payments are the spending.
+			// Its purchases aren't in Noodle (a Parent said so, or nothing seen lately): its payments are the spending.
 			{ id: "store", name: "Store card", connected: false, followed: false },
 		];
 		expect(health({ records, cards })).toEqual([
