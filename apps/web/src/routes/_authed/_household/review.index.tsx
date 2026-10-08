@@ -4,6 +4,9 @@ import {
 	type DayKey,
 	displayMerchant,
 	feesBucketIn,
+	type LenderPayment,
+	type LoanPaidDown,
+	lenderPayment,
 	type MonthKey,
 	merchantKey,
 	monthKeyAt,
@@ -262,7 +265,7 @@ function ReviewPage() {
 		.map((plan) => plan.dataUpdatedAt)
 		.join(" ");
 	// biome-ignore lint/correctness/useExhaustiveDependencies: plansRead says a Plan was read again
-	const { items, payments, between } = useMemo(() => {
+	const { items, payments, lenders, between } = useMemo(() => {
 		// Money out that reads as sent to a person is offered as between the Parents first (issue 92).
 		const names = parentNames(members);
 		const between = new Map<string, BetweenUsOffer>();
@@ -282,6 +285,7 @@ function ReviewPage() {
 				: [],
 		);
 		const payments = new Map<string, PaymentCase>();
+		const lenders = new Map<string, LenderPayment>();
 		const items = queue.items.map((item) => {
 			const plan = queryClient.getQueryData(monthQuery(monthOfTransaction(item)).queryKey)?.plan;
 			const paying: PayingCommitment[] = (plan?.commitments ?? []).flatMap((commitment) =>
@@ -297,9 +301,29 @@ function ReviewPage() {
 						]
 					: [],
 			);
-			const payment = cardPaymentOf(item, cardsAndLoans, paying);
+			const read = cardPaymentOf(item, cardsAndLoans, paying);
+			// A charge that names a lender the Household has a loan with (issue 153): suggested for
+			// that loan's Commitment, by the amount when there are several loans there. When the
+			// amount doesn't say which, the card asks.
+			const lender =
+				!read || read.kind === "commitment"
+					? lenderPaymentOf(item, loansPaidDown(accounts ?? [], paying))
+					: null;
+			if (lender) lenders.set(item.id, lender);
+			const payment: PaymentCase | null =
+				lender?.kind === "loan"
+					? {
+							kind: "commitment",
+							commitmentId: lender.loan.commitmentId,
+							commitment: lender.loan.commitment,
+							accountId: lender.loan.accountId,
+							account: lender.loan.name,
+						}
+					: lender
+						? null
+						: read;
 			if (payment) payments.set(item.id, payment);
-			else {
+			else if (!lender) {
 				const offer = betweenUsOffer(
 					{
 						text: item.note || (item.merchantName ?? item.merchant),
@@ -316,9 +340,10 @@ function ReviewPage() {
 			}
 			return item.guess ? { ...item, guess: null } : item;
 		});
-		return { items, payments, between };
+		return { items, payments, lenders, between };
 	}, [queue.items, accounts, followed, plansRead, queryClient, members, current]);
 	const paymentOf = (item: ReviewItem) => payments.get(item.id) ?? null;
+	const lenderOf = (item: ReviewItem) => lenders.get(item.id) ?? null;
 	const betweenOf = (item: ReviewItem) => between.get(item.id) ?? null;
 	/** A Bucket picked for a payment to a card Noodle follows: asked about before it's filed. */
 	const [caution, setCaution] = useState<{
@@ -540,6 +565,11 @@ function ReviewPage() {
 	function ruleQuestion({ item, bucket, forMemberIds }: RuleOffer) {
 		const only = bucket.owner === parentId ? " Only you will see this Rule." : "";
 		const forWhom = forMemberIds.length > 0 ? `, For ${forLabel(members, forMemberIds)}` : "";
+		// With several loans at one lender the Rule is for the lender: each payment that arrives goes
+		// to the loan whose payment it is (ruledLoanPayment), so the question doesn't promise this one.
+		if (bucket.lender) {
+			return `Always file “${merchantName(item.merchant)}” as a loan payment? Each one goes in the loan whose payment it is, as this one did in ${bucket.name}.`;
+		}
 		return `Always file “${merchantName(item.merchant)}” in ${bucket.name}${forWhom}?${only}`;
 	}
 
@@ -767,7 +797,13 @@ function ReviewPage() {
 		}
 		if (bucket) offerRule(item, bucket, forPicked(item));
 		else if (name) {
-			offerRule(item, { id, name, owner: undefined, commitment: true }, forPicked(item));
+			const among = lenderOf(item)?.among ?? [];
+			const lender = among.length > 1 && among.some((loan) => loan.commitmentId === id);
+			offerRule(
+				item,
+				{ id, name, owner: undefined, commitment: true, ...(lender ? { lender } : {}) },
+				forPicked(item),
+			);
 		}
 	}
 
@@ -1190,7 +1226,12 @@ function ReviewPage() {
 									<section
 										id="review-top"
 										tabIndex={-1}
-										aria-label={cardName(order[0], paymentOf(order[0]), betweenOf(order[0]))}
+										aria-label={cardName(
+											order[0],
+											paymentOf(order[0]),
+											betweenOf(order[0]),
+											lenderOf(order[0]),
+										)}
 										className="rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:animate-card-in"
 									>
 										<ReviewCard
@@ -1206,6 +1247,7 @@ function ReviewPage() {
 											sameMerchant={[]}
 											onFocus={() => {}}
 											payment={paymentOf(order[0])}
+											lender={lenderOf(order[0])}
 											thisMonth={current}
 											caution={cautionFor(order[0])}
 											onPayment={() => markPayment(order[0] as ReviewItem)}
@@ -1258,6 +1300,7 @@ function ReviewPage() {
 									<ReviewCard
 										item={leaving.item}
 										payment={paymentOf(leaving.item)}
+										lender={lenderOf(leaving.item)}
 										between={betweenOf(leaving.item)}
 										thisMonth={current}
 										today={today}
@@ -1403,6 +1446,7 @@ function ReviewPage() {
 													sameMerchant={item.guess && same.length > 1 ? same : []}
 													onFocus={() => setCursor(item.id)}
 													payment={paymentOf(item)}
+													lender={lenderOf(item)}
 													thisMonth={current}
 													caution={cautionFor(item)}
 													onPayment={() => markPayment(item)}
@@ -1579,7 +1623,11 @@ const pickerId = (item: ReviewItem) => `review-pick-${item.id}`;
 
 type Way = "right" | "left" | "down";
 /** Where an offered Rule files: a Bucket, or a Commitment (shared, so no owner). */
-type RuleTarget = Pick<PlanBucket, "id" | "name" | "owner"> & { commitment?: true };
+type RuleTarget = Pick<PlanBucket, "id" | "name" | "owner"> & {
+	commitment?: true;
+	/** The Commitment of one of several loans at one lender: its Rule files each payment by amount. */
+	lender?: true;
+};
 type RuleOffer = {
 	item: ReviewItem;
 	bucket: RuleTarget;
@@ -1595,19 +1643,22 @@ const cardName = (
 	item: ReviewItem,
 	payment: PaymentCase | null = null,
 	between: BetweenUsOffer | null = null,
+	lender: LenderPayment | null = null,
 ) =>
 	`${labelOf(item)}, ${formatMoney(item.amountCents)}, ${
-		payment?.kind === "commitment"
-			? `suggested ${payment.commitment}, a payment to ${payment.account}`
-			: payment?.kind === "followed"
-				? "looks like a card payment"
-				: payment
-					? "looks like a payment to a card Noodle doesn’t follow"
-					: between
-						? "looks like money between the two of you"
-						: item.guess
-							? `suggested ${item.guess.name}`
-							: "no suggestion"
+		lender?.kind === "which"
+			? "looks like a loan payment"
+			: payment?.kind === "commitment"
+				? `suggested ${payment.commitment}, a payment to ${payment.account}`
+				: payment?.kind === "followed"
+					? "looks like a card payment"
+					: payment
+						? "looks like a payment to a card Noodle doesn’t follow"
+						: between
+							? "looks like money between the two of you"
+							: item.guess
+								? `suggested ${item.guess.name}`
+								: "no suggestion"
 	}`;
 
 /** What a swipe right on the top card does. */
@@ -1637,6 +1688,38 @@ function cardPaymentOf(
 		paying,
 	);
 }
+
+/** The Household's loans the Commitments of a card's month pay down, with each one's payment. */
+function loansPaidDown(
+	accounts: { id: string; name: string; kind: string; loan?: { payment: number | null } | null }[],
+	paying: PayingCommitment[],
+): LoanPaidDown[] {
+	return paying.flatMap((commitment) => {
+		const loan = accounts.find((a) => a.id === commitment.accountId && a.kind === "loan");
+		return loan
+			? [
+					{
+						accountId: loan.id,
+						name: loan.name,
+						commitmentId: commitment.id,
+						commitment: commitment.name,
+						paymentCents: loan.loan?.payment ?? commitment.amountCents,
+					},
+				]
+			: [];
+	});
+}
+
+/** A card that reads as a payment to a lender the Household has a loan with (lenderPayment). */
+const lenderPaymentOf = (item: ReviewItem, loans: LoanPaidDown[]) =>
+	lenderPayment(
+		{
+			text: item.note,
+			merchant: item.merchantName ?? item.merchant,
+			amountCents: item.amountCents,
+		},
+		loans,
+	);
 
 /** A Bucket was picked for a payment to a card Noodle follows: what the card asks first. */
 type PaymentCaution = { place: string; onTransfer: () => void; onAnyway: () => void };
@@ -1793,6 +1876,7 @@ function ReviewCard({
 	onConfirmAll,
 	onFileWithout,
 	payment = null,
+	lender = null,
 	between = null,
 	onBetweenUs,
 	thisMonth,
@@ -1809,6 +1893,11 @@ function ReviewCard({
 	 * doesn't follow) a Commitment to make, is offered first, and a Bucket second.
 	 */
 	payment?: PaymentCase | null;
+	/**
+	 * It names a lender the Household has a loan with: that loan's Commitment is `payment`, or,
+	 * when the amount doesn't say which of several loans, the card asks.
+	 */
+	lender?: LenderPayment | null;
 	/** It reads as money sent to a person: "It’s between us" is offered first, a Bucket second. */
 	between?: BetweenUsOffer | null;
 	/** Marks it as between the two Parents: a Transfer with only this side. */
@@ -1845,7 +1934,7 @@ function ReviewCard({
 	const places = plan ? placesIn(plan, parentId) : null;
 	// Issue 138: who it is For, on a line over the picker. Not on a payment or between-us card,
 	// whose first answer is no Bucket at all; Edit sets For there.
-	const forChips = !ghost && !payment && !between && Boolean(places);
+	const forChips = !ghost && !payment && !between && !lender && Boolean(places);
 	const bucket = plan?.buckets.find((b) => b.id === item.guess?.bucketId);
 	const headingId = `review-${item.id}`;
 	const empty = places !== null && places.buckets.length === 0 && places.commitments.length === 0;
@@ -1857,6 +1946,7 @@ function ReviewCard({
 			data-testid={ghost ? undefined : "review-card"}
 			data-current={current || undefined}
 			data-payment={payment?.kind}
+			data-lender={lender?.kind}
 			data-between-us={between ? "" : undefined}
 			onFocusCapture={onFocus}
 			className={cn(
@@ -1949,7 +2039,23 @@ function ReviewCard({
 				<div className="grid min-w-0 gap-3 *:min-w-0 compact:gap-1.5 squat:gap-1 sm:gap-4">
 					{/* At large text the tile goes and the words have the whole row; what follows them wraps under. */}
 					<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 compact:py-1.5 @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-y-1 @max-[15rem]/card:*:first:hidden @max-[15rem]/card:*:nth-2:basis-full">
-						{payment?.kind === "commitment" ? (
+						{lender?.kind === "which" ? (
+							<>
+								<div className="shrink-0 compact:hidden">
+									<Tile aria-hidden="true">
+										<Wallet />
+									</Tile>
+								</div>
+								<div className="grid min-w-0 flex-1">
+									<span className="text-sm font-medium wrap-anywhere">
+										Looks like a loan payment
+									</span>
+									<span className="text-xs text-muted-foreground wrap-anywhere">
+										Which loan is it on?
+									</span>
+								</div>
+							</>
+						) : payment?.kind === "commitment" ? (
 							<>
 								{/* The narrowest phones are the shortest: the words get the tile's width there. */}
 								<div className="shrink-0 compact:hidden">
@@ -1957,7 +2063,7 @@ function ReviewCard({
 								</div>
 								<div className="grid min-w-0 flex-1">
 									<span className="text-sm font-medium wrap-anywhere">
-										Payment to {payment.account}
+										{lender ? "Looks like a payment on" : "Payment to"} {payment.account}
 									</span>
 									<span className="text-xs text-muted-foreground wrap-anywhere">
 										Files in {payment.commitment}
@@ -2039,6 +2145,26 @@ function ReviewCard({
 						>
 							{BETWEEN_US_WHY}
 						</p>
+					) : null}
+					{lender?.kind === "which" && plan ? (
+						// Several loans at one lender, and the amount fits none of them alone: each with its
+						// payment, and one tap files it in that loan's Commitment.
+						<div data-testid="review-which-loan" className="grid gap-2 sm:flex sm:flex-wrap">
+							{lender.among.map((loan) => (
+								<Button
+									key={loan.commitmentId}
+									variant="outline"
+									className="min-w-0 justify-between gap-3"
+									disabled={!hydrated}
+									onClick={() => onPick(`commitment:${loan.commitmentId}`, plan)}
+								>
+									<span className="min-w-0 truncate">{loan.name}</span>
+									<span className="shrink-0 text-muted-foreground tabular-nums">
+										{formatMoney(loan.paymentCents)}
+									</span>
+								</Button>
+							))}
+						</div>
 					) : null}
 					{caution ? (
 						// A Bucket was picked for a payment to a card Noodle follows: asked before it's filed.

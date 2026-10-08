@@ -654,6 +654,7 @@ export {
 	RESEND_WAIT_MS,
 	type SendCheck,
 } from "./invite-token";
+export { type LoanPaidDownRow, loadLoansPaidDown, loansPaidDownIn } from "./lender-payments";
 export { LOG_PAGE, type LogFilter, type LogPage, loadLog } from "./log";
 export { type LogEventRow, listLogEvents } from "./log-events";
 export {

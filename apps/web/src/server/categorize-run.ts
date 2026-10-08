@@ -3,12 +3,15 @@ import {
 	countingTwice,
 	type Db,
 	fileCategorizations,
+	type LoanPaidDownRow,
 	loadCategorizableBuckets,
 	loadCorrection,
+	loadLoansPaidDown,
 	loadReviewToLookAgain,
 	loadRules,
 	loadUncategorized,
 	loadUncategorizedTransaction,
+	loansPaidDownIn,
 	recordLearnedMerchant,
 	settleCategorization,
 	type Uncategorized,
@@ -20,9 +23,11 @@ import {
 	feesBucketIn,
 	feesOffer,
 	type GuessMethod,
+	loansNamed,
 	looksLikeCardPayment,
 	merchantKey,
 	type Rule,
+	ruledLoanPayment,
 	ruleFor,
 	ruleKeys,
 } from "@noodle/domain";
@@ -109,12 +114,13 @@ async function categorize(
 	const { db } = deps;
 	if (rows.length === 0) return { filed: 0, review: 0, months: [], methods: noMethods() };
 	const months = [...new Set(rows.map((row) => row.date.slice(0, 7)))].sort();
-	const [buckets, allRules, twice] = await Promise.all([
+	const [buckets, allRules, twice, loans] = await Promise.all([
 		loadCategorizableBuckets(db, viewer, months[0] as string, months.at(-1) as string),
 		// Never the other Parent's private Rules.
 		loadRules(db, viewer),
 		// As of the day this runs (UTC): a day either way moves only the 60-day edge.
 		countingTwice(db, viewer.householdId, new Date().toISOString().slice(0, 10) as DayKey),
+		loadLoansPaidDown(db, viewer.householdId),
 	]);
 	// A Rule that files a card's payment in the Commitment paying it down is not applied once the
 	// card's purchases are in Buckets (issue 151): the line waits in Review with no guess, where
@@ -131,7 +137,16 @@ async function categorize(
 	const rules = allRules.filter((rule) =>
 		rule.bucketId ? choosable.has(rule.bucketId) : rule.commitmentId != null,
 	);
-	const decisions = await decideRows(deps, viewer.householdId, buckets, rules, rows, label, held);
+	const decisions = await decideRows(
+		deps,
+		viewer.householdId,
+		buckets,
+		rules,
+		rows,
+		label,
+		held,
+		loans,
+	);
 	await fileCategorizations(db, viewer, decisions);
 	const filed = decisions.filter((d) => d.categorization.outcome === "filed").length;
 	const methods = noMethods();
@@ -154,6 +169,8 @@ export async function decideRows<R extends Rule & { id: string }>(
 	label: string,
 	/** Rules that are matched but not applied: their lines wait in Review with no guess. */
 	held: ReadonlySet<string> = new Set(),
+	/** The Household's loans a Commitment pays down: a payment to their lender is read against them. */
+	loans: LoanPaidDownRow[] = [],
 ): Promise<CategorizationDecision[]> {
 	const choosable = new Set(buckets.map((bucket) => bucket.id));
 
@@ -179,11 +196,22 @@ export async function decideRows<R extends Rule & { id: string }>(
 	// where the card offers the Transfer (or pairs with the card's side once that's imported).
 	// Read from the bank's own wording; the name (a Parent may have given it) only when there is none.
 	const cardPayment = (row: Uncategorized) => looksLikeCardPayment(row.note || row.merchant);
+	// A line that names a loan a Commitment pays down is a payment to its lender (issue 153): it is
+	// never filed in a Bucket, or given one as a guess, by a merchant filed before or by the model.
+	// It waits in Review, where its card suggests the loan, unless a Rule of the Parent's files it.
+	const loansFor = (row: Uncategorized) => loansPaidDownIn(loans, row.date.slice(0, 7));
+	const loanLine = (row: Uncategorized) => ({
+		text: row.note,
+		merchant: row.merchant,
+		amountCents: row.amountCents,
+	});
+	const lenderPayment = (row: Uncategorized) =>
+		loans.length > 0 && loansNamed(loanLine(row), loansFor(row)).length > 0;
 	const feesBucketId = feesBucketIn(buckets)?.id ?? null;
 	const feeOrInterest = (row: Uncategorized) =>
 		feesOffer({ text: row.note || row.merchant, amountCents: row.amountCents }) !== null;
 	const unruled = [...byMerchant.entries()]
-		.filter(([merchant, row]) => !ruleOf(merchant, row) && !cardPayment(row))
+		.filter(([merchant, row]) => !ruleOf(merchant, row) && !cardPayment(row) && !lenderPayment(row))
 		.map(([merchant]) => merchant);
 
 	const similar = await nearest(deps.merchants, householdId, unruled, choosable);
@@ -210,8 +238,26 @@ export async function decideRows<R extends Rule & { id: string }>(
 		const merchant = merchantOf.get(row.id) as string;
 		const guess = modelled.get(merchant);
 		const rule = ruleOf(merchant, row);
-		if ((!rule && cardPayment(row)) || (rule && held.has(rule.id))) {
+		if ((!rule && (cardPayment(row) || lenderPayment(row))) || (rule && held.has(rule.id))) {
 			return { transactionId: row.id, merchant, categorization: decideCategorization({}) };
+		}
+		// A Rule into a loan's Commitment is a Rule for its lender: with several loans there, each
+		// payment goes to the loan whose payment it is to the cent, and any other waits in Review.
+		const sent = rule?.commitmentId
+			? ruledLoanPayment(rule.commitmentId, loanLine(row), loansFor(row))
+			: null;
+		if (sent === "ask") {
+			return { transactionId: row.id, merchant, categorization: decideCategorization({}) };
+		}
+		if (rule && sent) {
+			return {
+				transactionId: row.id,
+				merchant,
+				categorization: decideCategorization({
+					rule: { ...rule, commitmentId: sent.commitmentId },
+				}),
+				ruleId: rule.id,
+			};
 		}
 		const categorization = decideCategorization({
 			rule,

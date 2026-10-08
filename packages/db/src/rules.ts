@@ -3,6 +3,7 @@ import {
 	ruleFor as matchingRule,
 	merchantKey,
 	type Rule,
+	ruledLoanPayment,
 	ruleKeys,
 } from "@noodle/domain";
 import { and, asc, eq, gt, isNull, lt, ne, or, type SQL, sql } from "drizzle-orm";
@@ -12,6 +13,7 @@ import { countingTwice } from "./commitments";
 import { counts } from "./counting";
 import { purchaseMayMove } from "./ended-months";
 import type { Db } from "./index";
+import { loadLoansPaidDown, loansPaidDownIn } from "./lender-payments";
 import { ruleRemovedEvents } from "./log-events";
 import { assignableBy, type Viewer, visibleTo } from "./privacy";
 import {
@@ -554,6 +556,8 @@ export async function applyRule(
 			id: transactions.id,
 			date: transactions.date,
 			note: transactions.note,
+			amountCents: transactions.amountCents,
+			name: transactions.merchant,
 			merchant: categorizations.merchant,
 			ended: sql<boolean>`(not ${purchaseMayMove(options.today)})`.mapWith(Boolean),
 		})
@@ -571,6 +575,9 @@ export async function applyRule(
 				or(isNull(categorizations.transactionId), eq(categorizations.outcome, "review")),
 			),
 		);
+	// A Rule into a loan's Commitment is a Rule for its lender (issue 153): with several loans
+	// there, each payment goes to the loan whose payment it is, and any other stays in Review.
+	const loans = rule.commitmentId ? await loadLoansPaidDown(db, viewer.householdId) : [];
 	const decisions: (CategorizationDecision & { date: DayKey })[] = [];
 	let kept = 0;
 	for (const row of rows) {
@@ -583,6 +590,14 @@ export async function applyRule(
 			!(matchingRule([rule], merchant) || raws.some((raw) => matchingRule([rule], raw)))
 		)
 			continue;
+		const sent = rule.commitmentId
+			? ruledLoanPayment(
+					rule.commitmentId,
+					{ text: row.note, merchant: row.name, amountCents: row.amountCents },
+					loansPaidDownIn(loans, row.date.slice(0, 7)),
+				)
+			: null;
+		if (sent === "ask") continue;
 		// It matches, and stays unassigned: filing it would move the ended month.
 		if (row.ended) {
 			kept++;
@@ -597,7 +612,7 @@ export async function applyRule(
 				outcome: "filed",
 				method: "rule",
 				bucketId: rule.bucketId,
-				commitmentId: rule.commitmentId,
+				commitmentId: sent?.commitmentId ?? rule.commitmentId,
 				confidence: 1,
 				for: rule.for,
 			},
@@ -616,9 +631,10 @@ export async function applyRule(
 				sql`${transactions.id} in (select value from json_each(${JSON.stringify(
 					decisions.map((d) => d.transactionId),
 				)}))`,
+				// In the Rule's own Commitment, or the one of the loan its payment fits.
 				rule.bucketId
 					? eq(transactions.bucketId, rule.bucketId)
-					: eq(transactions.commitmentId, rule.commitmentId as string),
+					: sql`${transactions.commitmentId} is not null`,
 			),
 		);
 	return {

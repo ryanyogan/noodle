@@ -287,6 +287,16 @@ export {
 	services,
 } from "./insights";
 export {
+	type LenderPayment,
+	type LoanByAmount,
+	type LoanFit,
+	type LoanPaidDown,
+	lenderPayment,
+	loanByAmount,
+	loansNamed,
+	ruledLoanPayment,
+} from "./lender-payments";
+export {
 	type BucketMatch,
 	type BucketUse,
 	hourAt,
