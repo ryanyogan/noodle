@@ -276,3 +276,79 @@ test("a line a Rule files gets the Owed back its Rule remembers", async ({ brows
 	});
 	await expect(list.getByTestId("owed-back-item")).toHaveCount(1);
 });
+
+// The list stays small (issue 152): up to three purchases show under the one line that says who
+// owes how much; more than three wait behind "Show all", each still a link to its purchase.
+test("Owed back is one line and its purchases, and more than three fold behind Show all", async ({
+	browser,
+}) => {
+	test.setTimeout(240_000);
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1280, height: 900 });
+	const { now } = months();
+	const made = await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [["Kids", "300"]],
+	});
+	if (!made) throw new Error("The Household wasn't made directly");
+	const household = `(select household_id from members where clerk_user_id = ${q(parent.userId)})`;
+	const member = `(select id from members where clerk_user_id = ${q(parent.userId)})`;
+	const purchases = [
+		{ id: ulid(), note: "Tuition", cents: 120_000, owed: 60_000, who: "Casey" },
+		{ id: ulid(), note: "Skates", cents: 4_500, owed: 4_500, who: "Casey" },
+		{ id: ulid(), note: "Dentist", cents: 8_000, owed: 8_000, who: "Casey" },
+		{ id: ulid(), note: "Shoes", cents: 5_000, owed: 5_000, who: "Jordan" },
+	];
+	const owed = ({ id, owed, who }: (typeof purchases)[number]) =>
+		`insert into owed_back (id, household_id, transaction_id, who, amount_cents, created_by_member_id) values (${q(ulid())}, ${household}, ${q(id)}, ${q(who)}, ${owed}, ${member});`;
+	await seedSql([
+		...purchases.map(
+			({ id, note, cents }, i) =>
+				`insert into transactions (id, household_id, source, date, amount_cents, note, bucket_id, created_by_member_id) values (${q(id)}, ${household}, 'quick-add', ${q(`${now}-0${i + 1}`)}, ${cents}, ${q(note)}, ${q(made.bucketIds.Kids as string)}, ${member});`,
+		),
+		...purchases.slice(0, 3).map(owed),
+	]);
+
+	// Three purchases, one person: a line for Casey and a line for each purchase, nothing to open.
+	await page.goto(`/transactions/${now}`);
+	const list = page.getByRole("region", { name: "Owed back" });
+	await expect(list.getByTestId("owed-back-person")).toHaveText("Casey owes $725", {
+		timeout: 30_000,
+	});
+	const items = list.getByTestId("owed-back-item");
+	await expect(items).toHaveCount(3);
+	await expect(items.nth(0)).toContainText("$600 of $1,200");
+	await expect(items.nth(0)).toContainText("$600");
+	await expect(list.getByRole("button")).toHaveCount(0);
+	// Small: the heading's line and three more, where each purchase used to take a tall row.
+	expect((await list.boundingBox())?.height).toBeLessThan(180);
+	for (const width of [1280, 320]) {
+		await page.setViewportSize({ width, height: 900 });
+		await expect(list).toBeVisible();
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+			`no sideways scroll at ${width}px`,
+		).toBe(true);
+	}
+	await page.setViewportSize({ width: 1280, height: 900 });
+
+	// A fourth, owed by someone else: who owes what stays in view, the purchases fold.
+	const [, , , shoes] = purchases;
+	if (!shoes) throw new Error("No fourth purchase");
+	await seedSql([owed(shoes)]);
+	await page.reload();
+	await expect(list).toContainText("$775 in all", { timeout: 30_000 });
+	await expect(list.getByTestId("owed-back-person")).toHaveText([
+		"Casey owes $725",
+		"Jordan owes $50",
+	]);
+	await expect(items).toHaveCount(0);
+	const show = list.getByRole("button", { name: "Show all 4" });
+	await hydrated(show);
+	await show.click();
+	await expect(items).toHaveCount(4);
+	await expect(list.getByRole("button", { name: "Hide" })).toHaveAttribute("aria-expanded", "true");
+	// Each purchase still opens from its line.
+	await items.filter({ hasText: "Shoes" }).getByRole("link", { name: "Shoes" }).click();
+	await expect(page).toHaveURL(new RegExp(`/transactions/${now}/${shoes.id}`));
+});

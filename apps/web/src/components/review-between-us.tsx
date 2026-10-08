@@ -28,6 +28,23 @@ export function betweenUsOffer(
 	return { name: parentNamedIn(line.text, names) };
 }
 
+/**
+ * What Between us is, naming the two Parents where both names are known, so it isn't taken for a
+ * Transfer (issue 152): "Money Alex sent Sam, or Sam sent Alex".
+ */
+export function betweenUsMeans(names: readonly string[]): string {
+	const [first, second] = names;
+	return first && second && names.length === 2
+		? `Money ${first} sent ${second}, or ${second} sent ${first}`
+		: "Money one of you sent the other";
+}
+
+/** A sentence's opening, for after a colon. */
+export const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+
+/** What a Transfer is, beside Between us: the Household's own Accounts, with an everyday example. */
+export const TRANSFER_MEANS = "Between your own Accounts, like checking to savings.";
+
 /** Why it goes in no Bucket, on its card. */
 export const BETWEEN_US_WHY =
 	"Money one of you sent the other isn’t spending. If it paid someone else, pick a Bucket.";

@@ -182,6 +182,15 @@ test("review defaults to suggested and lets an ordinary transaction become a car
 	await type.click();
 	await expect(page.getByRole("menuitem", { name: "Transfer", exact: true })).toBeVisible();
 	await expect(page.getByRole("menuitem", { name: "Between us", exact: true })).toBeVisible();
+	// Told apart by what the money moved between (issue 152); one Parent here, so nobody is named.
+	await expect(
+		page.getByRole("menuitem", { name: "Transfer", exact: true }),
+	).toHaveAccessibleDescription(
+		"Between your own Accounts, like checking to savings. It isn’t spending.",
+	);
+	await expect(
+		page.getByRole("menuitem", { name: "Between us", exact: true }),
+	).toHaveAccessibleDescription("Money one of you sent the other. It isn’t Income or spending.");
 	await page.getByRole("menuitem", { name: "Suggested", exact: true }).focus();
 	await page.keyboard.press("ArrowRight");
 	await expect(card).toBeVisible();

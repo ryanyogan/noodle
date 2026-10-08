@@ -18,7 +18,7 @@ import {
 	useMoneyChange,
 } from "../transfers";
 import { CardPaymentChoice } from "./card-payment";
-import { parentNames } from "./review-between-us";
+import { betweenUsMeans, lowerFirst, parentNames } from "./review-between-us";
 
 /**
  * Money back, or a side of a Transfer, in its detail: what it came in as, then its Transfer and
@@ -98,8 +98,8 @@ export function TransferSection({
 				) : null}
 				<p className="text-[13px] text-muted-foreground">
 					{betweenUs
-						? "Marked: money one of you moved to the other. It isn’t Income and it isn’t spending."
-						: `${transfer.automatic ? "Found automatically" : "Marked"}: money moving between your own Accounts, so it counts nowhere.`}
+						? `Marked: ${lowerFirst(betweenUsMeans(parentNames(members ?? [])))}. It isn’t Income and it isn’t spending.`
+						: `${transfer.automatic ? "Found automatically" : "Marked"}: money moving between your own Accounts, like checking to savings, so it counts nowhere.`}
 				</p>
 				<Button
 					type="button"
@@ -132,10 +132,10 @@ export function TransferSection({
 				{looksLikeCardPayment(transaction.note || transaction.merchantName)
 					? cardPaymentIntro(cards)
 					: named
-						? `Looks like money sent to ${named}. That’s between you: money one of you moved to the other isn’t spending.`
+						? `Looks like money sent to ${named}. That’s between us: money one of you sent the other isn’t spending.`
 						: looksPersonToPerson(transaction.note || transaction.merchantName)
-							? "Looks like money sent to a person. If it went to the other Parent, it’s between you: money one of you moved to the other isn’t spending."
-							: "Money moving between your own Accounts, like paying the card? A Transfer counts nowhere. Money one of you moved to the other is between you, and isn’t spending either."}
+							? "Looks like money sent to a person. If it went to the other Parent, it’s between us: money one of you sent the other isn’t spending."
+							: `Between your own Accounts, like checking to savings or paying the card? That’s a Transfer. ${betweenUsMeans(parentNames(members ?? []))}? That’s between us. Neither is spending.`}
 			</p>
 			<div className="flex flex-wrap gap-2">
 				{/* Money out has the one named choice, which asks which card (issue 136), unless it reads

@@ -11,7 +11,14 @@ import { Field } from "@noodle/ui/components/field";
 import { RowButton } from "@noodle/ui/components/row-button";
 import { useQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
-import { ArrowLeftRight, ChevronDown, CreditCard, ReceiptText, Sparkles } from "lucide-react";
+import {
+	ArrowLeftRight,
+	ChevronDown,
+	CreditCard,
+	ReceiptText,
+	Sparkles,
+	Users,
+} from "lucide-react";
 import { type ReactNode, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
 import {
@@ -26,18 +33,19 @@ import type { ReviewItem } from "../review";
 import { nameOf, type TransactionRow } from "../transactions";
 import { useMoneyChange } from "../transfers";
 import { CardPaymentQuestion } from "./card-payment";
-import { parentNames } from "./review-between-us";
+import { betweenUsMeans, lowerFirst, parentNames, TRANSFER_MEANS } from "./review-between-us";
 
 type Mode = "default" | "payment" | "transfer" | "between-us";
 
 /**
  * What each choice means, said where it is chosen (issue 147), in CONTEXT.md's words. The names
- * are the ones specs and the glossary use; the line under each tells them apart.
+ * are the ones specs and the glossary use; the line under each tells them apart. A Transfer is
+ * told from Between us by what the money moved between: Accounts, or the two Parents, who are
+ * named where their names are known (issue 152).
  */
-const TYPES: Record<
-	Exclude<Mode, "default">,
-	{ name: string; means: string; icon: typeof Sparkles }
-> = {
+const types = (
+	names: readonly string[],
+): Record<Exclude<Mode, "default">, { name: string; means: string; icon: typeof Sparkles }> => ({
 	payment: {
 		name: "Credit card payment",
 		means: "Paying a card’s bill. What was bought on the card is already counted.",
@@ -45,15 +53,15 @@ const TYPES: Record<
 	},
 	transfer: {
 		name: "Transfer",
-		means: "Money moved between two of your own Accounts. It isn’t spending.",
+		means: `${TRANSFER_MEANS} It isn’t spending.`,
 		icon: ArrowLeftRight,
 	},
 	"between-us": {
 		name: "Between us",
-		means: "Money one Parent moved to the other. It isn’t Income or spending.",
-		icon: ArrowLeftRight,
+		means: `${betweenUsMeans(names)}. It isn’t Income or spending.`,
+		icon: Users,
 	},
-};
+});
 
 const DEFAULTS = {
 	Spending: { means: "It counts in a Bucket or a Commitment.", icon: ReceiptText },
@@ -126,8 +134,9 @@ export function TransactionTreatment({
 	const [cardId, setCardId] = useState("");
 	const id = useId();
 	const cards = useQuery({ ...cardPaymentCardsQuery(), enabled: payment });
-	// The Parents' names, for the tiles' reading of the bank's wording; Review's card has its own.
-	const { data: members } = useQuery({ ...membersQuery(), enabled: !renderHeader });
+	// The Parents' names, for Between us and for the tiles' reading of the bank's wording.
+	const { data: members } = useQuery(membersQuery());
+	const names = parentNames(members ?? []);
 	const mark = useMoneyChange();
 	const file = useCardPaymentFiling();
 	const busy = !hydrated || mark.isPending || file.isPending;
@@ -175,11 +184,9 @@ export function TransactionTreatment({
 			: []),
 	];
 	const typeOf = (kind: Mode) =>
-		kind === "default" ? { name: defaultLabel, ...DEFAULTS[defaultLabel] } : TYPES[kind];
+		kind === "default" ? { name: defaultLabel, ...DEFAULTS[defaultLabel] } : types(names)[kind];
 	const hint =
-		!renderHeader && mode === "default"
-			? wordingHint(transaction, parentNames(members ?? []), offered)
-			: null;
+		!renderHeader && mode === "default" ? wordingHint(transaction, names, offered) : null;
 	return (
 		<div
 			// Its rows shrink with the card: a long button wraps rather than widening it.
@@ -275,8 +282,8 @@ export function TransactionTreatment({
 				<div className="grid max-w-xl gap-4">
 					<p className="text-sm text-muted-foreground">
 						{mode === "transfer"
-							? "Marked as a Transfer, it counts nowhere: it is your own money moving between your Accounts, not spending in a Bucket."
-							: "Marked as between us, it counts nowhere: money one Parent moved to the other isn’t Income and isn’t spending."}
+							? "Marked as a Transfer, it counts nowhere: it is your own money moving between your Accounts, like checking to savings, not spending in a Bucket."
+							: `Marked as between us, it counts nowhere: it is ${lowerFirst(betweenUsMeans(names))}, not Income and not spending.`}
 					</p>
 					<Button
 						type="button"
