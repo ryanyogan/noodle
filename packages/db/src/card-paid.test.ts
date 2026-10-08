@@ -121,7 +121,9 @@ beforeEach(async () => {
 		memberId: parentId,
 		commitmentId: "apple-bill",
 		accountId: "apple",
-		carriedBalance: false,
+		// A card kept by hand is paid by a Transfer; a Commitment pays it down only for a balance
+		// being carried (issue 151).
+		carriedBalance: true,
 		month: "2026-08",
 		today: "2026-08-01",
 	});
