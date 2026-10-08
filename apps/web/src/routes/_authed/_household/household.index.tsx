@@ -20,7 +20,7 @@ import { ColourPicker } from "../../../components/colour-picker";
 import { DataDownload } from "../../../components/data-download";
 import { DangerZone } from "../../../components/fresh-start";
 import { HouseholdDetails } from "../../../components/household-details";
-import { LOG_HASH, logSearchSchema } from "../../../components/household-log";
+import { LOG_HASH, type LogFilters, logSearchSchema } from "../../../components/household-log";
 import { HouseholdSnapshots, snapshotsQuery } from "../../../components/household-snapshots";
 import { InviteOtherParent } from "../../../components/invite-other-parent";
 import { NudgeSettings } from "../../../components/nudge-settings";
@@ -55,8 +55,13 @@ export const Route = createFileRoute("/_authed/_household/household/")({
 	// filter, and in the page below when a browser lands on a bare "/household#log", since the
 	// server is never sent the part after the #.
 	validateSearch: logSearchSchema,
+	// Only the Log's own filters say so: `search` also holds what the layouts above read, and Quick
+	// Add opens over this page by adding `sheet` to it.
 	beforeLoad: ({ search, location }) => {
-		if (location.hash === LOG_HASH || Object.values(search).some((value) => value !== undefined)) {
+		const filtered = (Object.keys(logSearchSchema.shape) as (keyof LogFilters)[]).some(
+			(key) => search[key] !== undefined,
+		);
+		if (location.hash === LOG_HASH || filtered) {
 			throw redirect({ to: "/household/logs", search, replace: true });
 		}
 	},

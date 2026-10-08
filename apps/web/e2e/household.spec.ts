@@ -2,7 +2,15 @@ import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, test } from "@playwright/test";
 import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
-import { clientRendered, createPlannedHousehold, setUpLater, signedInPage } from "./session";
+import {
+	clientRendered,
+	createPlannedHousehold,
+	hydrated,
+	pickQuickAddBucket,
+	savedBy,
+	setUpLater,
+	signedInPage,
+} from "./session";
 
 test("a signed-out visitor is sent to sign in, keeping where they were going", async ({ page }) => {
 	await page.goto("/month/2026-08");
@@ -103,6 +111,38 @@ test("Household settings is settings only, grouped under short headings (#69)", 
 		await page.reload();
 		await expect(page.getByLabel("Household name")).toHaveValue("The Renamed");
 		await expect(page.getByRole("combobox", { name: "Time zone" })).toHaveText("Pacific");
+		await page.context().close();
+	} finally {
+		await parent.remove();
+	}
+});
+
+test("Quick Add opens over Household settings and saves there, leaving the page as it was (#157)", async ({
+	browser,
+}) => {
+	const parent = await createTestParent();
+	try {
+		const page = await signedInPage(browser, parent.email);
+		await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Fun", "200"]] });
+		await page.goto("/household");
+		await hydrated(page.getByRole("button", { name: "Add Child" }));
+		const sheet = page.getByRole("dialog", { name: "Quick Add" });
+		await page.getByRole("link", { name: "Quick Add" }).first().click();
+		await expect(sheet).toBeVisible();
+		// Still Settings: the Log's old addresses open the Logs tab, and this is not one of them.
+		await expect(page).toHaveURL(/\/household\?sheet=quick-add$/);
+		await page.keyboard.type("12");
+		const saved = savedBy(page, "addQuickAdd");
+		await pickQuickAddBucket(sheet, "Fun");
+		await expect(sheet).toBeHidden();
+		await saved;
+		await expect(page).toHaveURL(/\/household$/);
+		// Nothing is left asking to be saved: the next page opens.
+		await page
+			.getByRole("navigation", { name: "Main" })
+			.getByRole("link", { name: "Plan" })
+			.click();
+		await expect(page).toHaveURL(/\/plan/);
 		await page.context().close();
 	} finally {
 		await parent.remove();
