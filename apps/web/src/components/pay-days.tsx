@@ -31,12 +31,12 @@ import {
 	type ParentPayDays,
 	paycheckAmount,
 	paycheckMeta,
+	payDaysNotMovedQuery,
 	payDaysQuery,
 	payText,
 	scheduleOf,
 	useSetParentPay,
 } from "../pay-days";
-import type { PayDayNotMoved } from "../server/pay-days";
 import { AmountInput } from "./goals";
 
 // "How you're paid" on Plan › Income (issue 156): each Parent on a salary or hourly, and a
@@ -57,8 +57,8 @@ export function PayDays({ month }: { month: MonthKey }) {
 	const hydrated = useHydrated();
 	const { data: parents } = useQuery(payDaysQuery(month));
 	const [editing, setEditing] = useState<string | null>(null);
-	// Paychecks the last save left in the month they landed in, until the next one.
-	const [notMoved, setNotMoved] = useState<PayDayNotMoved[]>([]);
+	// Paychecks the rule is leaving in the month they landed in: read, so a reload still says them.
+	const { data: notMoved = [] } = useQuery(payDaysNotMovedQuery(month));
 	const edited = parents?.find((parent) => parent.memberId === editing);
 	const salaried = (parents ?? []).filter((parent) => parent.pay);
 	return (
@@ -122,13 +122,7 @@ export function PayDays({ month }: { month: MonthKey }) {
 							title={`How ${edited.name} is paid`}
 							description="On a salary, say what one paycheck usually is and when it’s due. A paycheck then counts in its pay day’s month; your take-home pay doesn’t change."
 						/>
-						<ParentPayForm
-							parent={edited}
-							onDone={(left) => {
-								setNotMoved(left);
-								setEditing(null);
-							}}
-						/>
+						<ParentPayForm parent={edited} onDone={() => setEditing(null)} />
 					</SheetContent>
 				) : null}
 			</Sheet>
@@ -193,7 +187,7 @@ function ParentPayForm({
 }: {
 	parent: ParentPayDays;
 	/** With the paychecks the save left in the month they landed in. */
-	onDone: (notMoved: PayDayNotMoved[]) => void;
+	onDone: () => void;
 }) {
 	const id = useId();
 	const hydrated = useHydrated();
@@ -233,14 +227,14 @@ function ParentPayForm({
 		change.mutate(
 			{ memberId: parent.memberId, pay },
 			{
-				onSuccess: (saved) => {
+				onSuccess: () => {
 					toast(
 						pay
 							? `${parent.name} is paid a salary: ${formatMoney(pay.paycheck)} a paycheck`
 							: `${parent.name}’s pay is hourly, or varies`,
 						{ tone: "success" },
 					);
-					onDone(saved.notMoved);
+					onDone();
 				},
 			},
 		);

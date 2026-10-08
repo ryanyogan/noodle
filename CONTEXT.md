@@ -160,7 +160,7 @@ _Avoid_: Rollover, reconciliation, closing the books
 **Account**:
 A real-world place money lives or is owed: a checking/savings account, credit card, line of credit, or loan.
 Each has **whose Account** it is (a Parent, or the Household; ADR-0059): the Parent who added it or connected its bank unless they say otherwise, and the Household's for one added before this was asked, until a Parent says. Accounts lists them by it: the Parent looking first, then the other Parent, then the Household's. It hides nothing: both Parents see every Account.
-A Parent can **archive** one they no longer use (ADR-0046): it leaves the Accounts list, the pickers and the totals, and nothing new is brought into it. Its Transactions and history stay as they are, so past months don't change. "Restore", under Archived on Accounts, brings it back. An Account a Goal that isn't archived is kept in can't be archived until the Goal is.
+A Parent can **archive** one they no longer use (ADR-0046): it leaves the Accounts list, the pickers and the totals, and nothing new is brought into it. Its Transactions and history stay as they are, so past months don't change. "Restore", under Archived on Accounts, brings it back. An Account a Goal that isn't archived is kept in can't be archived until the Goal is, nor one a Commitment still in the Plan pays down, until that is ended or pays down something else. A loan that is paid off is archived in one step: archiving it ends its Commitment as of the day it was paid off, and says so first.
 _Avoid_: Bank, card (as a generic term); delete, close, hide (for archive); owner, joint, shared (for whose Account)
 
 **Transaction**:

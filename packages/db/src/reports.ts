@@ -14,6 +14,7 @@ import {
 	merchantGroup,
 	monthOfDay,
 	periodKey,
+	shareFor,
 	THRESHOLD_STOPS,
 } from "@noodle/domain";
 import {
@@ -588,6 +589,11 @@ export type ReportItem = {
 	/** It's one Split of a split Transaction. */
 	split: boolean;
 	/**
+	 * Listed For one Member, `amount` is that Member's share, as the figure it is behind counts it
+	 * (`shareFor`); this is the whole of it, when it was For others too.
+	 */
+	whole?: Cents;
+	/**
 	 * Not a purchase: money Paid back on the Transaction `id`, a negative amount on the day it
 	 * counts (ADR-0058). It has no note, merchant or Account of its own.
 	 */
@@ -626,6 +632,7 @@ export async function loadReportItems(
 			target: targetOf(parts),
 			accountId: transactions.accountId,
 			split: sql<number>`${parts.from === "split" ? 1 : 0}`,
+			forKey: parts.forKey,
 		})
 			.where(parts.where)
 			.orderBy(
@@ -657,9 +664,22 @@ export async function loadReportItems(
 				paidBack: true,
 			}),
 		);
+	// For one Member, each is that Member's share, as the figure the rows are behind counts it.
+	const member = scope.filters.member;
+	const sharer = member && member !== "everyone" ? member : null;
 	const items = [
-		...([...a, ...b] as (Omit<ReportItem, "split"> & { split: number })[]).map(
-			(item): ReportItem => ({ ...item, split: Boolean(item.split) }),
+		...([...a, ...b] as (Omit<ReportItem, "split"> & { split: number; forKey: string })[]).map(
+			({ forKey, ...item }): ReportItem => {
+				const share = sharer
+					? shareFor({ amount: item.amount, for: forKey ? forKey.split(",") : [] }, sharer)
+					: item.amount;
+				return {
+					...item,
+					amount: share,
+					split: Boolean(item.split),
+					...(share === item.amount ? {} : { whole: item.amount }),
+				};
+			},
 		),
 		...restored,
 	]

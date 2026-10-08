@@ -1,6 +1,8 @@
-import type { AccountKind } from "@noodle/domain";
-import { and, asc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { type AccountKind, type DayKey, endedOrPaidOff } from "@noodle/domain";
+import { and, asc, eq, gt, isNotNull, isNull, notInArray, or, type SQL, sql } from "drizzle-orm";
+import { commitmentEnd } from "./commitments";
 import type { Db } from "./index";
+import { paidOffDays, paidOffQueries } from "./loan-paid-off";
 import { accountArchivedEvent, accountRestoredEvent } from "./log-events";
 import { accounts, commitments, goals } from "./schema";
 
@@ -10,7 +12,9 @@ import { accounts, commitments, goals } from "./schema";
 // read as they did. Restore brings it back. An Account a Goal that isn't archived is kept in
 // can't be archived: the Goal's money would be in an Account no screen shows. Nor can one a
 // Commitment still in the Plan pays down (ADR-0050): its payments would bring down what's owed on
-// a card or loan no screen shows. An Account still
+// a card or loan no screen shows. A loan that is paid off is the exception (issue 153): its
+// Commitment is no longer planned from the month after, so archiving it ends that Commitment from
+// that month, in the same batch, once the Parent has been told so. An Account still
 // syncing with its bank is unlinked first (the web's unlinkBankAccount), so what the bank sends
 // while it's archived is never half-read.
 
@@ -45,8 +49,15 @@ export type AccountToArchive = {
 	siblings: number;
 	/** The names of the Goals, not archived, that are kept in it or pay it off. */
 	goals: string[];
-	/** The names of the Commitments still in the Plan that pay it down. */
+	/** The names of the Commitments still in the Plan that pay it down, and so hold it. */
 	commitments: string[];
+	/** The day it was paid off, for a loan a Commitment pays down that owes nothing; else null. */
+	paidOffOn: DayKey | null;
+	/**
+	 * The Commitments archiving it would end, from the month after it was paid off: the ones a
+	 * paid-off loan would otherwise be held by. Empty for any other Account.
+	 */
+	ends: { id: string; name: string }[];
 };
 
 /** One of the Household's Accounts, for archiving or unlinking it; null when it isn't theirs. */
@@ -62,6 +73,7 @@ export async function loadAccountToArchive(
 				id: accounts.id,
 				name: accounts.name,
 				archivedAt: accounts.archivedAt,
+				kind: accounts.kind,
 				bankConnectionId: accounts.bankConnectionId,
 				// Spelled out: inside a select's fields Drizzle leaves column names unqualified.
 				siblings: sql<number>`(select count(*) from accounts s
@@ -82,13 +94,18 @@ export async function loadAccountToArchive(
 			)
 			.orderBy(asc(goals.createdAt), asc(goals.id)),
 		db
-			.select({ name: commitments.name })
+			.select({ id: commitments.id, name: commitments.name })
 			.from(commitments)
 			.where(and(eq(commitments.householdId, householdId), paysItDown(accountId, monthOf(now))))
 			.orderBy(asc(commitments.createdAt), asc(commitments.id)),
 	]);
 	const [row] = rows;
 	if (!row) return null;
+	// Paid off is worked out on read (ADR-0050), and only asked when it would change the answer.
+	const paidOffOn =
+		row.kind === "loan" && commitmentRows.length > 0
+			? (paidOffDays(...(await db.batch(paidOffQueries(db, householdId)))).get(accountId) ?? null)
+			: null;
 	return {
 		id: row.id,
 		name: row.name,
@@ -96,12 +113,15 @@ export async function loadAccountToArchive(
 		bankConnectionId: row.bankConnectionId,
 		siblings: row.bankConnectionId === null ? 0 : Number(row.siblings),
 		goals: goalRows.map((goal) => goal.name),
-		commitments: commitmentRows.map((commitment) => commitment.name),
+		commitments: paidOffOn ? [] : commitmentRows.map((commitment) => commitment.name),
+		paidOffOn,
+		ends: paidOffOn ? commitmentRows : [],
 	};
 }
 
 export type ArchiveAccountResult =
-	| { ok: true }
+	/** `ended`: the Commitments of a paid-off loan that were ended with it, when any were. */
+	| { ok: true; ended?: string[] }
 	/**
 	 * "goals": a Goal that isn't archived is kept in it (named in `goals`). "connected": it still
 	 * syncs with its bank, and is unlinked first. "not-found": not the Household's, or archived
@@ -116,12 +136,36 @@ export type ArchiveAccountResult =
  * Archives one of the Household's Accounts, under one guarded write: only while it isn't
  * archived, doesn't sync with a bank, no Goal that isn't archived is kept in it, and no
  * Commitment still in the Plan pays it down.
+ *
+ * `endPaidOff`: the Parent (`memberId`) was told that archiving a paid-off loan ends its
+ * Commitment. Then each Commitment that pays it down is ended from the month after it was paid
+ * off, as a Plan change of its own, in the batch that archives it and only if that did. The Plan
+ * already read them as ended from that month, so no month that has ended changes. A loan that
+ * still owes is refused as ever, and so is a paid-off one without `endPaidOff`.
  */
 export async function archiveAccount(
 	db: Db,
-	input: { householdId: string; accountId: string; now?: Date; memberId?: string },
+	input: {
+		householdId: string;
+		accountId: string;
+		now?: Date;
+		memberId?: string;
+		endPaidOff?: boolean;
+	},
 ): Promise<ArchiveAccountResult> {
 	const now = input.now ?? new Date();
+	const { memberId } = input;
+	const before =
+		input.endPaidOff && memberId
+			? await loadAccountToArchive(db, input.householdId, input.accountId, now)
+			: null;
+	const endMonth = before?.paidOffOn ? endedOrPaidOff(null, before.paidOffOn) : null;
+	const ends = endMonth && before ? before.ends : [];
+	// Only once this batch has archived it, so a refused archive ends nothing.
+	const archivedNow = sql`exists (select 1 from ${accounts} where ${and(
+		ownAccount(input.householdId, input.accountId),
+		eq(accounts.archivedAt, now),
+	)})` as SQL;
 	const [written] = await db.batch([
 		db
 			.update(accounts)
@@ -135,19 +179,46 @@ export async function archiveAccount(
 					sql`not exists ${db
 						.select({ id: commitments.id })
 						.from(commitments)
-						.where(paysItDown(input.accountId, monthOf(now)))}`,
+						.where(
+							and(
+								paysItDown(input.accountId, monthOf(now)),
+								// The ones ended below, in this batch, don't hold it.
+								ends.length > 0
+									? notInArray(
+											commitments.id,
+											ends.map((c) => c.id),
+										)
+									: undefined,
+							),
+						)}`,
 				),
 			)
 			.returning({ id: accounts.id }),
 		accountArchivedEvent(db, { ...input, now }),
+		...ends.flatMap((commitment) =>
+			memberId && endMonth
+				? commitmentEnd(
+						db,
+						{
+							householdId: input.householdId,
+							memberId,
+							commitmentId: commitment.id,
+							month: endMonth,
+						},
+						archivedNow,
+					)
+				: [],
+		),
 	]);
-	if (written.length > 0) return { ok: true };
+	if (written.length > 0) {
+		return ends.length > 0 ? { ok: true, ended: ends.map((c) => c.name) } : { ok: true };
+	}
 	const account = await loadAccountToArchive(db, input.householdId, input.accountId, now);
 	if (!account || account.archived) return { ok: false, reason: "not-found" };
 	if (account.goals.length > 0) return { ok: false, reason: "goals", goals: account.goals };
-	if (account.commitments.length > 0) {
-		return { ok: false, reason: "commitments", commitments: account.commitments };
-	}
+	// A paid-off loan's Commitments hold it too, until the Parent has been told they end with it.
+	const holding = [...account.commitments, ...account.ends.map((c) => c.name)];
+	if (holding.length > 0) return { ok: false, reason: "commitments", commitments: holding };
 	return { ok: false, reason: account.bankConnectionId ? "connected" : "not-found" };
 }
 

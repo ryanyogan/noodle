@@ -1,13 +1,14 @@
 import { expect, type Page, test } from "@playwright/test";
 import { measure } from "./overflow";
 import { createTestParent } from "./parents";
-import { chooseKind, createPlannedHousehold, savedBy, signedInPage } from "./session";
+import { chooseKind, createPlannedHousehold, hydrated, savedBy, signedInPage } from "./session";
 
 // A loan's payments are held against its schedule, and paying it off ends its Commitment (issue
 // 153): each month's payments read paid or partly paid on the loan's page, a new payment on the
 // loan changes its Commitment's amount, and once nothing is owed the page and Plan › Commitments
 // say "Paid off" with the day, next month no longer plans it, and deleting the payment that paid
-// it off plans it again.
+// it off plans it again. A loan that still owes can't be archived while its Commitment is in the
+// Plan; paid off, archiving it says it ends that Commitment as of the day it was paid off, and does.
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -25,6 +26,9 @@ const row = (page: Page) => table(page).getByRole("row").filter({ hasText: NAME 
 const loan = (page: Page) => page.getByRole("region", { name: "Loan", exact: true });
 const made = (page: Page) => page.getByRole("list", { name: `Payments made on ${NAME}` });
 const toCome = (page: Page) => page.getByRole("list", { name: `Payments to come on ${NAME}` });
+const more = (page: Page) => page.getByRole("region", { name: "More" });
+const toast = (page: Page, text: string | RegExp) =>
+	page.getByRole("status").or(page.getByRole("alert")).filter({ hasText: text });
 const stat = (page: Page, label: string) =>
 	loan(page).locator("[data-slot=stat]").filter({ hasText: label });
 
@@ -72,7 +76,7 @@ async function pay(page: Page, thisMonth: string, dollars: string) {
 	await paid;
 }
 
-test("a loan's payments read against its schedule, paying it off ends its Commitment from next month, and deleting that payment plans it again", async ({
+test("a loan's payments read against its schedule, paying it off ends its Commitment from next month, deleting that payment plans it again, and archiving it paid off ends its Commitment", async ({
 	browser,
 }) => {
 	test.slow();
@@ -202,4 +206,45 @@ test("a loan's payments read against its schedule, paying it off ends its Commit
 	await expect(row(page)).toContainText("$200");
 	await openCommitments(page, month);
 	await expect(row(page)).not.toContainText("Paid off");
+
+	// Still owing, it can't be archived: its Commitment is in the Plan, and nothing is said of
+	// ending it.
+	await openLoan(page);
+	const archive = more(page).getByRole("button", { name: "Archive this Account" });
+	await hydrated(archive);
+	await archive.click();
+	const archiving = page.getByRole("alertdialog", { name: "Archive this Account" });
+	await expect(archiving).toContainText("leaves Accounts, the pickers and the totals");
+	await expect(archiving).not.toContainText("ends its Commitment");
+	await archiving.getByRole("button", { name: "Archive this Account" }).click();
+	await expect(toast(page, `${NAME} pays it down. End the Commitment`)).toBeVisible();
+	await expect(page).toHaveURL(/\/accounts\/[^/]+$/);
+
+	// Paid off again, archiving it is one step: the confirmation says its Commitment ends as of
+	// the day it was paid off, and the loan leaves Accounts.
+	await pay(page, thisMonth, "200");
+	await openLoan(page);
+	const paidOffOn = /^Paid off (\w+ \d+, 20\d\d)\./.exec(
+		(await loan(page).locator("[data-slot=loan-paid-off]").textContent()) ?? "",
+	)?.[1];
+	expect(paidOffOn).toBeTruthy();
+	await hydrated(archive);
+	await archive.click();
+	await expect(archiving).toContainText(
+		`Archiving it ends its Commitment, ${NAME}, as of ${paidOffOn}, the day it was paid off`,
+	);
+	await expect(archiving).toContainText("nothing is planned for it after");
+	const archived = savedBy(page, "archiveAccount");
+	await archiving.getByRole("button", { name: "Archive this Account" }).click();
+	await archived;
+	await expect(toast(page, `${NAME} is archived, and ${NAME} is ended.`)).toBeVisible();
+	await expect(page).toHaveURL(/\/accounts$/);
+	await expect(page.getByRole("link", { name: new RegExp(`^${NAME}, `) })).toHaveCount(0);
+
+	// The month it was paid off in still plans it, paid; next month doesn't.
+	await openCommitments(page, month);
+	await expect(row(page).locator("[data-slot=badge]").filter({ hasText: "Paid" })).toBeVisible();
+	await openCommitments(page, nextMonth);
+	await expect(table(page)).toContainText("Fiber internet");
+	await expect(table(page)).not.toContainText(NAME);
 });

@@ -39,6 +39,10 @@ Rules (changelog.test.ts checks them):
 - A pay day whose paycheck hasn't come in five days after it is said on This Month and at the Check-in, until the pay is in.
 - The download's money-in.csv has a Pay day column, so the month each paycheck counts in is in your download.
 - Where a line of Income asks whose pay it is, the pay day it is for is asked with it, above Done.
+- Plan › Income keeps saying which paychecks were left in the month they landed, and why, after you reload the page.
+- On Reports › People, the Transactions behind one person's figure show that person's share of shared spending, with the whole amount beside it.
+- The Rules list says when a lender's Rule files each payment by its amount, and names the loans it chooses between.
+- A loan that's paid off can be archived in one step: archiving it ends its Commitment as of the day it was paid off, and the confirmation says so first.
 
 ## 2026-10-07: Refunds, whose Account it is, and a shorter Free to Spend
 

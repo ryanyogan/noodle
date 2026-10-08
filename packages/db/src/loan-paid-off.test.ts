@@ -3,9 +3,11 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addAccount,
+	archiveAccount,
 	createHouseholdForParent,
 	type Db,
 	endCommitment,
+	loadAccountToArchive,
 	loadGoals,
 	loadPlanRecords,
 	setLoanFacts,
@@ -256,6 +258,107 @@ describe("a loan paid off", () => {
 		});
 		await pay("october", "2026-10-06", 10_000);
 		expect((await planned("2026-11")).sort()).toEqual(["bike-plan-payment", "store-card-payment"]);
+	});
+});
+
+describe("archiving a paid-off loan", () => {
+	const ends = () =>
+		db.select().from(s.planChanges).where(eq(s.planChanges.kind, "commitment-end"));
+	const archived = async (accountId = "sofa-plan") =>
+		(await db.select().from(s.accounts).where(eq(s.accounts.id, accountId)))[0]?.archivedAt ?? null;
+	const plans = async () => {
+		const read = await records();
+		return (["2026-09", "2026-10", "2026-11", "2026-12"] as const).map((in_) =>
+			planForMonth(read, in_),
+		);
+	};
+	// Two months on: October, the month it was paid off in, has ended.
+	const now = new Date("2026-12-03T18:00:00Z");
+	const archive = (endPaidOff: boolean, accountId = "sofa-plan") =>
+		archiveAccount(db, { householdId, accountId, memberId: parentId, now, endPaidOff });
+
+	it("ends its Commitment from the month after the last payment, and no month's Plan changes", async () => {
+		await addLoan();
+		await pay("september", "2026-09-15");
+		await pay("october", "2026-10-06");
+		expect(await loadAccountToArchive(db, householdId, "sofa-plan", now)).toMatchObject({
+			commitments: [],
+			paidOffOn: "2026-10-06",
+			ends: [{ id: "sofa-plan-payment", name: "sofa-plan" }],
+		});
+		const before = await plans();
+
+		expect(await archive(true)).toEqual({ ok: true, ended: ["sofa-plan"] });
+		expect(await archived()).toEqual(now);
+		expect(await stored()).toBe("2026-11");
+		expect(await ends()).toMatchObject([
+			{ targetId: "sofa-plan-payment", month: "2026-11", memberId: parentId },
+		]);
+		// September and October plan it as they did, and November on doesn't, as before.
+		expect(await plans()).toEqual(before);
+		expect(await planned("2026-10")).toEqual(["sofa-plan-payment"]);
+		expect(await planned("2026-11")).toEqual([]);
+		// Archived twice is refused, and writes no second end.
+		expect(await archive(true)).toEqual({ ok: false, reason: "not-found" });
+		expect(await ends()).toHaveLength(1);
+	});
+
+	it("refuses a loan that still owes, whatever the Parent was told", async () => {
+		await addLoan();
+		await pay("september", "2026-09-15");
+		expect(await loadAccountToArchive(db, householdId, "sofa-plan", now)).toMatchObject({
+			commitments: ["sofa-plan"],
+			paidOffOn: null,
+			ends: [],
+		});
+		expect(await archive(true)).toEqual({
+			ok: false,
+			reason: "commitments",
+			commitments: ["sofa-plan"],
+		});
+		expect(await archived()).toBeNull();
+		expect(await stored()).toBeNull();
+		expect(await ends()).toEqual([]);
+	});
+
+	it("refuses a paid-off one until the Parent has been told its Commitment ends", async () => {
+		await addLoan();
+		await pay("september", "2026-09-15");
+		await pay("october", "2026-10-06");
+		expect(await archive(false)).toEqual({
+			ok: false,
+			reason: "commitments",
+			commitments: ["sofa-plan"],
+		});
+		expect(await archived()).toBeNull();
+		expect(await stored()).toBeNull();
+		expect(await ends()).toEqual([]);
+	});
+
+	it("keeps a Parent's own earlier end, and ends nothing for another Household", async () => {
+		await addLoan();
+		await pay("september", "2026-09-15");
+		await pay("october", "2026-10-06");
+		expect(
+			await archiveAccount(db, {
+				householdId: "other",
+				accountId: "sofa-plan",
+				memberId: parentId,
+				now,
+				endPaidOff: true,
+			}),
+		).toEqual({ ok: false, reason: "not-found" });
+		expect(await stored()).toBeNull();
+		// Ended by the Parent from October: it no longer holds the loan, and its end stays theirs.
+		await endCommitment(db, {
+			householdId,
+			memberId: parentId,
+			commitmentId: "sofa-plan-payment",
+			month: "2026-10",
+		});
+		expect(await archive(true)).toEqual({ ok: true });
+		expect(await stored()).toBe("2026-10");
+		expect(await ends()).toHaveLength(1);
 	});
 });
 

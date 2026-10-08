@@ -14,6 +14,7 @@ import {
 	loadIncomeCells,
 	loadMoneyIn,
 	loadMoneyInLine,
+	loadPayDaysNotMoved,
 	loadPlanRecords,
 	loadTransactionsPage,
 	matchPayDays,
@@ -105,6 +106,7 @@ describe("a paycheck counts on its pay day", () => {
 		await salaried();
 		const result = await matchPayDays(db, householdId, { claim: true });
 		expect(result).toMatchObject({ matched: 3, notMoved: [] });
+		expect(await loadPayDaysNotMoved(db, householdId)).toEqual([]);
 		expect(await counted()).toEqual({ sep: 250_000, oct: 495_000 });
 		const line = await loadMoneyInLine(db, householdId, "pay-oct-01");
 		expect(line).toMatchObject({
@@ -252,6 +254,9 @@ describe("a paycheck counts on its pay day", () => {
 			},
 		]);
 		expect(await counted()).toEqual({ sep: 795_000, oct: 250_000 });
+		// Read again later (a reload of Plan › Income), it is still said, with nothing written.
+		expect(await loadPayDaysNotMoved(db, householdId)).toEqual(result.notMoved);
+		expect(await counted()).toEqual({ sep: 795_000, oct: 250_000 });
 		// By hand it is refused the way removing that Income would be.
 		await editMoneyIn(db, viewer, { incomeId: "pay-oct-01", edit: { whosePay: parentId } });
 		expect(
@@ -268,6 +273,7 @@ describe("a paycheck counts on its pay day", () => {
 			{ lineId: "pay-oct-01", reason: "month-closed", month: sep },
 		]);
 		expect(await counted()).toEqual({ sep: 495_000, oct: 250_000 });
+		expect(await loadPayDaysNotMoved(db, householdId)).toEqual(result.notMoved);
 		await editMoneyIn(db, viewer, { incomeId: "pay-oct-01", edit: { whosePay: parentId } });
 		expect(
 			await setPayDayByHand(db, viewer, { incomeId: "pay-oct-01", payDay: "2026-10-01" as DayKey }),

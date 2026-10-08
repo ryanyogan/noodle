@@ -3,7 +3,7 @@ import { ulid } from "ulid";
 import { measure } from "./overflow";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { clientRendered, createPlannedHousehold, hydrated, signedInPage } from "./session";
 
 // A paycheck counts on its pay day (issue 156, phase 2; ADR-0063): once a Parent says how they
 // are paid, the paycheck the bank posted on the last day of last month for the 1st is this
@@ -201,4 +201,49 @@ test("a paycheck posted on the last day of last month for the 1st is this month'
 	await page.goto(`/transactions/${month}/${incomeId}`);
 	await expect(choice).toContainText(`Pay for ${shortDay(first)}`);
 	await noSidewaysScroll(page);
+});
+
+test("a paycheck left in a closed month is still said on Plan › Income after a reload", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 1280, height: 900 },
+	});
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const month = /\/month\/(\d{4}-\d{2})/.exec(page.url())?.[1];
+	if (!month) throw new Error(`No month in ${page.url()}`);
+	const first = `${month}-01`;
+	const posted = new Date(Date.parse(`${first}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+	const last = posted.slice(0, 7);
+
+	// Last month is closed, and its last day has the paycheck for the 1st.
+	const household = `(select household_id from members where clerk_user_id = ${q(parent.userId)})`;
+	await seedSql([
+		`insert into income (id, household_id, date, amount_cents, note) values (${q(ulid())}, ${household}, ${q(posted)}, 248055, 'Harbor Freight Lines payroll')`,
+		`insert into month_closes (id, household_id, month) values (${q(ulid())}, ${household}, ${q(last)})`,
+	]);
+	await page.goto(`/plan/${month}/income`);
+	const row = section(page).getByTestId("parent-pay");
+	const edit = row.getByRole("button", { name: /^Edit how .+ is paid$/ });
+	await hydrated(edit);
+	const name = ((await row.locator("span").first().textContent()) ?? "").trim();
+	await edit.click();
+	const sheet = page.getByRole("dialog", { name: `How ${name} is paid` });
+	await choose(page, sheet, "Paid", "Salary");
+	await sheet.getByLabel("One paycheck").fill("2,500");
+	await sheet.getByRole("button", { name: "Save" }).click();
+	await expect(sheet).toBeHidden();
+
+	// It stays last month's, and the page says so with why: now, and after a reload.
+	const left = section(page).getByTestId("pay-not-moved");
+	const why = `${shortDay(posted)} · $2,480.55 · not moved to ${monthName(month)}: ${monthName(last)} is closed`;
+	await expect(left).toContainText("Harbor Freight Lines payroll");
+	await expect(left).toContainText(why);
+	await page.reload();
+	await expect(left).toContainText(why, clientRendered);
+	await expect(summary(page)).not.toContainText("$2,480.55");
+	// The month it landed in says it too.
+	await page.goto(`/plan/${last}/income`);
+	await expect(left).toContainText(why, clientRendered);
 });

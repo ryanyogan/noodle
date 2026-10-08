@@ -1,4 +1,4 @@
-import { addDays, type DayKey, dayKeyAt, monthOfDay } from "@noodle/domain";
+import { addDays, addMonths, type DayKey, dayKeyAt, monthOfDay } from "@noodle/domain";
 import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -138,6 +138,20 @@ function AccountDetails({ account }: { account: AccountView }) {
 	const goalsHere = useGoals().goals.filter(
 		(goal) => goal.accountId === account.id && goal.state !== "archived",
 	);
+	// A paid-off loan's Commitment, out of the Plan from the month after it was paid off: archiving
+	// the loan ends it as of that day, which the confirmation says first (issue 153).
+	const linked = useQuery({ ...commitmentsQuery(), enabled: account.kind === "loan" }).data;
+	const ending =
+		account.kind === "loan"
+			? (linked?.commitments ?? []).flatMap((c) =>
+					c.accountId === account.id &&
+					c.paidOffOn &&
+					c.endedFromMonth === addMonths(monthOfDay(c.paidOffOn), 1)
+						? [{ name: c.name, paidOffOn: c.paidOffOn }]
+						: [],
+				)
+			: [];
+	const endingNames = ending.map((c) => c.name).join(" and ");
 	const refresh = () => {
 		void queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
 		void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
@@ -160,7 +174,8 @@ function AccountDetails({ account }: { account: AccountView }) {
 		onError: () => toast(bankSaidNo, { tone: "error" }),
 	});
 	const archive = useMutation({
-		mutationFn: () => archiveAccount({ data: { accountId: account.id } }),
+		mutationFn: () =>
+			archiveAccount({ data: { accountId: account.id, endPaidOff: ending.length > 0 } }),
 		onSuccess: async (result) => {
 			refresh();
 			if (!result.ok) {
@@ -201,7 +216,12 @@ function AccountDetails({ account }: { account: AccountView }) {
 				return;
 			}
 			// No Undo here: Restore, under Archived on Accounts, is the way back.
-			toast(`${account.name} is archived. Restore it under Archived on Accounts.`);
+			if (result.ended) {
+				void queryClient.invalidateQueries({ queryKey: commitmentsQuery().queryKey });
+				toast(
+					`${account.name} is archived, and ${result.ended.join(" and ")} is ended. Restore the Account under Archived on Accounts.`,
+				);
+			} else toast(`${account.name} is archived. Restore it under Archived on Accounts.`);
 			await navigate({ to: "/accounts" });
 		},
 		onError: () => toast("Couldn’t archive it. Nothing changed. Try again.", { tone: "error" }),
@@ -301,6 +321,9 @@ function AccountDetails({ account }: { account: AccountView }) {
 					past months still count them.{" "}
 					{connected
 						? `Nothing new comes in from ${bankName}${lastLinked ? `, and ${bankName} is disconnected, as this is its only Account here` : ""}. `
+						: ""}
+					{ending[0]
+						? `Archiving it ends its ${ending.length === 1 ? "Commitment" : "Commitments"}, ${endingNames}, as of ${fullDay(ending[0].paidOffOn)}, the day it was paid off: ${monthName(monthOfDay(ending[0].paidOffOn))}’s Plan keeps it, and nothing is planned for it after. `
 						: ""}
 					You can bring it back with Restore, under Archived on Accounts.
 				</Confirm>

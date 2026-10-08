@@ -504,20 +504,29 @@ export const unpairBankAccount = createServerFn({ method: "POST" })
 /**
  * Archives an Account (ADR-0046): out of the Accounts list, the pickers and the totals, with its
  * Transactions and history kept. One that still syncs with its bank is unlinked first. Refused,
- * naming them, while a Goal that isn't archived is kept in it.
+ * naming them, while a Goal that isn't archived is kept in it, or a Commitment still in the Plan
+ * pays it down. `endPaidOff`: the Parent was told that archiving a paid-off loan ends its
+ * Commitment as of the day it was paid off, so it does (issue 153).
  */
 export const archiveAccount = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ accountId: ulidSchema }))
+	.validator(z.object({ accountId: ulidSchema, endPaidOff: z.boolean().optional() }))
 	.handler(async ({ data, context }): Promise<ArchiveAccountFnResult> => {
 		const householdId = context.household.id;
 		const result = await archiveAccountAndUnlink(unlinkDeps(householdId), {
 			householdId,
 			accountId: data.accountId,
 			memberId: context.parent.id,
+			endPaidOff: data.endPaidOff,
 		});
-		// Even when refused part-way (the bank said no), what the screens show may have moved.
-		await notifyHousehold(householdId, ["goals", "bank-connections"]);
+		// Even when refused part-way (the bank said no), what the screens show may have moved. A
+		// Commitment ended with it is a Plan change, which carries into every month.
+		await notifyHousehold(
+			householdId,
+			result.ok && result.ended
+				? ["goals", "bank-connections", "months"]
+				: ["goals", "bank-connections"],
+		);
 		return result;
 	});
 
