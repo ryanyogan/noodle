@@ -4,6 +4,7 @@ import {
 	choose,
 	clientRendered,
 	createPlannedHousehold,
+	hydrated,
 	pickQuickAddBucket,
 	signedInPage,
 } from "./session";
@@ -73,6 +74,8 @@ test("Reports › People shows every Member and Everyone by Bucket, and each fig
 	});
 	await page.goto("/household");
 	await expect(page.getByRole("heading", { name: "Children" })).toBeVisible();
+	// Typed or pressed before the page is hydrated, the form does nothing.
+	await hydrated(page.getByRole("button", { name: "Add Child" }));
 	await addChild(page, "Maya");
 	await addChild(page, "Leo");
 
@@ -86,13 +89,16 @@ test("Reports › People shows every Member and Everyone by Bucket, and each fig
 
 	// The pharmacy was for both Children: a Transaction's editor takes several people.
 	await page.goto("/transactions");
-	await page
+	const pharmacy = page
 		.getByRole("grid", { name: /^Transactions in / })
-		.getByRole("button", { name: /^Pharmacy, / })
-		.click();
+		.getByRole("button", { name: /^Pharmacy, / });
+	// A full load: pressed before the page is hydrated, the line does nothing and no editor opens.
+	await hydrated(pharmacy);
+	await pharmacy.click();
 	const edit = page
 		.locator("[role=dialog], [data-slot=transaction-detail]")
 		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
+	await expect(edit).toBeVisible();
 	await edit.getByRole("toolbar", { name: "For" }).getByRole("button", { name: "Leo" }).click();
 	await edit.getByRole("button", { name: "Save" }).click();
 	await expect(

@@ -4,6 +4,7 @@ import { createTestParent } from "./parents";
 import {
 	clientRendered,
 	createPlannedHousehold,
+	hydrated,
 	pickQuickAddBucket,
 	signedInPage,
 } from "./session";
@@ -36,6 +37,8 @@ async function expectNoAxeViolations(page: Page, what: string) {
 async function goToHousehold(page: Page) {
 	await page.goto("/household");
 	await expect(page.getByRole("heading", { name: "Children" })).toBeVisible();
+	// Typed or pressed before the page is hydrated, the form does nothing.
+	await hydrated(page.getByRole("button", { name: "Add Child" }));
 }
 
 async function addChild(page: Page, name: string) {
@@ -83,6 +86,7 @@ test("a Parent adds, renames, recolours, and removes Children", async ({ browser
 
 	await page.reload();
 	await expect(page.getByRole("button", { name: "Edit Leon" })).toBeVisible();
+	await hydrated(page.getByRole("button", { name: "Edit Leon" }));
 	await page.getByRole("button", { name: "Edit Leon" }).click();
 	await expect(
 		page.getByRole("dialog", { name: "Leon" }).getByRole("radio", { name: "Violet" }),
