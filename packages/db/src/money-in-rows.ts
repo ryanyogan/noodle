@@ -1,6 +1,7 @@
 import type { Cents, DayKey } from "@noodle/domain";
 import { and, asc, desc, eq, gte, lt, or, type SQL, type SQLWrapper, sql } from "drizzle-orm";
 import { accountLabelSql } from "./account-label";
+import { incomeCountsOn } from "./counting";
 import type { Db } from "./index";
 import { loadMoneyIn, type MoneyInLine } from "./money-in";
 import { accounts, income } from "./schema";
@@ -17,9 +18,9 @@ export type MoneyInRow = TransactionRow & { moneyIn: MoneyInLine };
 
 /** Which money in a list of Transactions takes in: the list's own filters, as far as they apply. */
 export type MoneyInRowsFilter = {
-	/** From this day. */
+	/** From this day, by the day a line counts on: its pay day, or the day it landed. */
 	from?: DayKey;
-	/** Up to, not including, this day. */
+	/** Up to, not including, this day, counted the same way. */
 	until?: DayKey;
 	accountId?: string;
 	/** Words in the note, already escaped for LIKE (with "!"). */
@@ -102,8 +103,10 @@ const waits = sql`(${income.needsReview} = 1 and ${income.kind} is null and not 
 function matching(householdId: string, filter: MoneyInRowsFilter): SQL | undefined {
 	return and(
 		eq(income.householdId, householdId),
-		filter.from ? gte(income.date, filter.from) : undefined,
-		filter.until ? lt(income.date, filter.until) : undefined,
+		// The months a line is listed and summed under are the months it counts in (ADR-0063): a
+		// paycheck is with its pay day's month, though the row keeps the day it landed.
+		filter.from ? gte(incomeCountsOn, filter.from) : undefined,
+		filter.until ? lt(incomeCountsOn, filter.until) : undefined,
 		filter.accountId ? eq(income.accountId, filter.accountId) : undefined,
 		filter.like ? sql`${income.note} like ${`%${filter.like}%`} escape '!'` : undefined,
 		filter.review ? waits : undefined,

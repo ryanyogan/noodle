@@ -109,16 +109,27 @@ test("a paycheck posted on the last day of last month for the 1st is this month'
 	await expect(page.getByRole("heading", { name: "Income this month" })).toBeVisible();
 	await expect(summary(page)).not.toContainText("$2,480.55");
 
-	// Transactions still lists it on the day it landed, saying which pay day it is the pay for.
-	await page.goto(`/transactions/${last}`);
+	// Transactions has it with this month too: Money in counts it and lists it, saying which pay
+	// day it is the pay for, and last month's has neither the money nor the row.
 	const line = page
 		.locator("[data-transaction]")
 		.filter({ hasText: "Harbor Freight Lines payroll" });
+	const moneyIn = page.getByTestId("month-in");
+	await page.goto(`/transactions/${last}`);
+	await expect(moneyIn).toBeVisible();
+	await expect(moneyIn).not.toContainText("2,480.55");
+	await expect(line).toHaveCount(0);
+	await page.goto(`/transactions/${month}`);
+	await expect(moneyIn).toHaveText("+$2,480.55");
 	await expect(line).toHaveCount(1);
 	await expect(line.locator("[data-slot=row-pay-for]")).toHaveText(`pay for ${shortDay(first)}`);
+	// "Money in" narrows the list to what the figure adds up.
+	await page.goto(`/transactions/${month}?show=in`);
+	await expect(moneyIn).toHaveText("+$2,480.55");
+	await expect(line).toHaveCount(1);
 
 	// From the line: "Not a paycheck for a pay day" sends it back to the month it landed in.
-	await page.goto(`/transactions/${last}/${incomeId}`);
+	await page.goto(`/transactions/${month}/${incomeId}`);
 	const editor = page.getByRole("region", { name: "Harbor Freight Lines payroll" });
 	const choice = editor.getByRole("combobox", { name: "This is the pay for…" });
 	await expect(choice).toContainText(`Pay for ${shortDay(first)}`);
@@ -138,7 +149,13 @@ test("a paycheck posted on the last day of last month for the 1st is this month'
 	await expect(summary(page)).not.toContainText("$2,480.55");
 	// Said by hand, so the pay day is not read as In from it again.
 	await expect(paychecks(page).nth(0)).not.toHaveAttribute("data-state", "in");
+	// Transactions swaps back with it: the row and its money are last month's again.
+	await page.goto(`/transactions/${month}`);
+	await expect(moneyIn).toBeVisible();
+	await expect(moneyIn).not.toContainText("2,480.55");
+	await expect(line).toHaveCount(0);
 	await page.goto(`/transactions/${last}`);
+	await expect(moneyIn).toHaveText("+$2,480.55");
 	await expect(line).toHaveCount(1);
 	await expect(line).not.toContainText("pay for");
 
@@ -166,11 +183,11 @@ test("a paycheck posted on the last day of last month for the 1st is this month'
 	await expect(paychecks(page)).toHaveCount(2);
 	await expect(page.getByText(`pay for ${shortDay(first)}`).first()).toBeVisible();
 	await noSidewaysScroll(page);
-	await page.goto(`/transactions/${last}`);
+	await page.goto(`/transactions/${month}`);
 	await expect(line).toHaveCount(1);
 	await expect(line.getByText(`pay for ${shortDay(first)} · Typed in`)).toBeVisible();
 	await noSidewaysScroll(page);
-	await page.goto(`/transactions/${last}/${incomeId}`);
+	await page.goto(`/transactions/${month}/${incomeId}`);
 	await expect(choice).toContainText(`Pay for ${shortDay(first)}`);
 	await noSidewaysScroll(page);
 });

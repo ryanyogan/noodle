@@ -15,6 +15,7 @@ import {
 	loadMoneyIn,
 	loadMoneyInLine,
 	loadPlanRecords,
+	loadTransactionsPage,
 	matchPayDays,
 	removeIncome,
 	setParentPay,
@@ -124,6 +125,55 @@ describe("a paycheck counts on its pay day", () => {
 		// Asked again, nothing changes.
 		expect(await matchPayDays(db, householdId, { claim: true })).toMatchObject({ matched: 0 });
 		expect(await counted()).toEqual({ sep: 250_000, oct: 495_000 });
+	});
+
+	it("is listed and summed on the Transactions page in the month it counts in, once", async () => {
+		const listed = async (month: MonthKey, query: { fromMonth?: MonthKey } = {}) => {
+			const asked = { month, moneyIn: true, limit: 50, ...query };
+			const all = await loadTransactionsPage(db, viewer, asked);
+			const onlyIn = await loadTransactionsPage(db, viewer, { ...asked, show: "in" });
+			const ids = all.transactions.map((row) => row.id);
+			// What "Money in" narrows to is what the figure adds up.
+			expect(onlyIn.transactions.map((row) => row.id)).toEqual(ids);
+			expect(all.summary?.inCents).toBe(
+				all.transactions.reduce((sum, row) => sum + (row.moneyIn?.amount ?? 0), 0),
+			);
+			expect(all.summary?.incomeCents).toBe(all.summary?.inCents);
+			return { ids, inCents: all.summary?.inCents };
+		};
+		expect(await listed(sep)).toEqual({ ids: ["pay-oct-01", "pay-sep-15"], inCents: 495_000 });
+		expect(await listed(oct)).toEqual({ ids: ["pay-oct-15"], inCents: 250_000 });
+
+		await salaried();
+		await matchPayDays(db, householdId, { claim: true });
+		// The figures are the months' Income, and the row is with the month it counts in, still
+		// dated the day it landed (so last in a list newest first).
+		expect(await listed(sep)).toEqual({ ids: ["pay-sep-15"], inCents: 250_000 });
+		expect(await listed(oct)).toEqual({ ids: ["pay-oct-15", "pay-oct-01"], inCents: 495_000 });
+		expect(await counted()).toEqual({ sep: 250_000, oct: 495_000 });
+		// A range over both months has it once.
+		expect(await listed(oct, { fromMonth: sep })).toEqual({
+			ids: ["pay-oct-15", "pay-oct-01", "pay-sep-15"],
+			inCents: 745_000,
+		});
+		// A page at a time, it is neither skipped nor repeated.
+		const one = await loadTransactionsPage(db, viewer, { month: oct, moneyIn: true, limit: 1 });
+		const two = await loadTransactionsPage(db, viewer, {
+			month: oct,
+			moneyIn: true,
+			limit: 1,
+			after: one.next ?? undefined,
+		});
+		expect([...one.transactions, ...two.transactions].map((row) => row.id)).toEqual([
+			"pay-oct-15",
+			"pay-oct-01",
+		]);
+		expect(two.next).toBeNull();
+
+		// "Not a paycheck for a pay day": row and figure go back to the month it landed in.
+		await setPayDayByHand(db, viewer, { incomeId: "pay-oct-01", payDay: null });
+		expect(await listed(sep)).toEqual({ ids: ["pay-oct-01", "pay-sep-15"], inCents: 495_000 });
+		expect(await listed(oct)).toEqual({ ids: ["pay-oct-15"], inCents: 250_000 });
 	});
 
 	it("only matches Income that is already the Parent's pay unless a Parent has just said how they are paid", async () => {

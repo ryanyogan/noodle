@@ -18,10 +18,14 @@ A salaried Parent's paycheck for the 1st is often posted by the bank on the last
 
 ## What stays on the day it landed
 
-- The Transactions list, its month filter and its three figures: a row is listed under the month the bank posted it.
+- The date a row of the Transactions list shows, and its place in the list's order: always the day the bank posted it.
 - Finding the same line again, pairing Transfers and Refunds, and bank sync, which all compare bank dates.
 - Between us, Refunds, Paid back and Transfers: only Income has a Pay day.
 - The Plan draft's reading of when paychecks land, and the one-time October pass over money in.
+
+## The Transactions page follows the month a line counts in (2026-10-08, amended the same day)
+
+As first decided, the Transactions list, its month filter and its Money in figure stayed on the day a line landed. In use that read as a mistake: October's Money in on Transactions was a paycheck short of October's Income on Plan › Income and This Month, and September's was a paycheck over. So the month a money-in line belongs to on the Transactions page is the month it counts in, by the same `incomeCountsOn` (`matching` in `packages/db/src/money-in-rows.ts`, which the rows, the "Money in" filter, Needs review and the figures all read). A paycheck posted September 30 for October 1 is one row of October's list and none of September's, is in October's Money in and not September's, and a range over both months has it once. The row still shows September 30 and sorts by it, so newest first it is the last row of October, and it says "pay for Oct 1". "Not a paycheck for a pay day" sends row and money back to September together. One rule rather than a row in both months, so a figure is always the sum of the rows its filter lists and no line can be added up twice.
 
 ## Consequences
 
