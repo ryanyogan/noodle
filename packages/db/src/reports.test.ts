@@ -1,4 +1,4 @@
-import { type DayKey, type MonthKey, mergeCells } from "@noodle/domain";
+import { type DayKey, type MonthKey, mergeCells, shareFor } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
@@ -328,6 +328,26 @@ describe("items and merchants", () => {
 		expect(forKid.items.map((i) => i.id)).toEqual(["target", "milk"]);
 		const big = await loadReportItems(db, scope(alex, { min: 5_000 }), "date", 10);
 		expect(big.items.map((i) => i.amount)).toEqual([7_000, 30_000]);
+	});
+
+	it("lists a Member's share of what was For several, with the whole of it", async () => {
+		// $45.01 at the rink For Kid and Alex: a cent that can't be halved goes to the first of them.
+		await quickAdd(alex, "skates", "groceries", 4_501, "Rink", "2026-09-12", ["kid", "alex"]);
+		const forKid = await loadReportItems(db, scope(alex, { member: "kid" }), "date", 10);
+		const forAlex = await loadReportItems(db, scope(alex, { member: "alex" }), "date", 10);
+		const skates = (found: typeof forKid) => found.items.find((i) => i.id === "skates");
+		expect(skates(forKid)).toMatchObject({ amount: 2_250, whole: 4_501 });
+		expect(skates(forAlex)).toMatchObject({ amount: 2_251, whole: 4_501 });
+		// What was For Kid alone is all Kid's, and says no more.
+		expect(forKid.items.find((i) => i.id === "milk")).not.toHaveProperty("whole");
+		// The rows add up to the figure they are behind.
+		const cells = await loadForCells(db, scope(alex), "month");
+		const figure = cells.reduce((sum, cell) => sum + shareFor(cell, "kid"), 0);
+		expect(forKid.items.reduce((sum, item) => sum + item.amount, 0)).toBe(figure);
+		// Everyone's, and a list not narrowed to a Member, keep the whole amount.
+		const all = await loadReportItems(db, scope(alex), "date", 10);
+		expect(skates(all)).toMatchObject({ amount: 4_501 });
+		expect(skates(all)).not.toHaveProperty("whole");
 	});
 
 	it("leaves Commitment payments out of one-off spending", async () => {

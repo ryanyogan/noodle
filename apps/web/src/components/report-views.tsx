@@ -96,6 +96,13 @@ export const shareColor = (names: Names, key: string) => {
 
 const monthOfPeriod = (period: string) => period.slice(0, 7) as MonthKey;
 
+/**
+ * " · share of $45" on a row listed For one Member whose amount is their share of spending
+ * that was For others too (issue 155); nothing when the row's amount is all of it.
+ */
+const shareOf = (item: { whole?: number }) =>
+	item.whole === undefined ? "" : ` · share of ${formatWholeMoney(item.whole)}`;
+
 /** The Tile for a key: a Bucket's monogram in its colour, a lock for another Parent's Personal Allowance. */
 function KeyTile({
 	names,
@@ -796,6 +803,7 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 								<span className="text-xs text-muted-foreground">
 									{fullDay(item.date)} · {names.label(item.target)}
 									{item.split ? " · part of a split" : ""}
+									{shareOf(item)}
 								</span>
 							</Link>
 						);
@@ -1120,6 +1128,7 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 										<span className="text-xs text-muted-foreground">
 											{shortDay(item.date)} · {names.label(item.target)}
 											{item.split ? " · split" : ""}
+											{shareOf(item)}
 										</span>
 									</span>
 									<span
