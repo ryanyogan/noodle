@@ -1,5 +1,7 @@
 import {
+	type CommitmentKind,
 	type CommitmentState,
+	groupCommitments,
 	type MonthKey,
 	monthlyEquivalent,
 	nextDueDate,
@@ -9,6 +11,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { DataTable, type DataTableColumn } from "@noodle/ui/components/data-table";
 import { Tile } from "@noodle/ui/components/tile";
+import { useQuery } from "@tanstack/react-query";
 import { useHydrated, useNavigate, useParams } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
@@ -16,6 +19,7 @@ import { monogram } from "../buckets";
 import { cadenceNames } from "../commitments";
 import { formatMoney, fullDay, monthName, shortDay } from "../format";
 import { usePlanChanges } from "../plan-changes";
+import { goalsQuery } from "../queries";
 import { type CommitmentChanges, CommitmentSheet, PaidState } from "./commitment-editor";
 import { AboutNote, CommitmentLink } from "./commitment-list";
 import { PaysDownNote } from "./pays-down";
@@ -29,10 +33,21 @@ import { ChangedNote } from "./plan-scope-field";
 const UNDER_NAME = "@max-2xl/dt:ps-12 @max-[16rem]/dt:ps-0";
 const NO_TILE = "@max-[16rem]/dt:hidden";
 
+/** What each group of Commitments is headed (issue 153). */
+const GROUP_NAMES: Record<CommitmentKind, string> = {
+	"credit-card": "Credit cards",
+	loan: "Loans",
+	bill: "Bills",
+};
+
 /**
  * A month's Commitments as a table (issue 146: drawn as the Plan's Buckets table is). On a Card,
  * each row with its letter tile, the figures in fixed columns at the end of the name's, the
  * quieter lines at 13px, and the pencil that opens the Commitment sheet in the last column.
+ *
+ * Grouped by what each one is (issue 153): credit cards, loans, then bills, from the Account each
+ * pays down, every group under its name and what it takes this month. With one group there is
+ * nothing to tell apart, so the list has no group names.
  */
 export function CommitmentTable({
 	month,
@@ -51,6 +66,34 @@ export function CommitmentTable({
 	const picked = useParams({ strict: false, select: (params) => params.id });
 	const [editing, setEditing] = useState<string | null>(null);
 	const open = commitments.find((c) => c.id === editing);
+	// The Accounts are the ones behind "Pays down …" on a row, already loaded with the page.
+	const goals = useQuery(goalsQuery()).data;
+	const groups = groupCommitments(
+		commitments,
+		goals ? [...goals.accounts, ...goals.archivedAccounts] : [],
+	);
+	const grouped = groups.length > 1;
+	const rows = grouped ? groups.flatMap((group) => group.commitments) : commitments;
+	const groupOf = new Map(groups.flatMap((group) => group.commitments.map((c) => [c.id, group])));
+	/** Before a group's first Commitment: its name, and its subtotals in the table's own columns. */
+	const groupCells = (c: CommitmentState, previous: CommitmentState | undefined) => {
+		const group = groupOf.get(c.id);
+		if (!group || (previous && groupOf.get(previous.id) === group)) return null;
+		return {
+			name: (
+				<span
+					data-commitment-group={group.kind}
+					className="text-[13px] font-medium text-muted-foreground"
+				>
+					{GROUP_NAMES[group.kind]}
+				</span>
+			),
+			expected: (
+				<span className="text-muted-foreground tabular-nums">{formatMoney(group.expected)}</span>
+			),
+			paid: <span className="tabular-nums">{formatMoney(group.paid)}</span>,
+		};
+	};
 	const columns: DataTableColumn<CommitmentState>[] = [
 		{
 			id: "name",
@@ -174,7 +217,8 @@ export function CommitmentTable({
 				<DataTable
 					label={`Commitments in ${monthName(month)}`}
 					columns={columns}
-					data={commitments}
+					data={rows}
+					groupCells={grouped ? groupCells : undefined}
 					getRowId={(c) => c.id}
 					surface="card"
 					// A short list on a card: the header scrolls with its rows.
