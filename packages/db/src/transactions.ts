@@ -694,6 +694,34 @@ const inAccount = (accountId: string) =>
 const likeEscaped = (text: string) => text.replace(/[!%_]/g, (c) => `!${c}`);
 
 /**
+ * The arriving side of a Transfer whose leaving side is in Noodle too (ADR-0062): the Transactions
+ * list shows such a Transfer once, as the side the money left, unless it is narrowed to an Account.
+ * A side marked alone has no leaving side here and is never this.
+ */
+const arrivingSideOfPair = sql`exists (select 1 from transfers x where x.in_transaction_id = ${transactions.id}
+	and x.out_transaction_id is not null and x.removed_at is null)`;
+
+/**
+ * The words a search looks for are in the side of a Transfer that arrived, which the enclosing
+ * query's Transaction is the leaving side of: the one row is found by either side's wording.
+ */
+const arrivingSideSays = (like: string) =>
+	sql`exists (select 1 from transfers x
+		left join transactions n on n.id = x.in_transaction_id
+		left join income i on i.id = x.in_income_id
+		where x.out_transaction_id = ${transactions.id} and x.removed_at is null
+		and (n.note like ${like} escape '!' or n.merchant like ${like} escape '!' or i.note like ${like} escape '!'))`;
+
+/**
+ * A list's search: words in the note or the name, never of one partly private. With `oneRow`,
+ * where a paired Transfer is one row, the row is found by its arriving side's words as well.
+ */
+function saying(viewer: Viewer, search: string, oneRow: boolean): SQL {
+	const like = `%${likeEscaped(search)}%`;
+	return sql`(not ${partlyPrivate(viewer)} and (${transactions.note} like ${like} escape '!' or ${transactions.merchant} like ${like} escape '!'${oneRow ? sql` or ${arrivingSideSays(like)}` : sql``}))`;
+}
+
+/**
  * One page of the Transactions that `viewer` may see, newest first: in a month (or in every
  * month), optionally only those in a Bucket, those For a Member (or For the whole Household),
  * those in an Account, and those whose note has `search` in it. `after` continues from a
@@ -729,6 +757,8 @@ export async function loadTransactionsPage(
 		/**
 		 * Money in kept in `income` is listed too, as rows in the same order (ADR-0061), and the
 		 * summary says what came in. Left out, the list is `transactions` alone, as an Account's is.
+		 * With it, a Transfer with both sides in Noodle is one row, the side the money left
+		 * (ADR-0062), unless the list is narrowed to an Account: then each side is that Account's.
 		 */
 		moneyIn?: boolean;
 		/** With `moneyIn`: only money in ("in"), or none of it ("out"). */
@@ -760,22 +790,23 @@ export async function loadTransactionsPage(
 	const search = query.search?.trim();
 	const sort = query.sort ?? "newest";
 	const amount = sql<number>`case when ${partly} then ${visibleSplitsSum(viewer)} else ${transactions.amountCents} end`;
+	// Money in kept in `income`, under the filters that apply to it (ADR-0061).
+	const moneyInAsked = Boolean(query.moneyIn) && !query.transactionId;
+	// A paired Transfer is one row here (ADR-0062).
+	const oneRow = moneyInAsked && !query.accountId;
 	const base = and(
 		visibleTo(viewer),
 		query.transactionId ? eq(transactions.id, query.transactionId) : undefined,
+		oneRow ? sql`not ${arrivingSideOfPair}` : undefined,
 		query.month && !query.andEarlier
 			? gte(transactions.date, `${query.fromMonth ?? query.month}-01`)
 			: undefined,
 		query.month ? lt(transactions.date, nextMonthStart(query.month)) : undefined,
 		matching(viewer, query.bucketId, query.forMember),
 		query.accountId ? inAccount(query.accountId) : undefined,
-		search
-			? sql`(not ${partly} and (${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!' or ${transactions.merchant} like ${`%${likeEscaped(search)}%`} escape '!'))`
-			: undefined,
+		search ? saying(viewer, search, oneRow) : undefined,
 	);
 	const filtered = query.review ? and(base, needsReview()) : base;
-	// Money in kept in `income`, under the filters that apply to it (ADR-0061).
-	const moneyInAsked = Boolean(query.moneyIn) && !query.transactionId;
 	const moneyInFilter: MoneyInRowsFilter = {
 		from:
 			query.month && !query.andEarlier
@@ -785,6 +816,8 @@ export async function loadTransactionsPage(
 		accountId: query.accountId,
 		like: search ? likeEscaped(search) : undefined,
 		none: query.bucketId !== undefined || query.forMember !== undefined,
+		// Its leaving side is the Transfer's row; under "Money in" it came in nowhere.
+		unpaired: oneRow || query.show === "in",
 	};
 	// Keyset paging: past the previous page's last row in the list's order. Rows the order can't
 	// tell apart go by date and then by ID, so no page repeats or skips one.
@@ -2332,16 +2365,17 @@ function selectedBy(viewer: Viewer, selection: TransactionSelection): SQL {
 		return and(visibleTo(viewer), inArray(transactions.id, idList(selection.ids ?? []))) as SQL;
 	}
 	const search = all.search?.trim();
+	// As the Transactions list has it: a paired Transfer is its leaving side alone (ADR-0062).
+	const oneRow = !all.accountId;
 	return and(
 		visibleTo(viewer),
+		oneRow ? sql`not ${arrivingSideOfPair}` : undefined,
 		all.andEarlier ? undefined : gte(transactions.date, `${all.fromMonth ?? all.month}-01`),
 		lt(transactions.date, nextMonthStart(all.month)),
 		matching(viewer, all.bucketId, all.forMember),
 		all.accountId ? inAccount(all.accountId) : undefined,
 		all.review ? needsReview() : undefined,
-		search
-			? sql`(not ${partlyPrivate(viewer)} and (${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!' or ${transactions.merchant} like ${`%${likeEscaped(search)}%`} escape '!'))`
-			: undefined,
+		search ? saying(viewer, search, oneRow) : undefined,
 		selection.except?.length ? notInArray(transactions.id, idList(selection.except)) : undefined,
 	) as SQL;
 }

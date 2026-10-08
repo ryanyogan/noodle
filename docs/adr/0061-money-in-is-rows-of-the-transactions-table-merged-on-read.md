@@ -26,6 +26,6 @@ The table is read from the server a page at a time, already in order (ADR-0051):
 ## Consequences
 
 - A new order or filter on the list is written twice: in `loadTransactionsPage` and in `money-in-rows.ts`. The unit test pages every order at several page sizes to hold them together.
-- A Transfer whose arriving side is money in is listed on both its sides, as it was listed in two places before; showing it once is the rest of issue 152.
+- A Transfer whose arriving side is money in is listed on both its sides, as it was listed in two places before; showing it once is the rest of issue 152. (Done in ADR-0062: where both sides are in Noodle, the list has the side the money left alone.)
 - An imported line's amount and date still can't be changed, and its name is its note: renaming one replaces the bank's wording, which a money-in Rule reads. Giving money in a Parent's name and day beside the bank's (as ADR-0060 did for a Transaction) needs `income.merchant` and `income.bank_date`, and is not done here.
 - An Account's own list and a Bucket's are unchanged: they don't ask for money in.

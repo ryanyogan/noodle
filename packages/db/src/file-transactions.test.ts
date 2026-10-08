@@ -215,9 +215,10 @@ describe("filing many Transactions at once", () => {
 			assignment: groceries,
 		});
 		// Everything in September but b: a and f filed, the rest counted. August's is not selected.
+		// A Transfer with both sides here is one row of the list (ADR-0062), so one is passed over.
 		expect(result.ok && [result.filed, result.skipped]).toEqual([
 			2,
-			{ ...none, split: 1, transfer: 2, moneyBack: 1, goal: 1 },
+			{ ...none, split: 1, transfer: 1, moneyBack: 1, goal: 1 },
 		]);
 		const searched = await fileTransactions(db, viewer, {
 			selection: { all },

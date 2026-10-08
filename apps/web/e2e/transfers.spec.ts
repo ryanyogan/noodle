@@ -109,11 +109,16 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 	]);
 	await expect(toast(page, "visa.csv: 1 Transaction; 1 Transfer")).toBeVisible();
 
-	// Both sides are listed as the Transfer; neither can be assigned to a Bucket.
+	// The Transfer is one row, the side the money left (ADR-0062): it can't be assigned to a Bucket.
 	await openTransactions(page, thisMonth);
-	await expect(
-		page.getByText("Checking → Visa", { exact: true }).filter({ visible: true }),
-	).toHaveCount(2);
+	const route = page.getByText("Checking → Visa", { exact: true }).filter({ visible: true });
+	await expect(route).toHaveCount(1);
+	// The side arriving on the card isn't a row of its own, and nothing reads as money coming in.
+	const arriving = page.getByRole("button", {
+		name: "Card payment, +$500, Transfer, Checking to Visa",
+	});
+	await expect(arriving).toHaveCount(0);
+	await expect(page.getByRole("row").filter({ hasText: "+$500" })).toHaveCount(0);
 	// A payment to a card is listed as that, not by the bank's wording for it.
 	const payment = page.getByRole("button", {
 		name: "Card payment, $500, Transfer, Checking to Visa",
@@ -132,8 +137,27 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 	await expect(sheet).toContainText(/AUTOPAY PAYMENT - THANK YOU|Autopay Payment Thank You/);
 	await expect(sheet).toContainText("Found automatically");
 	await expect(sheet.getByLabel("Bucket")).toHaveCount(0);
+	// The card's own page still lists the card's side, and so does the Transactions list narrowed
+	// to the card: the only side that is the card's.
+	const listed = page.url();
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await page.getByRole("link", { name: /^Visa, / }).click();
+	await expect(
+		page.getByRole("list", { name: "Latest Transactions in Visa" }).getByRole("button"),
+	).toHaveCount(1);
+	await page.getByRole("link", { name: "All in Transactions" }).click();
+	await expect(page).toHaveURL(/account=/);
+	await expect(arriving).toHaveCount(1);
+	await expect(payment).toHaveCount(0);
+	await page.goto(listed);
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
+	await expect(payment).toBeVisible();
+	await expect(arriving).toHaveCount(0);
+	if (!(await sheet.isVisible())) await payment.click();
+	await expect(sheet).toContainText("Found automatically");
 
-	// Unmarked, the payment waits to be assigned, and the card's side is just money back.
+	// Unmarked, both sides are rows again: the payment waits to be assigned, and the card's side
+	// is just money back.
 	await sheet.getByRole("button", { name: "Unmark Transfer" }).click();
 	await expect(toast(page, "Online Payment no longer a Transfer")).toBeVisible();
 	await expect(
@@ -155,9 +179,9 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 	await expect(toast(page, "marked as a Transfer")).toContainText(
 		/^(AUTOPAY PAYMENT - THANK YOU|Autopay Payment Thank You) marked/i,
 	);
-	await expect(
-		page.getByText("Checking → Visa", { exact: true }).filter({ visible: true }),
-	).toHaveCount(2);
+	// One row again, not two.
+	await expect(route).toHaveCount(1);
+	await expect(card).toHaveCount(0);
 	// On a table wide enough for the For column, a Transfer's Accounts take that column's empty
 	// room as well as their own (issue 147); a row that is For someone keeps its own cell.
 	await page.setViewportSize({ width: 1440, height: 900 });
