@@ -147,14 +147,8 @@ test("on a 320px phone the bell is in More, marked on the tab bar, and nothing s
 	expect((box?.x ?? 0) + (box?.width ?? 321)).toBeLessThanOrEqual(320);
 	await expect(more.locator("[data-bell-dot]")).toHaveCount(0);
 
-	// Escape closes the list only; the sheet is still there, with the keyboard on the row.
-	await page.keyboard.press("Escape");
-	await expect(list(page)).toBeHidden();
-	await expect(sheet).toBeVisible();
-	await expect(sheet.getByRole("button", { name: "Notifications", exact: true })).toBeFocused();
-
-	// The release's row takes the sheet's place: the Changelog, at that release.
-	await sheet.getByRole("button", { name: "Notifications", exact: true }).click();
+	// The release's row takes the sheet's place: the Changelog, at that release. Pressed in the
+	// list as it was opened: a release that was read is no row of a list opened after that.
 	await list(page)
 		.getByRole("link", { name: new RegExp(latest.title.slice(0, 20)) })
 		.click();
@@ -166,6 +160,15 @@ test("on a 320px phone the bell is in More, marked on the tab bar, and nothing s
 	await hydrated(more);
 	await expect(page.getByRole("heading", { level: 1 })).toBeVisible(clientRendered);
 	await expect(more.locator("[data-bell-dot]")).toHaveCount(0);
+
+	// Escape closes the list only; the sheet is still there, with the keyboard on the row.
+	const again = await openMore(page);
+	await again.getByRole("button", { name: "Notifications", exact: true }).click();
+	await expect(list(page).getByText("Nothing new")).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(list(page)).toBeHidden();
+	await expect(again).toBeVisible();
+	await expect(again.getByRole("button", { name: "Notifications", exact: true })).toBeFocused();
 
 	await page.context().close();
 });
