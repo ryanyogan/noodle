@@ -268,6 +268,7 @@ _Avoid_: Inbox, queue, uncategorized
 
 **Rule**:
 A learned or stated mapping from a merchant pattern to an assignment and For, created when a Parent corrects or confirms a Transaction.
+It always files somewhere; its For is optional. With a For ("Riverside Swim goes in Sports, For Maya") each line it files, on arrival or when it is applied to what waits, is For those Members unless the line is already For someone; with none it leaves For as it is. A Member who has left the Household drops out of it, and it goes on filing For the rest (ADR-0064).
 _Avoid_: Filter, auto-categorization
 
 **Insight**:
@@ -341,6 +342,7 @@ _Avoid_: Kid, dependent
 
 **For** (attribution):
 The Member(s) a Transaction or Split was spent on — one Member, several, or the whole Household. Independent of its assignment.
+A Parent says it, a **Rule** sets it, or **Review** offers the **likely For**: when a merchant's latest filed Transactions (at least two, of the latest six) were every one For the same Member or Members, a card from that merchant starts as For them and says so ("For Maya, like last time"). It is an offer: nothing is saved until a Parent files the card, and "Not this time" makes it Everyone. It goes only by Transactions the Parent looking may see, never the other Parent's Personal Allowance (ADR-0064).
 _Avoid_: Tag, assignee, owner
 
 ## Relationships

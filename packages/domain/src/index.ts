@@ -203,12 +203,19 @@ export {
 export * from "./file-holds";
 export {
 	type AttributedSpend,
+	EVERYONE,
 	type For,
 	type ForTotals,
 	forTotals,
+	forWhom,
+	LIKELY_FOR_AT_LEAST,
+	LIKELY_FOR_LOOKS_AT,
+	likelyFor,
 	noForTotals,
 	type SpendTotal,
+	shareFor,
 	shares,
+	spendingFor,
 } from "./for";
 export {
 	type CarryInputs,

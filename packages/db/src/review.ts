@@ -1,5 +1,12 @@
-import type { DayKey, GuessMethod, MonthKey } from "@noodle/domain";
-import { and, asc, count, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
+import {
+	type DayKey,
+	type For,
+	type GuessMethod,
+	likelyFor,
+	type MonthKey,
+	ruleKeys,
+} from "@noodle/domain";
+import { and, asc, count, desc, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import { accountLabelSql } from "./account-label";
 import type { Uncategorized } from "./categorize";
 import { counts } from "./counting";
@@ -12,6 +19,7 @@ import {
 	accounts,
 	buckets,
 	categorizations,
+	members,
 	splitFor,
 	splits,
 	transactionFor,
@@ -43,6 +51,12 @@ export type ReviewItem = TransactionRow & {
 	} | null;
 	/** "none" when categorization looked and found nothing; null when it isn't known. */
 	lookedAt: GuessMethod | null;
+	/**
+	 * Who it is likely For, going by the merchant's earlier Transactions (issue 155): the card
+	 * starts with them picked, and nothing is saved until a Parent files it. Left out when it is
+	 * already For someone, or the earlier ones don't say.
+	 */
+	likelyFor?: For;
 };
 
 export type ReviewQueue = {
@@ -68,6 +82,77 @@ const waiting = (viewer: Viewer) =>
 
 /** The month of the enclosing query's Transaction, as a MonthKey. */
 const monthOfTransaction = sql<string>`substr(${transactions.date}, 1, 7)`;
+
+/** How many of the Household's latest filed Transactions are looked through for a likely For. */
+const LIKELY_FOR_HISTORY = 3_000;
+
+/**
+ * Who each of `waiting` is likely For, by Transaction: for one that is For nobody yet, who the
+ * same merchant's filed Transactions were For (likelyFor in @noodle/domain says when that is
+ * enough), the merchant told as a Rule tells it. Only from Transactions `viewer` may read one by
+ * one, so what the other Parent spent in their Personal Allowance never shows through a
+ * suggestion (ADR-0003), and whole ones only: a Split's For is its own.
+ */
+async function loadLikelyFor(
+	db: Db,
+	viewer: Viewer,
+	waiting: {
+		id: string;
+		for: For;
+		merchant: string;
+		merchantName: string | null;
+		note: string | null;
+	}[],
+): Promise<Map<string, For>> {
+	const likely = new Map<string, For>();
+	const asking = waiting.filter((item) => item.for.length === 0);
+	if (asking.length === 0) return likely;
+	const [filed, current] = await Promise.all([
+		db
+			.select({
+				note: transactions.note,
+				merchant: transactions.merchant,
+				for: sql<string>`(select json_group_array(${transactionFor.memberId}) from ${transactionFor}
+					where ${transactionFor.transactionId} = ${transactions.id})`,
+			})
+			.from(transactions)
+			.where(
+				and(
+					visibleTo(viewer),
+					counts(),
+					gt(transactions.amountCents, 0),
+					sql`(${transactions.bucketId} is not null or ${transactions.commitmentId} is not null)`,
+					sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
+				),
+			)
+			.orderBy(desc(transactions.date), desc(transactions.id))
+			.limit(LIKELY_FOR_HISTORY),
+		db
+			.select({ id: members.id })
+			.from(members)
+			.where(and(eq(members.householdId, viewer.householdId), isNull(members.removedAt))),
+	]);
+	// Each filed Transaction's place in `filed` (the latest first), by every name a Rule knows it by.
+	const byMerchant = new Map<string, number[]>();
+	const earlier = filed.map((row, at) => {
+		for (const key of ruleKeys(row)) byMerchant.set(key, [...(byMerchant.get(key) ?? []), at]);
+		return JSON.parse(row.for) as For;
+	});
+	const still = current.map((member) => member.id);
+	for (const item of asking) {
+		const keys = new Set([
+			item.merchant,
+			...ruleKeys({ merchant: item.merchantName, note: item.note }),
+		]);
+		const places = new Set([...keys].flatMap((key) => byMerchant.get(key) ?? []));
+		const who = likelyFor(
+			[...places].sort((a, b) => a - b).map((at) => earlier[at] ?? []),
+			still,
+		);
+		if (who) likely.set(item.id, who);
+	}
+	return likely;
+}
 
 /** What waits in Review for `viewer`: the oldest `limit` Transactions, and how many in all. */
 export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise<ReviewQueue> {
@@ -131,6 +216,22 @@ export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise
 							sql`${transactionFor.transactionId} in (select value from json_each(${JSON.stringify(ids)}))`,
 						),
 					);
+	const forOf = (id: string) =>
+		forRows
+			.filter((f) => f.transactionId === id)
+			.map((f) => f.memberId)
+			.sort();
+	const likely = await loadLikelyFor(
+		db,
+		viewer,
+		rows.map((row) => ({
+			id: row.id,
+			for: forOf(row.id),
+			merchant: row.merchant,
+			merchantName: row.merchantName,
+			note: row.note,
+		})),
+	);
 	return {
 		total: total?.count ?? 0,
 		items: rows.map((row) => ({
@@ -146,10 +247,8 @@ export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise
 			matchedIn: null,
 			transfer: null,
 			refundOf: null,
-			for: forRows
-				.filter((f) => f.transactionId === row.id)
-				.map((f) => f.memberId)
-				.sort(),
+			for: forOf(row.id),
+			...(likely.has(row.id) ? { likelyFor: likely.get(row.id) } : {}),
 			splits: [],
 			partlyPrivate: false,
 			autoFiled: null,
