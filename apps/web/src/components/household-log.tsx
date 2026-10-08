@@ -14,19 +14,24 @@ import type { TableSort } from "@noodle/ui/lib/data-table";
 import { infiniteQueryOptions, useInfiniteQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { History, X } from "lucide-react";
+import { z } from "zod";
 import { monthName } from "../format";
 import { logKey } from "../household-changes";
 import { type DatedLogRow, getLog } from "../server/log";
+import { monthKeySchema } from "../server/month";
 import { describeChange, fromScenario, scopeText } from "./plan-history";
 import { useParents } from "./whose-pay";
 
-// The Log (issue 139): every change made to the Household, newest first, in one table in
-// Household settings: when, who, what, the change (before → after) and the month it takes
+// The Log (issue 139): every change made to the Household, newest first, in one table under
+// Household settings › Logs (issue 157): when, who, what, the change (before → after) and the month it takes
 // effect. It comes a page at a time from the server, already in order and with the other
 // Parent's Personal Allowance masked there (ADR-0003, ADR-0051). Pages link to it with "See what
 // changed" where they used to list the Plan's changes themselves.
 
-/** The Log's section on Household settings: where "See what changed" lands. */
+/**
+ * Where the Log was until it had a tab of its own ("/household#log"): that address still opens
+ * it, and the table's group keeps the id.
+ */
 export const LOG_HASH = "log";
 
 /** The Log's orders besides newest first, as the address says them. */
@@ -34,6 +39,17 @@ export const LOG_ORDERS = ["oldest", "who", "who-desc"] as const;
 export type LogOrder = (typeof LOG_ORDERS)[number];
 
 export type LogFilters = { month?: MonthKey; who?: string; kind?: LogItemKind; order?: LogOrder };
+
+/**
+ * The Log's filters are its address, so "See what changed" on a page opens it narrowed to that
+ * page's month. One that isn't understood is dropped, never an error.
+ */
+export const logSearchSchema = z.object({
+	month: monthKeySchema.optional().catch(undefined),
+	who: z.string().min(1).max(64).optional().catch(undefined),
+	kind: z.enum(LOG_ITEM_KINDS).optional().catch(undefined),
+	order: z.enum(LOG_ORDERS).optional().catch(undefined),
+});
 
 /** The table's order for an address: newest first when it names none. */
 const sortOf = (order: LogOrder | undefined): TableSort =>
@@ -413,7 +429,7 @@ export function HouseholdLog({
 export function SeeWhatChanged({ month, className }: { month?: MonthKey; className?: string }) {
 	return (
 		<Button variant="ghost" size="sm" asChild className={className}>
-			<Link to="/household" search={month ? { month } : {}} hash={LOG_HASH}>
+			<Link to="/household/logs" search={month ? { month } : {}}>
 				<History />
 				See what changed
 			</Link>

@@ -68,7 +68,6 @@ test("Household settings is settings only, grouped under short headings (#69)", 
 			"Setup",
 			"Reminders",
 			"Your data",
-			"Log",
 			"Danger zone",
 		]);
 		// Account is the sidebar's on a desktop; a phone has it as the last group.

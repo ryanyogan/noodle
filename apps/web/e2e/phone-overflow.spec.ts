@@ -29,6 +29,8 @@ const pages = [
 	"/review",
 	"/review/rules",
 	"/household",
+	"/household/logs",
+	"/household/changelog",
 	"/insights/perks",
 	"/glossary",
 	"/ask",

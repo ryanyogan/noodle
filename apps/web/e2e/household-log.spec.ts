@@ -93,7 +93,7 @@ test("a remembered pair of Accounts is in the Log as a Rule for money in", async
 	).toBeVisible();
 
 	// The Log, narrowed to Rules: the pair, by its wording, who made it and what it always is.
-	await page.goto("/household?kind=rule#log");
+	await page.goto("/household/logs?kind=rule");
 	const remembered = logRows(page).filter({
 		hasText: "Rule made · always a Transfer between two of your Accounts",
 	});
@@ -129,7 +129,7 @@ test("an Account brought back from the archive is in the Log, after the row that
 	await expect(page.getByRole("link", { name: /^Old savings, / })).toHaveCount(0);
 
 	// Archived: the Log has the one row.
-	await page.goto("/household?kind=account#log");
+	await page.goto("/household/logs?kind=account");
 	const about = logRows(page).filter({ has: page.getByText("Old savings", { exact: true }) });
 	await expect(about).toHaveCount(1, { timeout: 30_000 });
 	await expect(about).toContainText("Archived");
@@ -149,7 +149,7 @@ test("an Account brought back from the archive is in the Log, after the row that
 	await expect(page.getByRole("link", { name: /^Old savings, / })).toHaveCount(1);
 
 	// Both rows, newest first: brought back, then archived, each by the Parent who did it.
-	await page.goto("/household?kind=account#log");
+	await page.goto("/household/logs?kind=account");
 	await expect(about).toHaveCount(2, { timeout: 30_000 });
 	await expect(about.nth(0)).toContainText("Brought back from the archive");
 	await expect(about.nth(0)).toContainText("Alex");

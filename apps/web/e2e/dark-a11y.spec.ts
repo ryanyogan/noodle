@@ -4,7 +4,17 @@ import { createTestParent } from "./parents";
 import { clientRendered, createHousehold, signedInPage } from "./session";
 
 // Dark mode (#75, #83): axe on the main pages at desktop width in dark mode (the specs mostly run light).
-const pages = ["/month", "/accounts", "/goals", "/reports", "/plan", "/transactions", "/household"];
+const pages = [
+	"/month",
+	"/accounts",
+	"/goals",
+	"/reports",
+	"/plan",
+	"/transactions",
+	"/household",
+	"/household/logs",
+	"/household/changelog",
+];
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 test.beforeAll(async () => {

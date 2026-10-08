@@ -25,7 +25,7 @@ async function seeWhatChanged(page: Page) {
 	const link = page.getByRole("link", { name: "See what changed" });
 	await expect(link).toHaveCount(1);
 	await link.click();
-	await expect(page).toHaveURL(/\/household\?month=\d{4}-\d{2}#log$/);
+	await expect(page).toHaveURL(/\/household\/logs\?month=\d{4}-\d{2}$/);
 	// Household settings loads everything it shows before it draws: give a busy machine time.
 	await expect(page.getByRole("button", { name: /^Takes effect in / })).toBeVisible({
 		timeout: 30_000,
@@ -178,7 +178,7 @@ test("the Log sorts by when and by who from the server, and shows a snapshot as 
 				["Fuel", "300"],
 			],
 		});
-		await page.goto("/household#log");
+		await page.goto("/household/logs");
 		const all = log(page).locator("[data-slot=data-table-row]");
 		await expect(all.first()).toBeVisible({ timeout: 30_000 });
 		const newest = await all.allTextContents();
@@ -197,10 +197,14 @@ test("the Log sorts by when and by who from the server, and shows a snapshot as 
 		await expect(log(page).getByRole("button", { name: "Who, A to Z" })).toBeVisible();
 		await expect(all).toHaveCount(newest.length);
 
-		// A snapshot taken on this screen is a row of the Log without a reload.
+		// A snapshot taken on the Settings tab is a row of the Log, one tab over, without a reload.
+		const tabs = page.getByRole("navigation", { name: "Household settings pages" });
+		await tabs.getByRole("link", { name: "Settings" }).click();
 		const snapshots = page.getByRole("region", { name: "Snapshots" });
 		await snapshots.getByLabel("Note").fill("Before the holidays");
 		await snapshots.getByRole("button", { name: "Take a snapshot" }).click();
+		await expect(snapshots).toContainText("Before the holidays", { timeout: 40_000 });
+		await tabs.getByRole("link", { name: "Logs" }).click();
 		await expect(rows(page, "Snapshot")).toContainText("Before the holidays", { timeout: 40_000 });
 		await expect(rows(page, "Snapshot")).toContainText("Right away");
 	} finally {
@@ -232,7 +236,7 @@ test("a Rule made then removed is in the Log twice, as made and as removed, each
 		]);
 
 		// While it stands, the Log has it once, as made.
-		await page.goto("/household?kind=rule#log");
+		await page.goto("/household/logs?kind=rule");
 		await expect(rows(page, "“costco”")).toHaveCount(1, { timeout: 30_000 });
 		await expect(rows(page, "“costco”")).toContainText("Rule made · files into Groceries");
 
@@ -254,7 +258,7 @@ test("a Rule made then removed is in the Log twice, as made and as removed, each
 			.toEqual(["rule-made", "rule-removed"]);
 
 		// Removed: both rows, newest first, each with a time of day.
-		await page.goto("/household?kind=rule#log");
+		await page.goto("/household/logs?kind=rule");
 		const both = rows(page, "“costco”");
 		await expect(both).toHaveCount(2, { timeout: 30_000 });
 		await expect(both.nth(0)).toContainText("Rule removed · it filed into Groceries");
@@ -281,7 +285,7 @@ test("on a phone the Log has a Sort control: Newest, Oldest, Who", async ({ brow
 			],
 		});
 		await page.setViewportSize({ width: 393, height: 852 });
-		await page.goto("/household#log");
+		await page.goto("/household/logs");
 		const all = page.getByLabel("Log", { exact: true }).locator("[data-slot=data-table-row]");
 		await expect(all.first()).toBeVisible({ timeout: 30_000 });
 		const newest = await all.allTextContents();

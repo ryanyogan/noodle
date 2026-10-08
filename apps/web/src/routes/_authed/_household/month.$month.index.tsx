@@ -55,7 +55,6 @@ import {
 	MonthIncome,
 } from "../../../components/extra-income";
 import { FreeWorking, freeLedgerRows } from "../../../components/free-working";
-import { LOG_HASH } from "../../../components/household-log";
 import { LowerTakeHomePayNote, useLowerTakeHomePay } from "../../../components/lower-take-home-pay";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthGlance, monthSentence, monthStatus } from "../../../components/month-glance";
@@ -501,7 +500,7 @@ function Chips({ month, counts }: { month: MonthKey; counts: ChipCounts }) {
 				</Chip>
 			) : null}
 			{changes > 0 ? (
-				<Chip to="/household" search={{ month }} hash={LOG_HASH} icon={History}>
+				<Chip to="/household/logs" search={{ month }} icon={History}>
 					{changes === 1 ? "1 Plan change" : `${changes} Plan changes`} this month
 				</Chip>
 			) : null}
@@ -529,7 +528,7 @@ function Chip({
 } & (
 	| { to: "/review" | "/insights"; params?: undefined; search?: undefined; hash?: undefined }
 	| { to: "/plan/$month"; params: { month: MonthKey }; search?: undefined; hash: string }
-	| { to: "/household"; params?: undefined; search: { month: MonthKey }; hash: string }
+	| { to: "/household/logs"; params?: undefined; search: { month: MonthKey }; hash?: undefined }
 )) {
 	return (
 		<Link
