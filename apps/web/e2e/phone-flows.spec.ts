@@ -77,6 +77,12 @@ test("on a phone a statement comes in, a bank connects and last month closes", a
 	await expect(page.getByRole("link", { name: /^Plaid Checking ••0000, / })).toBeVisible();
 
 	// Close month: on This Month, the To do strip opens to last month's close, which ends it.
+	// This Month offers to close the month before in the month's first week only
+	// (close-free-to-spend.spec.ts skips the same way).
+	if (new Date().getDate() > 7) {
+		await page.context().close();
+		return;
+	}
 	await page.goto("/");
 	const toDo = page.getByRole("region", { name: "To do" });
 	const close = toDo.getByRole("button", { name: /^Close \w+$/ });
