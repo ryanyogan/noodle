@@ -420,9 +420,10 @@ test("a Transaction opens in place under its row, and the table keeps its column
 	// The open row's cells don't edit in the cell (its editor is right there); other rows' still do.
 	await expect(openRow.locator("[data-cell]")).toHaveCount(0);
 	await expect(page.locator("[data-slot=list-row] [data-cell=name]").first()).toBeAttached();
-	// A tick on another row selects it and leaves this one open.
+	// A tick on another row selects it and leaves this one open (a row of money in has no tick to
+	// give, and which row comes first depends on the day the check runs).
 	await page
-		.locator("[data-slot=list-row]:not([aria-current=true]) [role=checkbox]")
+		.locator("[data-slot=list-row]:not([aria-current=true]) [role=checkbox]:not([disabled])")
 		.first()
 		.click();
 	await expect(page.getByRole("region", { name: "Selecting Transactions" })).toBeVisible();
