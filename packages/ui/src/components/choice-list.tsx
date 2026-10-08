@@ -91,7 +91,7 @@ function foundChoices(choices: Choices, typed: string): Found[] {
 
 /**
  * The one list a choice is picked from with a search box (issue 154): Combobox's and the app's
- * Bucket picker's, so they can't look or search differently. Each choice is a row at least 40px
+ * Bucket picker's, so they can't look or search differently. Each choice is a row at least 36px
  * tall (44px on a phone) with its `mark` first; the current one is in medium weight on the brand's
  * soft ground with a tick. Group headings stay in view while their group scrolls. Typing narrows
  * with `searchFit` (the beginning of any word, forgiving a slip), best match first.

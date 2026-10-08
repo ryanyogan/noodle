@@ -111,8 +111,8 @@ function CommandItem({
 			data-slot="command-item"
 			data-checked={checked || undefined}
 			className={cn(
-				// 40px, and 44px where a finger presses it (COMPONENTS.md, tap targets).
-				"relative flex min-h-10 max-lg:min-h-11 cursor-default items-center gap-2.5 rounded-lg py-1.5 ps-2 pe-8 text-sm outline-hidden select-none",
+				// 36px as a Select's row, and 44px where a finger presses it (COMPONENTS.md, tap targets).
+				"relative flex min-h-9 max-lg:min-h-11 cursor-default items-center gap-2.5 rounded-lg py-1.5 ps-2 pe-8 text-sm outline-hidden select-none",
 				"data-checked:bg-brand-soft data-checked:font-medium",
 				// The row the arrow keys are on reads over the chosen one's ground.
 				"data-[selected=true]:bg-menu-hover! data-[selected=true]:text-foreground",

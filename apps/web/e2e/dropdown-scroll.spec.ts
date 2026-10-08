@@ -90,7 +90,7 @@ test("a Rule's list shows each Bucket's colour and Bills under their own heading
 	await expect(list.getByText("Bills", { exact: true })).toBeAttached();
 	// A row is a comfortable target.
 	const row = await options.first().boundingBox();
-	expect(row?.height).toBeGreaterThanOrEqual(40);
+	expect(row?.height).toBeGreaterThanOrEqual(36);
 
 	// A heading stays in view while its group scrolls.
 	const scroller = page.locator("[data-slot=command-list]");
