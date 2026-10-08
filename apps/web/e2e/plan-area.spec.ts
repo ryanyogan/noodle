@@ -342,7 +342,7 @@ test("the take-home split and the Buckets table are one page, and the old Bucket
 	await expect(page.locator("section[aria-labelledby=what-changed]")).toHaveCount(0);
 	const seeChanges = page.getByRole("link", { name: "See what changed" });
 	await expect(seeChanges).toHaveCount(1);
-	await expect(seeChanges).toHaveAttribute("href", `/household?month=${month}#log`);
+	await expect(seeChanges).toHaveAttribute("href", `/household/logs?month=${month}`);
 	const seeBox = await seeChanges.boundingBox();
 	expect(seeBox?.y ?? 0, "the link is under Personal Allowances").toBeGreaterThan(
 		allowances.y + allowances.height - 1,

@@ -47,7 +47,7 @@ They can also join without the link, by signing in to Noodle with the email you 
 
 - One Plan: the same Take-home pay, Commitments, Buckets and Goals.
 - The same Accounts and Transactions.
-- Either Parent can change the Plan. The **Log** in Household settings lists every change and who made it.
+- Either Parent can change the Plan. The **Log**, under Logs in Household settings, lists every change and who made it.
 
 The one private thing is each Parent's Personal Allowance. The other Parent sees its totals, never what was bought. See [Personal Allowance](/docs/personal-allowance).
 

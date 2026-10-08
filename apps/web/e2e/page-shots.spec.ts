@@ -1954,7 +1954,7 @@ test.beforeAll(async ({ browser }) => {
 		{
 			// The Log (issue 139): every change in one table, what the window shows of it.
 			name: "27l-household-log",
-			path: "/household#log",
+			path: "/household/logs",
 			window: true,
 			ready: async (page) => {
 				const log = page.getByRole("table", { name: "Log" });

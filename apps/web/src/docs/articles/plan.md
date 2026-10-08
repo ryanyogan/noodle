@@ -21,7 +21,7 @@ The Overview is the whole Plan on one page, top to bottom.
 - **Things to check.** Shown only when something needs you. See below.
 - **Buckets.** Every Bucket with its allowance, what is spent and what is left. This is where you add and change them.
 - **Personal Allowances.** Each Parent's own, in a short list of their own.
-- **See what changed.** A link to the Log in Household settings, showing the changes that take effect in this month.
+- **See what changed.** A link to the Log, under Logs in Household settings, showing the changes that take effect in this month.
 
 A brand-new Household sees **Set up the Plan** here: a short list that takes you through Take-home pay, Commitments, Buckets and a Goal.
 

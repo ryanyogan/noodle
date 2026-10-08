@@ -177,7 +177,8 @@ function InlineText({ inline }: { inline: Inline[] }) {
 	});
 }
 
-function BlockView({ block }: { block: Block }): ReactNode {
+/** One block of an article, or of a release in the Changelog. */
+export function BlockView({ block }: { block: Block }): ReactNode {
 	if (block.kind === "heading") {
 		return block.level === 2 ? (
 			<h2 id={block.id} className="mt-6 scroll-mt-32 text-xl font-semibold tracking-[-0.02em]">

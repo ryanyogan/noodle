@@ -161,7 +161,7 @@ test("the pages that are mostly lists draw every row under a key of its own", as
 	// The Log: the Plan as it was made, the Rules, and what was brought in.
 	await open(
 		page,
-		"/household#log",
+		"/household/logs",
 		page.getByRole("table", { name: "Log" }).locator("[data-slot=data-table-row]"),
 	);
 
