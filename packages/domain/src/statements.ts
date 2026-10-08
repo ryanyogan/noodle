@@ -1,3 +1,4 @@
+import type { AccountKind } from "./goals";
 import { type Cents, MAX_CENTS } from "./money";
 import type { DayKey } from "./month";
 
@@ -214,11 +215,51 @@ const columnMatching = (header: string[], hints: RegExp | RegExp[], not: number[
 	return null;
 };
 
+/** What a bank's type column calls a line, when it has one: Apple Card's "Purchase", Chase's "Sale". */
+const TYPE_WORDS = {
+	out: /^(purchase|sale|debit|withdrawal|charge|fee)$/i,
+	in: /^(credit|deposit|refund|return)$/i,
+	// Money in to a card or a loan, but money out of checking ("Payment" as a bill paid).
+	payment: /^payment$/i,
+};
+
 /**
- * A first guess at the mapping for a CSV, from its header names and how its dates look; the
- * Parent confirms or corrects it in the preview.
+ * Whether a signed amount column writes money out as negative (most checking exports) or as
+ * positive (Apple Card, American Express, Discover). From what each line's type column calls it,
+ * where there is one; failing that a card's lines are mostly purchases, so the sign most of them
+ * have is money out. Anything else is read the way checking exports write it.
  */
-export function guessCsvMapping(rows: string[][]): CsvMapping {
+export function guessMoneyOut(
+	data: string[][],
+	amountColumn: number,
+	kind?: AccountKind,
+): "negative" | "positive" {
+	const owed = kind === "credit-card" || kind === "loan";
+	// Lines that say money out is positive, and lines that say it's negative.
+	const says = { positive: 0, negative: 0 };
+	const signs = { positive: 0, negative: 0 };
+	for (const row of data) {
+		const amount = parseStatementAmount(row[amountColumn] ?? "");
+		if (amount === null || amount === 0) continue;
+		const sign = amount > 0 ? "positive" : "negative";
+		const other = amount > 0 ? "negative" : "positive";
+		signs[sign]++;
+		const words = row.filter((_, i) => i !== amountColumn);
+		if (words.some((cell) => TYPE_WORDS.out.test(cell))) says[sign]++;
+		else if (words.some((cell) => TYPE_WORDS.in.test(cell))) says[other]++;
+		else if (owed && words.some((cell) => TYPE_WORDS.payment.test(cell))) says[other]++;
+	}
+	if (says.positive !== says.negative)
+		return says.positive > says.negative ? "positive" : "negative";
+	return kind === "credit-card" && signs.positive > signs.negative ? "positive" : "negative";
+}
+
+/**
+ * A first guess at the mapping for a CSV, from its header names, how its dates look and, for
+ * which way round its amounts are, the kind of Account it's for; the Parent confirms or corrects
+ * it in the preview.
+ */
+export function guessCsvMapping(rows: string[][], kind?: AccountKind): CsvMapping {
 	const first = rows[0] ?? [];
 	const hasHeader = first.length > 0 && first.every((cell) => parseStatementAmount(cell) === null);
 	const header = hasHeader ? first : [];
@@ -254,7 +295,11 @@ export function guessCsvMapping(rows: string[][]): CsvMapping {
 		amount:
 			debit !== null && credit !== null && columnMatching(header, HEADER_HINTS.amount) === null
 				? { kind: "debit-credit", debitColumn: debit, creditColumn: credit }
-				: { kind: "signed", column: amountColumn, moneyOut: "negative" },
+				: {
+						kind: "signed",
+						column: amountColumn,
+						moneyOut: guessMoneyOut(data, amountColumn, kind),
+					},
 	};
 }
 

@@ -391,7 +391,7 @@ export function UploadForm({
 							fits(remembered, rows) &&
 							readStatement(content, remembered).statement.lines.length > 0
 						? remembered
-						: guessCsvMapping(rows),
+						: guessCsvMapping(rows, account.kind),
 		});
 	}
 
@@ -484,6 +484,11 @@ export function UploadForm({
 					account={account}
 					format={format}
 					pastDigits={pastDigits}
+					onSwitch={
+						mapping?.amount.kind === "signed"
+							? () => setMapping(switched(mapping, mapping.amount as Signed))
+							: undefined
+					}
 				/>
 			) : null}
 
@@ -638,6 +643,12 @@ function CsvMappingFields({
 type Signed = Extract<CsvMapping["amount"], { kind: "signed" }>;
 type DebitCredit = Extract<CsvMapping["amount"], { kind: "debit-credit" }>;
 
+/** The same columns, with the amounts read the other way round. */
+const switched = (mapping: CsvMapping, amount: Signed): CsvMapping => ({
+	...mapping,
+	amount: { ...amount, moneyOut: amount.moneyOut === "negative" ? "positive" : "negative" },
+});
+
 const PREVIEW_LINES = 5;
 
 /** What the file will bring in, before it does: totals, the first few lines, and what's skipped. */
@@ -646,11 +657,14 @@ function StatementPreview({
 	account,
 	format,
 	pastDigits,
+	onSwitch,
 }: {
 	statement: Statement;
 	account: AccountView;
 	format: "csv" | "ofx" | null;
 	pastDigits: string | null;
+	/** Reads a CSV's one amount column the other way round, where it has one. */
+	onSwitch?: () => void;
 }) {
 	const { lines, unreadable } = statement;
 	const otherAccount =
@@ -671,6 +685,11 @@ function StatementPreview({
 	const moneyOut = lines.reduce((sum, l) => sum + (l.amount < 0 ? -l.amount : 0), 0);
 	const moneyIn = lines.reduce((sum, l) => sum + (l.amount > 0 ? l.amount : 0), 0);
 	const dates = lines.map((l) => l.date).sort();
+	const card = account.kind === "credit-card";
+	// A card's lines are mostly purchases: one that reads as mostly payments and refunds has its
+	// amounts the wrong way round far more often than not.
+	const backwards =
+		card && lines.filter((l) => l.amount > 0).length > lines.filter((l) => l.amount < 0).length;
 	return (
 		<section aria-label="Preview" className="grid gap-2">
 			{otherAccount ? (
@@ -686,10 +705,27 @@ function StatementPreview({
 				<span className="font-medium">
 					{lines.length} {lines.length === 1 ? "line" : "lines"}
 				</span>{" "}
-				from {shortDay(dates[0] ?? "")} to {shortDay(dates.at(-1) ?? "")}: money out{" "}
-				<span className="tabular-nums">{formatMoney(moneyOut)}</span>, money in{" "}
+				from {shortDay(dates[0] ?? "")} to {shortDay(dates.at(-1) ?? "")}:{" "}
+				{card ? "purchases" : "money out"}{" "}
+				<span className="tabular-nums">{formatMoney(moneyOut)}</span>,{" "}
+				{card ? "payments and refunds" : "money in"}{" "}
 				<span className="tabular-nums">{formatMoney(moneyIn)}</span>.
 			</p>
+			{backwards ? (
+				<Alert role="alert">
+					<AlertDescription className="grid justify-items-start gap-2">
+						<span>
+							Most of these lines read as payments and refunds, not purchases. If they’re things you
+							bought, the file writes its amounts the other way round.
+						</span>
+						{onSwitch ? (
+							<Button type="button" variant="outline" size="sm" onClick={onSwitch}>
+								Read them as purchases
+							</Button>
+						) : null}
+					</AlertDescription>
+				</Alert>
+			) : null}
 			<ul className="grid divide-y rounded-xl border bg-surface-2/40 text-[13px]">
 				{lines.slice(0, PREVIEW_LINES).map((line, i) => (
 					<li
@@ -701,7 +737,15 @@ function StatementPreview({
 						<span className="text-muted-foreground tabular-nums">{shortDay(line.date)}</span>
 						<span className="truncate">{line.description || "No description"}</span>
 						<span className={cn("tabular-nums", line.amount > 0 && "text-muted-foreground")}>
-							{line.amount > 0 ? `+${formatMoney(line.amount)}` : formatMoney(-line.amount)}
+							{line.amount > 0 ? (
+								<>
+									{/* Said in words on a card, where a plus alone was easy to miss. */}
+									{card ? <span className="me-1.5 text-xs">Payment or refund</span> : null}+
+									{formatMoney(line.amount)}
+								</>
+							) : (
+								formatMoney(-line.amount)
+							)}
 						</span>
 					</li>
 				))}

@@ -120,6 +120,63 @@ describe("CSV mapping", () => {
 		expect(readCsvStatement(rows, mapping).lines.map((l) => l.amount)).toEqual([-1549, 2000]);
 	});
 
+	it("reads an Apple Card export's purchases as money out, from what its Type column calls them", () => {
+		const rows = parseCsv(fixture("apple-card.csv"));
+		const mapping = guessCsvMapping(rows, "credit-card");
+		expect(mapping).toEqual({
+			hasHeader: true,
+			dateColumn: 0,
+			descriptionColumn: 2,
+			dateFormat: "mdy",
+			amount: { kind: "signed", column: 6, moneyOut: "positive" },
+		} satisfies CsvMapping);
+		expect(
+			readCsvStatement(rows, mapping).lines.map((l) => [l.amount, l.description.slice(0, 12)]),
+		).toEqual([
+			[-8412, "TRADER JOE'S"],
+			[50000, "ACH DEPOSIT "],
+			[-1549, "NETFLIX.COM "],
+			[2499, "REI #11 300 "],
+			[-2499, "REI #11 300 "],
+			[-29, "DAILY CASH A"],
+		]);
+		// The Type column says it whatever the Account: one refund alone is still read the right way.
+		expect(guessCsvMapping([...rows.slice(0, 1), ...rows.slice(4, 5)]).amount).toMatchObject({
+			moneyOut: "positive",
+		});
+	});
+
+	it("guesses which way round a signed amount column is", () => {
+		const csv = (lines: string[]) => parseCsv(["Date,Description,Amount", ...lines].join("\n"));
+		const moneyOut = (rows: string[][], kind?: "checking" | "credit-card" | "loan") => {
+			const { amount } = guessCsvMapping(rows, kind);
+			return amount.kind === "signed" ? amount.moneyOut : amount.kind;
+		};
+		// No type column (American Express, Discover): a card's lines are mostly purchases.
+		const amex = csv([
+			"10/01/2026,NETFLIX,15.49",
+			"10/02/2026,COSTCO,62.10",
+			"10/03/2026,AUTOPAY,-500",
+		]);
+		expect(moneyOut(amex, "credit-card")).toBe("positive");
+		// The same file for checking, a loan, or no Account in mind is read as checking writes it.
+		expect(moneyOut(amex, "checking")).toBe("negative");
+		expect(moneyOut(amex, "loan")).toBe("negative");
+		expect(moneyOut(amex)).toBe("negative");
+		// A card that writes purchases as negative (Chase), with or without its Type column.
+		const chase = parseCsv(
+			"Transaction Date,Description,Type,Amount\n10/01/2026,NETFLIX,Sale,-15.49\n10/03/2026,AUTOPAY,Payment,500\n10/04/2026,REI,Return,24.99",
+		);
+		expect(moneyOut(chase, "credit-card")).toBe("negative");
+		expect(
+			moneyOut(csv(["10/01/2026,NETFLIX,-15.49", "10/02/2026,COSTCO,-62.10"]), "credit-card"),
+		).toBe("negative");
+		// "Payment" is money out of checking, so it says nothing there.
+		expect(
+			moneyOut(parseCsv("Date,Description,Type,Amount\n10/01/2026,COMED,Payment,-80"), "checking"),
+		).toBe("negative");
+	});
+
 	it("reads debit and credit columns, and reports rows it can't read", () => {
 		const rows = parseCsv(fixture("card-debit-credit.csv"));
 		const mapping = guessCsvMapping(rows);

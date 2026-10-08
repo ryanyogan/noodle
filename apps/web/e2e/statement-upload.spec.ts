@@ -163,3 +163,43 @@ test("money back onto a card is listed but counts nowhere", async ({ browser }) 
 		/^REI[^,]*, \+\$24\.99, Money back, from Visa ••1111$/i,
 	);
 });
+
+// Apple Card writes a purchase as a positive amount. Read as checking writes it, every purchase
+// came in as money back with nowhere to file it.
+test("a card statement that writes purchases as positive amounts comes in as spending", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	await addAccount(page, "Apple Card", "credit-card", "800");
+
+	const sheet = await chooseStatement(page, "apple-card.csv");
+	const preview = sheet.getByRole("region", { name: "Preview" });
+	// Its Type column says which lines are purchases, so the amounts are read the right way round.
+	await expect(preview).toContainText("purchases $124.89, payments and refunds $524.99");
+	await expect(preview.getByRole("alert")).toHaveCount(0);
+	await sheet.getByRole("button", { name: "Columns look wrong?" }).click();
+	await expect(sheet.getByLabel("Amounts")).toHaveText("One column, money out is positive");
+
+	// Read the other way round, the preview says so, and one press puts it right.
+	await sheet.getByLabel("Amounts").click();
+	await page.getByRole("option", { name: "One column, money out is negative" }).click();
+	await expect(preview.getByRole("alert")).toContainText(
+		"Most of these lines read as payments and refunds, not purchases.",
+	);
+	await preview.getByRole("button", { name: "Read them as purchases" }).click();
+	await expect(preview.getByRole("alert")).toHaveCount(0);
+	await expect(sheet.getByLabel("Amounts")).toHaveText("One column, money out is positive");
+
+	await sheet.getByRole("button", { name: "Import 6 lines" }).click();
+	await expect(toast(page, "apple-card.csv: 6 Transactions")).toBeVisible();
+
+	// A purchase is spending to assign; the refund is money back.
+	const groceries = page.getByRole("button", {
+		name: /^Trader Joe's[^,]*, \$84\.12, Unassigned, For Everyone, from Apple Card$/i,
+	});
+	await reloadUntil(page, page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"), () =>
+		expect(groceries).toBeVisible({ timeout: 2_000 }),
+	);
+	await says(page, page.getByRole("button", { name: /^REI[^,]*, \+\$24\.99/i }), ["Money back"]);
+});

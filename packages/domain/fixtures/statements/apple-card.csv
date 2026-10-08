@@ -1,0 +1,7 @@
+Transaction Date,Clearing Date,Description,Merchant,Category,Type,Amount (USD),Purchased By
+09/20/2026,09/21/2026,"TRADER JOE'S #552 100 EXAMPLE ST PORTLAND 97201 OR USA","Trader Joe's","Grocery","Purchase","84.12","Sam Rivera"
+09/18/2026,09/18/2026,"ACH DEPOSIT INTERNET TRANSFER FROM ACCOUNT ENDING IN 1234","Ach Deposit Internet Transfer From Account Ending In 1234","Payment","Payment","-500.00","Sam Rivera"
+09/15/2026,09/16/2026,"NETFLIX.COM 200 EXAMPLE AVE LOS GATOS 95032 CA USA","Netflix","Other","Purchase","15.49","Sam Rivera"
+09/12/2026,09/13/2026,"REI #11 300 EXAMPLE BLVD PORTLAND 97209 OR USA (RETURN)","Rei","Credit","Credit","-24.99","Sam Rivera"
+09/10/2026,09/10/2026,"REI #11 300 EXAMPLE BLVD PORTLAND 97209 OR USA","Rei","Other","Purchase","24.99","Sam Rivera"
+09/02/2026,09/02/2026,"DAILY CASH ADJUSTMENT","Daily Cash Adjustment","Debit","Debit","0.29","Sam Rivera"
