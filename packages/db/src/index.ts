@@ -786,6 +786,14 @@ export {
 } from "./owed-back-rules";
 export { loadParentPay, type ParentPay, setParentPay } from "./parent-pay";
 export {
+	loadPayDayChoices,
+	matchPayDays,
+	type PayDayChoice,
+	type PayDayNotMoved,
+	type PayDaysMatched,
+	setPayDayByHand,
+} from "./pay-day-match";
+export {
 	addPerkSource,
 	addPerkUse,
 	decidePerkSource,

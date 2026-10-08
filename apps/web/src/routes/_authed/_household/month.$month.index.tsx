@@ -3,6 +3,7 @@ import {
 	type BucketState,
 	type CoverSource,
 	canAssign,
+	countsOn,
 	type DayKey,
 	extraIncomeSuggestions,
 	type IncomeCheck,
@@ -171,7 +172,7 @@ function ThisMonth() {
 			: [];
 	const checkInDue = useCheckInDue();
 	const chips = useChipCounts(month, state.asOf, isCurrent);
-	const monthIncome = state.income.filter((i) => monthOfDay(i.date) === month);
+	const monthIncome = state.income.filter((i) => monthOfDay(countsOn(i)) === month);
 	const check = incomeCheck({
 		baseline: state.baseline,
 		income: state.income,

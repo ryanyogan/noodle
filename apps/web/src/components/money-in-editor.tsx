@@ -1,4 +1,4 @@
-import { type Cents, type DayKey, monthOfDay, parseDollars } from "@noodle/domain";
+import { type Cents, countsOn, type DayKey, monthOfDay, parseDollars } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field } from "@noodle/ui/components/field";
@@ -22,6 +22,7 @@ import { rangeTransactionsKey, type TransactionRow, transactionsKey } from "../t
 import { BankTookBackNote } from "./bank-took-back-note";
 import { AmountInput } from "./goals";
 import { MoneyInFollowUpAsk, MoneyInKindChoice } from "./money-in";
+import { PayDayChoice } from "./pay-day-choice";
 import { Confirm } from "./plan-editing";
 import { PageKeyboard } from "./transaction-editor";
 import { WhosePayOffer } from "./whose-pay";
@@ -111,6 +112,8 @@ export function MoneyInBody({
 	const cents = parseDollars(amount);
 	const amountError = line.typed && (cents === null || cents <= 0) ? "Enter an amount" : null;
 	const month = monthOfDay(line.date);
+	// The month it counts in: its pay day's when it is the pay for one (ADR-0063).
+	const countsIn = monthOfDay(countsOn(line));
 	// Only Income can be removed: that is what removing it is refused or allowed by (ADR-0052).
 	const removable = line.kind === "income" && !line.needsReview;
 	const changed = (now: MoneyInLine) => {
@@ -217,6 +220,9 @@ export function MoneyInBody({
 						// Income with no wording to remember its sender by still has whose pay it is.
 						<WhosePayOffer line={line} />
 					) : null}
+					{line.kind === "income" && !line.needsReview ? (
+						<PayDayChoice line={line} onChanged={changed} />
+					) : null}
 				</div>
 				<div
 					data-slot="editor-actions"
@@ -234,7 +240,7 @@ export function MoneyInBody({
 							onConfirm={() => {
 								remove.mutate({
 									incomeId: line.id,
-									month,
+									month: countsIn,
 									date: line.date,
 									amountCents: line.amount,
 									note: line.note,

@@ -1,7 +1,7 @@
 import type { Cents, DayKey, ExtraIncomeDestination, ExtraToFree, MonthKey } from "@noodle/domain";
 import { addMonths, EXTRA_INCOME_FROM } from "@noodle/domain";
 import { and, eq, gte, isNotNull, isNull, lt, type SQL, sql } from "drizzle-orm";
-import { incomeCounts, incomeCountsRaw } from "./counting";
+import { incomeCounts, incomeCountsOn, incomeCountsOnRaw, incomeCountsRaw } from "./counting";
 import { setAsideSql } from "./goals";
 import type { Db } from "./index";
 import { bucketInPlan } from "./moves";
@@ -12,12 +12,19 @@ import { buckets, goals, households, income, moves, transfers } from "./schema";
 // Bucket (ADR-0001), never silently into Free to Spend: a Parent may add it there on purpose, which
 // is a `windfall` Move with neither a Bucket nor a Goal (#86). Every query is scoped by household_id.
 
-/** Income with its ID and note. */
-export type IncomeRecord = { id: string; amount: Cents; date: DayKey; note: string | null };
+/** Income with its ID and note; `date` is the day it landed, `payDay` the pay day it is for. */
+export type IncomeRecord = {
+	id: string;
+	amount: Cents;
+	date: DayKey;
+	note: string | null;
+	payDay?: DayKey | null;
+};
 
 /**
- * Income received in months from `from` up to, not including, `until`, oldest first: never money
- * that arrived by Transfer from another of the Household's Accounts.
+ * Income that counts in months from `from` up to, not including, `until`, oldest first, each line
+ * on the day it counts on (its pay day, else the day it landed): never money that arrived by
+ * Transfer from another of the Household's Accounts.
  */
 export async function loadIncome(
 	db: Db,
@@ -26,19 +33,25 @@ export async function loadIncome(
 	until: MonthKey,
 ): Promise<IncomeRecord[]> {
 	const rows = await db
-		.select({ id: income.id, amount: income.amountCents, date: income.date, note: income.note })
+		.select({
+			id: income.id,
+			amount: income.amountCents,
+			date: income.date,
+			note: income.note,
+			payDay: income.payDay,
+		})
 		.from(income)
 		.where(
 			and(
 				eq(income.householdId, householdId),
-				gte(income.date, `${from}-01`),
-				lt(income.date, `${until}-01`),
+				gte(incomeCountsOn, `${from}-01`),
+				lt(incomeCountsOn, `${until}-01`),
 				incomeCounts(),
 			),
 		)
-		.orderBy(income.date, income.id);
-	// Dates are always written as DayKeys.
-	return rows as IncomeRecord[];
+		.orderBy(incomeCountsOn, income.id);
+	// Dates are always written as DayKeys. A line with no pay day reads as it always has.
+	return rows.map(({ payDay, ...row }) => (payDay ? { ...row, payDay } : row)) as IncomeRecord[];
 }
 
 /** Records income a Parent received. Idempotent per `incomeId`. */
@@ -73,7 +86,8 @@ export async function addIncome(
 const receivedSql = (householdId: string, month: MonthKey) =>
 	sql`coalesce((select sum(i.amount_cents) from income i
 		where i.household_id = ${householdId}
-		and i.date >= ${`${month}-01`} and i.date < ${`${addMonths(month, 1)}-01`}
+		and ${sql.raw(incomeCountsOnRaw("i"))} >= ${`${month}-01`}
+		and ${sql.raw(incomeCountsOnRaw("i"))} < ${`${addMonths(month, 1)}-01`}
 		and ${sql.raw(incomeCountsRaw("i.id"))}), 0)`;
 
 const takeHomePaySql = (householdId: string, month: MonthKey) =>
@@ -116,8 +130,9 @@ export async function removeIncome(
 	const own = and(
 		eq(income.id, input.incomeId),
 		eq(income.householdId, householdId),
-		gte(income.date, `${month}-01`),
-		lt(income.date, `${addMonths(month, 1)}-01`),
+		// The month it counts in, which is the month it is listed under.
+		gte(incomeCountsOn, `${month}-01`),
+		lt(incomeCountsOn, `${addMonths(month, 1)}-01`),
 	);
 	// Income that arrived by Transfer isn't listed as income; a Transfer once unmarked goes with it.
 	const removable = and(

@@ -1,4 +1,5 @@
 import {
+	countsOn,
 	EXTRA_INCOME_FROM,
 	lowerTakeHomePay,
 	type MonthKey,
@@ -40,7 +41,7 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/income")({
 function PlanIncome() {
 	const { month } = Route.useRouteContext();
 	const state = useMonthState(month);
-	const received = state.income.filter((i) => monthOfDay(i.date) === month);
+	const received = state.income.filter((i) => monthOfDay(countsOn(i)) === month);
 	const total = received.reduce((sum, i) => sum + i.amount, 0);
 	// A low month: always here for the current month, quietly; This Month says it in its last days.
 	const lowering = useLowerTakeHomePay(month);

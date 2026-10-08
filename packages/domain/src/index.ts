@@ -171,6 +171,7 @@ export {
 	shortMonthName,
 } from "./describe-changes";
 export {
+	countsOn,
 	EXTRA_INCOME_FROM,
 	type ExtraIncomeDestination,
 	type ExtraIncomeSuggestion,

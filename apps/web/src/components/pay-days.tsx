@@ -22,6 +22,7 @@ import { formatMoney, formatMoneyInput, monthName, shortDay } from "../format";
 import {
 	formDays,
 	HOURLY_LABEL,
+	notMovedText,
 	PAY_SCHEDULE_LABELS,
 	PAYCHECK_STATE_LABELS,
 	type ParentPayDays,
@@ -32,12 +33,13 @@ import {
 	scheduleOf,
 	useSetParentPay,
 } from "../pay-days";
+import type { PayDayNotMoved } from "../server/pay-days";
 import { AmountInput } from "./goals";
 
-// "How you're paid" on Plan › Income (issue 156, phase 1): each Parent on a salary or hourly, and
-// a salaried Parent's expected paychecks for the month, each read as in once Income that is
-// their pay has landed near its pay day. It only shows what to expect: no total here or anywhere
-// else changes with it.
+// "How you're paid" on Plan › Income (issue 156): each Parent on a salary or hourly, and a
+// salaried Parent's expected paychecks for the month, each read as in once Income that is their
+// pay has landed near its pay day. A paycheck counts in its pay day's month (ADR-0063); one the
+// rule had to leave in the month it landed is said under the list, with why.
 
 const SALARY = "salary";
 const HOURLY = "hourly";
@@ -52,6 +54,8 @@ export function PayDays({ month }: { month: MonthKey }) {
 	const hydrated = useHydrated();
 	const { data: parents } = useQuery(payDaysQuery(month));
 	const [editing, setEditing] = useState<string | null>(null);
+	// Paychecks the last save left in the month they landed in, until the next one.
+	const [notMoved, setNotMoved] = useState<PayDayNotMoved[]>([]);
 	const edited = parents?.find((parent) => parent.memberId === editing);
 	const salaried = (parents ?? []).filter((parent) => parent.pay);
 	return (
@@ -61,8 +65,8 @@ export function PayDays({ month }: { month: MonthKey }) {
 					How you’re paid
 				</h2>
 				<p className="text-sm text-muted-foreground">
-					On a salary, Noodle lists the paychecks to expect each month and says which are in. Hourly
-					pay, or pay that varies, counts as it arrives.
+					On a salary, Noodle lists the paychecks to expect each month, says which are in, and
+					counts each in its pay day’s month. Hourly pay, or pay that varies, counts as it arrives.
 				</p>
 			</div>
 			{parents ? (
@@ -92,14 +96,36 @@ export function PayDays({ month }: { month: MonthKey }) {
 			{salaried.map((parent) => (
 				<ExpectedPaychecks key={parent.memberId} month={month} parent={parent} />
 			))}
+			{notMoved.length > 0 ? (
+				<section aria-labelledby="pay-not-moved" data-testid="pay-not-moved" className="grid gap-2">
+					<h3 id="pay-not-moved" className="text-sm font-medium">
+						Paychecks left in the month they landed
+					</h3>
+					<List>
+						{notMoved.map((line) => (
+							<ListRow
+								key={line.lineId}
+								title={line.note?.trim() || "Income"}
+								meta={notMovedText(line)}
+							/>
+						))}
+					</List>
+				</section>
+			) : null}
 			<Sheet open={edited !== undefined} onOpenChange={(open) => !open && setEditing(null)}>
 				{edited ? (
 					<SheetContent>
 						<SheetHeader
 							title={`How ${edited.name} is paid`}
-							description="On a salary, say what one paycheck usually is and when it’s due. This doesn’t change your take-home pay or what counts as Income."
+							description="On a salary, say what one paycheck usually is and when it’s due. A paycheck then counts in its pay day’s month; your take-home pay doesn’t change."
 						/>
-						<ParentPayForm parent={edited} onDone={() => setEditing(null)} />
+						<ParentPayForm
+							parent={edited}
+							onDone={(left) => {
+								setNotMoved(left);
+								setEditing(null);
+							}}
+						/>
 					</SheetContent>
 				) : null}
 			</Sheet>
@@ -145,15 +171,22 @@ function ExpectedPaychecks({ month, parent }: { month: MonthKey; parent: ParentP
 			<p className="text-xs text-muted-foreground">
 				A pay day reads In once Income marked as {parent.name}’s pay, within{" "}
 				{formatMoney(PAYCHECK_WITHIN)} of the paycheck, lands up to {PAY_DAY_WINDOW_DAYS} days
-				either side of it. The list only shows what to expect: Income still counts in the month it
-				lands.
+				either side of it, and that paycheck counts in its pay day’s month, whatever day the bank
+				posted it.
 			</p>
 		</section>
 	);
 }
 
 /** Salary, with one paycheck and its pay days, or hourly; saved together. */
-function ParentPayForm({ parent, onDone }: { parent: ParentPayDays; onDone: () => void }) {
+function ParentPayForm({
+	parent,
+	onDone,
+}: {
+	parent: ParentPayDays;
+	/** With the paychecks the save left in the month they landed in. */
+	onDone: (notMoved: PayDayNotMoved[]) => void;
+}) {
 	const id = useId();
 	const hydrated = useHydrated();
 	const change = useSetParentPay();
@@ -185,14 +218,14 @@ function ParentPayForm({ parent, onDone }: { parent: ParentPayDays; onDone: () =
 		change.mutate(
 			{ memberId: parent.memberId, pay },
 			{
-				onSuccess: () => {
+				onSuccess: (saved) => {
 					toast(
 						pay
 							? `${parent.name} is paid a salary: ${formatMoney(pay.paycheck)} a paycheck`
 							: `${parent.name}’s pay is hourly, or varies`,
 						{ tone: "success" },
 					);
-					onDone();
+					onDone(saved.notMoved);
 				},
 			},
 		);

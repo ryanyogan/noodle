@@ -28,7 +28,7 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
-import { counts, incomeCounts } from "./counting";
+import { counts, incomeCounts, incomeCountsOn } from "./counting";
 import type { Db } from "./index";
 import { loadPaidBackCharges, loadPaidBackSpending } from "./owed-back";
 import {
@@ -112,7 +112,10 @@ const targetOf = (parts: Pick<Parts, "bucketId" | "commitmentId" | "goalId">) =>
  * The period a part falls in, keyed as periodKey in @noodle/domain: its week's Monday, its month,
  * its quarter, or one period for the whole range ("all").
  */
-function periodOf(grouping: Grouping | "all", date: AnyColumn = transactions.date): SQL<string> {
+function periodOf(
+	grouping: Grouping | "all",
+	date: AnyColumn | SQL = transactions.date,
+): SQL<string> {
 	switch (grouping) {
 		case "all":
 			return sql<string>`'all'`;
@@ -684,7 +687,7 @@ export async function loadHistoryStart(db: Db, householdId: string): Promise<Day
 			.from(transactions)
 			.where(and(eq(transactions.householdId, householdId), counts())),
 		db
-			.select({ first: sql<string | null>`min(${income.date})` })
+			.select({ first: sql<string | null>`min(${incomeCountsOn})` })
 			.from(income)
 			.where(and(eq(income.householdId, householdId), incomeCounts())),
 	]);
@@ -694,7 +697,8 @@ export async function loadHistoryStart(db: Db, householdId: string): Promise<Day
 }
 
 /**
- * Income per period and source (its note, lower-cased; "" for none), for a range. Income is the
+ * Income per period and source (its note, lower-cased; "" for none), for a range, each line in
+ * the period of the day it counts on (its pay day, else the day it landed). Income is the
  * Household's, never private; only an Account filter narrows it.
  */
 export async function loadIncomeCells(
@@ -704,7 +708,7 @@ export async function loadIncomeCells(
 	grouping: Grouping | "all",
 	accountId?: string,
 ): Promise<{ period: string; source: string; name: string; amount: Cents; count: number }[]> {
-	const periodSql = periodOf(grouping, income.date);
+	const periodSql = periodOf(grouping, incomeCountsOn);
 	const source = sql<string>`lower(trim(coalesce(${income.note}, '')))`;
 	return (await db
 		.select({
@@ -719,8 +723,8 @@ export async function loadIncomeCells(
 			and(
 				eq(income.householdId, householdId),
 				incomeCounts(),
-				gte(income.date, range.from),
-				lt(income.date, range.until),
+				gte(incomeCountsOn, range.from),
+				lt(incomeCountsOn, range.until),
 				accountId ? eq(income.accountId, accountId) : undefined,
 			),
 		)

@@ -1043,6 +1043,14 @@ export const income = sqliteTable(
 		// As on `transactions`: the bank took it back, or changed it, after its month ended.
 		bankTookBackOn: text("bank_took_back_on"),
 		bankAmountCents: integer("bank_amount_cents"),
+		// The pay day it is the pay for (issue 156, ADR-0063), a day key: with one the line counts
+		// in that day's month, with none on its `date` (incomeCountsOn in counting.ts). `date`
+		// stays the day it landed.
+		payDay: text("pay_day"),
+		// A Parent said it by hand: which pay day, or (with no `pay_day`) that it is not a paycheck
+		// for one. The automatic rule never goes against either. Last, as imports.ts inserts by
+		// position.
+		payDayByHand: integer("pay_day_by_hand", { mode: "boolean" }),
 	},
 	(t) => [
 		index("income_household_date_idx").on(t.householdId, t.date),

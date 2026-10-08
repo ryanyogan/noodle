@@ -3,15 +3,27 @@ import {
 	DEFAULT_PAY_DAYS,
 	type ExpectedPaycheck,
 	type MonthKey,
+	monthOfDay,
 	type PaySchedule,
 	type PayScheduleKind,
 	type SalaryPay,
 } from "@noodle/domain";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ordinal } from "./commitments";
-import { formatMoney, shortDay } from "./format";
+import { formatMoney, monthName, shortDay } from "./format";
+import { MoneyInRefused } from "./money-in";
 import { monthQuery, monthsKey } from "./queries";
-import { getPayDays, type ParentPayDays, setParentPay } from "./server/pay-days";
+import type { MoneyInLine } from "./server/money-in";
+import {
+	getPayDayChoices,
+	getPayDays,
+	type ParentPayDays,
+	type ParentPaySaved,
+	type PayDayNotMoved,
+	setParentPay,
+	setPayDay,
+} from "./server/pay-days";
+import { ChangedElsewhere, expectedVersionOf, noteVersion } from "./transaction-versions";
 
 // How each Parent is paid and a salaried Parent's expected paychecks (issue 156, phase 1), as
 // Plan › Income says them.
@@ -39,13 +51,53 @@ export function useSetParentPay() {
 				},
 			});
 			if (!result.ok) throw new Error("Refused");
+			return result satisfies ParentPaySaved;
 		},
-		onSuccess: () =>
-			queryClient.invalidateQueries({
-				predicate: ({ queryKey }) => queryKey[0] === monthsKey[0] && queryKey.at(-1) === "pay-days",
-			}),
+		// Every month: a paycheck that is now the pay for a pay day counts in that day's month.
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
 	});
 }
+
+/** The pay days a line of Income can be said to be the pay for. */
+export const payDayChoicesQuery = (line: Pick<MoneyInLine, "id" | "whosePay" | "version">) =>
+	queryOptions({
+		queryKey: [...monthsKey, "pay-day-choices", line.id, line.whosePay, line.version],
+		queryFn: () => getPayDayChoices({ data: { incomeId: line.id } }),
+	});
+
+/** In the select: "Not a paycheck for a pay day". */
+export const NOT_A_PAYCHECK = "none";
+
+/**
+ * A Parent says by hand which pay day a line of Income is the pay for, or (null) that it is not
+ * a paycheck for one. Every month is read again: the line counts in the pay day's month.
+ */
+export function useSetPayDay() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async ({ line, payDay }: { line: MoneyInLine; payDay: string | null }) => {
+			const result = await setPayDay({
+				data: { incomeId: line.id, payDay, expectedVersion: expectedVersionOf(line) },
+			});
+			if (!result.ok) {
+				if (result.reason === "changed-elsewhere")
+					throw new ChangedElsewhere(line.id, result.current);
+				throw new MoneyInRefused(result.reason);
+			}
+			noteVersion(line.id, result.line.version);
+			return result.line;
+		},
+		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
+	});
+}
+
+/** "Sep 30 · $2,450.00 · Not moved to October: September is closed". */
+export const notMovedText = (line: PayDayNotMoved) =>
+	`${shortDay(line.date)} · ${formatMoney(line.amount)} · not moved to ${monthName(monthOfDay(line.payDay))}: ${
+		line.reason === "month-closed"
+			? `${monthName(line.month)} is closed`
+			: `Extra income already decided in ${monthName(line.month)} needs it`
+	}`;
 
 /** A Parent who is not on a salary. */
 export const HOURLY_LABEL = "Hourly, or pay that varies";

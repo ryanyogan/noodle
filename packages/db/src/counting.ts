@@ -50,6 +50,16 @@ export const incomeCountsRaw = (id: string) =>
 	`(not exists (select 1 from transfers where transfers.in_income_id = ${id} and transfers.removed_at is null)
 	and not exists (select 1 from income mk where mk.id = ${id} and (mk.kind is not null or mk.needs_review = 1)))`;
 
+/**
+ * The day a line of Income counts on (ADR-0063): the pay day it is the pay for, else the day it
+ * landed. Every read or guard that puts Income in a month takes the month from this, never from
+ * `income.date`; its twin in the domain is `countsOn`.
+ */
+export const incomeCountsOn = sql<string>`coalesce(${income.payDay}, ${income.date})`;
+
+/** `incomeCountsOn` for raw SQL that names the income row as `row` (e.g. `i`). */
+export const incomeCountsOnRaw = (row: string) => `coalesce(${row}.pay_day, ${row}.date)`;
+
 // Paid back (ADR-0058) counts as spending in reverse too, though its money is a row in `income`:
 // each confirmed match gives its amount back to the Bucket, Commitment or Goal its purchase is
 // filed in, on the match's `counts_on` day. The purchase's month is never touched.

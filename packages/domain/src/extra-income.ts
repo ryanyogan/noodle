@@ -16,7 +16,21 @@ import type { PlanScope } from "./plan-scope";
  * Income received on a day: a paycheck, a bonus, a tax refund. A Refund of a purchase is not
  * income; it is spending with a negative amount that restores its Bucket.
  */
-export type Income = { amount: Cents; date: DayKey };
+export type Income = {
+	amount: Cents;
+	/** The day it landed: the bank's, or the one a Parent typed. Never changed by a pay day. */
+	date: DayKey;
+	/** The pay day it is the pay for, when it is a salaried Parent's paycheck (ADR-0063). */
+	payDay?: DayKey | null;
+};
+
+/**
+ * The day a line of Income counts on: the pay day it is the pay for, else the day it landed
+ * (ADR-0063). Every total of Income by month reads the month from this day, never from `date`;
+ * its twin in SQL is `incomeCountsOn` in @noodle/db (counting.ts).
+ */
+export const countsOn = (line: { date: DayKey; payDay?: DayKey | null }): DayKey =>
+	line.payDay ?? line.date;
 
 /**
  * Income above take-home pay by no more than this ($25) is the usual pay landing a few dollars
@@ -47,15 +61,17 @@ export function extraIncomeOf({
 	return { windfall: extraIncome, pending: Math.max(0, extraIncome - decided) };
 }
 
-/** Income in `month`, received by the end of `day` (every day of it, when omitted). */
+/**
+ * Income that counts in `month` by the end of `day` (every day of it, when omitted), each line on
+ * the day it counts on.
+ */
 export function receivedIn(income: Income[], month: MonthKey, day?: number): Cents {
-	return income.reduce(
-		(sum, i) =>
-			monthOfDay(i.date) === month && (day === undefined || Number(i.date.slice(8, 10)) <= day)
-				? sum + i.amount
-				: sum,
-		0,
-	);
+	return income.reduce((sum, i) => {
+		const on = countsOn(i);
+		return monthOfDay(on) === month && (day === undefined || Number(on.slice(8, 10)) <= day)
+			? sum + i.amount
+			: sum;
+	}, 0);
 }
 
 /** The warning waits until mid-month: before then one paycheck early or late is just timing. */

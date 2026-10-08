@@ -575,6 +575,13 @@
       "when": 1793800000000,
       "tag": "0089_loan_facts",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "6",
+      "when": 1793900000000,
+      "tag": "0090_income_pay_day",
+      "breakpoints": true
     }
   ]
 }

@@ -18,6 +18,7 @@ import { deletedLineKeys } from "./deleted-lines";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
 import { loadMoneyInRules, markMoneyInByRule } from "./money-in";
+import { matchPayDays } from "./pay-day-match";
 import { statementLinesBanked } from "./same-lines";
 import { accounts, bankConnections, csvMappings, imports, income, transactions } from "./schema";
 import { detectTransfers } from "./transfers";
@@ -259,6 +260,8 @@ export async function importStatement(
 							and m.kind = 'parent')`.as("pay_member_id"),
 						bankTookBackOn: sql<string | null>`null`.as("bank_took_back_on"),
 						bankAmountCents: sql<number | null>`null`.as("bank_amount_cents"),
+						payDay: sql<string | null>`null`.as("pay_day"),
+						payDayByHand: sql<boolean | null>`null`.as("pay_day_by_hand"),
 					})
 					.from(sql`json_each(${JSON.stringify(received)})`)
 					.where(theImport),
@@ -296,6 +299,9 @@ export async function importStatement(
 	const paid = await markCardPayments(db, householdId, input.newId);
 	// Money out whose wording a Parent once called a card payment is one again.
 	const remembered = await markRememberedCardPayments(db, householdId, input.newId);
+	// A paycheck that has just landed near a salaried Parent's pay day is the pay for it, and
+	// counts in the pay day's month (ADR-0063). After the Transfers: money that only moved isn't pay.
+	await matchPayDays(db, householdId, { only: received.map((line) => line.id) });
 	// A Rule's Transfer or Between us, for money in that paired with nothing. A line this Import
 	// didn't write (it was here already) has a different ID, so nothing is marked for it.
 	await markMoneyInByRule(db, householdId, ruled, input.newId);

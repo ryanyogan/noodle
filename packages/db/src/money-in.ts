@@ -1,8 +1,10 @@
 import {
 	type Cents,
+	countsOn,
 	type DayKey,
 	type MoneyInKind,
 	type MoneyInRule,
+	type MonthKey,
 	merchantKey,
 	moneyInKindOf,
 	moneyInRuleFor,
@@ -10,7 +12,7 @@ import {
 	paypalShopKey,
 	REFUND_WINDOW_DAYS,
 } from "@noodle/domain";
-import { type AnyColumn, and, eq, gte, isNull, lt, ne, type SQL, sql } from "drizzle-orm";
+import { type AnyColumn, and, eq, gte, isNull, lt, ne, or, type SQL, sql } from "drizzle-orm";
 import { incomeCounts } from "./counting";
 import { endedBefore, lineEndedRestores, purchaseMayMove } from "./ended-months";
 import { decidedSql, extraIncomeSql } from "./extra-income";
@@ -20,12 +22,14 @@ import {
 	moneyInRulePairForgottenEvents,
 	moneyInRuleRemovedEvents,
 } from "./log-events";
+import { matchPayDays } from "./pay-day-match";
 import {
 	accounts,
 	income,
 	members,
 	moneyInPairs,
 	moneyInRules,
+	monthCloses,
 	paidBackMatches,
 	refundLinks,
 	transactions,
@@ -64,6 +68,13 @@ export type MoneyInLine = {
 	/** Whose pay it is: a Parent's ID, or null for the Household. */
 	whosePay: string | null;
 	/**
+	 * The pay day it is the pay for (ADR-0063): it counts in that day's month, though `date` stays
+	 * the day it landed. Null: it counts on `date`.
+	 */
+	payDay: DayKey | null;
+	/** A Parent said its pay day by hand, or (with no `payDay`) that it is not a paycheck for one. */
+	payDayByHand: boolean;
+	/**
 	 * The day the bank took it back, or changed it, after money back through it had counted in a
 	 * month that has ended: it is kept as it was so that month doesn't change (issue 141).
 	 */
@@ -78,9 +89,13 @@ export type MoneyInLine = {
 };
 
 export type MoneyInFilter = {
-	/** From this day. */
+	/** From this day: landed on it or later, or counts on it or later. */
 	from?: DayKey;
-	/** Up to, not including, this day. */
+	/**
+	 * Up to, not including, this day. With `from`, a line is in the range by the day it landed or
+	 * by the pay day it counts on, so a month has both the lines listed under it and the lines
+	 * that count in it.
+	 */
 	until?: DayKey;
 	/** Only the lines waiting in Review. */
 	review?: boolean;
@@ -107,6 +122,8 @@ export async function loadMoneyIn(
 			accountId: income.accountId,
 			createdBy: income.createdByMemberId,
 			whosePay: income.payMemberId,
+			payDay: income.payDay,
+			payDayByHand: income.payDayByHand,
 			bankTookBackOn: income.bankTookBackOn,
 			bankAmount: income.bankAmountCents,
 			transferId: transfers.id,
@@ -124,8 +141,18 @@ export async function loadMoneyIn(
 				filter.ids
 					? sql`${income.id} in (select value from json_each(${JSON.stringify(filter.ids)}))`
 					: undefined,
-				filter.from ? gte(income.date, filter.from) : undefined,
-				filter.until ? lt(income.date, filter.until) : undefined,
+				filter.from || filter.until
+					? or(
+							and(
+								filter.from ? gte(income.date, filter.from) : undefined,
+								filter.until ? lt(income.date, filter.until) : undefined,
+							),
+							and(
+								filter.from ? gte(income.payDay, filter.from) : undefined,
+								filter.until ? lt(income.payDay, filter.until) : undefined,
+							),
+						)
+					: undefined,
 				filter.review
 					? and(eq(income.needsReview, true), isNull(transfers.id), isNull(income.kind))
 					: undefined,
@@ -150,6 +177,8 @@ export async function loadMoneyIn(
 		paired: row.outId !== null,
 		otherAccountId: row.otherAccountId,
 		whosePay: row.whosePay,
+		payDay: row.payDay as DayKey | null,
+		payDayByHand: row.payDayByHand === true,
 		bankTookBackOn: row.bankTookBackOn as DayKey | null,
 		bankAmount: row.bankAmount as Cents | null,
 	}));
@@ -232,10 +261,19 @@ export type MoneyInKindResult =
 	 * that has ended, which never changes (ADR-0058); `matched`: the new amount is less than what
 	 * the line has already settled.
 	 */
-	/** `over-purchase`: a linked Refund raised above what its purchase cost. */
+	/**
+	 * `over-purchase`: a linked Refund raised above what its purchase cost. `month-closed`: saying
+	 * which pay day it is for would move it into or out of a month that has been closed (ADR-0063).
+	 */
 	| {
 			ok: false;
-			reason: "refused" | "extra-income" | "month-ended" | "matched" | "over-purchase";
+			reason:
+				| "refused"
+				| "extra-income"
+				| "month-ended"
+				| "matched"
+				| "over-purchase"
+				| "month-closed";
 	  }
 	| { ok: false; reason: "changed-elsewhere"; current: MoneyInLine };
 
@@ -264,16 +302,19 @@ export async function changeMoneyInKind(
 	const { householdId } = viewer;
 	const before = await loadMoneyInLine(db, householdId, input.incomeId);
 	if (!before) return { ok: false, reason: "refused" };
-	const month = monthOfDay(before.date);
+	// The month it counts in, which its Extra income is guarded in; listed under the month it
+	// landed in too, when a pay day has it count in another.
+	const month = monthOfDay(countsOn(before));
+	const months = [...new Set([month, monthOfDay(before.date)])];
 	const settled = before.kind === input.kind && !before.needsReview;
 	if (input.expectedVersion !== undefined && before.version !== input.expectedVersion) {
 		// A retry of this change after it landed is still this change.
 		if (settled && before.version === input.expectedVersion + 1)
-			return { ok: true, line: before, months: [month] };
+			return { ok: true, line: before, months };
 		return { ok: false, reason: "changed-elsewhere", current: before };
 	}
 	const own = and(eq(income.id, input.incomeId), eq(income.householdId, householdId)) as SQL;
-	if (settled) return { ok: true, line: await decide(db, householdId, before), months: [month] };
+	if (settled) return { ok: true, line: await decide(db, householdId, before), months };
 
 	// Its matches, or its link to a purchase, would go with the kind: never from an ended month.
 	const ended = lineEndedRestores(income.id, endedBefore(input.today));
@@ -295,6 +336,8 @@ export async function changeMoneyInKind(
 			.set({
 				kind: input.kind === "refund" || input.kind === "paid-back" ? input.kind : null,
 				needsReview: false,
+				// Only Income is the pay for a pay day: it is forgotten with the kind.
+				...(input.kind === "income" ? {} : { payDay: null, payDayByHand: null }),
 				version: sql`${income.version} + 1`,
 			})
 			.where(and(own, eq(income.version, before.version), covered, sql`not ${ended}`)),
@@ -364,8 +407,7 @@ export async function changeMoneyInKind(
 	]);
 	const after = await loadMoneyInLine(db, householdId, input.incomeId);
 	if (!after) return { ok: false, reason: "refused" };
-	if (after.version === next && after.kind === input.kind)
-		return { ok: true, line: after, months: [month] };
+	if (after.version === next && after.kind === input.kind) return { ok: true, line: after, months };
 	if (after.version !== before.version)
 		return { ok: false, reason: "changed-elsewhere", current: after };
 	return { ok: false, reason: (await frozen()) ? "month-ended" : "extra-income" };
@@ -384,6 +426,31 @@ async function decide(db: Db, householdId: string, line: MoneyInLine): Promise<M
 		.set({ version: 1 })
 		.where(and(eq(income.id, line.id), eq(income.householdId, householdId), eq(income.version, 0)));
 	return (await loadMoneyInLine(db, householdId, line.id)) ?? line;
+}
+
+/** True while none of `months` has been closed: part of a write that moves Income between them. */
+export const notClosed = (householdId: string, months: readonly MonthKey[]): SQL =>
+	sql`not exists (select 1 from month_closes mc where mc.household_id = ${householdId}
+		and mc.month in (select value from json_each(${JSON.stringify(months)})))`;
+
+/** Which of `months` have been closed, oldest first. */
+export async function closedAmong(
+	db: Db,
+	householdId: string,
+	months: readonly MonthKey[],
+): Promise<MonthKey[]> {
+	const rows = await db
+		.select({ month: monthCloses.month })
+		.from(monthCloses)
+		.where(
+			and(
+				eq(monthCloses.householdId, householdId),
+				sql`${monthCloses.month} in (select value from json_each(${JSON.stringify(months)}))`,
+			),
+		)
+		.orderBy(monthCloses.month);
+	// Months are always written as MonthKeys.
+	return rows.map((row) => row.month as MonthKey);
 }
 
 /** What a Parent may change on a money-in line besides its kind. Only what is given changes. */
@@ -436,9 +503,19 @@ export async function editMoneyIn(
 	if (!before) return { ok: false, reason: "refused" };
 	const edit = { ...input.edit };
 	if (edit.note !== undefined) edit.note = edit.note?.trim() || null;
-	const month = monthOfDay(before.date);
-	const toMonth = edit.date === undefined ? month : monthOfDay(edit.date);
-	const months = month === toMonth ? [month] : [month, toMonth];
+	// A pay day belongs to the Parent whose paycheck it is: given to somebody else, the line
+	// forgets it and counts on the day it landed again.
+	const forgetsPayDay =
+		before.payDay !== null && edit.whosePay !== undefined && edit.whosePay !== before.whosePay;
+	// The month it counts in, and the one it will: a line with a pay day stays in the pay day's
+	// month whatever its date becomes.
+	const month = monthOfDay(countsOn(before));
+	const toMonth = monthOfDay(
+		countsOn({ date: edit.date ?? before.date, payDay: forgetsPayDay ? null : before.payDay }),
+	);
+	const months = [
+		...new Set([month, toMonth, monthOfDay(before.date), monthOfDay(edit.date ?? before.date)]),
+	];
 	const same =
 		(edit.whosePay === undefined || edit.whosePay === before.whosePay) &&
 		(edit.note === undefined || edit.note === before.note) &&
@@ -526,6 +603,7 @@ export async function editMoneyIn(
 		.update(income)
 		.set({
 			...(edit.whosePay !== undefined ? { payMemberId: edit.whosePay } : {}),
+			...(forgetsPayDay ? { payDay: null, payDayByHand: null } : {}),
 			...(edit.note !== undefined ? { note: edit.note } : {}),
 			...(edit.amountCents !== undefined ? { amountCents: edit.amountCents } : {}),
 			...(edit.date !== undefined ? { date: edit.date } : {}),
@@ -537,6 +615,8 @@ export async function editMoneyIn(
 				eq(income.householdId, householdId),
 				eq(income.version, before.version),
 				covered,
+				// Leaving a pay day's month for the one it landed in: neither may be closed.
+				forgetsPayDay && toMonth !== month ? notClosed(householdId, [month, toMonth]) : undefined,
 				lower ? sql`${edit.amountCents} >= ${matchedSql}` : undefined,
 				linkAllows,
 			),
@@ -547,6 +627,8 @@ export async function editMoneyIn(
 	if (after.version !== before.version)
 		return { ok: false, reason: "changed-elsewhere", current: after };
 	if (await overMatched()) return { ok: false, reason: "matched" };
+	if (forgetsPayDay && (await closedAmong(db, householdId, [month, toMonth])).length > 0)
+		return { ok: false, reason: "month-closed" };
 	return { ok: false, reason: (await linkRefusal()) ?? "extra-income" };
 }
 
@@ -592,6 +674,9 @@ export async function stateWhosePay(
 				sql`${income.id} in (select value from json_each(${JSON.stringify(ids)}))`,
 			),
 		);
+	// The deposits that have just become a Parent's pay take the pay days they should have
+	// (ADR-0063).
+	await matchPayDays(db, householdId, { only: ids });
 	return { pattern, changed: ids.length };
 }
 

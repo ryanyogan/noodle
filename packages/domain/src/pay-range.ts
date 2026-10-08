@@ -1,4 +1,4 @@
-import { EXTRA_INCOME_FROM } from "./extra-income";
+import { countsOn, EXTRA_INCOME_FROM } from "./extra-income";
 import type { Cents } from "./money";
 import { addMonths, type DayKey, type MonthKey, monthOfDay } from "./month";
 
@@ -7,7 +7,13 @@ import { addMonths, type DayKey, type MonthKey, monthOfDay } from "./month";
 // three full months; the Take-home pay stays one Household figure that counts on the low end.
 
 /** Income, with whose pay it is: a Parent's ID, or null for the Household. */
-export type PayLine = { amount: Cents; date: DayKey; whosePay: string | null };
+export type PayLine = {
+	amount: Cents;
+	date: DayKey;
+	/** The pay day it is the pay for: it counts in that day's month (ADR-0063). */
+	payDay?: DayKey | null;
+	whosePay: string | null;
+};
 
 export type PayRange = {
 	/** A Parent's ID, or null for the Household. */
@@ -39,7 +45,7 @@ export function payRanges(lines: readonly PayLine[], month: MonthKey): PayRange[
 	const months = Array.from({ length: PAY_RANGE_MONTHS }, (_, i) => addMonths(month, -(i + 1)));
 	const byWho = new Map<string | null, { soFar: number; months: Map<MonthKey, number> }>();
 	for (const line of lines) {
-		const lineMonth = monthOfDay(line.date);
+		const lineMonth = monthOfDay(countsOn(line));
 		if (lineMonth !== month && !months.includes(lineMonth)) continue;
 		let who = byWho.get(line.whosePay);
 		if (!who) {

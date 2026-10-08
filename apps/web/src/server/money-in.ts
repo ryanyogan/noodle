@@ -9,6 +9,7 @@ import {
 	loadMoneyInRules,
 	type MoneyInKindResult,
 	type MoneyInLine,
+	matchPayDays,
 	rememberAccountPair,
 	type StoredMoneyInRule,
 	saveMoneyInRule,
@@ -38,6 +39,25 @@ import { ulidSchema } from "./schemas";
 // us. Money in is the Household's, never private, so both Parents read and change all of it.
 
 export type { MoneyInKindResult, MoneyInLine };
+
+/**
+ * A line that has just become Income, or somebody's pay, is given the pay day it should have
+ * (ADR-0063), and the answer is the line with it.
+ */
+async function withPayDay<R extends Extract<MoneyInKindResult, { ok: true }>>(
+	householdId: string,
+	result: R,
+): Promise<R> {
+	const db = getDb();
+	const { matched, months } = await matchPayDays(db, householdId, { only: [result.line.id] });
+	if (matched === 0) return result;
+	const [line] = await loadMoneyIn(db, householdId, { id: result.line.id });
+	return {
+		...result,
+		line: line ?? result.line,
+		months: [...new Set([...result.months, ...months])],
+	};
+}
 
 /** A month's money in, of every kind, newest first. */
 export const getMoneyIn = createServerFn({ method: "GET" })
@@ -79,11 +99,12 @@ export const setMoneyInKind = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }): Promise<MoneyInKindResult> => {
 		const db = getDb();
 		const viewer = viewerOf(context);
-		const result = await changeMoneyInKind(db, viewer, {
+		const changed = await changeMoneyInKind(db, viewer, {
 			...data,
 			today: dayKeyAt(new Date(), context.household.timeZone),
 		});
-		if (!result.ok) return result;
+		if (!changed.ok) return changed;
+		const result = data.kind === "income" ? await withPayDay(viewer.householdId, changed) : changed;
 		if (data.ruleId && result.line.note)
 			await saveMoneyInRule(db, viewer, {
 				ruleId: data.ruleId,
@@ -154,7 +175,7 @@ export const editMoneyInLine = createServerFn({ method: "POST" })
 		}),
 	)
 	.handler(async ({ data, context }): Promise<MoneyInKindResult> => {
-		const result = await editMoneyIn(getDb(), viewerOf(context), {
+		const edited = await editMoneyIn(getDb(), viewerOf(context), {
 			today: dayKeyAt(new Date(), context.household.timeZone),
 			incomeId: data.incomeId,
 			expectedVersion: data.expectedVersion,
@@ -164,7 +185,8 @@ export const editMoneyInLine = createServerFn({ method: "POST" })
 				date: data.edit.date as DayKey | undefined,
 			},
 		});
-		if (!result.ok) return result;
+		if (!edited.ok) return edited;
+		const result = await withPayDay(context.household.id, edited);
 		await notifyHousehold(context.household.id, [
 			...result.months.map((month) => `month:${month}` as HouseholdChange),
 			"months",
