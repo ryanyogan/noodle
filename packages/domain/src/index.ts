@@ -61,6 +61,7 @@ export {
 } from "./bucket-groups";
 export { parseCapturedAmount } from "./capture";
 export * from "./card-issuers";
+export { paidToCards } from "./card-paid";
 export {
 	AUTO_FILE_CONFIDENCE,
 	type Categorization,

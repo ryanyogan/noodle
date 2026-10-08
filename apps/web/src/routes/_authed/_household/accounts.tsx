@@ -28,6 +28,7 @@ import { ChevronRight, Landmark, Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { accountSource, accountSourceText } from "../../../account-source";
 import { type WhoseGroup, whoseGroups } from "../../../account-whose";
+import { paymentsCount } from "../../../card-home";
 import { useViewerId } from "../../../components/account-whose";
 import {
 	BankConnections,
@@ -35,6 +36,7 @@ import {
 	type ConnectBank,
 	useConnectBank,
 } from "../../../components/bank-connections";
+import { useCardFacts, useCardsHome } from "../../../components/card-home";
 import { CardNudges } from "../../../components/card-kept";
 import {
 	AddAccountForm,
@@ -51,7 +53,7 @@ import {
 } from "../../../components/master-detail";
 import { SaveFailed } from "../../../components/plan-editing";
 import { useParents } from "../../../components/whose-pay";
-import { formatMoney, shortDay } from "../../../format";
+import { formatMoney, monthName, shortDay } from "../../../format";
 import {
 	type AccountView,
 	type ArchivedAccount,
@@ -308,6 +310,9 @@ function AccountTotals({ accounts }: { accounts: AccountView[] }) {
 	const owing = accounts.filter((a) => !a.holdsMoney);
 	const notSetAside = sum(cash.map((a) => a.unclaimed));
 	const missing = accounts.filter((a) => a.balance === null).length;
+	// What went to the Household's credit cards this month, however each payment counts (issue 150).
+	const { month, paid, waiting } = useCardsHome();
+	const cards = accounts.filter((a) => a.kind === "credit-card");
 	const rows = [
 		{ label: "Cash", value: sum(cash.map((a) => a.balance)), show: cash.length > 0 },
 		{ label: "Owed", value: sum(owing.map((a) => a.balance)), show: owing.length > 0 },
@@ -317,6 +322,11 @@ function AccountTotals({ accounts }: { accounts: AccountView[] }) {
 			show: cash.length > 0,
 		},
 		{ label: "Not set aside", value: notSetAside, show: cash.length > 0, over: notSetAside < 0 },
+		{
+			label: `Paid to cards in ${monthName(month)}`,
+			value: sum(cards.map((a) => paid.get(a.id) ?? 0)),
+			show: cards.length > 0,
+		},
 	].filter((row) => row.show);
 	return (
 		// The heading sits outside the card, so the card starts level with the first Account's (#73).
@@ -338,6 +348,13 @@ function AccountTotals({ accounts }: { accounts: AccountView[] }) {
 					<p className="text-[13px] text-muted-foreground">
 						{missing === 1 ? "1 Account has" : `${missing} Accounts have`} no balance yet, so
 						{missing === 1 ? " it isn’t" : " they aren’t"} counted.
+					</p>
+				) : null}
+				{cards.length > 0 && waiting.total > 0 ? (
+					<p className="text-[13px] text-muted-foreground">
+						<Link to="/review" className="font-medium text-foreground underline underline-offset-3">
+							{paymentsCount(waiting.total)} to a card waiting in Review
+						</Link>
 					</p>
 				) : null}
 			</Card>
@@ -404,6 +421,10 @@ function AccountItem({ account }: { account: AccountView }) {
 	const { connections } = useSuspenseQuery(bankConnectionsQuery()).data;
 	const source = accountSource(account, connections);
 	const needsLogin = source.kind === "connected" && source.needsLogin;
+	// A credit card reads as a card (issue 150): how paying it counts, what was paid this month and
+	// what waits in Review. Its source line stays only for a connected one; "Entered by hand" was
+	// about its balance and read the same for a card kept by hand and one nobody was asked about.
+	const card = useCardFacts(account);
 	return (
 		<LinkRow
 			link={(props) => (
@@ -414,7 +435,14 @@ function AccountItem({ account }: { account: AccountView }) {
 					{...props}
 				/>
 			)}
-			label={`${account.name}, ${accountKindName[account.kind]}, ${balanceLabel(account)}`}
+			label={[
+				account.name,
+				accountKindName[account.kind],
+				balanceLabel(account),
+				...(card ? [card.paying, card.paid, card.waiting] : []),
+			]
+				.filter(Boolean)
+				.join(", ")}
 			leading={
 				<Tile aria-hidden="true">
 					<Icon />
@@ -435,8 +463,12 @@ function AccountItem({ account }: { account: AccountView }) {
 					<span>
 						{accountKindName[account.kind]}
 						{accountLabel(account) === account.name ? null : ` ••${account.mask}`}
-						{" · "}
-						{accountSourceText(source, true)}
+						{card && source.kind !== "connected" ? null : (
+							<>
+								{" · "}
+								{accountSourceText(source, true)}
+							</>
+						)}
 					</span>
 					{needsLogin ? (
 						<>
@@ -448,6 +480,21 @@ function AccountItem({ account }: { account: AccountView }) {
 					) : null}
 					{split ? (
 						<span className={cn("block", split.over && "text-over")}>{split.text}</span>
+					) : null}
+					{card ? (
+						<>
+							<span data-slot="card-paying" className="block">
+								{card.paying}
+							</span>
+							<span data-slot="card-paid" className="block tabular-nums">
+								{card.paid}
+							</span>
+							{card.waiting ? (
+								<span data-slot="card-waiting" className="block font-medium text-foreground">
+									{card.waiting}
+								</span>
+							) : null}
+						</>
 					) : null}
 				</span>
 			}

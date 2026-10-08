@@ -15,7 +15,7 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
 import {
 	balanceChecksPutAwayQuery,
@@ -98,8 +98,19 @@ function CheckFound({ check, account }: { check: BalanceCheck; account: AccountV
 /**
  * On a credit card's page, when it doesn't sync with a bank: how its purchases get in (asked once
  * when no one has said), and for one kept by hand its statement day and the monthly balance check.
+ * `lead` says in a sentence how paying it counts, which the answer decides, and `extras` is what
+ * else decides it (the Commitment that pays it down, the wordings remembered), under the answer
+ * (issue 150).
  */
-export function CardKeptSection({ account }: { account: AccountView }) {
+export function CardKeptSection({
+	account,
+	lead,
+	extras,
+}: {
+	account: AccountView;
+	lead?: string;
+	extras?: ReactNode;
+}) {
 	const hydrated = useHydrated();
 	const id = useId();
 	const { asOf } = useGoals();
@@ -114,7 +125,7 @@ export function CardKeptSection({ account }: { account: AccountView }) {
 
 	return (
 		<Section aria-labelledby={`${id}-kept`}>
-			<SectionHeader id={`${id}-kept`} title="Purchases" />
+			<SectionHeader id={`${id}-kept`} title="How paying it counts" />
 			<Card>
 				<div className="grid gap-3 p-(--card-pad)">
 					{asking ? (
@@ -139,14 +150,27 @@ export function CardKeptSection({ account }: { account: AccountView }) {
 						</fieldset>
 					) : (
 						<div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-							<div className="grid min-w-0 gap-1">
-								<p className="text-sm font-semibold">
-									{account.purchases ? purchasesName[account.purchases] : null}
-								</p>
-								<p className="text-[13px] text-muted-foreground">
-									{account.purchases ? purchasesHint[account.purchases] : null}
-								</p>
-							</div>
+							{lead ? (
+								// The sentence first; then the answer it follows from, beside its Change.
+								<div className="grid min-w-0 flex-1 basis-56 gap-1">
+									<p data-slot="card-paying" className="text-sm font-semibold">
+										{lead}
+									</p>
+									<p className="text-[13px] text-muted-foreground">
+										How its purchases get in:{" "}
+										<span>{account.purchases ? purchasesName[account.purchases] : null}</span>
+									</p>
+								</div>
+							) : (
+								<div className="grid min-w-0 gap-1">
+									<p className="text-sm font-semibold">
+										{account.purchases ? purchasesName[account.purchases] : null}
+									</p>
+									<p className="text-[13px] text-muted-foreground">
+										{account.purchases ? purchasesHint[account.purchases] : null}
+									</p>
+								</div>
+							)}
 							<Button
 								type="button"
 								size="sm"
@@ -159,6 +183,7 @@ export function CardKeptSection({ account }: { account: AccountView }) {
 						</div>
 					)}
 				</div>
+				{asking ? null : extras}
 				{account.purchases === "hand" && !asking ? (
 					<BalanceCheckForm account={account} today={asOf} />
 				) : null}
