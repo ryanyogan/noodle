@@ -1,4 +1,5 @@
 import { type MonthKey, monthOfDay, owedBackByPerson, owedBackLeft } from "@noodle/domain";
+import { Button } from "@noodle/ui/components/button";
 import { Section } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -92,19 +93,21 @@ export function OwedBackList({ today }: { today: string }) {
 					) : null}
 				</p>
 				{folds ? (
-					<button
+					<Button
 						type="button"
+						variant="ghost"
+						size="sm"
 						aria-expanded={shown}
 						aria-controls={`${OWED_BACK_LIST_ID}-lines`}
 						onClick={() => setChosen(!shown)}
-						className="-mr-1 inline-flex min-h-7 shrink-0 items-center gap-1 rounded-md px-1 font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+						className="-mr-1 h-7 shrink-0 gap-1 px-1 text-muted-foreground"
 					>
 						{shown ? "Hide" : `Show all ${lines}`}
 						<ChevronDown
 							aria-hidden="true"
 							className={cn("size-3.5 transition-transform", shown && "rotate-180")}
 						/>
-					</button>
+					</Button>
 				) : null}
 			</div>
 			<div id={`${OWED_BACK_LIST_ID}-lines`} hidden={!shown && people.length < 2}>
@@ -156,8 +159,8 @@ export function OwedBackList({ today }: { today: string }) {
 				{shown && unmatched.length > 0 ? (
 					<div className="mt-1 grid border-t pt-1" data-testid="paid-back-unmatched">
 						<p className="py-0.5 text-muted-foreground">
-							<span className="font-medium text-foreground">Paid back, not matched yet.</span>{" "}
-							Change it under Money in to say what it pays back.
+							<span className="font-medium text-foreground">Paid back, not matched yet.</span> Open
+							it in the list to say what it pays back.
 						</p>
 						<ul className="grid">
 							{unmatched.map((line) => (
