@@ -8,9 +8,11 @@ import type {
 import {
 	assignedParts,
 	canAssign,
+	countsOn,
 	type DayKey,
 	displayMerchant,
 	type MonthKey,
+	monthOfDay,
 } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import {
@@ -312,9 +314,12 @@ export function dateRefusedText(
 		: "Its Refund would come too long after it. Move the Refund first.";
 }
 
-/** The month a Transaction is in. */
+/**
+ * The month a Transaction is in. Money in is with the month it counts in: a paycheck's pay day,
+ * though the row keeps the day it landed (ADR-0063).
+ */
 export const monthOfTransaction = (transaction: TransactionRow) =>
-	transaction.date.slice(0, 7) as MonthKey;
+	monthOfDay(transaction.moneyIn ? countsOn(transaction.moneyIn) : (transaction.date as DayKey));
 
 /**
  * What a Parent can assign to in `month`'s Plan, once it has loaded (issue 99): a row of another

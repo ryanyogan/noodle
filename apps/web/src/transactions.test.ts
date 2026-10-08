@@ -298,6 +298,23 @@ describe("withRowChange: the list shows the change", () => {
 	});
 });
 
+describe("monthOfTransaction", () => {
+	test("is the month of its date, and for a paycheck the month of the pay day it is for", () => {
+		expect(monthOfTransaction(skates)).toBe(skates.date.slice(0, 7));
+		const paycheck = {
+			...skates,
+			date: "2026-09-30",
+			moneyIn: { date: "2026-09-30", payDay: "2026-10-01" },
+		} as unknown as TransactionRow;
+		expect(monthOfTransaction(paycheck)).toBe("2026-10");
+		const sentBack = {
+			...paycheck,
+			moneyIn: { date: "2026-09-30", payDay: null },
+		} as unknown as TransactionRow;
+		expect(monthOfTransaction(sentBack)).toBe("2026-09");
+	});
+});
+
 describe("applyTransactionChange: a Transaction cached by its ID is not one of the month's lists", () => {
 	test("a delete lands in the list, and is put back, with that Transaction cached beside it", async () => {
 		const queryClient = new QueryClient();
