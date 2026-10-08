@@ -582,6 +582,13 @@
       "when": 1793900000000,
       "tag": "0090_income_pay_day",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "6",
+      "when": 1794000000000,
+      "tag": "0091_bell",
+      "breakpoints": true
     }
   ]
 }

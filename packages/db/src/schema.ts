@@ -943,6 +943,42 @@ export const nudgePreferences = sqliteTable("nudge_preferences", {
 		.default(sql`(unixepoch() * 1000)`),
 });
 
+// Each Nudge as it was sent to one Parent, recorded then so the bell can list it again (issue 157,
+// ADR-0065). One row per Parent it went to: a Nudge about a Personal Allowance has only its
+// owner's (ADR-0003). `kind` is a NudgeKind; `url` is the path it leads to.
+export const sentNudges = sqliteTable(
+	"sent_nudges",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		kind: text("kind").notNull(),
+		title: text("title").notNull(),
+		body: text("body").notNull(),
+		url: text("url").notNull(),
+		sentAt: integer("sent_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(t) => [index("sent_nudges_member_idx").on(t.memberId, t.sentAt)],
+);
+
+// How far each Parent has read the bell: Nudges sent up to `nudges_up_to`, and releases up to the
+// day `release` ("YYYY-MM-DD"). No row means a Parent who hasn't opened it (startingBellSeen in
+// @noodle/domain).
+export const bellSeen = sqliteTable("bell_seen", {
+	memberId: text("member_id")
+		.primaryKey()
+		.references(() => members.id),
+	householdId: text("household_id")
+		.notNull()
+		.references(() => households.id),
+	nudgesUpTo: integer("nudges_up_to", { mode: "timestamp_ms" }).notNull(),
+	release: text("release"),
+});
+
 // A Scenario: a named set of Changes (JSON, see Change in @noodle/domain) on the Plan, explored
 // against it and never part of it until a Parent applies it.
 export const scenarios = sqliteTable(

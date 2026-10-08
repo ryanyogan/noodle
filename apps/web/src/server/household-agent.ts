@@ -125,7 +125,8 @@ export class HouseholdAgent extends DurableObject<Env> {
 			}
 		});
 		try {
-			await this.nudges.run();
+			// A Nudge that was just sent is in the bell of the Parent it went to: open screens look.
+			if (await this.nudges.run()) this.broadcast(householdChangesMessage(["bell"]));
 		} finally {
 			// Nudges set the alarm for their own next time; bring it forward for the next AI run.
 			await this.ai.wake();

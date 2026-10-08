@@ -165,15 +165,14 @@ describe("Nudge preferences and devices", () => {
 		);
 	});
 
-	it("Nudges only Parents with a device, and a device goes to whoever turned it on last", async () => {
-		expect((await loadNudgeRecipients(db, householdId))?.recipients).toEqual([]);
-
+	it("a device goes to whoever turned it on last", async () => {
 		await savePushSubscription(db, { householdId, memberId: "alex", ...device("https://a") });
 		await savePushSubscription(db, { householdId, memberId: "sam", ...device("https://a") });
 		expect(await loadPushSubscriptions(db, householdId, "alex")).toEqual([]);
 		expect(await loadPushSubscriptions(db, householdId, "sam")).toEqual([device("https://a")]);
+		// Both Parents could still get a Nudge: the bell lists it with a device or without.
 		expect((await loadNudgeRecipients(db, householdId))?.recipients.map((r) => r.memberId)).toEqual(
-			["sam"],
+			["alex", "sam"],
 		);
 
 		// Only its own Parent can turn a device off.

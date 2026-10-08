@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { loadNudgeRecipients, loadQuickAddForNudge } from "@noodle/db";
+import { loadNudgeRecipients, loadQuickAddForNudge, recordSentNudges } from "@noodle/db";
 import {
 	bucketsPassingPace,
 	type Cents,
@@ -9,6 +9,7 @@ import {
 	monthState,
 	wantsNudge,
 } from "@noodle/domain";
+import { latestRelease } from "../changelog";
 import type { HouseholdChange } from "../household-changes";
 import { appUpdateNudges, buildChanged, type ToldBuild } from "./app-update-nudge";
 import { getDb } from "./db";
@@ -45,7 +46,9 @@ const APP_BUILD_KEY = "nudges:app-build";
 /**
  * The Household Agent's Nudges (ADR-0007). After a write, it looks at what changed a moment
  * later (so a burst of writes is looked at once), decides which Parents to Nudge, holds each
- * until that Parent's quiet hours end, and hands them to the Nudge Queue to deliver. It keeps
+ * until that Parent's quiet hours end, and then sends each: to the Nudge Queue, which delivers it
+ * to that Parent's devices if they have any, and into the record the bell lists for that Parent
+ * (issue 157, ADR-0065), device or none. It keeps
  * what it needs in the Agent's own storage: what's still to look at, the Nudges it's holding,
  * which Buckets were past Pace last time, so a Bucket nudges once per crossing, the most each
  * month's Extra income was Nudged at, so it nudges once per increase, and the last week it took
@@ -128,7 +131,8 @@ export class HouseholdNudges {
 	 * The Agent finds itself running `build` as a Parent's screen connects (issue 140). When that is
 	 * another build than last time, the Household's other Parents are Nudged that the app was
 	 * updated: once a build, not within an hour of the last time, after their quiet hours. The
-	 * Parent connecting (`except`) is told on that screen. Costs one read of storage otherwise.
+	 * Parent connecting (`except`) is told on that screen. Costs one read of storage otherwise. The
+	 * Nudge names the Changelog's latest release when the Household wasn't told of it yet.
 	 */
 	async appUpdated(householdId: string, build: string, except: string, now = new Date()) {
 		const told = this.kv.get<ToldBuild>(APP_BUILD_KEY);
@@ -141,6 +145,7 @@ export class HouseholdNudges {
 			recipients: household?.recipients ?? [],
 			except,
 			now,
+			release: latestRelease,
 		});
 		this.kv.put(APP_BUILD_KEY, next.told);
 		if (next.nudges.length === 0) return;
@@ -150,10 +155,13 @@ export class HouseholdNudges {
 		await this.wakeBy(Date.now());
 	}
 
-	/** Runs on the Agent's alarm: decides on anything pending, then sends what's due. */
-	async run(now = new Date()) {
+	/**
+	 * Runs on the Agent's alarm: decides on anything pending, then sends what's due. Returns whether
+	 * any Nudge was recorded for the bell, so open screens can be told.
+	 */
+	async run(now = new Date()): Promise<boolean> {
 		const householdId = this.kv.get<string>(HOUSEHOLD_KEY);
-		if (!householdId) return;
+		if (!householdId) return false;
 		// Taken now, so writes noted while this runs wait for the next run rather than being lost.
 		const pending = this.pending();
 		this.kv.delete(PENDING_KEY);
@@ -189,6 +197,15 @@ export class HouseholdNudges {
 		for (let i = 0; i < deliveries.length; i += 100) {
 			await env.NUDGE_QUEUE.sendBatch(deliveries.slice(i, i + 100));
 		}
+		// Recorded as they are sent, each for its own Parent: the bell lists a Nudge whether or not a
+		// device showed it. After the Queue has them, so a run that fails here and is retried sends a
+		// Nudge again (a device shows it once, by its tag) rather than recording it twice.
+		const recorded = await recordSentNudges(
+			getDb(),
+			householdId,
+			due.map(({ memberId, nudge }) => ({ memberId, ...nudge })),
+			now,
+		);
 		const held = scheduled.filter((nudge) => !isDue(nudge));
 		this.kv.put(SCHEDULED_KEY, held);
 
@@ -196,6 +213,7 @@ export class HouseholdNudges {
 			? Date.now() + SETTLE_MS
 			: Math.min(...held.map((nudge) => nudge.deliverAt));
 		if (Number.isFinite(next)) await this.storage.setAlarm(next);
+		return recorded > 0;
 	}
 
 	private scheduled(): ScheduledNudge[] {
@@ -239,7 +257,7 @@ async function decideNudges(
 }> {
 	const db = getDb();
 	const household = await loadNudgeRecipients(db, householdId);
-	// Nobody to Nudge: whatever happened is looked at afresh once someone turns Nudges on.
+	// The Household is gone, or has no Parent left to tell.
 	if (!household || household.recipients.length === 0) return { scheduled: [], windfalls: [] };
 
 	const { recipients, timeZone } = household;

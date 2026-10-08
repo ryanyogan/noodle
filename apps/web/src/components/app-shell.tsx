@@ -65,6 +65,7 @@ import { useReviewWaiting } from "../money-in";
 import { moreGroups, type NavGroup, type NavItem, sidebarGroups, tabItems } from "../nav";
 import { checkInStatusQuery, membersQuery } from "../queries";
 import { openGlossary } from "./glossary";
+import { NotificationBell, useBellUnread } from "./notification-bell";
 import { markQuickAddOpened, quickAddSearch } from "./quick-add";
 
 /**
@@ -132,14 +133,16 @@ function AppSidebar({ householdName }: { householdName: string }) {
 	return (
 		<Sidebar className="hidden lg:flex">
 			<SidebarHeader>
-				<div className="flex h-8 items-center justify-between rail:justify-center">
+				{/* In the rail the trigger keeps its place and the bell goes under it. */}
+				<div className="flex h-8 items-center gap-1 rail:h-auto rail:flex-col-reverse">
 					<Link
 						to="/month"
-						className="rounded-lg px-2.5 py-1 rail:hidden"
+						className="me-auto rounded-lg px-2.5 py-1 rail:hidden"
 						aria-label="Noodle, This Month"
 					>
 						<Logo />
 					</Link>
+					<NotificationBell place="sidebar" />
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<SidebarTrigger />
@@ -489,6 +492,8 @@ function MoreTab({ householdName }: { householdName: string }) {
 	const navigate = useNavigate();
 	const open = useLocation({ select: (location) => location.hash === MORE_HASH }) && hydrated;
 	const within = moreGroups.some((group) => group.items.some(isCurrent));
+	// The bell is in the sheet: a dot here says there is something unread in it (issue 157).
+	const unread = useBellUnread() > 0;
 	useEffect(() => {
 		if (!open) moreOpenedHere = false;
 	}, [open]);
@@ -516,7 +521,16 @@ function MoreTab({ householdName }: { householdName: string }) {
 					moreOpenedHere = true;
 				}}
 			>
-				<Ellipsis className="size-5.5" strokeWidth={1.75} aria-hidden="true" />
+				<span className="relative">
+					<Ellipsis className="size-5.5" strokeWidth={1.75} aria-hidden="true" />
+					{unread ? (
+						<span
+							aria-hidden="true"
+							data-bell-dot=""
+							className="absolute -end-1.5 -top-0.5 size-2 rounded-full bg-brand ring-2 ring-card"
+						/>
+					) : null}
+				</span>
 				More
 			</Link>
 			<Sheet open={open} onOpenChange={(next) => (next ? undefined : close())}>
@@ -539,6 +553,7 @@ function MoreTab({ householdName }: { householdName: string }) {
 						// count as the sheet's own overflow and let the whole sheet scroll.
 						className="relative -mx-4 grid min-h-48 shrink! content-start gap-2 overflow-y-auto overscroll-contain px-4 pb-2 [scrollbar-width:none] [background:linear-gradient(to_top,var(--card)_40%,transparent)_bottom/100%_56px_no-repeat_local,linear-gradient(to_top,color-mix(in_oklab,var(--foreground)_22%,transparent),transparent)_bottom/100%_20px_no-repeat_scroll,var(--card)]"
 					>
+						<NotificationBell place="more" />
 						{moreGroups.map((group, index) => (
 							<MoreGroup key={group.label} group={group} review={index === 0} onGlossary={close} />
 						))}

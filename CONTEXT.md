@@ -33,7 +33,7 @@ Every change made to the Household that is on record, in one table under Househo
 _Avoid_: What changed, audit log, activity, history (an item's own is its History)
 
 **Changelog**:
-What changed in Noodle itself, release by release, newest first, under Household settings › Changelog: each **release** has its day, a short title and its changes in a Parent's words, and an address of its own. It is about the app; what changed in the Household is the Log.
+What changed in Noodle itself, release by release, newest first, under Household settings › Changelog: each **release** has its day, a short title and its changes in a Parent's words, and an address of its own. It is about the app; what changed in the Household is the Log. A release a Parent hasn't seen is a row of the **bell** until they open it.
 _Avoid_: Release notes, what's new, updates (the Log is the Household's changes)
 
 **Commitment**:
@@ -258,6 +258,7 @@ _Avoid_: Inbox, drop box
 
 **Nudge**:
 A notification the app sends on its own because something changed that a Parent would want to know now (a Bucket passing Pace, Extra income arriving, the other Parent's Quick Add, a Balance check coming due).
+Each Nudge is recorded for the Parent it is sent to and listed in the **bell** (ADR-0065): in the Sidebar on a computer and in More on a phone, with the releases of the Changelog that Parent hasn't seen, newest first, each leading somewhere. Opening the bell reads what it lists, for that Parent on every device. A Nudge reaches a Parent there whether or not they turned Nudges on for a device.
 _Avoid_: Alert, push, reminder
 
 **Review**:

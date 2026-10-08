@@ -21,6 +21,7 @@ Rules (changelog.test.ts checks them):
 
 ## 2026-10-08: Pay days, and one list to pick from
 
+- **A bell for what's new.** A bell in the sidebar (on a phone, the first row of More) lists the releases you haven't seen and the Nudges Noodle sent you, newest first, each leading to what it is about. A dot shows while something is unread; opening the bell reads it, on your phone and your computer alike. A Nudge you dismissed can be found there again, and it is listed even if you never turned Nudges on for a device. The Nudge about an update now names the release and opens it here.
 - On Plan › Income each Parent can say how they are paid: on a salary, with what one paycheck usually is and its pay days.
 - A paycheck counts in the month of the pay day it is for, whatever day the bank posted it. One posted on the last day of a month for the 1st is the new month's Income, and a line of Income can say which pay day it is for.
 - A card statement that writes purchases as positive amounts comes in as spending.

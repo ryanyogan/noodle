@@ -66,6 +66,52 @@ describe("appUpdateNudges", () => {
 		expect(appUpdateNudges({ told: later, build: "c", recipients, now }).nudges).toHaveLength(2);
 	});
 
+	const release = { date: "2026-10-08", title: "A bell for what's new" };
+
+	it("names a release the Household wasn't told of, and leads to it in the Changelog", () => {
+		// A record from before the Changelog has no release: the latest is news.
+		const first = appUpdateNudges({
+			told: { build: "a", toldAt: null },
+			build: "b",
+			recipients,
+			now,
+			release,
+		});
+		expect(first.told).toEqual({ build: "b", toldAt: now.getTime(), release: "2026-10-08" });
+		expect(first.nudges[0]?.nudge).toEqual({
+			kind: "app-update",
+			title: "New in Noodle: A bell for what's new",
+			body: "See what changed.",
+			tag: "app-update",
+			url: "/household/changelog#2026-10-08",
+		});
+	});
+
+	it("says only that Noodle was updated when the update brought no release", () => {
+		const told = { build: "b", toldAt: now.getTime() - QUIET_AFTER_TOLD_MS, release: "2026-10-08" };
+		const next = appUpdateNudges({ told, build: "c", recipients, now, release });
+		expect(next.told.release).toBe("2026-10-08");
+		expect(next.nudges[0]?.nudge).toMatchObject({ title: "Noodle was updated", url: "/month" });
+	});
+
+	it("leaves a release to the next update when this one goes untold", () => {
+		// A Household's first build: nothing to catch up on.
+		expect(appUpdateNudges({ told: undefined, build: "a", recipients, now, release }).told).toEqual(
+			{
+				build: "a",
+				toldAt: null,
+				release: "2026-10-08",
+			},
+		);
+		// Within the hour of the last one told: the release isn't counted as told.
+		const told = { build: "a", toldAt: now.getTime() - 1, release: "2026-10-06" };
+		const quiet = appUpdateNudges({ told, build: "b", recipients, now, release });
+		expect(quiet).toEqual({ told: { ...told, build: "b" }, nudges: [] });
+		const later = new Date(now.getTime() + QUIET_AFTER_TOLD_MS);
+		const next = appUpdateNudges({ told: quiet.told, build: "c", recipients, now: later, release });
+		expect(next.nudges[0]?.nudge.title).toBe("New in Noodle: A bell for what's new");
+	});
+
 	it("holds a Parent's Nudge until their quiet hours end", () => {
 		// Quiet 14:00 to 16:00 Chicago: 15:00 is inside, so it waits for 16:00 (21:00 UTC).
 		const quiet = [parent("ryan", { start: 14 * 60, end: 16 * 60 })];
