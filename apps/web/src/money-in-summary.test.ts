@@ -9,12 +9,12 @@ import {
 	linkMoneyInRefund,
 	loadIncome,
 	loadMoneyIn,
+	loadMoneyInSummary,
 	setTakeHomePay,
 } from "@noodle/db";
 import { testDb } from "@noodle/db/test-db";
 import type { Cents, DayKey, MoneyInKind, StatementLine } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
-import { monthIncome, monthSummary } from "./transaction-summary";
 
 // "Money in" on the Transactions summary and "received" on This Month are two different figures
 // (issue 131, ADR-0057), and this says exactly how. "received" is Income only: it is what is set
@@ -131,8 +131,11 @@ describe("a month holding every kind of money in", () => {
 			}),
 		).toMatchObject({ ok: true });
 
-		const lines = await all();
-		const summary = monthSummary(lines, null);
+		// The Transactions page's own read of the month (`loadTransactionsPage` gives its figures).
+		const summary = await loadMoneyInSummary(db, householdId, {
+			from: "2026-09-01",
+			until: "2026-10-01",
+		});
 		const received = (await loadIncome(db, householdId, month, "2026-10")).reduce(
 			(sum, row) => sum + row.amount,
 			0,
@@ -141,8 +144,8 @@ describe("a month holding every kind of money in", () => {
 		expect(received).toBe(612_000);
 		// Transactions: that, the two Refunds (linked or not) and the Paid back.
 		expect(summary.inCents).toBe(612_000 + 2_000 + 1_500 + 4_000);
-		expect(summary.needsReview).toBe(1);
+		expect(summary.waiting).toBe(1);
 		// The part of Money in the summary names as Income is This Month's "received".
-		expect(monthIncome(lines)).toBe(received);
+		expect(summary.incomeCents).toBe(received);
 	});
 });
