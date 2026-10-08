@@ -94,6 +94,11 @@ function Combobox({
 						align="start"
 						sideOffset={4}
 						collisionPadding={8}
+						// Inside a sheet the page is held still (Radix's scroll lock), which takes the wheel
+						// and a finger's drag from anything outside the sheet's own element, as this list
+						// is: kept here, they scroll the list.
+						onWheel={(event) => event.stopPropagation()}
+						onTouchMove={(event) => event.stopPropagation()}
 						className={cn(
 							// Above sheets (z-41) and alert dialogs (z-51), as Select.
 							"z-55 w-(--radix-popover-trigger-width) max-w-[calc(100vw-16px)] min-w-[max(var(--radix-popover-trigger-width),12rem)]",
