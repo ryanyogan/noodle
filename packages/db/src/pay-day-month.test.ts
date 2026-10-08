@@ -447,3 +447,37 @@ describe("two salaried Parents", () => {
 		expect(await counted()).toEqual({ sep: 250_000, oct: 755_000 });
 	});
 });
+
+describe("every two weeks", () => {
+	it("counts three paychecks in a month with three pay days, each once, and the two months add up as before", async () => {
+		// Fridays from Oct 2: October has the 2nd, the 16th and the 30th; September the 4th and 18th.
+		await receive("pay-oct-30", "2026-10-29", 2500);
+		const before = await counted();
+		await setParentPay(db, {
+			householdId,
+			memberId: parentId,
+			pay: {
+				paycheck: 250_000 as Cents,
+				schedule: { kind: "every-two-weeks", anchor: "2026-10-02" as DayKey },
+			},
+		});
+		const result = await matchPayDays(db, householdId, { claim: true });
+		expect(result).toMatchObject({ matched: 4, months: [sep, oct], notMoved: [] });
+		const payDays = Object.fromEntries(
+			(await loadMoneyIn(db, householdId, { from: "2026-09-01", until: "2026-11-01" })).map(
+				(line) => [line.id, line.payDay],
+			),
+		);
+		expect(payDays).toEqual({
+			"pay-sep-15": "2026-09-18",
+			// Posted in September for October's first pay day: October's Income.
+			"pay-oct-01": "2026-10-02",
+			"pay-oct-15": "2026-10-16",
+			"pay-oct-30": "2026-10-30",
+		});
+		const after = await counted();
+		// The third paycheck is October's, above a Take-home pay of two: Extra income as ever.
+		expect(after).toEqual({ sep: 250_000, oct: 745_000 });
+		expect(after.sep + after.oct).toBe(before.sep + before.oct);
+	});
+});

@@ -1,5 +1,6 @@
 import {
 	type Cents,
+	type DayKey,
 	DEFAULT_PAY_DAYS,
 	type ExpectedPaycheck,
 	type LatePay,
@@ -10,6 +11,7 @@ import {
 	type SalaryPay,
 } from "@noodle/domain";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { weekdayNames } from "./check-in";
 import { ordinal } from "./commitments";
 import { formatMoney, monthName, shortDay } from "./format";
 import { MoneyInRefused } from "./money-in";
@@ -123,14 +125,27 @@ export const HOURLY_LABEL = "Hourly, or pay that varies";
 
 export const PAY_SCHEDULE_LABELS: Record<PayScheduleKind, string> = {
 	"twice-a-month": "Twice a month",
+	"every-two-weeks": "Every two weeks",
+	weekly: "Weekly",
 	monthly: "Monthly",
 };
 
-/** "Twice a month, on the 1st and the 15th". */
-export const scheduleText = (schedule: PaySchedule) =>
-	schedule.kind === "monthly"
-		? `Monthly, on the ${ordinal(schedule.day)}`
-		: `Twice a month, on the ${ordinal(schedule.days[0])} and the ${ordinal(schedule.days[1])}`;
+/** "Friday", for a day key. */
+const weekdayOf = (day: DayKey) => weekdayNames[new Date(`${day}T00:00:00Z`).getUTCDay()];
+
+/** "Twice a month, on the 1st and the 15th"; "Every two weeks, on a Friday, counted from Oct 2". */
+export function scheduleText(schedule: PaySchedule): string {
+	switch (schedule.kind) {
+		case "monthly":
+			return `Monthly, on the ${ordinal(schedule.day)}`;
+		case "twice-a-month":
+			return `Twice a month, on the ${ordinal(schedule.days[0])} and the ${ordinal(schedule.days[1])}`;
+		case "every-two-weeks":
+			return `Every two weeks, on a ${weekdayOf(schedule.anchor)}, counted from ${shortDay(schedule.anchor)}`;
+		case "weekly":
+			return `Weekly, on ${weekdayOf(schedule.anchor)}s`;
+	}
+}
 
 /** "Salary · $2,500 a paycheck · Twice a month, on the 1st and the 15th". */
 export const payText = (pay: SalaryPay | null) =>
@@ -138,12 +153,19 @@ export const payText = (pay: SalaryPay | null) =>
 		? `Salary · ${formatMoney(pay.paycheck)} a paycheck · ${scheduleText(pay.schedule)}`
 		: HOURLY_LABEL;
 
-/** The schedule a form's choices make: its kind and the two days it offers, the second unused for monthly. */
+/**
+ * The schedule a form's choices make: its kind and the two days it offers, the second unused for
+ * monthly; every two weeks or weekly, the one pay day it is counted from instead (`anchor`, "" until
+ * picked).
+ */
 export function scheduleOf(
 	kind: PayScheduleKind,
 	first: number,
 	second: number,
+	anchor = "",
 ): PaySchedule | null {
+	if (kind === "every-two-weeks" || kind === "weekly")
+		return anchor ? { kind, anchor: anchor as DayKey } : null;
 	if (kind === "monthly") return { kind, day: first };
 	if (first === second) return null;
 	return { kind, days: first < second ? [first, second] : [second, first] };
@@ -177,6 +199,13 @@ export function paycheckMeta(paycheck: ExpectedPaycheck, name: string): string {
 			return `No Income marked as ${name}’s pay near this day`;
 	}
 }
+
+/**
+ * Under a month's paychecks when it has one more pay day than most (three every two weeks, five
+ * weekly): the paycheck above the Take-home pay is Extra income, as any Income over it is.
+ */
+export const extraPayDayText = (month: MonthKey, payDays: number) =>
+	`${monthName(month)} has ${payDays} pay days, one more than most months. Pay above your take-home pay shows as Extra income for you to place.`;
 
 /** What the row's amount is: what came in, else what one paycheck usually is. */
 export const paycheckAmount = (paycheck: ExpectedPaycheck): Cents =>

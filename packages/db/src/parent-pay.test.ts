@@ -1,4 +1,4 @@
-import type { Cents, SalaryPay } from "@noodle/domain";
+import type { Cents, DayKey, SalaryPay } from "@noodle/domain";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createHouseholdForParent, type Db, loadParentPay, setParentPay } from "./index";
@@ -91,11 +91,24 @@ describe("how a Parent is paid", () => {
 			.update(members)
 			.set({
 				paycheckCents: 1_000_00,
-				paySchedule: '{"kind":"every-two-weeks","anchor":"2026-10-02"}',
+				paySchedule: '{"kind":"every-four-weeks","anchor":"2026-10-02"}',
 			})
 			.where(eq(members.id, parentId));
 		expect(await payOf(parentId)).toBeNull();
 		await db.update(members).set({ paySchedule: "not json" }).where(eq(members.id, parentId));
 		expect(await payOf(parentId)).toBeNull();
+	});
+
+	it("keeps every two weeks and weekly with the pay day they are counted from", async () => {
+		for (const kind of ["every-two-weeks", "weekly"] as const) {
+			const pay: SalaryPay = {
+				paycheck: 1_800_00 as Cents,
+				schedule: { kind, anchor: "2026-10-02" as DayKey },
+			};
+			expect(await setParentPay(db, { householdId, memberId: parentId, pay })).toEqual({
+				ok: true,
+			});
+			expect(await payOf(parentId)).toEqual(pay);
+		}
 	});
 });

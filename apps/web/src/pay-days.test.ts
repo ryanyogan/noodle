@@ -1,6 +1,14 @@
 import type { Cents, DayKey, ExpectedPaycheck } from "@noodle/domain";
 import { describe, expect, it } from "vitest";
-import { formDays, paycheckAmount, paycheckMeta, payText, scheduleOf } from "./pay-days";
+import {
+	extraPayDayText,
+	formDays,
+	paycheckAmount,
+	paycheckMeta,
+	payText,
+	scheduleOf,
+	scheduleText,
+} from "./pay-days";
 
 // How Plan › Income says a Parent's pay and each expected paycheck (issue 156).
 
@@ -16,6 +24,20 @@ describe("payText", () => {
 		);
 	});
 
+	it("says every two weeks and weekly by the day of the week", () => {
+		const anchor = "2026-10-02" as DayKey;
+		expect(scheduleText({ kind: "every-two-weeks", anchor })).toBe(
+			"Every two weeks, on a Friday, counted from Oct 2",
+		);
+		expect(scheduleText({ kind: "weekly", anchor })).toBe("Weekly, on Fridays");
+	});
+
+	it("says a month has a pay day more than most", () => {
+		expect(extraPayDayText("2026-10", 3)).toBe(
+			"October has 3 pay days, one more than most months. Pay above your take-home pay shows as Extra income for you to place.",
+		);
+	});
+
 	it("says hourly when nothing is set", () => {
 		expect(payText(null)).toBe("Hourly, or pay that varies");
 	});
@@ -24,6 +46,18 @@ describe("payText", () => {
 describe("scheduleOf", () => {
 	it("makes monthly from the first day alone", () => {
 		expect(scheduleOf("monthly", 28, 28)).toEqual({ kind: "monthly", day: 28 });
+	});
+
+	it("makes every two weeks and weekly from the one pay day picked, and nothing until it is", () => {
+		expect(scheduleOf("every-two-weeks", 1, 15, "2026-10-02")).toEqual({
+			kind: "every-two-weeks",
+			anchor: "2026-10-02",
+		});
+		expect(scheduleOf("weekly", 1, 15, "2026-10-02")).toEqual({
+			kind: "weekly",
+			anchor: "2026-10-02",
+		});
+		expect(scheduleOf("weekly", 1, 15)).toBeNull();
 	});
 
 	it("puts the earlier of two pay days first", () => {

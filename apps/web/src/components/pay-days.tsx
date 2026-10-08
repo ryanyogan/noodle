@@ -5,9 +5,11 @@ import {
 	PAYCHECK_WITHIN,
 	type PayScheduleKind,
 	parseDollars,
+	usualPayDays,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
+import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { OptionSelect } from "@noodle/ui/components/select";
@@ -20,6 +22,7 @@ import { type FormEvent, useId, useState } from "react";
 import { ordinal } from "../commitments";
 import { formatMoney, formatMoneyInput, monthName, shortDay } from "../format";
 import {
+	extraPayDayText,
 	formDays,
 	HOURLY_LABEL,
 	notMovedText,
@@ -168,6 +171,11 @@ function ExpectedPaychecks({ month, parent }: { month: MonthKey; parent: ParentP
 					/>
 				))}
 			</List>
+			{parent.pay && parent.payDays.length > usualPayDays(parent.pay.schedule) ? (
+				<p data-testid="extra-pay-day" className="text-sm">
+					{extraPayDayText(month, parent.payDays.length)}
+				</p>
+			) : null}
 			<p className="text-xs text-muted-foreground">
 				A pay day reads In once Income marked as {parent.name}’s pay, within{" "}
 				{formatMoney(PAYCHECK_WITHIN)} of the paycheck, lands up to {PAY_DAY_WINDOW_DAYS} days
@@ -196,14 +204,21 @@ function ParentPayForm({
 	);
 	const [kind, setKind] = useState<PayScheduleKind>(parent.pay?.schedule.kind ?? "twice-a-month");
 	const [[first, second], setDays] = useState(() => formDays(parent.pay?.schedule));
+	// Every two weeks or weekly: the one pay day the rest are counted from.
+	const [anchor, setAnchor] = useState(() => {
+		const from = parent.pay?.schedule;
+		return from?.kind === "every-two-weeks" || from?.kind === "weekly" ? from.anchor : "";
+	});
 	const [tried, setTried] = useState(false);
 	const cents = parseDollars(amount);
-	const schedule = scheduleOf(kind, first, second);
+	const counted = kind === "every-two-weeks" || kind === "weekly";
+	const schedule = scheduleOf(kind, first, second, anchor);
 	const amountError = cents === null || cents <= 0 ? "Enter what one paycheck usually is" : null;
-	const daysError = schedule === null ? "Pick two different days" : null;
+	const daysError = !counted && schedule === null ? "Pick two different days" : null;
+	const anchorError = counted && schedule === null ? "Pick one of the pay days" : null;
 	// A day some months don't have: said once, under the last day picked.
 	const short =
-		first > 28 || (kind === "twice-a-month" && second > 28)
+		!counted && (first > 28 || (kind === "twice-a-month" && second > 28))
 			? "In a month without that day, it’s the month’s last day."
 			: undefined;
 
@@ -272,36 +287,56 @@ function ParentPayForm({
 							onValueChange={(value) => setKind(value as PayScheduleKind)}
 						/>
 					</Field>
-					<div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-4">
+					{counted ? (
 						<Field
-							label={kind === "monthly" ? "Pay day" : "First pay day"}
-							htmlFor={`${id}-first`}
-							hint={kind === "monthly" ? short : undefined}
+							label="A pay day"
+							htmlFor={`${id}-anchor`}
+							hint={
+								kind === "weekly"
+									? "Any one pay day, past or coming up: it’s every week on that day."
+									: "Any one pay day, past or coming up: the rest are counted from it, two weeks apart."
+							}
+							error={tried ? (anchorError ?? undefined) : undefined}
 						>
-							<OptionSelect
-								id={`${id}-first`}
-								value={String(first)}
-								choices={dayChoices}
-								onValueChange={(value) => setDays([Number(value), second])}
+							<DatePicker
+								id={`${id}-anchor`}
+								value={anchor}
+								onChange={setAnchor}
+								aria-invalid={(tried && anchorError !== null) || undefined}
 							/>
 						</Field>
-						{kind === "twice-a-month" ? (
+					) : (
+						<div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-4">
 							<Field
-								label="Second pay day"
-								htmlFor={`${id}-second`}
-								hint={daysError ? undefined : short}
-								error={daysError ?? undefined}
+								label={kind === "monthly" ? "Pay day" : "First pay day"}
+								htmlFor={`${id}-first`}
+								hint={kind === "monthly" ? short : undefined}
 							>
 								<OptionSelect
-									id={`${id}-second`}
-									value={String(second)}
+									id={`${id}-first`}
+									value={String(first)}
 									choices={dayChoices}
-									aria-invalid={daysError !== null || undefined}
-									onValueChange={(value) => setDays([first, Number(value)])}
+									onValueChange={(value) => setDays([Number(value), second])}
 								/>
 							</Field>
-						) : null}
-					</div>
+							{kind === "twice-a-month" ? (
+								<Field
+									label="Second pay day"
+									htmlFor={`${id}-second`}
+									hint={daysError ? undefined : short}
+									error={daysError ?? undefined}
+								>
+									<OptionSelect
+										id={`${id}-second`}
+										value={String(second)}
+										choices={dayChoices}
+										aria-invalid={daysError !== null || undefined}
+										onValueChange={(value) => setDays([first, Number(value)])}
+									/>
+								</Field>
+							) : null}
+						</div>
+					)}
 				</>
 			) : (
 				<p className="text-sm text-muted-foreground">

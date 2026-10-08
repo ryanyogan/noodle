@@ -3,7 +3,13 @@ import { ulid } from "ulid";
 import { measure } from "./overflow";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { createPlannedHousehold, hydrated, signedInPage } from "./session";
+import {
+	clientRendered,
+	createPlannedHousehold,
+	hydrated,
+	pickDate,
+	signedInPage,
+} from "./session";
 
 // How each Parent is paid, on Plan › Income (issue 156, phase 1): hourly until a Parent says, or
 // on a salary with one paycheck and its pay days, whose expected paychecks are listed for the
@@ -56,7 +62,7 @@ test("a Parent on a salary sees a paycheck for each pay day, In once their pay h
 
 	// Hourly, or pay that varies, until a Parent says: nothing is listed and nothing else changes.
 	const row = section(page).getByTestId("parent-pay");
-	await expect(row).toHaveCount(1);
+	await expect(row).toHaveCount(1, clientRendered);
 	await expect(row).toContainText("Hourly, or pay that varies");
 	await expect(paychecks(page)).toHaveCount(0);
 	const name = ((await row.locator("span").first().textContent()) ?? "").trim();
@@ -156,6 +162,73 @@ test("monthly pay on the 31st is listed on a shorter month's last day", async ({
 	const last = new Date(Date.UTC(year ?? 1970, monthNumber ?? 1, 0)).toISOString().slice(0, 10);
 	await expect(paychecks(page)).toHaveCount(1);
 	await expect(paychecks(page)).toContainText(`Pay for ${shortDay(last)}`);
+});
+
+test("pay every two weeks or weekly is counted from one pay day, and a month with a pay day more than most says so", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 1280, height: 900 },
+	});
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const month = /\/month\/(\d{4}-\d{2})/.exec(page.url())?.[1];
+	if (!month) throw new Error(`No month in ${page.url()}`);
+	await page.goto(`/plan/${month}/income`);
+	const row = section(page).getByTestId("parent-pay");
+	await row.getByRole("button", { name: /^Edit how .+ is paid$/ }).click();
+	const sheet = page.getByRole("dialog", { name: /^How .+ is paid$/ });
+	await choose(page, sheet, "Paid", "Salary");
+	await sheet.getByLabel("One paycheck").fill("1,800");
+	await choose(page, sheet, "How often", "Every two weeks");
+	// One pay day in place of days of the month, and it isn't saved until one is picked.
+	await expect(sheet.getByRole("combobox", { name: "First pay day" })).toHaveCount(0);
+	await sheet.getByRole("button", { name: "Save" }).click();
+	await expect(sheet.getByText("Pick one of the pay days")).toBeVisible();
+	// Counted from the 1st: the 1st, the 15th and, in any month but a 28-day February, the 29th.
+	const first = `${month}-01`;
+	await pickDate(sheet, "A pay day", first);
+	await sheet.getByRole("button", { name: "Save" }).click();
+	await expect(sheet).toBeHidden();
+	const weekday = new Date(`${first}T00:00:00Z`).toLocaleDateString("en-US", {
+		weekday: "long",
+		timeZone: "UTC",
+	});
+	await expect(row).toContainText(
+		`Salary · $1,800 a paycheck · Every two weeks, on a ${weekday}, counted from ${shortDay(first)}`,
+	);
+	const [year, monthNumber] = month.split("-").map(Number);
+	const days = new Date(Date.UTC(year ?? 1970, monthNumber ?? 1, 0)).getUTCDate();
+	const twoWeekly = days >= 29 ? 3 : 2;
+	await expect(paychecks(page)).toHaveCount(twoWeekly);
+	await expect(paychecks(page).nth(1)).toContainText(`Pay for ${shortDay(`${month}-15`)}`);
+	const more = section(page).getByTestId("extra-pay-day");
+	if (twoWeekly === 3) {
+		await expect(more).toContainText("has 3 pay days, one more than most months");
+		await expect(more).toContainText("Extra income");
+	} else await expect(more).toHaveCount(0);
+
+	// Weekly, from the same day, kept by the server: every seventh day.
+	await page.reload();
+	await row.getByRole("button", { name: /^Edit how .+ is paid$/ }).click();
+	await expect(sheet.getByRole("combobox", { name: "How often" })).toContainText("Every two weeks");
+	await choose(page, sheet, "How often", "Weekly");
+	await sheet.getByRole("button", { name: "Save" }).click();
+	await expect(sheet).toBeHidden();
+	await expect(row).toContainText(`Weekly, on ${weekday}s`);
+	await expect(paychecks(page)).toHaveCount(days >= 29 ? 5 : 4);
+	await expect(paychecks(page).nth(1)).toContainText(`Pay for ${shortDay(`${month}-08`)}`);
+
+	// A phone: nothing runs off the side, with the list and with the form open.
+	await page.setViewportSize({ width: 320, height: 720 });
+	let size = await measure(page);
+	expect(size.sticking).toEqual([]);
+	expect(size.scrollWidth).toBeLessThanOrEqual(size.width);
+	await row.getByRole("button", { name: /^Edit how .+ is paid$/ }).click();
+	await expect(sheet.getByLabel("One paycheck")).toHaveValue("1,800");
+	size = await measure(page);
+	expect(size.sticking).toEqual([]);
+	expect(size.scrollWidth).toBeLessThanOrEqual(size.width);
 });
 
 test("a pay day that hasn't come in is said on This Month and in the Check-in, until the pay is in", async ({

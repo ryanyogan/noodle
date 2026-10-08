@@ -6,7 +6,9 @@ import {
 	type PaycheckLine,
 	type PaySchedule,
 	parsePaySchedule,
+	payDayMatches,
 	payDaysIn,
+	usualPayDays,
 } from "./pay-days";
 
 // Pay days (issue 156, phase 1): the pay days a schedule gives a month, and which Income is read
@@ -40,7 +42,10 @@ describe("parsePaySchedule", () => {
 	it.each([
 		["nothing", null],
 		["text", "monthly"],
-		["a kind added later", { kind: "every-two-weeks", anchor: "2026-10-02" }],
+		["a kind added later", { kind: "every-four-weeks", anchor: "2026-10-02" }],
+		["every two weeks from no day", { kind: "every-two-weeks" }],
+		["weekly from a day there isn't", { kind: "weekly", anchor: "2026-02-30" }],
+		["weekly from a day as a number", { kind: "weekly", anchor: 20261002 }],
 		["no day", { kind: "monthly" }],
 		["day 0", { kind: "monthly", day: 0 }],
 		["day 32", { kind: "monthly", day: 32 }],
@@ -266,5 +271,127 @@ describe("latePay", () => {
 		]);
 		expect(of([], "2026-10-07", "2026-09-21").map((late) => late.day)).toEqual(["2026-10-01"]);
 		expect(of([], "2026-10-07", null)).toEqual([]);
+	});
+});
+
+describe("every two weeks and weekly", () => {
+	const twoWeekly = (anchor: string): PaySchedule => ({
+		kind: "every-two-weeks",
+		anchor: anchor as DayKey,
+	});
+	const weekly = (anchor: string): PaySchedule => ({ kind: "weekly", anchor: anchor as DayKey });
+
+	it("reads both, with the day they are counted from", () => {
+		expect(parsePaySchedule({ kind: "every-two-weeks", anchor: "2026-10-02" })).toEqual(
+			twoWeekly("2026-10-02"),
+		);
+		expect(parsePaySchedule({ kind: "weekly", anchor: "2026-10-02" })).toEqual(
+			weekly("2026-10-02"),
+		);
+	});
+
+	it("gives a month every fourteenth day from the anchor: two in most, three in some", () => {
+		const fridays = twoWeekly("2026-10-02");
+		expect(payDaysIn(fridays, "2026-10")).toEqual(["2026-10-02", "2026-10-16", "2026-10-30"]);
+		expect(payDaysIn(fridays, "2026-11")).toEqual(["2026-11-13", "2026-11-27"]);
+		expect(payDaysIn(fridays, "2026-12")).toEqual(["2026-12-11", "2026-12-25"]);
+		// A year has 26 or 27 of them, and no day is in two months or in none.
+		const year = Array.from({ length: 12 }, (_, i) =>
+			payDaysIn(fridays, `2026-${String(i + 1).padStart(2, "0")}` as MonthKey),
+		);
+		expect(year.flat()).toHaveLength(26);
+		expect(new Set(year.flat()).size).toBe(26);
+		expect(year.map((days) => days.length).filter((n) => n === 3)).toHaveLength(2);
+	});
+
+	it("counts back from an anchor that is still to come, and through a short February", () => {
+		const fridays = twoWeekly("2027-03-05");
+		expect(payDaysIn(fridays, "2027-02")).toEqual(["2027-02-05", "2027-02-19"]);
+		expect(payDaysIn(fridays, "2026-10")).toEqual(["2026-10-02", "2026-10-16", "2026-10-30"]);
+		// 2028 is a leap year: the 29th is a pay day when the count lands on it.
+		expect(payDaysIn(twoWeekly("2028-02-29"), "2028-02")).toEqual([
+			"2028-02-01",
+			"2028-02-15",
+			"2028-02-29",
+		]);
+	});
+
+	it("gives a month every seventh day weekly: four in most, five in some", () => {
+		const fridays = weekly("2026-10-02");
+		expect(payDaysIn(fridays, "2026-10")).toEqual([
+			"2026-10-02",
+			"2026-10-09",
+			"2026-10-16",
+			"2026-10-23",
+			"2026-10-30",
+		]);
+		expect(payDaysIn(fridays, "2026-11")).toHaveLength(4);
+		expect(payDaysIn(fridays, "2027-02")).toEqual([
+			"2027-02-05",
+			"2027-02-12",
+			"2027-02-19",
+			"2027-02-26",
+		]);
+	});
+
+	it("says how many pay days most months have", () => {
+		expect(usualPayDays(twoWeekly("2026-10-02"))).toBe(2);
+		expect(usualPayDays(weekly("2026-10-02"))).toBe(4);
+		expect(usualPayDays(twice())).toBe(2);
+		expect(usualPayDays(monthly(1))).toBe(1);
+	});
+
+	it("reads a three-paycheck month as three In, the fourth week's deposit nobody's", () => {
+		const pay = { paycheck: cents(1800), schedule: twoWeekly("2026-10-02") };
+		const lines = [
+			line("a", "2026-10-01", 1800),
+			line("b", "2026-10-16", 1810),
+			line("c", "2026-10-30", 1795),
+		];
+		const days = expectedPaychecks({ pay, month: "2026-10", lines, today: "2026-10-31" as DayKey });
+		expect(days.map((day) => [day.day, day.state])).toEqual([
+			["2026-10-02", "in"],
+			["2026-10-16", "in"],
+			["2026-10-30", "in"],
+		]);
+		// What came in is each line once: nothing counted twice, nothing dropped.
+		const total = days.reduce((sum, day) => sum + (day.state === "in" ? day.amount : 0), 0);
+		expect(total).toBe(cents(1800 + 1810 + 1795));
+	});
+
+	it("gives each weekly deposit the pay day nearest it, one each, though their days overlap", () => {
+		const pay = { paycheck: cents(900), schedule: weekly("2026-10-02") };
+		const lines = ["2026-10-01", "2026-10-09", "2026-10-19", "2026-10-23"].map((date, i) => ({
+			id: `l${i}`,
+			date: date as DayKey,
+			amount: cents(900),
+			whosePay: "m1",
+			payDay: null,
+			byHand: false,
+		}));
+		const matches = payDayMatches({ parents: [{ memberId: "m1", pay }], lines });
+		expect(matches.map((match) => [match.lineId, match.payDay]).sort()).toEqual([
+			["l0", "2026-10-02"],
+			["l1", "2026-10-09"],
+			["l2", "2026-10-16"],
+			["l3", "2026-10-23"],
+		]);
+	});
+
+	it("keeps a paycheck posted the day before the month in the month of its pay day", () => {
+		const pay = { paycheck: cents(1800), schedule: twoWeekly("2026-10-02") };
+		const lines = [
+			{
+				id: "a",
+				date: "2026-09-30" as DayKey,
+				amount: cents(1800),
+				whosePay: "m1",
+				payDay: null,
+				byHand: false,
+			},
+		];
+		expect(payDayMatches({ parents: [{ memberId: "m1", pay }], lines })).toEqual([
+			{ lineId: "a", payDay: "2026-10-02", memberId: "m1", claims: false },
+		]);
 	});
 });

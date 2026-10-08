@@ -18,15 +18,24 @@ import {
 
 /**
  * When a salaried Parent is paid. Stored as JSON (`members.pay_schedule`), told apart by `kind`,
- * so every two weeks and weekly can be added as further kinds without a migration.
+ * so a further kind needs no migration.
  */
 export type PaySchedule =
 	/** Two days of the month, the earlier first: the 1st and the 15th. */
 	| { kind: "twice-a-month"; days: [number, number] }
 	/** One day of the month. */
-	| { kind: "monthly"; day: number };
+	| { kind: "monthly"; day: number }
+	/** Every fourteen days, counted from `anchor`: any one pay day, past or to come. */
+	| { kind: "every-two-weeks"; anchor: DayKey }
+	/** Every seven days, on `anchor`'s day of the week. */
+	| { kind: "weekly"; anchor: DayKey };
 
-export const PAY_SCHEDULE_KINDS = ["twice-a-month", "monthly"] as const;
+export const PAY_SCHEDULE_KINDS = [
+	"twice-a-month",
+	"every-two-weeks",
+	"weekly",
+	"monthly",
+] as const;
 export type PayScheduleKind = (typeof PAY_SCHEDULE_KINDS)[number];
 
 /** How a salaried Parent is paid: what one paycheck usually is, and when. */
@@ -43,13 +52,23 @@ export const PAY_DAY_WINDOW_DAYS = 5;
 const dayOfMonth = (value: unknown): value is number =>
 	typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 31;
 
+/** A day there is: "2026-02-30" is not one. */
+const realDay = (value: unknown): value is DayKey =>
+	typeof value === "string" &&
+	/^\d{4}-\d{2}-\d{2}$/.test(value) &&
+	!Number.isNaN(Date.parse(`${value}T00:00:00Z`)) &&
+	addDays(value as DayKey, 0) === value;
+
 /**
  * A schedule as stored or sent, checked: null for anything that is not one this version knows
  * (a kind added later, two pay days on the same day), which reads as no schedule.
  */
 export function parsePaySchedule(value: unknown): PaySchedule | null {
 	if (typeof value !== "object" || value === null) return null;
-	const schedule = value as { kind?: unknown; days?: unknown; day?: unknown };
+	const schedule = value as { kind?: unknown; days?: unknown; day?: unknown; anchor?: unknown };
+	if (schedule.kind === "every-two-weeks" || schedule.kind === "weekly") {
+		return realDay(schedule.anchor) ? { kind: schedule.kind, anchor: schedule.anchor } : null;
+	}
 	if (schedule.kind === "monthly") {
 		return dayOfMonth(schedule.day) ? { kind: "monthly", day: schedule.day } : null;
 	}
@@ -65,13 +84,31 @@ export function parsePaySchedule(value: unknown): PaySchedule | null {
 /**
  * The pay days of `schedule` that fall in `month`, earliest first. A day the month does not have
  * (the 31st in June, the 30th in February) is its last day; two that land on the same day are one.
+ * Every two weeks or weekly, they are the days a whole number of steps from the anchor, either
+ * side of it: two or three in a month every two weeks, four or five weekly.
  */
 export function payDaysIn(schedule: PaySchedule, month: MonthKey): DayKey[] {
 	const last = daysInMonth(month);
+	if (schedule.kind === "every-two-weeks" || schedule.kind === "weekly") {
+		const step = schedule.kind === "weekly" ? 7 : 14;
+		const first = `${month}-01` as DayKey;
+		const from = (((daysBetween(first, schedule.anchor) % step) + step) % step) + 1;
+		const days: DayKey[] = [];
+		for (let day = from; day <= last; day += step) days.push(addDays(first, day - 1));
+		return days;
+	}
 	const days = schedule.kind === "monthly" ? [schedule.day] : schedule.days;
 	const inMonth = [...new Set(days.map((day) => Math.min(day, last)))].sort((a, b) => a - b);
 	return inMonth.map((day) => `${month}-${String(day).padStart(2, "0")}` as DayKey);
 }
+
+/**
+ * The pay days most months have, which the Take-home pay is usually set by (ADR-0040): two every
+ * two weeks and four weekly. A month with one more brings a paycheck above it, which shows as
+ * Extra income like any other Income over the Take-home pay.
+ */
+export const usualPayDays = (schedule: PaySchedule): number =>
+	schedule.kind === "monthly" ? 1 : schedule.kind === "weekly" ? 4 : 2;
 
 /**
  * Income that is the Parent's pay: what a pay day is matched on. `payDay` is the pay day kept on
