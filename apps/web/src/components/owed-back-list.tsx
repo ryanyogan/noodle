@@ -100,7 +100,7 @@ export function OwedBackList({ today }: { today: string }) {
 						aria-expanded={shown}
 						aria-controls={`${OWED_BACK_LIST_ID}-lines`}
 						onClick={() => setChosen(!shown)}
-						className="-mr-1 h-7 shrink-0 gap-1 px-1 text-muted-foreground"
+						className="-mr-1 shrink-0 gap-1 px-1 text-muted-foreground"
 					>
 						{shown ? "Hide" : `Show all ${lines}`}
 						<ChevronDown
