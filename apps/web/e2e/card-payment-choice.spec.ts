@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
+import { seedSql } from "./seed-sql";
 import {
 	accountKindLabel,
 	choose,
@@ -262,7 +263,7 @@ test("the “Edit” beside a Commitment made in place opens that Commitment", a
 	});
 });
 
-test("a payment to a card kept by hand is filed in the Commitment that pays it down, with one Undo", async ({
+test("a payment to a card whose purchases aren’t in Noodle is filed in the Commitment that pays it down, with one Undo", async ({
 	browser,
 }) => {
 	test.slow();
@@ -270,12 +271,13 @@ test("a payment to a card kept by hand is filed in the Commitment that pays it d
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 	const thisMonth = page.url();
 	const day = await today(page);
-	// Apple Card has no statements and no bank connection: the Parent says it's kept by hand.
+	// Apple Card has no statements and no bank connection, and the Parent says its purchases won't
+	// get into Noodle: its payment is the spending. (Kept by hand, it's a Transfer: issue 151.)
 	await addAccount(page, {
 		name: "Apple Card",
 		kind: "credit-card",
 		balance: "900",
-		purchases: "I add them by hand",
+		purchases: "They won’t",
 	});
 	await uploadStatement(
 		page,
@@ -307,7 +309,7 @@ test("a payment to a card kept by hand is filed in the Commitment that pays it d
 	await sheet.getByRole("button", { name: "It’s a card payment" }).click();
 	const choice = sheet.getByTestId("card-payment-choice");
 	await expect(choice).toContainText(
-		"Apple Card is kept by hand, so its payment is the spending: it’s filed in Apple Card bill.",
+		"Apple Card’s purchases don’t come into Noodle, so its payment is the spending: it’s filed in Apple Card bill.",
 	);
 	await choice.getByRole("button", { name: "Apple Card", exact: true }).click();
 	// Both lines that say the same go in; the corner store stays.
@@ -382,8 +384,9 @@ test("Review asks which card for a payment to a card Noodle doesn't follow, and 
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 	const thisMonth = page.url();
 	const day = await today(page);
-	// Apple Card is kept by hand, and the bank's wording doesn't say its name.
-	await addAccount(page, { name: "Apple Card", kind: "credit-card", balance: "900" });
+	// The card's statements haven't come in yet, so Noodle doesn't follow it; and the Parent calls
+	// it by a name the bank's wording ("APPLECARD", read as Apple Card) doesn't say.
+	await addAccount(page, { name: "Titanium", kind: "credit-card", balance: "900" });
 	await uploadStatement(
 		page,
 		{ name: "Checking", kind: "checking", balance: "2,500" },
@@ -405,13 +408,15 @@ test("Review asks which card for a payment to a card Noodle doesn't follow, and 
 	const choice = asking.getByTestId("card-payment-choice");
 	await expect(choice).toContainText("Which card does it pay?");
 	await expect(choice.getByRole("button", { name: "A card that isn’t in Noodle" })).toBeVisible();
+	// The Household's cards are read before "Back" below can return to them (it cancels otherwise).
+	await expect(choice.getByRole("button", { name: "Titanium", exact: true })).toBeVisible();
 	// (The sheet hides the page's buttons from roles, so the cards are counted by test id.)
 	await expect(page.getByTestId("review-card")).toHaveCount(1);
 	await choice.getByRole("button", { name: "A card that isn’t in Noodle" }).click();
 	await expect(choice).toContainText("Count this payment as spending?");
 	await choice.getByRole("button", { name: "Back" }).click();
-	await choice.getByRole("button", { name: "Apple Card", exact: true }).click();
-	await expect(toast(page, "marked as a Transfer to Apple Card")).toBeVisible();
+	await choice.getByRole("button", { name: "Titanium", exact: true }).click();
+	await expect(toast(page, "marked as a Transfer to Titanium")).toBeVisible();
 	await expect(asking).toBeHidden();
 	await expect(page.getByTestId("review-card")).toHaveCount(0);
 });
@@ -477,7 +482,7 @@ for (const view of ["?view=list", ""] as const) {
 		});
 	});
 
-	test(`Review, ${where}: a payment to a card kept by hand is offered its Commitment, and Undo puts the card back`, async ({
+	test(`Review, ${where}: a payment to a card whose purchases aren’t in Noodle is offered its Commitment, and Undo puts the card back`, async ({
 		browser,
 	}) => {
 		test.slow();
@@ -489,7 +494,7 @@ for (const view of ["?view=list", ""] as const) {
 			name: "Apple Card",
 			kind: "credit-card",
 			balance: "900",
-			purchases: "I add them by hand",
+			purchases: "They won’t",
 		});
 		await payDown(page, thisMonth);
 		await uploadStatement(
@@ -535,6 +540,108 @@ async function payDown(page: Page, thisMonth: string) {
 	await page.getByRole("button", { name: "Add Commitment" }).click();
 	await expect(page.getByRole("main")).toContainText("Pays down Apple Card");
 }
+
+// Issue 151: a card kept by hand has its purchases in Buckets, so paying it is a Transfer. Review
+// leads with that, never with a Commitment, and the payment moves nothing on This Month.
+test("a payment to a card kept by hand, with Quick Adds on it, is a Transfer first in Review and changes nothing on This Month", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const thisMonth = page.url();
+	const day = await today(page);
+	await addAccount(page, {
+		name: "Apple Card",
+		kind: "credit-card",
+		balance: "0",
+		purchases: "I add them by hand",
+	});
+	// Two Quick Adds on the card, filed in Groceries: written straight in, as Quick Add leaves them.
+	const [cards] = await seedSql([
+		"select id, household_id from accounts where name = 'Apple Card' order by created_at desc limit 1",
+	]);
+	const cardId = String(cards?.[0]?.id);
+	const householdId = String(cards?.[0]?.household_id);
+	const [buckets] = await seedSql([
+		`select id from buckets where household_id = '${householdId}' and name = 'Groceries'`,
+	]);
+	const bucketId = String(buckets?.[0]?.id);
+	const run = Date.now().toString(36);
+	const isoDay = await page.evaluate(() => {
+		const now = new Date();
+		const two = (n: number) => String(n).padStart(2, "0");
+		return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+	});
+	await seedSql(
+		[
+			["a", 18000],
+			["b", 12000],
+		].map(
+			([id, cents]) =>
+				`insert into transactions (id, household_id, source, date, amount_cents, account_id, bucket_id, note)
+					values ('buy-${id}-${run}', '${householdId}', 'quick-add', '${isoDay}', ${cents}, '${cardId}', '${bucketId}', 'Groceries on the card')`,
+		),
+	);
+
+	// This Month before the payment: $300 of Groceries, once.
+	const freeToSpend = page.getByRole("region", { name: "Free to Spend" });
+	const groceries = page.getByLabel(/^Groceries: /).first();
+	const money = async () =>
+		((await freeToSpend.innerText()).match(/\$[\d,]+(\.\d\d)?/g) ?? []).join(" ");
+	await reloadUntil(page, thisMonth, () =>
+		expect(groceries).toHaveAttribute("aria-label", /^Groceries: \$900(\.00)? left of \$1,200/, {
+			timeout: 3_000,
+		}),
+	);
+	await expect(freeToSpend).toBeVisible();
+	const freeBefore = await money();
+	expect(freeBefore).not.toBe("");
+	const groceriesBefore = await groceries.getAttribute("aria-label");
+
+	await uploadStatement(
+		page,
+		{ name: "Checking", kind: "checking", balance: "2,500" },
+		"checking.csv",
+		[HEADER, `DEBIT,${day},"APPLECARD GSBANK PAYMENT 8841",-300.00,ACH_DEBIT,2200.00,`],
+	);
+
+	// Review: not spending, the Transfer is the card's action, and no Commitment is offered.
+	const cardsWaiting = await reviewCards(page, thisMonth, "?view=list", "APPLECARD");
+	const card = cardsWaiting.first();
+	await expect(card).toContainText("Card payment — not spending");
+	await expect(card.getByTestId("review-payment-why")).toContainText(
+		"What you bought on Apple Card is already in your Buckets, so the payment itself isn’t spending.",
+	);
+	await expect(card.getByRole("button", { name: "Make it a Commitment" })).toHaveCount(0);
+	await expect(card.getByRole("button", { name: "Confirm" })).toHaveCount(0);
+	const mark = card.getByRole("button", { name: "It’s a card payment" }).first();
+	await expect(mark).toBeEnabled({ timeout: 30_000 });
+	await mark.click();
+	const asking = page.getByRole("dialog", { name: "It’s a card payment" });
+	const marked = toast(page, "marked as a Transfer to Apple Card");
+	await expect(asking.or(marked).first()).toBeVisible();
+	if (await asking.isVisible()) {
+		const choice = asking.getByTestId("card-payment-choice");
+		// Nothing says its payment is the spending.
+		await expect(choice).not.toContainText("so its payment is the spending");
+		await choice.getByRole("button", { name: "Apple Card", exact: true }).click();
+	}
+	await expect(marked).toBeVisible();
+	await expect(page.getByTestId("review-card")).toHaveCount(0, SETTLED);
+	const [filed] = await seedSql([
+		`select t.commitment_id, t.bucket_id, x.other_account_id from transactions t
+			left join transfers x on x.out_transaction_id = t.id
+			where t.household_id = '${householdId}' and t.amount_cents = 30000`,
+	]);
+	expect(filed).toEqual([{ commitment_id: null, bucket_id: null, other_account_id: cardId }]);
+
+	// This Month after it: the same spending, the same Free to Spend.
+	await page.goto(thisMonth);
+	await expect(groceries).toHaveAttribute("aria-label", groceriesBefore ?? "", { timeout: 30_000 });
+	await expect(freeToSpend).toBeVisible();
+	expect(await money()).toBe(freeBefore);
+});
 
 test("a card whose purchases won’t come into Noodle says so where its payment is asked about", async ({
 	browser,
