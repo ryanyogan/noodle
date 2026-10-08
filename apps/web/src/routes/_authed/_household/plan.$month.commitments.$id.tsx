@@ -7,6 +7,7 @@ import {
 	type MonthKey,
 	matchCharges,
 	monthlyEquivalent,
+	monthOfDay,
 	yearlyCost,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -104,6 +105,12 @@ function CommitmentPage() {
 	const thisMonth = inPlan.find((c) => c.id === id);
 	const carry = thisMonth ? carryNote(thisMonth, month) : null;
 	const ended = commitment.endedFromMonth !== null && commitment.endedFromMonth <= month;
+	// The loan it pays down was paid off, and that is what ends it (issue 153): the day says so.
+	const paidOffOn =
+		commitment.paidOffOn &&
+		commitment.endedFromMonth === addMonths(monthOfDay(commitment.paidOffOn), 1)
+			? commitment.paidOffOn
+			: null;
 	const hasCharges = matchCharges(data, id, data.charges).length > 0;
 	// The card or loan it pays down (ADR-0050); one archived since is named, with nothing to open.
 	const paysDownId = commitment.accountId ?? null;
@@ -217,13 +224,15 @@ function CommitmentPage() {
 							/>
 							<Stat label="Schedule" value={termsSchedule(terms)} />
 							<Stat
-								label={ended ? "Ended" : "Ends"}
+								label={paidOffOn ? "Paid off" : ended ? "Ended" : "Ends"}
 								value={
-									commitment.endedFromMonth === null
-										? "No end date"
-										: ended
-											? lastMonthText(addMonths(commitment.endedFromMonth, -1))
-											: `After ${lastMonthText(addMonths(commitment.endedFromMonth, -1))}`
+									paidOffOn
+										? fullDay(paidOffOn)
+										: commitment.endedFromMonth === null
+											? "No end date"
+											: ended
+												? lastMonthText(addMonths(commitment.endedFromMonth, -1))
+												: `After ${lastMonthText(addMonths(commitment.endedFromMonth, -1))}`
 								}
 							/>
 						</StatGrid>

@@ -299,6 +299,22 @@ export async function updateCommitment(
 }
 
 /**
+ * A Commitment's terms set from `month` onward as statements (their Plan change, written only
+ * when they differ from the terms in force, then themselves), for a batch with others.
+ */
+export const commitmentTermsSet = (
+	db: Db,
+	input: Author & { householdId: string; commitmentId: string; month: MonthKey } & Terms,
+) =>
+	[
+		termsLog(db, input),
+		termsFor(db, input).onConflictDoUpdate({
+			target: [commitmentTerms.commitmentId, commitmentTerms.month],
+			set: { amountCents: input.amountCents, cadence: input.cadence, dueDate: input.dueDate },
+		}),
+	] as const;
+
+/**
  * Takes a Commitment out of the Plan from `month` onward; earlier months keep it. Ending it
  * from a later month than it already was is a no-op.
  */

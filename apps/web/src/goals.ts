@@ -554,11 +554,19 @@ export const withLoanFacts = (
 });
 
 /** Records a loan's facts: what was borrowed, the payment, its due day and the day it ends. */
-export const useSetLoanFacts = () =>
-	useGoalChange({
+export const useSetLoanFacts = (callbacks: ChangeCallbacks<LoanFactsVariables> = {}) => {
+	const queryClient = useQueryClient();
+	return useGoalChange({
 		save: (data: LoanFactsVariables) => refuseUnlessOk(setLoanFacts({ data })),
 		apply: withLoanFacts,
+		...callbacks,
+		// The terms of a Commitment paying it down change with it: every month's are read again.
+		onSuccess: (variables) => {
+			void queryClient.invalidateQueries({ queryKey: monthsKey });
+			callbacks.onSuccess?.(variables);
+		},
 	});
+};
 
 /**
  * Adds a monthly Commitment for the payments of a loan or card the Household has already. For a

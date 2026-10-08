@@ -308,17 +308,25 @@ export {
 } from "./likely";
 export {
 	dueDateOn,
+	endedOrPaidOff,
 	endsAfter,
 	type LoanFacts,
+	type LoanPayment,
 	type LoanSchedule,
+	loanInStep,
 	loanPaid,
+	loanPaidOffOn,
 	loanSchedule,
 	MAX_SCHEDULED_PAYMENTS,
 	NO_LOAN_FACTS,
 	nextLoanDue,
+	type PaymentSchedule,
+	type PaymentState,
+	paymentSchedule,
 	paymentsLeft,
 	paymentsUntil,
 	type ScheduledPayment,
+	type SchedulePayment,
 	scheduleFrom,
 } from "./loans";
 export {

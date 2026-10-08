@@ -1,6 +1,6 @@
 import { byNextDue, type CommitmentTerms, expectedIn } from "./commitments";
 import type { Cents } from "./money";
-import type { MonthKey } from "./month";
+import type { DayKey, MonthKey } from "./month";
 
 /**
  * The Plan is stored as effective-dated records: take-home pay or allowance set for a month
@@ -51,6 +51,12 @@ export type CommitmentRecord = {
 	carriedBalance?: boolean;
 	/** Its amount is "about" (it varies), not the same each time (issue 135). */
 	about?: boolean;
+	/**
+	 * The day the loan it pays down was paid off (loanPaidOffOn), worked out as the records are
+	 * read: `endedFromMonth` is then no later than the month after it (endedOrPaidOff). Absent or
+	 * null while anything is owed, and for a Commitment that pays down no loan.
+	 */
+	paidOffOn?: DayKey | null;
 };
 
 export type PlanBucket = {
@@ -82,6 +88,8 @@ export type PlanCommitment = {
 	 * carries over (ADR-0054). Absent when the amount is the same each time.
 	 */
 	about?: boolean;
+	/** The day the loan it pays down was paid off: it leaves the Plan from the month after. */
+	paidOffOn?: DayKey;
 } & CommitmentTerms;
 
 /** One month's Plan. `baseline` is null until a Parent has set one. */
@@ -117,7 +125,7 @@ export function commitmentsIn(
 ): PlanCommitment[] {
 	const commitments = records.commitments
 		.filter((c) => inPlan(month, c.fromMonth, c.endedFromMonth))
-		.flatMap(({ id, name, accountId, carriedBalance, about }): PlanCommitment[] => {
+		.flatMap(({ id, name, accountId, carriedBalance, about, paidOffOn }): PlanCommitment[] => {
 			const terms = effective(
 				records.commitmentTerms.filter((t) => t.commitmentId === id),
 				month,
@@ -126,7 +134,16 @@ export function commitmentsIn(
 			const { amount, cadence, dueDate } = terms;
 			const paysDown = accountId ? { accountId, carriedBalance: carriedBalance ?? false } : {};
 			return [
-				{ id, name, amount, cadence, dueDate, ...paysDown, ...(about ? { about: true } : {}) },
+				{
+					id,
+					name,
+					amount,
+					cadence,
+					dueDate,
+					...paysDown,
+					...(about ? { about: true } : {}),
+					...(paidOffOn ? { paidOffOn } : {}),
+				},
 			];
 		});
 	return byNextDue(commitments, `${month}-01`);

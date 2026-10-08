@@ -606,6 +606,7 @@ export {
 	type GoalRecord,
 	type GoalRecords,
 	type GoalWriteResult,
+	type LoanCommitmentChange,
 	loadGoalFunding,
 	loadGoals,
 	owedNow,

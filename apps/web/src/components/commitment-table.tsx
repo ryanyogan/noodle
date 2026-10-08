@@ -4,6 +4,7 @@ import {
 	groupCommitments,
 	type MonthKey,
 	monthlyEquivalent,
+	monthOfDay,
 	nextDueDate,
 	paymentsView,
 } from "@noodle/domain";
@@ -114,6 +115,16 @@ export function CommitmentTable({
 							{cadenceNames[c.cadence]}
 						</span>
 						{c.accountId ? <PaysDownNote accountId={c.accountId} /> : null}
+						{c.paidOffOn ? (
+							// Its loan is paid off (issue 153): this is the last month it is planned in.
+							<span
+								data-slot="commitment-paid-off"
+								className="text-[13px] font-normal text-muted-foreground"
+							>
+								Paid off {shortDay(c.paidOffOn)} · not planned after{" "}
+								{monthName(monthOfDay(c.paidOffOn))}
+							</span>
+						) : null}
 						<ChangedNote was={previous.commitments[c.id]} />
 					</div>
 				</div>
