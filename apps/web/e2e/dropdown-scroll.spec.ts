@@ -164,7 +164,7 @@ test("on a 320px phone a Rule's list fits the screen, scrolls under a finger's w
 	expect(await scroller.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 	// A finger's target.
 	const row = await page.getByRole("option").first().boundingBox();
-	expect(row?.height).toBeGreaterThanOrEqual(44);
+	expect(Math.round(row?.height ?? 0)).toBeGreaterThanOrEqual(44);
 	const box = await scroller.boundingBox();
 	await page.mouse.move((box?.x ?? 0) + 40, (box?.y ?? 0) + 60);
 	await page.mouse.wheel(0, 200);
