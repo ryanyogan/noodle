@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
 	createPlannedHousehold,
+	openFreeWorking,
 	openPlanBuckets,
 	serverFn,
 	signedInPage,
@@ -46,6 +47,7 @@ async function quickAdd(page: Page, amount: string, bucket: string, note?: strin
 test("a Quick Add drains its Bucket at once and is saved", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
+	await openFreeWorking(page);
 	await expect(hero(page)).toContainText("Left in Buckets$1,600");
 
 	await quickAdd(page, "85.50", "Groceries", "Costco");

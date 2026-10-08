@@ -666,3 +666,16 @@ export async function hydrated(target: Locator) {
 		)
 		.toBe(true);
 }
+
+/**
+ * Opens "How this is worked out" on This Month's Free to Spend card (issue 149): the ledger, each
+ * month's carry and where take-home pay goes are behind it, closed on every visit.
+ */
+export async function openFreeWorking(page: Page) {
+	const working = page
+		.getByRole("region", { name: "Free to Spend" })
+		.getByRole("button", { name: "How this is worked out" });
+	await hydrated(working);
+	if ((await working.getAttribute("aria-expanded")) !== "true") await working.click();
+	await expect(working).toHaveAttribute("aria-expanded", "true");
+}

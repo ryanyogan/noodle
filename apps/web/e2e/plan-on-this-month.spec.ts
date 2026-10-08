@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { createPlannedHousehold, hydrated, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -71,6 +71,32 @@ test("This Month shows the Plan: Free to Spend worked out and how last month end
 	// Free to Spend, worked out part by part from take-home pay.
 	const freeToSpend = page.getByRole("region", { name: "Free to Spend" });
 	await expect(freeToSpend).toContainText("$3,150");
+	// The first read is the figure and one line (issue 149): the working is behind one disclosure,
+	// closed until asked for, and opened from the keyboard.
+	const working = freeToSpend.getByRole("button", { name: "How this is worked out" });
+	await expect(working).toHaveAttribute("aria-expanded", "false");
+	await expect(freeToSpend.getByRole("list")).toHaveCount(0);
+	await expect(freeToSpend.locator("p").nth(1)).toHaveText(
+		/^On track · (\d+ days? left|last day of the month)$/,
+	);
+	await hydrated(working);
+	await working.focus();
+	await page.keyboard.press("Enter");
+	await expect(working).toHaveAttribute("aria-expanded", "true");
+	// The working, as a short ledger that ends in the figure above.
+	const ledger = freeToSpend.getByRole("list", { name: "How this is worked out" });
+	await expect(ledger.getByRole("listitem")).toHaveText([
+		"Take-home pay$5,000",
+		"Commitments$0",
+		"Buckets−$1,700",
+		"Goal funding−$150",
+		"Free to Spend$3,150",
+	]);
+	// Space closes it and opens it again.
+	await page.keyboard.press("Space");
+	await expect(ledger).toHaveCount(0);
+	await page.keyboard.press("Space");
+	await expect(ledger).toBeVisible();
 	// Where take-home pay goes (#64): one bar, and its legend as a list of amounts.
 	const breakdown = freeToSpend.getByRole("list", { name: "Where $5,000 take-home pay goes" });
 	await expect(breakdown.getByRole("listitem").filter({ hasText: "Goals" })).toContainText("$150");

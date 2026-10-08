@@ -8,7 +8,6 @@ import {
 	type IncomeCheck,
 	incomeCheck,
 	type LowerTakeHomePay,
-	lastDayOf,
 	lowerTakeHomePay,
 	lumpsIn,
 	type MonthCloseProposal,
@@ -54,16 +53,17 @@ import {
 	ExtraIncomeSheet,
 	MonthIncome,
 } from "../../../components/extra-income";
+import { FreeWorking, freeLedgerRows } from "../../../components/free-working";
 import { LOG_HASH } from "../../../components/household-log";
 import { LowerTakeHomePayNote, useLowerTakeHomePay } from "../../../components/lower-take-home-pay";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
-import { MonthGlance, monthSentence } from "../../../components/month-glance";
+import { MonthGlance, monthSentence, monthStatus } from "../../../components/month-glance";
 import { PerkResetLine, usePerkResetSoon } from "../../../components/perk-reset";
 import { TermHelp } from "../../../components/term-help";
 import { ToDo, type ToDoItem } from "../../../components/to-do";
 import { type CoverVariables, useCovers } from "../../../covers";
 import { useExtraIncomes } from "../../../extra-income";
-import { formatMoney, monthName, shortDay } from "../../../format";
+import { formatMoney, monthName } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { useLearned } from "../../../learned";
 import { useReviewWaiting } from "../../../money-in";
@@ -683,6 +683,15 @@ function FreeToSpend({
 			? carry.handedOn
 			: null;
 	const headline = endedWith ?? state.freeToSpend;
+	// The first read is the figure and one line (issue 149). With money carried over, of either
+	// sign, that line is the two parts; otherwise how the month is going and the days left. The
+	// rest (the whole sentence, each month's carry, where the pay goes) is in "How this is worked out".
+	const split =
+		state.freeCarriedIn !== 0
+			? `${formatMoney(ownFree)} ${ended ? `in ${monthName(state.month)}` : "this month"} · ${carriedOverText(state.freeCarriedIn, lastMonth)}`
+			: null;
+	const splitFirst = split !== null && !ended && !overPlanned && state.baseline !== null;
+	const sentence = ended || overPlanned ? null : monthSentence(state);
 	// Income below what's usual. A month still running is "behind by now". An ended month has no
 	// "by now" and nothing more to plan in it (issue 73): what it brought is set against the month
 	// before, which is what was expected of it; when that was take-home pay itself there is nothing
@@ -744,39 +753,15 @@ function FreeToSpend({
 							</span>
 						) : ended ? (
 							<>Left unplanned at the end of {monthName(state.month)}</>
+						) : splitFirst ? (
+							// The month still reads fresh (ADR-0054): its own part, and what was carried over.
+							<span data-slot="free-carried-in" className="tabular-nums">
+								{split}
+							</span>
 						) : (
-							(monthSentence(state) ?? (
-								<>Not planned for anything yet · yours until {shortDay(lastDayOf(state.month))}</>
-							))
+							monthStatus(state)
 						)}
 					</p>
-					{state.freeCarriedIn !== 0 ? (
-						<p data-slot="free-carried-in" className="text-sm text-muted-foreground tabular-nums">
-							{formatMoney(ownFree)} {ended ? `in ${monthName(state.month)}` : "this month"} ·{" "}
-							{carriedOverText(state.freeCarriedIn, lastMonth)}
-						</p>
-					) : null}
-					{carry.builtUp.length > 1 && state.freeCarriedIn !== 0 ? (
-						// On a phone a list of two columns, month and amount, under its name: as one wrapped
-						// line it broke wherever it fell, between a month and its amount at 320px (issue 74).
-						<div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-muted-foreground tabular-nums max-sm:flex-col">
-							{/* The list's name says the same to a screen reader. */}
-							<span aria-hidden="true">Each month carried over:</span>
-							<ul
-								aria-label="What each month carried over into the next"
-								className="contents max-sm:grid max-sm:w-fit max-sm:grid-cols-[auto_auto] max-sm:gap-x-4 max-sm:gap-y-0.5"
-							>
-								{carry.builtUp.map((m) => (
-									<li key={m.month} className="max-sm:contents">
-										<span>{monthName(m.month).slice(0, 3)}</span>{" "}
-										<span className="max-sm:text-end">
-											{m.amount < 0 ? `${formatMoney(-m.amount)} short` : formatMoney(m.amount)}
-										</span>
-									</li>
-								))}
-							</ul>
-						</div>
-					) : null}
 					{lower?.prompt ? (
 						<LowerTakeHomePayNote
 							className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5"
@@ -792,7 +777,53 @@ function FreeToSpend({
 						</p>
 					) : null}
 				</div>
-				{state.baseline === null ? null : <Breakdown state={state} baseline={state.baseline} />}
+				{state.baseline === null ? null : (
+					<FreeWorking
+						rows={freeLedgerRows(state, lastMonth)}
+						total={state.freeToSpend}
+						totalLabel={endedWith === null ? "Free to Spend" : "Free to Spend as planned"}
+					>
+						{endedWith !== null ? (
+							<p>
+								What {monthName(state.month)} ended with comes from the Income and spending recorded
+								in it, so it can differ from its Plan.
+							</p>
+						) : (
+							<p>
+								Free to Spend is what’s left once Commitments, Buckets and Goal funding are taken
+								out. What a month ends with is carried over into the next.
+							</p>
+						)}
+						{sentence ? <p data-slot="free-sentence">{sentence}</p> : null}
+						{split && !splitFirst ? (
+							<p data-slot="free-carried-in" className="tabular-nums">
+								{split}
+							</p>
+						) : null}
+						{carry.builtUp.length > 1 && state.freeCarriedIn !== 0 ? (
+							// On a phone a list of two columns, month and amount, under its name: as one wrapped
+							// line it broke wherever it fell, between a month and its amount at 320px (issue 74).
+							<div className="flex flex-wrap gap-x-3 gap-y-0.5 tabular-nums max-sm:flex-col">
+								{/* The list's name says the same to a screen reader. */}
+								<span aria-hidden="true">Each month carried over:</span>
+								<ul
+									aria-label="What each month carried over into the next"
+									className="contents max-sm:grid max-sm:w-fit max-sm:grid-cols-[auto_auto] max-sm:gap-x-4 max-sm:gap-y-0.5"
+								>
+									{carry.builtUp.map((m) => (
+										<li key={m.month} className="max-sm:contents">
+											<span>{monthName(m.month).slice(0, 3)}</span>{" "}
+											<span className="max-sm:text-end">
+												{m.amount < 0 ? `${formatMoney(-m.amount)} short` : formatMoney(m.amount)}
+											</span>
+										</li>
+									))}
+								</ul>
+							</div>
+						) : null}
+						<Breakdown state={state} baseline={state.baseline} />
+					</FreeWorking>
+				)}
 			</Card>
 		</Section>
 	);
@@ -805,7 +836,7 @@ function FreeToSpend({
 function Breakdown({ state, baseline }: { state: MonthState; baseline: number }) {
 	const id = useId();
 	return (
-		<div className="grid gap-2.5 border-t px-(--card-pad) py-3">
+		<div className="grid gap-2.5 border-t pt-3">
 			<p id={id} className="text-[13px] text-balance text-muted-foreground tabular-nums">
 				{breakdownLabel(baseline, state.extraToFreeToSpend, state.freeCarriedIn)}
 			</p>

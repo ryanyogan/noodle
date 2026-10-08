@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { createPlannedHousehold, openFreeWorking, signedInPage } from "./session";
 
 // Free to Spend carried over (issue 113): what a month ends with is carried over into the next one,
 // and This Month, the Plan and Plan › Year say so.
@@ -87,6 +87,14 @@ test("money two ended months left is carried over, and covers a month ahead that
 	await expect(freeToSpend(page).locator("[data-slot=free-carried-in]")).toHaveText(
 		`$3,800 this month · $1,310 carried over from ${monthName(last)}`,
 	);
+	// Each month's carry and where the pay goes are part of the working (issue 149).
+	await openFreeWorking(page);
+	await expect(
+		freeToSpend(page)
+			.getByRole("list", { name: "How this is worked out" })
+			.getByRole("listitem")
+			.filter({ hasText: "Carried over" }),
+	).toHaveText(`Carried over from ${monthName(last)}+$1,310`);
 	await expect(
 		freeToSpend(page)
 			.getByRole("list", { name: "What each month carried over into the next" })
@@ -172,6 +180,13 @@ test("a month that ended short is carried over too, and a month ahead it leaves 
 		`$3,800 this month · $230 short carried over from ${monthName(last)}`,
 	);
 	// The parts add up to the pay less the shortfall.
+	await openFreeWorking(page);
+	await expect(
+		freeToSpend(page)
+			.getByRole("list", { name: "How this is worked out" })
+			.getByRole("listitem")
+			.filter({ hasText: "carried over" }),
+	).toHaveText(`Short carried over from ${monthName(last)}−$230`);
 	const breakdown = freeToSpend(page).getByRole("list", {
 		name: "Where $5,000 take-home pay goes, less $230 short carried over",
 	});

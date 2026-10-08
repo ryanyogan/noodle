@@ -3,6 +3,7 @@ import { createTestParent } from "./parents";
 import {
 	addBucketsInSheet,
 	createHousehold,
+	openFreeWorking,
 	openPlanBuckets,
 	savedBy,
 	serverFn,
@@ -154,6 +155,7 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await switchTo(page, "Month");
 	const hero = page.getByRole("region", { name: "Free to Spend" });
 	await expect(hero).toContainText("$7,349.50");
+	await openFreeWorking(page);
 	await expect(hero).toContainText("Left in Buckets$1,650.50");
 	await expect(
 		page.getByRole("listitem", { name: /^Kids’ hockey: \$400 left of \$400/ }),

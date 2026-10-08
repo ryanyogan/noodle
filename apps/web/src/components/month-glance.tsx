@@ -29,6 +29,28 @@ export function monthSentence(state: MonthState): string | null {
 		.join(" ");
 }
 
+/**
+ * The same, short, for the one line under the Free to Spend figure (issue 149): "On track · 24 days
+ * left", "Heads up: Fun is over · 24 days left". The figure is right above it, so it isn't said
+ * again, and the Buckets running ahead are in the list beside it. Null where `monthSentence` is.
+ */
+export function monthStatus(state: MonthState): string | null {
+	if (monthSentence(state) === null) return null;
+	const over = state.buckets.filter((b) => b.status === "over").map((b) => b.name);
+	const ahead = state.buckets.some((b) => b.status === "ahead");
+	const lead =
+		over.length > 0
+			? `Heads up: ${names(over)} ${over.length === 1 ? "is" : "are"} over`
+			: ahead
+				? "Mostly on track"
+				: "On track";
+	const days =
+		state.daysLeft === 0
+			? "last day of the month"
+			: `${state.daysLeft} ${state.daysLeft === 1 ? "day" : "days"} left`;
+	return `${lead} · ${days}`;
+}
+
 const names = (list: string[]) =>
 	list.length <= 2 ? list.join(" and ") : `${list.length} Buckets`;
 
