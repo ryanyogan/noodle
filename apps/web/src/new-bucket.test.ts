@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-	matchesSearch,
 	nameProblem,
 	nameToCreate,
 	sameName,
@@ -21,7 +20,6 @@ describe("the picker's Create row", () => {
 	});
 
 	it("is offered under choices that only partly match", () => {
-		expect(matchesSearch("Groceries", "Gro")).toBe(true);
 		expect(nameToCreate("Gro", names)).toBe("Gro");
 		expect(nameToCreate("Dining", names)).toBe("Dining");
 	});
@@ -42,19 +40,6 @@ describe("the picker's Create row", () => {
 	it("isn't offered for a name too long for a Bucket", () => {
 		expect(nameToCreate("a".repeat(40), names)).toBe("a".repeat(40));
 		expect(nameToCreate("a".repeat(41), names)).toBeNull();
-	});
-});
-
-describe("what the picker lists for a search", () => {
-	it("keeps a choice with every typed word in its name, in any case", () => {
-		expect(matchesSearch("Dining out", "out din")).toBe(true);
-		expect(matchesSearch("Dining out", "DIN")).toBe(true);
-		expect(matchesSearch("Dining out", "gas")).toBe(false);
-	});
-
-	it("keeps everything while nothing is typed", () => {
-		expect(matchesSearch("Gas", "")).toBe(true);
-		expect(matchesSearch("Gas", "  ")).toBe(true);
 	});
 });
 

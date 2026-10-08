@@ -45,7 +45,9 @@ function CommandList({ className, ...props }: React.ComponentProps<typeof Comman
 		<CommandPrimitive.List
 			data-slot="command-list"
 			className={cn(
-				"max-h-[min(18rem,calc(var(--radix-popover-content-available-height,21rem)_-_3rem))] scroll-py-1 overflow-x-hidden overflow-y-auto overscroll-contain p-1 outline-none",
+				// The top's scroll padding is a group heading's height: a row reached with the arrow keys
+				// stops under the heading that stays in view, not behind it.
+				"max-h-[min(20rem,calc(var(--radix-popover-content-available-height,23rem)_-_3rem))] scroll-pt-8 scroll-pb-1 overflow-x-hidden overflow-y-auto overscroll-contain p-1 outline-none",
 				className,
 			)}
 			{...props}
@@ -74,7 +76,10 @@ function CommandGroup({
 		<CommandPrimitive.Group
 			data-slot="command-group"
 			className={cn(
-				"overflow-hidden text-foreground **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:pt-1.5 **:[[cmdk-group-heading]]:pb-1 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-muted-foreground",
+				"text-foreground **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:pt-2 **:[[cmdk-group-heading]]:pb-1.5 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-muted-foreground",
+				// A heading stays in view while its group scrolls (issue 154): it sticks to the top of
+				// the list, on the list's ground and as wide as the list, so rows pass under it.
+				"**:[[cmdk-group-heading]]:sticky **:[[cmdk-group-heading]]:-top-1 **:[[cmdk-group-heading]]:z-1 **:[[cmdk-group-heading]]:-mx-1 **:[[cmdk-group-heading]]:bg-popover",
 				className,
 			)}
 			{...props}
@@ -106,8 +111,11 @@ function CommandItem({
 			data-slot="command-item"
 			data-checked={checked || undefined}
 			className={cn(
-				"relative flex min-h-9 cursor-default items-center gap-2 rounded-lg py-1.5 ps-2 pe-8 text-sm outline-hidden select-none",
-				"data-[selected=true]:bg-menu-hover data-[selected=true]:text-foreground data-checked:font-medium",
+				// 40px, and 44px where a finger presses it (COMPONENTS.md, tap targets).
+				"relative flex min-h-10 max-lg:min-h-11 cursor-default items-center gap-2.5 rounded-lg py-1.5 ps-2 pe-8 text-sm outline-hidden select-none",
+				"data-checked:bg-brand-soft data-checked:font-medium",
+				// The row the arrow keys are on reads over the chosen one's ground.
+				"data-[selected=true]:bg-menu-hover! data-[selected=true]:text-foreground",
 				"data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
 				"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 				className,
@@ -116,7 +124,10 @@ function CommandItem({
 		>
 			{children}
 			{checked ? (
-				<CheckIcon aria-hidden="true" className="absolute end-2 top-1/2 -translate-y-1/2" />
+				<CheckIcon
+					aria-hidden="true"
+					className="absolute end-2 top-1/2 -translate-y-1/2 text-brand"
+				/>
 			) : null}
 		</CommandPrimitive.Item>
 	);

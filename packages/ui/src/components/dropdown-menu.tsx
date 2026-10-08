@@ -35,8 +35,8 @@ function DropdownMenuContent({
 				align={align}
 				collisionPadding={collisionPadding}
 				className={cn(
-					// Above sheets (z-41), so a row menu works inside one.
-					"z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-44 max-w-[calc(100vw-16px)] overflow-x-hidden overflow-y-auto",
+					// Above sheets (z-41) and alert dialogs (z-51), as Select, so a menu works inside either.
+					"z-55 max-h-(--radix-dropdown-menu-content-available-height) min-w-44 max-w-[calc(100vw-16px)] overflow-x-hidden overflow-y-auto",
 					"origin-(--radix-dropdown-menu-content-transform-origin) rounded-xl border bg-popover p-1 text-popover-foreground shadow-pop",
 					"data-[state=open]:animate-enter",
 					className,

@@ -45,6 +45,7 @@ import { AmountInput } from "./goals";
 import { MatchSection } from "./match-section";
 import { MoneyDetail, TransferSection } from "./money-sections";
 import { NoBuckets, useFileWithout } from "./no-buckets";
+import { usePlaceChoices } from "./place-choices";
 import { Confirm } from "./plan-editing";
 import { ReceiptSection } from "./receipt-section";
 import { TransactionTreatment } from "./transaction-treatment";
@@ -515,23 +516,7 @@ function EditForm({
 		if (redated) onDate?.(date, false);
 	}
 
-	const choices: Choices = [
-		{
-			label: "Buckets",
-			choices: plan.buckets.map((bucket) => ({ value: `bucket:${bucket.id}`, label: bucket.name })),
-		},
-		...(plan.commitments.length > 0
-			? [
-					{
-						label: "Commitments",
-						choices: plan.commitments.map((commitment) => ({
-							value: `commitment:${commitment.id}`,
-							label: commitment.name,
-						})),
-					},
-				]
-			: []),
-	];
+	const choices: Choices = usePlaceChoices(plan);
 
 	return (
 		// Checked on Save, with what's wrong said beside it, rather than by the browser's own bubble.

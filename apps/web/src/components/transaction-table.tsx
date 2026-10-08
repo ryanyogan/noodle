@@ -37,6 +37,7 @@ import {
 } from "../transactions";
 import { NewBucketStep } from "./bucket-picker";
 import { NoBuckets, useFileWithout } from "./no-buckets";
+import { usePlaceChoices } from "./place-choices";
 import type { CellEditing, CellEdits } from "./transaction-cells";
 import { type TransactionTableRow, transactionColumns } from "./transaction-columns";
 import { waitingForBank } from "./transaction-list";
@@ -222,29 +223,7 @@ export function TransactionTable({
 	const current = today.slice(0, 7) as typeof month;
 	const cellEmpty = nothingToFileIn(cellPlan, cellMonth, current);
 	const fileWithout = useFileWithout();
-	const choices = useMemo(
-		() => [
-			{
-				label: "Buckets",
-				choices: (cellPlan?.buckets ?? []).map((b) => ({
-					value: `bucket:${b.id}`,
-					label: b.name,
-				})),
-			},
-			...(cellPlan && cellPlan.commitments.length > 0
-				? [
-						{
-							label: "Commitments",
-							choices: cellPlan.commitments.map((c) => ({
-								value: `commitment:${c.id}`,
-								label: c.name,
-							})),
-						},
-					]
-				: []),
-		],
-		[cellPlan],
-	);
+	const choices = usePlaceChoices(cellPlan);
 	const titleOf = (transaction: TransactionRow) =>
 		rows.find((row) => row.transaction.id === transaction.id)?.view.title ?? "Transaction";
 	const nameOfChoice = (value: string) =>

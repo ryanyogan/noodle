@@ -210,6 +210,13 @@ type Choice = {
 	label: React.ReactNode;
 	/** Plain text for search and the trigger, when `label` isn't a string. */
 	text?: string;
+	/**
+	 * What leads it in a searchable list and in its field once chosen (issue 154): a ChoiceMark, a
+	 * Bucket's colour or a small icon. Give every choice of a list one, so their names line up.
+	 */
+	mark?: React.ReactNode;
+	/** Other words a search finds it by (a Personal Allowance's Parent). */
+	keywords?: string[];
 	/** A second line under the label in the list only (e.g. an amount); the trigger shows just the label. */
 	hint?: string;
 	disabled?: boolean;

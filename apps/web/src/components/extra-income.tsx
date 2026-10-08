@@ -40,6 +40,7 @@ import { formatMoney, formatMoneyInput, shortDay } from "../format";
 import type { GoalView } from "../goals";
 import { membersQuery } from "../queries";
 import { AmountInput, AmountSheet } from "./goals";
+import { bucketChoice, freeToSpendChoice, goalChoice } from "./place-choices";
 import { parentNames } from "./review-between-us";
 import { TermHelp } from "./term-help";
 
@@ -355,7 +356,7 @@ export function ExtraIncomeSection({
 /** Where Extra income can go: the active Goals, and (this month) the Buckets the Parent can use. */
 export type ExtraIncomePlaces = {
 	goals: Pick<GoalView, "id" | "name">[];
-	buckets: Pick<BucketState, "id" | "name">[];
+	buckets: (Pick<BucketState, "id" | "name"> & { color?: number })[];
 };
 
 const FREE_TO_SPEND = "free-to-spend";
@@ -444,33 +445,20 @@ function ExtraIncomeForm({
 					onValueChange={setDestination}
 					searchPlaceholder="Find a Goal or Bucket"
 					choices={[
+						{ label: "This month", choices: [freeToSpendChoice(FREE_TO_SPEND)] },
 						{
-							label: "This month",
-							choices: [{ value: FREE_TO_SPEND, label: "Free to Spend" }],
+							label: "Buckets",
+							choices: places.buckets.map((b) =>
+								bucketChoice(b, destinationValue({ kind: "bucket", bucketId: b.id })),
+							),
 						},
-						...(places.goals.length > 0
-							? [
-									{
-										label: "Goals",
-										choices: places.goals.map((g) => ({
-											value: destinationValue({ kind: "goal", goalId: g.id }),
-											label: g.name,
-										})),
-									},
-								]
-							: []),
-						...(places.buckets.length > 0
-							? [
-									{
-										label: "Buckets",
-										choices: places.buckets.map((b) => ({
-											value: destinationValue({ kind: "bucket", bucketId: b.id }),
-											label: b.name,
-										})),
-									},
-								]
-							: []),
-					]}
+						{
+							label: "Goals",
+							choices: places.goals.map((g) =>
+								goalChoice(g, destinationValue({ kind: "goal", goalId: g.id })),
+							),
+						},
+					].filter((group) => group.choices.length > 0)}
 				/>
 			</Field>
 			<Field

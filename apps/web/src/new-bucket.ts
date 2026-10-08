@@ -12,14 +12,6 @@ const fold = (text: string) => tidyName(text).toLocaleLowerCase("en-US");
 /** True when two names are the same to a Parent: "gas " is "Gas". */
 export const sameName = (a: string, b: string) => fold(a) === fold(b);
 
-/** Whether a picker's choice stays in the list for what's typed: every typed word is in its name. */
-export function matchesSearch(name: string, typed: string): boolean {
-	const text = fold(name);
-	return fold(typed)
-		.split(" ")
-		.every((word) => text.includes(word));
-}
-
 /**
  * The name the picker's last row offers to create, "Create Bucket “Vet”", or null for no row.
  * It shows when something is typed and nothing the picker lists has exactly that name (whatever

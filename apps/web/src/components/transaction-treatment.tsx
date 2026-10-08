@@ -33,6 +33,7 @@ import type { ReviewItem } from "../review";
 import { nameOf, type TransactionRow } from "../transactions";
 import { useMoneyChange } from "../transfers";
 import { CardPaymentQuestion } from "./card-payment";
+import { cardChoice } from "./place-choices";
 import { betweenUsMeans, lowerFirst, parentNames, TRANSFER_MEANS } from "./review-between-us";
 
 type Mode = "default" | "payment" | "transfer" | "between-us";
@@ -331,8 +332,8 @@ export function TransactionTreatment({
 								placeholder={cards.isPending ? "Loading cards…" : "Choose a credit card"}
 								searchPlaceholder="Search your cards…"
 								choices={[
-									...(cards.data ?? []).map((item) => ({ value: item.id, label: item.name })),
-									{ value: "other", label: "A card that isn’t in Noodle" },
+									...(cards.data ?? []).map(cardChoice),
+									cardChoice({ id: "other", name: "A card that isn’t in Noodle" }),
 								]}
 							/>
 						</Field>

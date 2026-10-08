@@ -1,5 +1,6 @@
 import type { For, MonthKey, Plan } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
+import { choiceText } from "@noodle/ui/components/choice-list";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
@@ -47,6 +48,7 @@ import {
 import { BucketPicker, NewBucketStep } from "./bucket-picker";
 import { ForChips } from "./for-chips";
 import { NoBuckets } from "./no-buckets";
+import { usePlaceChoices } from "./place-choices";
 import { tableIsStacked } from "./transaction-table";
 
 // Select mode on the Transactions page (#97, ADR-0045): a bar that says how many are selected and
@@ -125,20 +127,7 @@ export function SelectionBar({
 	const [forPick, setForPick] = useState<For | null>(null);
 	const members = useQuery(membersQuery()).data ?? [];
 	const closed = pastPlanSentence(month, current);
-	const choices = [
-		{
-			label: "Buckets",
-			choices: plan.buckets.map((b) => ({ value: `bucket:${b.id}`, label: b.name })),
-		},
-		...(plan.commitments.length > 0
-			? [
-					{
-						label: "Commitments",
-						choices: plan.commitments.map((c) => ({ value: `commitment:${c.id}`, label: c.name })),
-					},
-				]
-			: []),
-	];
+	const choices = usePlaceChoices(plan);
 	/** The selected rows this screen has loaded: filed at once on screen, and sent with their versions. */
 	const loadedPicked = () =>
 		(
@@ -265,10 +254,10 @@ export function SelectionBar({
 							onClose={() => setFiling(false)}
 							onValueChange={(value) => {
 								setFiling(false);
-								const name = choices
+								const chosen = choices
 									.flatMap((group) => group.choices)
-									.find((choice) => choice.value === value)?.label;
-								if (name) file.mutate({ value, name });
+									.find((choice) => choice.value === value);
+								if (chosen) file.mutate({ value, name: choiceText(chosen) });
 							}}
 							onCreate={
 								closed

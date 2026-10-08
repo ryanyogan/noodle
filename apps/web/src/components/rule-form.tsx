@@ -10,6 +10,7 @@ import { ulid } from "ulid";
 import type { MemberSummary } from "../members";
 import { type RuleRow, useApplyRule, useDeleteRule, useEditRule, useSaveRule } from "../review";
 import { ForPicker } from "./for-picker";
+import { BILLS, billChoice, bucketChoice } from "./place-choices";
 import { Confirm } from "./plan-editing";
 
 /**
@@ -173,18 +174,15 @@ export function RuleForm({
 					searchPlaceholder="Find a Bucket or Commitment"
 					choices={
 						commitmentOptions.length === 0
-							? options.map((b) => ({ value: b.id, label: b.name }))
+							? options.map((b) => bucketChoice(b, b.id, members))
 							: [
 									{
 										label: "Buckets",
-										choices: options.map((b) => ({ value: b.id, label: b.name })),
+										choices: options.map((b) => bucketChoice(b, b.id, members)),
 									},
 									{
-										label: "Commitments",
-										choices: commitmentOptions.map((c) => ({
-											value: AS_COMMITMENT + c.id,
-											label: c.name,
-										})),
+										label: BILLS,
+										choices: commitmentOptions.map((c) => billChoice(c, AS_COMMITMENT + c.id)),
 									},
 								]
 					}

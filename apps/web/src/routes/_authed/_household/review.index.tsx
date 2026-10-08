@@ -75,6 +75,7 @@ import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
 import { CardPaymentQuestion } from "../../../components/card-payment";
 import { ReviewMatchOffer } from "../../../components/match-section";
 import { MoneyInReview } from "../../../components/money-in";
+import { usePlaceChoices } from "../../../components/place-choices";
 import {
 	BETWEEN_US_WHY,
 	BetweenUsButton,
@@ -1848,25 +1849,7 @@ function ReviewCard({
 	const bucket = plan?.buckets.find((b) => b.id === item.guess?.bucketId);
 	const headingId = `review-${item.id}`;
 	const empty = places !== null && places.buckets.length === 0 && places.commitments.length === 0;
-	const choices: ChoiceGroup[] = places
-		? [
-				{
-					label: "Buckets",
-					choices: places.buckets.map((b) => ({ value: `bucket:${b.id}`, label: b.name })),
-				},
-				...(places.commitments.length > 0
-					? [
-							{
-								label: "Commitments",
-								choices: places.commitments.map((c) => ({
-									value: `commitment:${c.id}`,
-									label: c.name,
-								})),
-							},
-						]
-					: []),
-			]
-		: [];
+	const choices: ChoiceGroup[] = usePlaceChoices(places, item.guess?.bucketId);
 	const name = monthName(month);
 	return (
 		<article

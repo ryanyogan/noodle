@@ -1,22 +1,16 @@
 import { type MonthKey, type PlanBucket, parseDollars } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@noodle/ui/components/command";
+	ChoiceList,
+	ChoiceMark,
+	ChosenChoice,
+	choiceText,
+} from "@noodle/ui/components/choice-list";
+import { CommandGroup, CommandItem } from "@noodle/ui/components/command";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@noodle/ui/components/popover";
-import {
-	type Choice,
-	type ChoiceGroup,
-	flatChoices,
-	selectTriggerClass,
-} from "@noodle/ui/components/select";
+import { type ChoiceGroup, flatChoices, selectTriggerClass } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
@@ -27,7 +21,6 @@ import { nextBucketColor } from "../buckets";
 import { formatMoney, formatMoneyInput, monthName } from "../format";
 import {
 	BUCKET_NAME_MAX,
-	matchesSearch,
 	nameProblem,
 	nameToCreate,
 	suggestedAllowanceCents,
@@ -38,17 +31,12 @@ import { useMonthState } from "../queries";
 import { addBucket } from "../server/plan";
 import { AmountInput } from "./goals";
 
-const textOf = (c: Choice) => c.text ?? (typeof c.label === "string" ? c.label : c.value);
-
 /**
- * Where a Transaction goes, with a search box (#90): the shared Combobox's field and list, plus a
- * last row, "Create Bucket “Vet”", once what's typed is the name of nothing it lists. The row is
- * always last, under any partly matching choices, so Enter on a search still picks the first real
- * match. Picking it only asks (`onCreate`): the Bucket is made in NewBucketStep, where its
- * allowance is set.
- *
- * It narrows the list itself (every typed word is in the name) rather than by cmdk's scoring,
- * which re-orders rows and would lift the Create row above the groups.
+ * Where a Transaction goes, with a search box (#90): the shared Combobox's field and its list
+ * (ChoiceList, issue 154: one look and one way of searching for both), plus a last row, "Create
+ * Bucket “Vet”", once what's typed is the name of nothing it lists. The row is always last, under
+ * any partly matching choices, so Enter on a search still picks the first real match. Picking it
+ * only asks (`onCreate`): the Bucket is made in NewBucketStep, where its allowance is set.
  */
 export function BucketPicker({
 	id,
@@ -103,13 +91,7 @@ export function BucketPicker({
 	const [current, setCurrent] = useState(value ?? "");
 	const all = flatChoices(choices);
 	const chosen = all.find((c) => c.value === current);
-	const shown = choices
-		.map((group) => ({
-			...group,
-			choices: group.choices.filter((c) => matchesSearch(textOf(c), search)),
-		}))
-		.filter((group) => group.choices.length > 0);
-	const create = onCreate && !loading ? nameToCreate(search, all.map(textOf)) : null;
+	const create = onCreate && !loading ? nameToCreate(search, all.map(choiceText)) : null;
 	const close = () => {
 		setOpen(false);
 		setSearch("");
@@ -128,7 +110,11 @@ export function BucketPicker({
 				data-placeholder={chosen ? undefined : ""}
 				className={cn(selectTriggerClass, className)}
 			>
-				<span className="truncate">{chosen ? chosen.label : placeholder}</span>
+				{chosen ? (
+					<ChosenChoice choice={chosen} />
+				) : (
+					<span className="truncate">{placeholder}</span>
+				)}
 				<ChevronDown aria-hidden="true" className="text-muted-foreground" />
 			</PopoverTrigger>
 			<PopoverContent
@@ -144,62 +130,41 @@ export function BucketPicker({
 				{none ? (
 					<div className="p-3">{none}</div>
 				) : (
-					<Command loop shouldFilter={false}>
-						<CommandInput
-							placeholder={searchPlaceholder}
-							value={search}
-							onValueChange={setSearch}
-						/>
-						{/* A short window (1024×768): a shorter list, so the panel opens under its field and
-						    not upward over the page's title (issue 73). Phones keep the full list. */}
-						<CommandList className="sm:[@media(max-height:820px)]:max-h-52">
-							{loading ? (
-								<p role="status" className="px-3 py-6 text-center text-sm text-muted-foreground">
-									{loading}
-								</p>
-							) : (
-								<CommandEmpty>{empty}</CommandEmpty>
-							)}
-							{shown.map((group) => (
-								<CommandGroup key={group.label} heading={group.label}>
-									{group.choices.map((c) => (
-										<CommandItem
-											key={c.value}
-											value={c.value}
-											disabled={c.disabled}
-											checked={c.value === current}
-											onSelect={() => {
-												setCurrent(c.value);
-												close();
-												onValueChange(c.value);
-											}}
-										>
-											{c.label}
-										</CommandItem>
-									))}
-								</CommandGroup>
-							))}
-							{create && onCreate ? (
-								<CommandGroup heading="New">
-									<CommandItem
-										value={`create:${create}`}
-										onSelect={() => {
-											close();
-											onCreate(create);
-										}}
-									>
-										<Plus aria-hidden="true" />
-										<span className="min-w-0 break-words">Create Bucket “{create}”</span>
-									</CommandItem>
-								</CommandGroup>
-							) : null}
-						</CommandList>
-						{foot ? (
-							<div data-slot="bucket-picker-foot" className="border-t p-1">
-								{foot}
-							</div>
+					<ChoiceList
+						choices={choices}
+						current={current}
+						search={search}
+						onSearchChange={setSearch}
+						searchPlaceholder={searchPlaceholder}
+						empty={empty}
+						loading={loading}
+						// A short window (1024×768): a shorter list, so the panel opens under its field and
+						// not upward over the page's title (issue 73). Phones keep the full list.
+						listClassName="sm:[@media(max-height:820px)]:max-h-52"
+						onChoose={(next) => {
+							setCurrent(next);
+							close();
+							onValueChange(next);
+						}}
+						foot={foot}
+					>
+						{create && onCreate ? (
+							<CommandGroup heading="New">
+								<CommandItem
+									value={`create:${create}`}
+									onSelect={() => {
+										close();
+										onCreate(create);
+									}}
+								>
+									<ChoiceMark>
+										<Plus />
+									</ChoiceMark>
+									<span className="min-w-0 break-words">Create Bucket “{create}”</span>
+								</CommandItem>
+							</CommandGroup>
 						) : null}
-					</Command>
+					</ChoiceList>
 				)}
 			</PopoverContent>
 		</Popover>
