@@ -41,9 +41,10 @@ import { Archive, Ellipsis, Pencil, Unplug } from "lucide-react";
 import { type FormEvent, Fragment, useId, useState } from "react";
 import { ulid } from "ulid";
 import { accountSource, accountSourceText } from "../../../account-source";
+import { paymentsCount } from "../../../card-home";
 import { AccountWhose } from "../../../components/account-whose";
 import { DisconnectBankDialog } from "../../../components/bank-connections";
-import { CardKeptSection } from "../../../components/card-kept";
+import { CardPaying, useCardsHome } from "../../../components/card-home";
 import {
 	AccountPager,
 	AddGoalSheet,
@@ -62,7 +63,7 @@ import {
 	useBringsSpendingIn,
 	waitingForBank,
 } from "../../../components/transaction-list";
-import { formatMoney, fullDay, shortDay } from "../../../format";
+import { formatMoney, fullDay, monthName, shortDay } from "../../../format";
 import {
 	type AccountView,
 	accountKindName,
@@ -208,6 +209,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 		if (!open) setSheet(null);
 	};
 	const owes = !account.holdsMoney;
+	const isCard = account.kind === "credit-card";
 	// Goal spending recorded since the last balance update has already come off the balance; so
 	// have a card or loan's payments filed in a Commitment that pays it down (ADR-0050).
 	const spentSince =
@@ -417,10 +419,15 @@ function AccountDetails({ account }: { account: AccountView }) {
 							) : null}
 						</Card>
 					</Section>
-					<AccountWhose account={account} />
-					{account.kind === "credit-card" && account.bankConnectionId === null ? (
-						<CardKeptSection account={account} />
+					{/* A card's home (issue 150): what was paid to it, then how paying it counts, straight
+					    after what's owed; a loan's Payments stay further down. */}
+					{isCard ? (
+						<>
+							<PaidDown account={account} connected={connected !== null} balanceDay={balanceDay} />
+							<CardPaying account={account} bank={connected?.connection.institution ?? null} />
+						</>
 					) : null}
+					<AccountWhose account={account} />
 					<SaveFailed change={updateBalance} />
 					<SaveFailed change={rename} />
 
@@ -474,7 +481,13 @@ function AccountDetails({ account }: { account: AccountView }) {
 					) : (
 						<>
 							<PayOffSection account={account} />
-							<PaidDown account={account} connected={connected !== null} balanceDay={balanceDay} />
+							{isCard ? null : (
+								<PaidDown
+									account={account}
+									connected={connected !== null}
+									balanceDay={balanceDay}
+								/>
+							)}
 							<CardPerks account={account} />
 						</>
 					)}
@@ -680,11 +693,13 @@ const STALE_AFTER_DAYS = 35;
 const ACCOUNT_PAYMENTS = 6;
 
 /**
- * The payments filed in Commitments that pay this card or loan down (ADR-0050), and for a card
- * kept by hand the payments marked as a Transfer naming it (issue 136), newest first, with the
- * Commitments themselves: where "Pays down" is changed. Kept by hand, each says whether
- * it came off what's owed (dated after the balance) or was already in it. Nothing until a
- * Commitment pays the Account down.
+ * The payments to this card or loan, newest first: those filed in Commitments that pay it down
+ * (ADR-0050) and those marked as a Transfer naming it (issue 136). A credit card always has the
+ * section, with what was paid this month said first and this month's payments before the earlier
+ * ones (issue 150); how paying it counts, and the Commitment that pays it down, are in the
+ * section after it. A loan has it once a Commitment pays it down, with those Commitments named.
+ * Kept by hand, each payment says whether it came off what's owed (dated after the balance) or
+ * was already in it. Each opens where it is: its Commitment, or its month's Transactions.
  */
 function PaidDown({
 	account,
@@ -697,9 +712,11 @@ function PaidDown({
 }) {
 	const hydrated = useHydrated();
 	const data = useSuspenseQuery(goalsQuery()).data;
+	const { month, paid, waiting } = useCardsHome();
 	// Names only: the page doesn't wait for every Commitment's year of charges.
 	const commitments = useQuery(commitmentsQuery()).data?.commitments ?? [];
 	const [showAll, setShowAll] = useState(false);
+	const isCard = account.kind === "credit-card";
 	const payments = [
 		...data.payments
 			.filter((p) => p.accountId === account.id)
@@ -712,15 +729,67 @@ function PaidDown({
 		(c) =>
 			c.accountId === account.id && (c.endedFromMonth === null || c.endedFromMonth > data.month),
 	);
-	if (payments.length === 0 && paying.length === 0) return null;
+	if (!isCard && payments.length === 0 && paying.length === 0) return null;
 	const nameOf = (id: string) => commitments.find((c) => c.id === id)?.name ?? "a Commitment";
 	const when = (day: DayKey) =>
 		day.slice(0, 4) === data.asOf.slice(0, 4) ? shortDay(day) : fullDay(day);
+	const shown = payments.slice(0, showAll ? undefined : ACCOUNT_PAYMENTS);
+	const thisMonth = shown.filter((p) => monthOfDay(p.date) === month);
+	const earlier = shown.filter((p) => monthOfDay(p.date) !== month);
+	const paidHere = paid.get(account.id) ?? 0;
+	const waits = waiting.byCard.get(account.id) ?? 0;
+	const rows = (list: typeof payments) =>
+		list.map((payment) => {
+			const where = payment.commitmentId ? nameOf(payment.commitmentId) : "Transfer";
+			const cameOff =
+				connected || balanceDay === null
+					? ""
+					: payment.date > balanceDay
+						? " · came off what’s owed"
+						: " · already in what’s owed";
+			const commitmentId = payment.commitmentId;
+			return (
+				<LinkRow
+					key={payment.id}
+					link={(props) =>
+						commitmentId ? (
+							<Link
+								to="/plan/$month/commitments/$id"
+								params={{ month: data.month, id: commitmentId }}
+								{...props}
+							/>
+						) : (
+							<Link
+								to="/transactions/$month"
+								params={{ month: monthOfDay(payment.date) }}
+								{...props}
+							/>
+						)
+					}
+					label={`Payment, ${formatMoney(payment.amount)}, ${when(payment.date)}, ${where}`}
+					title={`Payment · ${where}`}
+					meta={`${when(payment.date)}${cameOff}`}
+					trailing={
+						<span className="text-sm font-semibold tabular-nums">
+							{formatMoney(payment.amount)}
+						</span>
+					}
+				/>
+			);
+		});
+	const groupLabel = "px-1 text-[13px] font-medium text-muted-foreground";
+	const inlineLink = "font-medium text-foreground underline underline-offset-3";
 	return (
 		<Section aria-labelledby="account-payments">
 			<SectionHeader id="account-payments" title="Payments" count={payments.length} />
 			<p className="px-1 text-sm text-muted-foreground">
-				{paying.length > 0 ? (
+				{isCard ? (
+					<span data-slot="card-paid-month" className="font-medium text-foreground tabular-nums">
+						{paidHere > 0
+							? `Paid in ${monthName(month)}: ${formatMoney(paidHere)}.`
+							: `Nothing paid in ${monthName(month)} yet.`}{" "}
+					</span>
+				) : paying.length > 0 ? (
 					<>
 						Paid down by{" "}
 						{paying.map((c, i) => (
@@ -729,7 +798,7 @@ function PaidDown({
 								<Link
 									to="/plan/$month/commitments/$id"
 									params={{ month: data.month, id: c.id }}
-									className="font-medium text-foreground underline underline-offset-3"
+									className={inlineLink}
 								>
 									{c.name}
 								</Link>
@@ -742,30 +811,35 @@ function PaidDown({
 					? "Its bank keeps what’s owed up to date."
 					: "A payment dated after what’s owed was last updated comes off it."}
 			</p>
+			{waits > 0 ? (
+				<p className="px-1 text-sm">
+					<Link to="/review" className={inlineLink}>
+						{paymentsCount(waits)} to it waiting in Review
+					</Link>
+				</p>
+			) : null}
 			{payments.length > 0 ? (
-				<List aria-label={`Payments to ${account.name}`}>
-					{payments.slice(0, showAll ? undefined : ACCOUNT_PAYMENTS).map((payment) => (
-						<ListRow
-							key={payment.id}
-							title={`Payment · ${payment.commitmentId ? nameOf(payment.commitmentId) : "Transfer"}`}
-							meta={`${when(payment.date)}${
-								connected || balanceDay === null
-									? ""
-									: payment.date > balanceDay
-										? " · came off what’s owed"
-										: " · already in what’s owed"
-							}`}
-							trailing={
-								<span className="text-sm font-semibold tabular-nums">
-									{formatMoney(payment.amount)}
-								</span>
-							}
-						/>
-					))}
-				</List>
+				<>
+					{thisMonth.length > 0 ? (
+						<>
+							{earlier.length > 0 ? <p className={groupLabel}>{monthName(month)}</p> : null}
+							<List aria-label={`Payments to ${account.name} in ${monthName(month)}`}>
+								{rows(thisMonth)}
+							</List>
+						</>
+					) : null}
+					{earlier.length > 0 ? (
+						<>
+							{thisMonth.length > 0 ? <p className={groupLabel}>Earlier</p> : null}
+							<List aria-label={`Earlier payments to ${account.name}`}>{rows(earlier)}</List>
+						</>
+					) : null}
+				</>
 			) : (
 				<Card className="p-(--card-pad) text-sm text-muted-foreground">
-					Payments filed in {paying.length === 1 ? paying[0]?.name : "them"} show here.
+					{paying.length > 0
+						? `Payments filed in ${paying.length === 1 ? paying[0]?.name : "them"} show here.`
+						: "No payments to it are in Noodle yet. One marked as a Transfer to it, or filed in a Commitment that pays it down, shows here."}
 				</Card>
 			)}
 			{payments.length > ACCOUNT_PAYMENTS && !showAll ? (
