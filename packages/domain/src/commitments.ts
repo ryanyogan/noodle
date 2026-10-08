@@ -24,7 +24,8 @@ export const CADENCES: readonly Cadence[] = ["monthly", "biweekly", "annual"];
  */
 export type CommitmentTerms = { amount: Cents; cadence: Cadence; dueDate: DayKey };
 
-const dayIn = (month: MonthKey, day: number): DayKey =>
+/** `day` of `month`, or its last day when the month is shorter. */
+export const dayIn = (month: MonthKey, day: number): DayKey =>
 	`${month}-${String(Math.min(day, daysInMonth(month))).padStart(2, "0")}` as DayKey;
 
 /**

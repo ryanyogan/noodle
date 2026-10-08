@@ -296,6 +296,21 @@ export {
 	quickAddChoices,
 } from "./likely";
 export {
+	dueDateOn,
+	endsAfter,
+	type LoanFacts,
+	type LoanSchedule,
+	loanPaid,
+	loanSchedule,
+	MAX_SCHEDULED_PAYMENTS,
+	NO_LOAN_FACTS,
+	nextLoanDue,
+	paymentsLeft,
+	paymentsUntil,
+	type ScheduledPayment,
+	scheduleFrom,
+} from "./loans";
+export {
 	compareLogNames,
 	LOG_EVENT_KINDS,
 	LOG_ITEM_KINDS,

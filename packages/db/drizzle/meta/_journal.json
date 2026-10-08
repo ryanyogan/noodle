@@ -568,6 +568,13 @@
       "when": 1793700000000,
       "tag": "0088_parent_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "6",
+      "when": 1793800000000,
+      "tag": "0089_loan_facts",
+      "breakpoints": true
     }
   ]
 }

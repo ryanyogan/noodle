@@ -7,6 +7,7 @@ import {
 	type DayKey,
 	type GoalKind,
 	type MonthKey,
+	NO_LOAN_FACTS,
 	parseDollars,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -44,6 +45,7 @@ import {
 	useGoals,
 } from "../goals";
 import { useViewerId, WhoseAccountField } from "./account-whose";
+import { LoanFieldset, PaymentCommitmentSwitch, useLoanFields } from "./loan";
 import { DetailPager } from "./master-detail";
 import { PurchasesField, usePurchasesAnswer } from "./purchases-field";
 import { TermHelp } from "./term-help";
@@ -388,7 +390,12 @@ export function AddAccountSheet({
 	);
 }
 
-/** An Account's name, kind, and (if known) its balance now. */
+/**
+ * An Account's name, kind, and (if known) its balance now. A loan also has its facts (what was
+ * borrowed, the payment, its due day, the payments left), and an Account that needs paying (a
+ * loan, or a credit card whose purchases don't get into Noodle) the choice, on to start with, to
+ * add a monthly Commitment for its payments in the same step (issue 153).
+ */
 function AccountFields({
 	onAdd,
 	submit,
@@ -409,6 +416,12 @@ function AccountFields({
 	// Whose it is: the Parent adding it, unless they say the other Parent or the Household.
 	const viewerId = useViewerId();
 	const [whose, setWhose] = useState(viewerId);
+	const { asOf } = useGoals();
+	const loan = useLoanFields(NO_LOAN_FACTS, asOf);
+	const [wantsCommitment, setWantsCommitment] = useState(true);
+	// Paying a card Noodle sees the purchases of is a Transfer, so only one it doesn't is offered it.
+	const needsPaying = kind === "loan" || (kind === "credit-card" && purchases.value === "none");
+	const commitment = needsPaying && wantsCommitment;
 
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -417,6 +430,7 @@ function AccountFields({
 		setNameMissing(!name);
 		// A credit card isn't added until a Parent has said how its purchases get in.
 		const answered = kind === "credit-card" ? purchases.check() : null;
+		const facts = kind === "loan" || commitment ? loan.check(commitment) : NO_LOAN_FACTS;
 		if (!name) {
 			form.querySelector<HTMLInputElement>("[name=name]")?.focus();
 			return;
@@ -426,20 +440,37 @@ function AccountFields({
 			return;
 		}
 		if (balanceInvalid) return;
+		if (facts === null) {
+			form.querySelector<HTMLInputElement>("[aria-invalid=true]")?.focus();
+			return;
+		}
 		onAdd({
 			accountId: ulid(),
 			name,
 			kind,
-			balanceCents,
+			// A loan with nothing said to be owed owes what was borrowed.
+			balanceCents: balanceCents ?? (kind === "loan" ? facts.borrowed : null),
 			balanceId: ulid(),
 			purchases: answered,
 			whoseMemberId: whose === WHOSE_HOUSEHOLD ? null : whose,
+			...(kind === "loan" ? { loan: facts } : {}),
+			...(commitment && facts.payment !== null && facts.dueDay !== null
+				? {
+						commitment: {
+							commitmentId: ulid(),
+							amountCents: facts.payment,
+							dueDay: facts.dueDay,
+						},
+					}
+				: {}),
 		});
 		form.reset();
 		setName("");
 		setWhose(viewerId);
 		purchases.reset();
 		setBalance("");
+		loan.reset();
+		setWantsCommitment(true);
 	}
 
 	const owes = kind === "credit-card" || kind === "loan";
@@ -490,9 +521,11 @@ function AccountFields({
 				label={owes ? "Owed now" : "Balance now"}
 				htmlFor={`${id}-balance`}
 				hint={
-					owes
-						? "What’s owed on it today. Optional."
-						: "What’s in it today, from your bank. Optional; you can add it later."
+					kind === "loan"
+						? "What’s owed on it today. Left empty, it’s what was borrowed."
+						: owes
+							? "What’s owed on it today. Optional."
+							: "What’s in it today, from your bank. Optional; you can add it later."
 				}
 			>
 				<AmountInput
@@ -504,6 +537,24 @@ function AccountFields({
 					onChange={(event) => setBalance(event.currentTarget.value)}
 				/>
 			</Field>
+			{kind === "loan" || commitment ? (
+				<LoanFieldset
+					id={`${id}-loan`}
+					fields={loan}
+					commitment={commitment}
+					only={kind === "loan" ? undefined : "payment"}
+					disabled={!hydrated}
+				/>
+			) : null}
+			{needsPaying ? (
+				<PaymentCommitmentSwitch
+					id={`${id}-commitment`}
+					checked={wantsCommitment}
+					onCheckedChange={setWantsCommitment}
+					group={kind === "loan" ? "Loans" : "Credit cards"}
+					disabled={!hydrated}
+				/>
+			) : null}
 			<Button
 				type="submit"
 				variant={submit}

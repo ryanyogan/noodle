@@ -457,18 +457,33 @@ export const accountKindLabel = (kind: string) => accountKindLabels[kind] ?? kin
 /** The question a credit card is asked wherever one is added (issue 141): nothing is chosen for it. */
 export const PURCHASES_QUESTION = "How do its purchases get into Noodle?";
 
+/** The choice a loan, or a card whose purchases don't get in, is added with (issue 153). */
+export const PAYMENT_COMMITMENT = "Add a monthly Commitment for its payments";
+
+/**
+ * Turns that choice off where the form offers it (it is on to start with, and then asks for the
+ * payment and its due day): for a spec that adds a loan or card and is about something else.
+ */
+export async function withoutPaymentCommitment(scope: Page | Locator) {
+	const offer = scope.getByRole("switch", { name: PAYMENT_COMMITMENT });
+	if (await offer.isVisible()) await offer.click();
+}
+
 /**
  * Picks an Account's kind in a form's Kind select. A credit card must then say how its purchases
  * get into Noodle before it can be added: `purchases` is that answer ("From its statements"
- * unless a spec is about another one).
+ * unless a spec is about another one). The Commitment for its payments is turned off unless
+ * `commitment` says to leave it on.
  */
 export async function chooseKind(
 	scope: Page | Locator,
 	kind: string,
 	purchases: "From its statements" | "I add them by hand" | "They won’t" = "From its statements",
+	commitment = false,
 ) {
 	await choose(scope, "Kind", accountKindLabel(kind));
 	if (kind === "credit-card") await choose(scope, PURCHASES_QUESTION, purchases);
+	if (!commitment) await withoutPaymentCommitment(scope);
 }
 
 /** Uploads a card statement to the Visa Account, adding the Account first if it's new. */

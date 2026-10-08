@@ -11,6 +11,7 @@ import {
 	type GoalFunding,
 	type GoalKind,
 	holdsMoney,
+	type LoanFacts,
 	type MonthKey,
 	monthOfDay,
 	type OwedPayment,
@@ -34,6 +35,7 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { ArchivedAccount } from "./account-archive";
+import { commitmentAdd, inPlanFor, mayPayDown } from "./commitments";
 import { counts, countsRaw } from "./counting";
 import type { Db } from "./index";
 import { freeToSpendSql } from "./moves";
@@ -125,8 +127,67 @@ const insertBalance = (
 		.onConflictDoNothing({ target: accountBalances.id });
 
 /**
- * Adds an Account, with its balance when one is given. Idempotent per `accountId` and
- * `balanceId`: a retry leaves the first attempt's Account as it was.
+ * A monthly Commitment for an Account's payments (issue 153): what one payment is, a day it is
+ * due (dueDateOn in @noodle/domain), and the Household's current month, which it is in the Plan
+ * from.
+ */
+export type PaymentCommitment = {
+	commitmentId: string;
+	amountCents: Cents;
+	dueDate: DayKey;
+	month: MonthKey;
+	/** Today in the Household's time zone, for whether Noodle follows a card. */
+	today: DayKey;
+};
+
+/**
+ * The statements that add a monthly Commitment paying `account` down, named after it: one Plan
+ * change ("commitment-add", saying what it pays down). It lands only while the Account may be
+ * paid down this way (mayPayDown: the Household's card or loan in use, and not a card Noodle
+ * follows) and no Commitment still in the Plan pays it down already.
+ */
+const paymentCommitmentAdd = (
+	db: Db,
+	input: PaymentCommitment & {
+		householdId: string;
+		memberId: string;
+		account: { id: string; name: string };
+	},
+) =>
+	commitmentAdd(
+		db,
+		{
+			householdId: input.householdId,
+			memberId: input.memberId,
+			commitmentId: input.commitmentId,
+			name: input.account.name,
+			month: input.month,
+			amountCents: input.amountCents,
+			cadence: "monthly",
+			dueDate: input.dueDate,
+			paysDown: { accountId: input.account.id, name: input.account.name },
+		},
+		and(
+			mayPayDown({
+				householdId: input.householdId,
+				accountId: input.account.id,
+				carriedBalance: false,
+				today: input.today,
+			}),
+			sql`not exists (select 1 from ${commitments} where ${and(
+				eq(commitments.householdId, input.householdId),
+				eq(commitments.accountId, input.account.id),
+				ne(commitments.id, input.commitmentId),
+				inPlanFor(input.month),
+			)})`,
+		),
+	);
+
+/**
+ * Adds an Account, with its balance when one is given, a loan's facts, and (with `commitment`) a
+ * monthly Commitment for its payments, all in one batch: every write lands or none does.
+ * Idempotent per `accountId`, `balanceId` and the Commitment's ID: a retry leaves the first
+ * attempt's Account as it was.
  */
 export async function addAccount(
 	db: Db,
@@ -144,8 +205,13 @@ export async function addAccount(
 		purchases?: PurchasesGetIn | null;
 		/** Whose it is: a Parent of the Household, else the Household's (ADR-0059). */
 		whoseMemberId?: string | null;
+		/** For a loan: what the Parent said about it. Kept on no other kind. */
+		loan?: LoanFacts | null;
+		/** A monthly Commitment for its payments, for a loan or a card Noodle doesn't follow. */
+		commitment?: PaymentCommitment | null;
 	},
 ): Promise<void> {
+	const loan = input.kind === "loan" ? (input.loan ?? null) : null;
 	const insertAccount = db
 		.insert(accounts)
 		.values({
@@ -155,13 +221,107 @@ export async function addAccount(
 			kind: input.kind,
 			purchases: input.kind === "credit-card" ? (input.purchases ?? null) : null,
 			whoseMemberId: input.whoseMemberId ? parentOf(input.householdId, input.whoseMemberId) : null,
+			borrowedCents: loan?.borrowed ?? null,
+			paymentCents: loan?.payment ?? null,
+			dueDay: loan?.dueDay ?? null,
+			endsOn: loan?.endsOn ?? null,
 		})
 		.onConflictDoNothing({ target: accounts.id });
-	if (input.balanceCents === null) {
-		await insertAccount;
-		return;
-	}
-	await db.batch([insertAccount, insertBalance(db, { ...input, amountCents: input.balanceCents })]);
+	await db.batch([
+		insertAccount,
+		...(input.balanceCents === null
+			? []
+			: [insertBalance(db, { ...input, amountCents: input.balanceCents })]),
+		...(input.commitment && !holdsMoney(input.kind)
+			? paymentCommitmentAdd(db, {
+					...input.commitment,
+					householdId: input.householdId,
+					memberId: input.createdByMemberId,
+					account: { id: input.accountId, name: input.name },
+				})
+			: []),
+	]);
+}
+
+/**
+ * Records a loan's facts (issue 153): what was borrowed, the payment, its due day and the day it
+ * ends, each null for "not said". Refused unless it is the Household's loan, in use.
+ */
+export async function setLoanFacts(
+	db: Db,
+	input: { householdId: string; accountId: string } & LoanFacts,
+): Promise<{ ok: boolean }> {
+	const changed = await db
+		.update(accounts)
+		.set({
+			borrowedCents: input.borrowed,
+			paymentCents: input.payment,
+			dueDay: input.dueDay,
+			endsOn: input.endsOn,
+		})
+		.where(
+			and(
+				ownAccount(input.householdId, input.accountId),
+				eq(accounts.kind, "loan"),
+				isNull(accounts.archivedAt),
+			),
+		)
+		.returning({ id: accounts.id });
+	return { ok: changed.length > 0 };
+}
+
+export type PaymentCommitmentResult =
+	| { ok: true }
+	/**
+	 * "not-found": the Account isn't the Household's card or loan in use. "refused": a card Noodle
+	 * follows (paying it is a Transfer), or a Commitment in the Plan pays it down already.
+	 */
+	| { ok: false; reason: "not-found" | "refused" };
+
+/**
+ * Adds a monthly Commitment for the payments of an Account the Household has already, named
+ * after it (issue 153). For a loan the payment and its due day become its facts in the same
+ * batch, so its schedule and the Commitment say the same. Idempotent per `commitmentId`.
+ */
+export async function addPaymentCommitment(
+	db: Db,
+	input: PaymentCommitment & {
+		householdId: string;
+		memberId: string;
+		accountId: string;
+		/** The day of the month it is due, 1 to 31: the loan's fact. */
+		dueDay: number;
+	},
+): Promise<PaymentCommitmentResult> {
+	const own = and(ownAccount(input.householdId, input.accountId), isNull(accounts.archivedAt));
+	const [account] = await db
+		.select({ id: accounts.id, name: accounts.name, kind: accounts.kind })
+		.from(accounts)
+		.where(own);
+	if (!account || holdsMoney(account.kind)) return { ok: false, reason: "not-found" };
+	const added = sql`exists (select 1 from ${commitments} where ${and(
+		eq(commitments.id, input.commitmentId),
+		eq(commitments.accountId, input.accountId),
+	)})`;
+	await db.batch([
+		...paymentCommitmentAdd(db, { ...input, account }),
+		// Last, and only once the Commitment is there: a refusal leaves the loan's facts alone.
+		db
+			.update(accounts)
+			.set({ paymentCents: input.amountCents, dueDay: input.dueDay })
+			.where(and(own, eq(accounts.kind, "loan"), added)),
+	]);
+	const [row] = await db
+		.select({ id: commitments.id })
+		.from(commitments)
+		.where(
+			and(
+				eq(commitments.id, input.commitmentId),
+				eq(commitments.householdId, input.householdId),
+				eq(commitments.accountId, input.accountId),
+			),
+		);
+	return row ? { ok: true } : { ok: false, reason: "refused" };
 }
 
 /**
@@ -1154,6 +1314,8 @@ export type AccountRecord = {
 	statementDay: number | null;
 	/** Whose it is: a Parent's Member id, or null for the Household's (ADR-0059). */
 	whose: string | null;
+	/** A loan's facts as a Parent said them (issue 153); left out for any other kind. */
+	loan?: LoanFacts;
 };
 
 export type GoalRecord = {
@@ -1251,6 +1413,10 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 				walletName: accounts.walletName,
 				statementDay: accounts.statementDay,
 				whose: accounts.whoseMemberId,
+				borrowed: accounts.borrowedCents,
+				payment: accounts.paymentCents,
+				dueDay: accounts.dueDay,
+				endsOn: accounts.endsOn,
 				// Spelled out: inside a select's fields Drizzle leaves column names unqualified.
 				lastStatementDate: sql<string | null>`(select max(i.last_date) from imports i
 					where i.account_id = "accounts"."id" and i.source <> 'bank')`,
@@ -1388,10 +1554,13 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 		),
 	].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 	return {
-		accounts: accountRows.map((row) => {
+		accounts: accountRows.map(({ borrowed, payment, dueDay, endsOn, ...row }) => {
 			const latestBalance = latest.get(row.id) ?? null;
 			return {
 				...row,
+				...(row.kind === "loan"
+					? { loan: { borrowed, payment, dueDay, endsOn: endsOn as DayKey | null } }
+					: {}),
 				lastStatementDate: row.lastStatementDate as DayKey | null,
 				latestBalance,
 				owed: holdsMoney(row.kind)

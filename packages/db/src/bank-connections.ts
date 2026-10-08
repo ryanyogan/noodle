@@ -211,6 +211,11 @@ export async function chooseBankAccounts(
 								whoseMemberId: sql<string | null>`(select m.id from members m
 									where m.id = ${input.createdByMemberId} and m.household_id = ${householdId}
 									and m.kind = 'parent')`.as("whose_member_id"),
+								// A loan's facts are a Parent's to say (issue 153).
+								borrowedCents: sql<number | null>`null`.as("borrowed_cents"),
+								paymentCents: sql<number | null>`null`.as("payment_cents"),
+								dueDay: sql<number | null>`null`.as("due_day"),
+								endsOn: sql<string | null>`null`.as("ends_on"),
 							})
 							.from(bankConnections)
 							.where(and(theConnection, notYetPaired)),

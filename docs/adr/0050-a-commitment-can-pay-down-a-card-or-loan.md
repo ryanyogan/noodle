@@ -73,3 +73,10 @@ Every reader of what's owed uses this one figure: the Account page and list, a p
 - A payment line that says "APPLECARD" as one word is read as naming an Account called "Apple Card".
 
 Payments already filed in such a Commitment, and the months they are in, stay as they are until a Parent changes them.
+
+## A loan's facts, and its Commitment added with it (issue 153, phase b)
+
+- **A loan's facts are on its Account** (`accounts.borrowed_cents`, `payment_cents`, `due_day`, `ends_on`; all null until said). The day of the last payment is what is stored; the form asks "Payments left" and turns it into that day, and how many are left is always worked out again (`loanSchedule` in `@noodle/domain`), so the two can't disagree. Nothing is per lender: several instalment plans at one lender are several loan Accounts.
+- **The payments to come are derived, with no interest**: what's owed (this ADR's figure), monthly on the due day at the payment, the last being the remainder. When a payment and an end are both said, the payment decides and the page says where the two differ. A payment dated this month moves the next one to next month.
+- **"Add a monthly Commitment for its payments"** on the add-Account form, on to start with for a loan and for a credit card answered "They won't" (`purchases = none`): the Account, its balance and a monthly Commitment that pays it down are one batch, and one Plan change ("commitment-add", carrying `paysDown`). Any other card is paid by a Transfer, so it isn't offered; a set payment on a carried balance is still linked from the Commitment's own form. The Account's page offers the same while no Commitment in the Plan pays it down (`addPaymentCommitment`, refused when one does, or for a card Noodle follows).
+- **A loan with a payoff Goal** keeps both: the schedule is the regular payment, the Goal's funding is extra on top (ADR-0019). Both read the same what's owed.

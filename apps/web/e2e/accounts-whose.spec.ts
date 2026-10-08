@@ -2,7 +2,14 @@ import { expect, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { choose, createPlannedHousehold, hydrated, savedBy, signedInPage } from "./session";
+import {
+	choose,
+	createPlannedHousehold,
+	hydrated,
+	savedBy,
+	signedInPage,
+	withoutPaymentCommitment,
+} from "./session";
 
 // Accounts are listed by whose they are (issue 144, ADR-0059): the Parent looking first, then the
 // other Parent, then the Household's. A new one is the Parent's who adds it unless they say, and
@@ -34,6 +41,7 @@ async function addAccount(
 	const form = first ? page : sheet;
 	await form.getByLabel("Name").fill(account.name);
 	if (account.kind) await choose(form, "Kind", account.kind);
+	await withoutPaymentCommitment(form);
 	if (account.whose) await choose(form, "Whose Account", account.whose);
 	if (account.balance)
 		await form

@@ -383,6 +383,15 @@ export const accounts = sqliteTable(
 		 * what one is until a Parent says. Only how Accounts are grouped; it hides nothing.
 		 */
 		whoseMemberId: text("whose_member_id").references(() => members.id),
+		/**
+		 * A loan's facts (issue 153), each null until a Parent says: what was borrowed, what one
+		 * payment is, the day of the month it is due (1 to 31), and the day of its last payment.
+		 * How many payments are left is worked out (loanSchedule in @noodle/domain), never stored.
+		 */
+		borrowedCents: integer("borrowed_cents"),
+		paymentCents: integer("payment_cents"),
+		dueDay: integer("due_day"),
+		endsOn: text("ends_on"),
 	},
 	(t) => [
 		index("accounts_household_idx").on(t.householdId),

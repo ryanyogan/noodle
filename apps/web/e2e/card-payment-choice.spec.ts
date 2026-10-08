@@ -9,6 +9,7 @@ import {
 	PURCHASES_QUESTION,
 	reloadUntil,
 	signedInPage,
+	withoutPaymentCommitment,
 } from "./session";
 
 // "It's a card payment" (issue 136): one named choice on money out that asks which card. A card
@@ -58,6 +59,7 @@ async function addAccount(page: Page, account: NewAccount) {
 	if (account.kind === "credit-card") {
 		await choose(page, PURCHASES_QUESTION, account.purchases ?? "From its statements");
 	}
+	await withoutPaymentCommitment(page);
 	await page
 		.getByLabel(account.kind === "credit-card" ? "Owed now" : "Balance now")
 		.fill(account.balance);

@@ -131,6 +131,11 @@ export const commitmentAdd = (
 		endedFromMonth?: MonthKey | null;
 		/** Its amount is "about" (it varies); the same each time when left out. */
 		about?: boolean | undefined;
+		/**
+		 * The card or loan it pays down from the start (issue 153), with its name for the Plan
+		 * change. The caller's `onlyIf` is what says it may (mayPayDown).
+		 */
+		paysDown?: { accountId: string; name: string } | undefined;
 	} & Terms,
 	/** Given, it is added only while this holds: what else in the batch needs, so all land or none. */
 	onlyIf?: SQL,
@@ -141,6 +146,7 @@ export const commitmentAdd = (
 		name: input.name,
 		fromMonth: input.month,
 		endedFromMonth: input.endedFromMonth ?? null,
+		accountId: input.paysDown?.accountId ?? null,
 		about: input.about ?? false,
 	};
 	return [
@@ -164,6 +170,7 @@ export const commitmentAdd = (
 					dueDate: input.dueDate,
 					...(input.endedFromMonth ? { until: input.endedFromMonth } : {}),
 					...(input.about ? { about: true } : {}),
+					...(input.paysDown ? { paysDown: input.paysDown.name } : {}),
 				},
 			},
 		),
@@ -181,7 +188,7 @@ export const commitmentAdd = (
 								fromMonth: sql<string>`${row.fromMonth}`.as("from_month"),
 								endedFromMonth: sql<string | null>`${row.endedFromMonth}`.as("ended_from_month"),
 								createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
-								accountId: sql<string | null>`null`.as("account_id"),
+								accountId: sql<string | null>`${row.accountId}`.as("account_id"),
 								carriedBalance: sql<boolean>`0`.as("carried_balance"),
 								about: sql<boolean>`${row.about ? 1 : 0}`.as("about"),
 							})

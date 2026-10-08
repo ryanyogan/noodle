@@ -53,6 +53,7 @@ import {
 	GoalProgressBar,
 	LinkRow,
 } from "../../../components/goals";
+import { LoanSection, PaymentCommitmentOffer } from "../../../components/loan";
 import { DetailHeader, DetailPending } from "../../../components/master-detail";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { StatementBalanceNote, StatementsSection } from "../../../components/statements";
@@ -425,8 +426,11 @@ function AccountDetails({ account }: { account: AccountView }) {
 						<>
 							<PaidDown account={account} connected={connected !== null} balanceDay={balanceDay} />
 							<CardPaying account={account} bank={connected?.connection.institution ?? null} />
+							<PaymentCommitmentOffer account={account} />
 						</>
 					) : null}
+					{/* A loan's facts and the payments still to come, straight after what's owed (issue 153). */}
+					{account.kind === "loan" ? <LoanSection account={account} /> : null}
 					<AccountWhose account={account} />
 					<SaveFailed change={updateBalance} />
 					<SaveFailed change={rename} />

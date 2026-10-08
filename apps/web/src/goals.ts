@@ -10,7 +10,9 @@ import {
 	type GoalProgress,
 	goalProgress,
 	holdsMoney,
+	type LoanFacts,
 	type MonthKey,
+	NO_LOAN_FACTS,
 	owedFor,
 	owedOn,
 	type PurchasesGetIn,
@@ -31,6 +33,7 @@ import { setCardKept } from "./server/card-kept";
 import {
 	addAccount,
 	addGoal,
+	addPaymentCommitment,
 	archiveGoal,
 	claimForGoal,
 	completeGoal,
@@ -40,6 +43,7 @@ import {
 	restartPayoffGoal,
 	setAccountWhose,
 	setEmergencyGoal,
+	setLoanFacts,
 	spendGoal,
 	undoGoalFunding,
 	updateAccountBalance,
@@ -327,6 +331,18 @@ export type AddAccountVariables = {
 	purchases?: PurchasesGetIn | null;
 	/** Whose it is: a Parent, or null for the Household's. Left out: the Parent adding it. */
 	whoseMemberId?: string | null;
+	/** For a loan: what was borrowed, the payment, its due day and the day it ends. */
+	loan?: LoanFacts;
+	/** "Add a monthly Commitment for its payments", left on: what one is and the day it is due. */
+	commitment?: PaymentCommitmentVariables;
+};
+
+/** A monthly Commitment for an Account's payments (issue 153). */
+export type PaymentCommitmentVariables = {
+	commitmentId: string;
+	amountCents: Cents;
+	/** The day of the month it is due, 1 to 31. */
+	dueDay: number;
 };
 
 export const withAccount = (data: GoalsData, v: AddAccountVariables): GoalsData =>
@@ -347,6 +363,7 @@ export const withAccount = (data: GoalsData, v: AddAccountVariables): GoalsData 
 						walletName: null,
 						statementDay: null,
 						whose: v.whoseMemberId ?? null,
+						...(v.kind === "loan" ? { loan: v.loan ?? NO_LOAN_FACTS } : {}),
 						latestBalance:
 							v.balanceCents === null
 								? null
@@ -510,11 +527,66 @@ export const withClaim = (data: GoalsData, v: ClaimVariables) =>
 
 // Account and Goal changes, one hook each, for forms that show `SaveFailed`.
 
-export const useAddAccount = () =>
-	useGoalChange({
+export const useAddAccount = () => {
+	const queryClient = useQueryClient();
+	return useGoalChange({
 		save: (data: AddAccountVariables) => addAccount({ data }),
 		apply: withAccount,
+		// Its Commitment is in the Plan from this month: every month's Commitments are read again.
+		onSuccess: (account) => {
+			if (!account.commitment) return;
+			void queryClient.invalidateQueries({ queryKey: monthsKey });
+			toast(`${account.name}’s payments are a Commitment in the Plan now.`);
+		},
 	});
+};
+
+export type LoanFactsVariables = LoanFacts & { accountId: string };
+
+export const withLoanFacts = (
+	data: GoalsData,
+	{ accountId, ...loan }: LoanFactsVariables,
+): GoalsData => ({
+	...data,
+	accounts: data.accounts.map((a) =>
+		a.id === accountId && a.kind === "loan" ? { ...a, loan } : a,
+	),
+});
+
+/** Records a loan's facts: what was borrowed, the payment, its due day and the day it ends. */
+export const useSetLoanFacts = () =>
+	useGoalChange({
+		save: (data: LoanFactsVariables) => refuseUnlessOk(setLoanFacts({ data })),
+		apply: withLoanFacts,
+	});
+
+/**
+ * Adds a monthly Commitment for the payments of a loan or card the Household has already. For a
+ * loan the payment and its due day become its facts too, as the server records them.
+ */
+export const useAddPaymentCommitment = (callbacks: ChangeCallbacks<PaymentCommitmentVariables>) => {
+	const queryClient = useQueryClient();
+	return useGoalChange({
+		save: (data: PaymentCommitmentVariables & { accountId: string }) =>
+			refuseUnlessOk(addPaymentCommitment({ data })),
+		apply: (data, v) => ({
+			...data,
+			accounts: data.accounts.map((a) =>
+				a.id === v.accountId && a.kind === "loan"
+					? {
+							...a,
+							loan: { ...(a.loan ?? NO_LOAN_FACTS), payment: v.amountCents, dueDay: v.dueDay },
+						}
+					: a,
+			),
+		}),
+		onSuccess: (variables) => {
+			void queryClient.invalidateQueries({ queryKey: monthsKey });
+			callbacks.onSuccess?.(variables);
+		},
+		onError: callbacks.onError,
+	});
+};
 
 export type CardKeptVariables = {
 	accountId: string;

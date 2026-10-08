@@ -1,6 +1,7 @@
 import {
 	addAccount as addAccountInDb,
 	addGoal as addGoalInDb,
+	addPaymentCommitment as addPaymentCommitmentInDb,
 	addPayoffGoal as addPayoffGoalInDb,
 	archiveGoal as archiveGoalInDb,
 	claimForGoal as claimForGoalInDb,
@@ -11,10 +12,12 @@ import {
 	loadFreeCarriedInto,
 	loadGoals,
 	owedNow,
+	type PaymentCommitmentResult,
 	renameAccount as renameAccountInDb,
 	restartPayoffGoal as restartPayoffGoalInDb,
 	setAccountWhose as setAccountWhoseInDb,
 	setEmergencyGoal as setEmergencyGoalInDb,
+	setLoanFacts as setLoanFactsInDb,
 	spendGoal as spendGoalInDb,
 	undoGoalFunding as undoGoalFundingInDb,
 	updateAccountBalance as updateAccountBalanceInDb,
@@ -25,6 +28,7 @@ import {
 	type Cents,
 	type DayKey,
 	dayKeyAt,
+	dueDateOn,
 	GOAL_KINDS,
 	MAX_CENTS,
 	type MonthKey,
@@ -34,10 +38,12 @@ import {
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { queueAi } from "./ai-queue";
 import { getDb } from "./db";
 import { type HouseholdSummary, householdMiddleware, viewerOf } from "./household";
 import { loadMonth, monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
+import { assertEditable } from "./plan";
 import { dayKeySchema, ulidSchema } from "./schemas";
 
 // Accounts, Goals and what their Goals have set aside. Each write is idempotent per its client ULID, so the client
@@ -59,6 +65,21 @@ export type FundGoalOutcome = { ok: true } | { ok: false; freeToSpend: Cents };
 export const goalNameSchema = z.string().trim().min(1).max(40);
 const amountSchema = z.number().int().min(1).max(MAX_CENTS);
 const balanceSchema = z.number().int().min(0).max(MAX_CENTS);
+/** The day of the month a payment is due. */
+const dueDaySchema = z.number().int().min(1).max(31);
+/** A loan's facts as a Parent said them (issue 153): each null for "not said". */
+const loanFactsSchema = z.object({
+	borrowed: amountSchema.nullable(),
+	payment: amountSchema.nullable(),
+	dueDay: dueDaySchema.nullable(),
+	endsOn: dayKeySchema.nullable(),
+});
+/** A monthly Commitment for an Account's payments: what one is, and the day it is due. */
+const paymentCommitmentSchema = z.object({
+	commitmentId: ulidSchema,
+	amountCents: amountSchema,
+	dueDay: dueDaySchema,
+});
 
 const today = (household: Pick<HouseholdSummary, "timeZone">) =>
 	dayKeyAt(new Date(), household.timeZone);
@@ -86,7 +107,27 @@ export const getGoals = createServerFn({ method: "GET" })
 		return { ...records, month: currentMonth(context.household), asOf: today(context.household) };
 	});
 
-/** Adds an Account, with its balance now if the Parent knows it. */
+/** A Commitment for an Account's payments as the database takes it: in the Plan from this month. */
+const paymentCommitment = (
+	household: Pick<HouseholdSummary, "timeZone">,
+	commitment: z.infer<typeof paymentCommitmentSchema>,
+) => {
+	const month = currentMonth(household);
+	assertEditable(household, month);
+	return {
+		commitmentId: commitment.commitmentId,
+		amountCents: commitment.amountCents,
+		dueDate: dueDateOn(commitment.dueDay, today(household)),
+		month,
+		today: today(household),
+	};
+};
+
+/**
+ * Adds an Account, with its balance now if the Parent knows it, a loan's facts, and, when asked,
+ * a monthly Commitment for its payments (issue 153): for a loan, or a credit card whose purchases
+ * don't get into Noodle. Paying any other card is a Transfer, so none is added for it.
+ */
 export const addAccount = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(
@@ -101,17 +142,71 @@ export const addAccount = createServerFn({ method: "POST" })
 			purchases: z.enum(PURCHASES_GET_IN).nullish(),
 			/** Whose it is: a Parent, or null for the Household's. Not said: the Parent adding it. */
 			whoseMemberId: ulidSchema.nullable().optional(),
+			/** For a loan: what was borrowed, the payment, its due day and the day it ends. */
+			loan: loanFactsSchema.optional(),
+			/** "Add a monthly Commitment for its payments", left on. */
+			commitment: paymentCommitmentSchema.optional(),
 		}),
 	)
 	.handler(async ({ data, context }) => {
+		const needsPaying =
+			data.kind === "loan" || (data.kind === "credit-card" && data.purchases === "none");
+		const commitment =
+			data.commitment && needsPaying ? paymentCommitment(context.household, data.commitment) : null;
 		await addAccountInDb(getDb(), {
 			householdId: context.household.id,
 			createdByMemberId: context.parent.id,
 			...data,
 			whoseMemberId: data.whoseMemberId === undefined ? context.parent.id : data.whoseMemberId,
 			asOf: today(context.household),
+			commitment,
 		});
-		await notifyHousehold(context.household.id, ["goals"]);
+		await notifyHousehold(context.household.id, commitment ? ["goals", "months"] : ["goals"]);
+		if (commitment) {
+			await queueAi({
+				householdId: context.household.id,
+				memberId: context.parent.id,
+				kind: "commitment-changed",
+				ids: [commitment.commitmentId],
+			});
+		}
+	});
+
+/** Records a loan's facts: what was borrowed, the payment, its due day and the day it ends. */
+export const setLoanFacts = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(loanFactsSchema.extend({ accountId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+		const result = await setLoanFactsInDb(getDb(), { householdId: context.household.id, ...data });
+		if (result.ok) await notifyHousehold(context.household.id, ["goals"]);
+		return result;
+	});
+
+/**
+ * Adds a monthly Commitment for the payments of a loan or card the Household has already, named
+ * after it and paying it down (ADR-0050). Refused for a card Noodle follows, and while a
+ * Commitment in the Plan pays the Account down already.
+ */
+export const addPaymentCommitment = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(paymentCommitmentSchema.extend({ accountId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<PaymentCommitmentResult> => {
+		const result = await addPaymentCommitmentInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			accountId: data.accountId,
+			dueDay: data.dueDay,
+			...paymentCommitment(context.household, data),
+		});
+		if (!result.ok) return result;
+		await notifyHousehold(context.household.id, ["goals", "months"]);
+		await queueAi({
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			kind: "commitment-changed",
+			ids: [data.commitmentId],
+		});
+		return result;
 	});
 
 export const renameAccount = createServerFn({ method: "POST" })
