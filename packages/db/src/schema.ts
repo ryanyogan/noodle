@@ -71,6 +71,12 @@ export const members = sqliteTable(
 		color: integer("color"),
 		// A removed Child leaves the Household's pickers, but Transactions For them keep it.
 		removedAt: integer("removed_at", { mode: "timestamp_ms" }),
+		// How a Parent is paid (issue 156). Both null: hourly, or pay that varies, as everyone is
+		// until a Parent says. On a salary: what one paycheck usually is, and when it is due, as
+		// JSON told apart by its `kind` (PaySchedule in @noodle/domain, pay-days.ts) so that further
+		// schedules need no migration.
+		paycheckCents: integer("paycheck_cents"),
+		paySchedule: text("pay_schedule"),
 	},
 	(t) => [index("members_household_idx").on(t.householdId)],
 );

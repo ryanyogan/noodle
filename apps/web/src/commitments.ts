@@ -55,7 +55,8 @@ export function costText(terms: Pick<CommitmentTerms, "amount" | "cadence">): st
 		: `${year} · ${formatMoney(monthlyEquivalent(terms))} a month`;
 }
 
-const ordinal = (day: number) => {
+/** "1st", "22nd": a day of the month as it is said. */
+export const ordinal = (day: number) => {
 	const suffix =
 		day % 10 === 1 && day !== 11
 			? "st"

@@ -108,6 +108,10 @@ _Avoid_: Baseline, expected income, salary, budgeted income, gross income
 Money in that is pay or other earnings: a paycheck, a bonus, a tax refund, interest earned. Each has **whose pay** it is (a Parent, or the Household). Money in is one of Income, a Refund, Paid back, a Transfer or Between us, and a Parent can change which; only Income counts toward the Take-home pay and Extra income. A Parent whose pay varies is shown its range over the last three full months ("usually $2,100–$2,900"); the Plan still counts on the low end (ADR-0040).
 _Avoid_: Deposit, credit, earnings; salary
 
+**Pay day**:
+A day a Parent on a salary is due a paycheck: twice a month on two days (the 1st and the 15th) or monthly on one; a day the month doesn't have is its last day. Each Parent says how they are paid on Plan › Income: **Salary**, with what one paycheck usually is and its Pay days, or hourly / pay that varies, which is nothing to set and what everyone is until they say. A salaried Parent's expected paychecks are listed per month, "Pay for Oct 1", each **In** once Income that is their pay, within $300 of the paycheck, has landed from 5 days before the Pay day to 5 days after; otherwise **Expected**, or "Hasn't come in" once those days are over. The list only reads: Income still counts in the month it landed, and the Take-home pay is still one Household figure (issue 156, phase 1).
+_Avoid_: Payday schedule, pay period, expected income
+
 **Extra income**:
 Income received beyond the Take-home pay in a month (the better month of a Parent whose pay varies, a third paycheck, a bonus, a tax refund), awaiting a decision on where it goes.
 Income up to $25 above the Take-home pay is the usual pay landing a few dollars different, not Extra income. A Parent sends Extra income to a Goal, to a Bucket, or adds it to that month's Free to Spend; it never gets there on its own. For a month that has ended, adding it to Free to Spend is said as "Leave it in the account" on "Close <Month>".

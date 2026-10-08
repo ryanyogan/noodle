@@ -389,6 +389,9 @@ export async function acceptInvite(
 						// Selected in the table's column order: insert … select is positional.
 						color: sql<number | null>`null`.as("color"),
 						removedAt: sql<Date | null>`null`.as("removed_at"),
+						// Hourly, or pay that varies, until a Parent says (issue 156).
+						paycheckCents: sql<number | null>`null`.as("paycheck_cents"),
+						paySchedule: sql<string | null>`null`.as("pay_schedule"),
 					})
 					.from(invites)
 					.where(and(usable, sql`${parentCountOf(invites.householdId)} < ${MAX_PARENTS}`)),
@@ -777,6 +780,7 @@ export {
 	owedBackRuleFor,
 	rememberOwedBack,
 } from "./owed-back-rules";
+export { loadParentPay, type ParentPay, setParentPay } from "./parent-pay";
 export {
 	addPerkSource,
 	addPerkUse,
