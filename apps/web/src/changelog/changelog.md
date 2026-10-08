@@ -28,6 +28,7 @@ Rules (changelog.test.ts checks them):
 - The Plan's Commitments are grouped by what each one is: Credit cards, then Loans, then Bills.
 - Every list a Bucket, bill or Goal is picked from is the same list, each Bucket with its colour and letter as in the Plan.
 - Household settings has three tabs: Settings, Logs and this Changelog.
+- A card payment is said one way everywhere: "Card payment" is what it is, "It's a card payment" says so, and Review names the card and whether paying it is spending. A payment whose bank wording names no card asks which card first when it may be one of yours.
 - A paycheck that counts on its pay day is listed, and counted in Money in, on the Transactions page of the month it counts in.
 - A charge that names a lender you have a loan with is offered in Review as a payment on that loan, and a Rule sends each later payment to the loan whose payment it is.
 - A loan's page lists each month's payment against its schedule, and a loan that is paid off stops being planned from the next month.

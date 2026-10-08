@@ -200,13 +200,13 @@ test("review defaults to suggested and lets an ordinary transaction become a car
 	await page.screenshot({ path: "/tmp/noodle-review-phone.png", fullPage: true });
 	await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
 	await type.click();
-	await page.getByRole("menuitem", { name: "Credit card payment", exact: true }).click();
+	await page.getByRole("menuitem", { name: "Card payment", exact: true }).click();
 	// A keyboard shortcut must not file the hidden suggestion while choosing a payment.
 	await page.locator("#review-top").focus();
 	await page.keyboard.press("ArrowRight");
 	await expect(card.getByRole("combobox", { name: "Payment to" })).toBeVisible();
 	await choose(card, "Payment to", "Visa");
-	await card.getByRole("button", { name: "Link payment", exact: true }).click();
+	await card.getByRole("button", { name: "It’s a card payment", exact: true }).click();
 	await expect(card).toBeHidden();
 	const [transfers] = await seedSql([
 		`select other_account_id from transfers where out_transaction_id = '${transaction}' and removed_at is null`,

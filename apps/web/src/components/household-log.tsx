@@ -132,6 +132,13 @@ const moneyInAlways = (kind: string | null, pair: boolean): string =>
 		: (MONEY_IN_KIND_LABELS[kind as MoneyInKind] ?? "one kind");
 
 /** What one of the Log's own records says: a Rule as it was made, or something removed. */
+/**
+ * A remembered card payment, in the words the Rules page lists it by and every other Rule is
+ * logged with (issue 150: it read "Remembered as a payment to…", a second vocabulary).
+ */
+const cardPaymentAlways = (card: string | null): string =>
+	`always a Transfer to ${card || "a card that isn’t in Noodle"}`;
+
 function eventChange(row: Extract<DatedLogRow, { source: "event" }>): string {
 	const { detail } = row;
 	switch (row.event) {
@@ -144,11 +151,9 @@ function eventChange(row: Extract<DatedLogRow, { source: "event" }>): string {
 		case "money-in-rule-removed":
 			return `Rule removed · it was always ${moneyInAlways(detail, false)}`;
 		case "card-payment-rule-made":
-			return detail ? `Remembered as a payment to ${detail}` : "Remembered as a card payment";
+			return `Rule made · ${cardPaymentAlways(detail)}`;
 		case "card-payment-rule-removed":
-			return detail
-				? `No longer remembered as a payment to ${detail}`
-				: "No longer remembered as a card payment";
+			return `Rule removed · it was ${cardPaymentAlways(detail)}`;
 		case "bank-connection-removed":
 			return "Disconnected";
 		case "bank-connection-disconnected":
@@ -223,9 +228,7 @@ export function logChange(row: DatedLogRow): string {
 		case "money-in-rule":
 			return `Rule made · always ${moneyInAlways(row.kind, row.pair)}`;
 		case "card-payment-rule":
-			return row.cardName
-				? `Remembered as a payment to ${row.cardName}`
-				: "Remembered as a card payment";
+			return `Rule made · ${cardPaymentAlways(row.cardName)}`;
 		case "event":
 			return eventChange(row);
 	}

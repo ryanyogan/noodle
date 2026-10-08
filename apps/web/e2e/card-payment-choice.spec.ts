@@ -103,15 +103,15 @@ const detail = (page: Page) =>
 		.locator("[role=dialog], [data-slot=transaction-detail]")
 		.filter({ has: page.getByRole("group", { name: "Transaction type" }) });
 
-/** Opens the detail of this month's unassigned line of `amount`, on its "Credit card payment" tile. */
+/** Opens the detail of this month's unassigned line of `amount`, on its "Card payment" tile. */
 async function openLine(page: Page, amount: string) {
 	await expect(unassigned(page, amount)).toBeVisible();
 	await unassigned(page, amount).click();
-	const tile = detail(page).getByRole("button", { name: "Credit card payment", exact: true });
+	const tile = detail(page).getByRole("button", { name: "Card payment", exact: true });
 	await expect(tile).toBeEnabled();
 	// The bank's wording is read once, under the tiles, and points at this one.
 	await expect(detail(page).locator("[data-slot=type-hint]")).toHaveText(
-		"Looks like a card payment. If it is, choose Credit card payment.",
+		"Looks like a card payment. If it is, choose Card payment.",
 	);
 	await expect(detail(page).getByRole("button", { name: "It’s a card payment" })).toHaveCount(0);
 	await tile.click();
@@ -167,8 +167,8 @@ test("“It’s a card payment” asks which card, names it on the Transfer, and
 	const answerVisa = async () => {
 		const sheet = await openLine(page, "250");
 		await choose(sheet, "Payment to", "Visa");
-		await expect(sheet).toContainText("This becomes a Transfer to Visa");
-		await sheet.getByRole("button", { name: "Link payment", exact: true }).click();
+		await expect(sheet).toContainText("this payment isn’t spending: it’s a Transfer to Visa.");
+		await sheet.getByRole("button", { name: "It’s a card payment", exact: true }).click();
 		await expect(
 			toast(page, "marked as a Transfer to Visa, with 1 more worded like it"),
 		).toContainText("Payments worded like it will be too.");
@@ -198,7 +198,7 @@ test("“It’s a card payment” asks which card, names it on the Transfer, and
 	await amex.getByRole("button", { name: /^More for / }).click();
 	await page.getByRole("menuitem", { name: "It’s a card payment" }).click();
 	await expect(
-		detail(page).getByRole("button", { name: "Credit card payment", exact: true }),
+		detail(page).getByRole("button", { name: "Card payment", exact: true }),
 	).toHaveAttribute("aria-pressed", "true");
 	let choice = await notInNoodle(detail(page));
 	await choice.getByRole("button", { name: "No, it’s a Transfer" }).click();
@@ -325,9 +325,9 @@ test("a payment to a card whose purchases aren’t in Noodle is filed in the Com
 	const sheet = await openLine(page, "300");
 	await choose(sheet, "Payment to", "Apple Card");
 	await expect(sheet).toContainText(
-		"This payment will be filed in Apple Card bill, which pays down Apple Card.",
+		"Apple Card’s purchases aren’t in Noodle, so this payment is the spending: it’s filed in Apple Card bill.",
 	);
-	await sheet.getByRole("button", { name: "Link payment", exact: true }).click();
+	await sheet.getByRole("button", { name: "It’s a card payment", exact: true }).click();
 	// Both lines that say the same go in; the corner store stays.
 	await expect(toast(page, "filed in Apple Card bill, with 1 more worded like it.")).toContainText(
 		"Payments worded like it will be too.",
@@ -626,7 +626,7 @@ test("a payment to a card kept by hand, with Quick Adds on it, is a Transfer fir
 	// Review: not spending, the Transfer is the card's action, and no Commitment is offered.
 	const cardsWaiting = await reviewCards(page, thisMonth, "?view=list", "APPLECARD");
 	const card = cardsWaiting.first();
-	await expect(card).toContainText("Card payment — not spending");
+	await expect(card).toContainText("Payment to Apple Card · isn’t spending");
 	await expect(card.getByTestId("review-payment-why")).toContainText(
 		"What you bought on Apple Card is already in your Buckets, so the payment itself isn’t spending.",
 	);
@@ -685,7 +685,7 @@ test("a card whose purchases won’t come into Noodle says so where its payment 
 	const sheet = await openLine(page, "300");
 	await choose(sheet, "Payment to", "Apple Card");
 	await expect(sheet).toContainText(
-		"This payment will be filed in Apple Card bill, which pays down Apple Card.",
+		"Apple Card’s purchases aren’t in Noodle, so this payment is the spending: it’s filed in Apple Card bill.",
 	);
 	if (process.env.CARD_PAYMENT_SHOTS) {
 		await page.screenshot({ path: `${process.env.CARD_PAYMENT_SHOTS}/they-wont-hint.png` });
@@ -736,9 +736,9 @@ test("an assigned Apple payment links to a manually added card from Transactions
 		fullPage: true,
 		animations: "disabled",
 	});
-	await editor.getByRole("button", { name: "Credit card payment", exact: true }).click();
+	await editor.getByRole("button", { name: "Card payment", exact: true }).click();
 	await choose(editor, "Payment to", "Apple Card");
-	await expect(editor).toContainText("won’t count as spending in a Bucket");
+	await expect(editor).toContainText("this payment isn’t spending: it’s a Transfer to Apple Card.");
 	await page.screenshot({
 		path: "/tmp/noodle-transactions-payment.png",
 		fullPage: true,
@@ -754,7 +754,7 @@ test("an assigned Apple payment links to a manually added card from Transactions
 	});
 	await page.setViewportSize({ width: 1440, height: 1000 });
 	await page.emulateMedia({ reducedMotion: "reduce" });
-	await editor.getByRole("button", { name: "Link payment", exact: true }).click();
+	await editor.getByRole("button", { name: "It’s a card payment", exact: true }).click();
 	await expect(editor).toBeHidden(SETTLED);
 	await expect(page.getByTestId("month-total")).toHaveText("$0", SETTLED);
 	// The row is a Transfer to the card now, and says so by name: saving it into a Bucket earlier

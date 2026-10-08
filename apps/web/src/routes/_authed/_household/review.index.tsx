@@ -1653,7 +1653,9 @@ const cardName = (
 				: payment?.kind === "followed"
 					? "looks like a card payment"
 					: payment
-						? "looks like a payment to a card Noodle doesn’t follow"
+						? payment.mayBe
+							? "looks like a card payment, which card isn’t said"
+							: "looks like a payment to a card whose purchases aren’t in Noodle"
 						: between
 							? "looks like money between the two of you"
 							: item.guess
@@ -1737,7 +1739,21 @@ const paymentWhy = (payment: Exclude<PaymentCase, { kind: "commitment" }>) =>
 					? ` ${payment.commitment} pays ${payment.card ?? "the card"} down, but filing the payment there would count what you bought twice, so Noodle no longer does, even where a Rule says to. Plan health has what to do with ${payment.commitment}.`
 					: ""
 			}`
-		: `Noodle can’t see what was bought on ${payment.card ?? "this card"}, so the payment is the spending.`;
+		: payment.mayBe
+			? // It may pay a card Noodle follows under another name: which card is the first question.
+				`The bank doesn’t say which card. If it pays ${new Intl.ListFormat("en-US", { type: "disjunction" }).format(payment.mayBe)}, it isn’t spending; for a card that isn’t in Noodle, the payment is the spending.`
+			: `Noodle can’t see what was bought on ${payment.card ?? "this card"}, so the payment is the spending.`;
+
+/**
+ * A payment card's title, in the one set of words for a card payment (issue 150): "Payment to"
+ * the card, then whether it "isn't spending" or "is the spending".
+ */
+const paymentTitle = (payment: Exclude<PaymentCase, { kind: "commitment" }>) =>
+	payment.kind === "followed"
+		? `Payment to ${payment.card ?? "one of your cards"} · isn’t spending`
+		: payment.mayBe
+			? "Card payment · which card does it pay?"
+			: `Payment to ${payment.card ?? "a card that isn’t in Noodle"} · is the spending`;
 
 /** The top card's other actions: split it, file it in the Parent's own Personal Allowance, or make a Rule. */
 function CardActions({
@@ -2006,26 +2022,20 @@ function ReviewCard({
 								<Badge
 									className={cn(
 										"@max-[15rem]/card:h-auto @max-[15rem]/card:max-w-full @max-[15rem]/card:rounded-xl @max-[15rem]/card:whitespace-normal",
-										mode === "payment" &&
-											payment &&
-											payment.kind !== "commitment" &&
-											payment.kind !== "followed" &&
-											"hidden",
+										mode === "payment" && payment && payment.kind !== "commitment" && "hidden",
 									)}
 								>
 									{payment?.kind === "commitment"
 										? "Payment"
-										: payment?.kind === "followed"
-											? "Not spending?"
-											: payment
-												? "Card payment"
-												: between
-													? "Not spending?"
-													: isFeesGuess(item.guess)
-														? "Fee or interest"
-														: item.guess
-															? "We weren’t sure"
-															: "New merchant"}
+										: payment
+											? "Card payment"
+											: between
+												? "Not spending?"
+												: isFeesGuess(item.guess)
+													? "Fee or interest"
+													: item.guess
+														? "We weren’t sure"
+														: "New merchant"}
 								</Badge>
 								{choices}
 							</div>
@@ -2082,9 +2092,7 @@ function ReviewCard({
 								</div>
 								<div className="grid min-w-0 flex-1">
 									<span className="text-sm font-medium wrap-anywhere compact:sr-only">
-										{payment.kind === "followed"
-											? "Card payment — not spending"
-											: "Payment to a card Noodle doesn’t follow"}
+										{paymentTitle(payment)}
 									</span>
 									<span
 										className="text-xs text-muted-foreground wrap-anywhere"
@@ -2185,7 +2193,7 @@ function ReviewCard({
 							<div className="flex flex-wrap gap-2">
 								<Button className="max-sm:flex-1" disabled={!hydrated} onClick={caution.onTransfer}>
 									<ArrowLeftRight />
-									Mark as Transfer
+									It’s a card payment
 								</Button>
 								<Button
 									variant="outline"
@@ -2330,9 +2338,10 @@ function ReviewCard({
 										largeTextButton,
 									)}
 									disabled={!hydrated}
-									onClick={onCommitment}
+									// A card Noodle follows may be the one paid: which card is asked first (issue 150).
+									onClick={payment.mayBe ? onPayment : onCommitment}
 								>
-									Make it a Commitment
+									{payment.mayBe ? "It’s a card payment" : "Make it a Commitment"}
 								</Button>
 							) : null}
 							{payment?.kind === "not-followed" ? (
@@ -2343,11 +2352,11 @@ function ReviewCard({
 								<Button
 									variant="outline"
 									className="order-last shrink-0 px-1.5 text-xs roomy:hidden"
-									aria-label="It’s a card payment"
+									aria-label={payment.mayBe ? "Make it a Commitment" : "It’s a card payment"}
 									disabled={!hydrated}
-									onClick={onPayment}
+									onClick={payment.mayBe ? onCommitment : onPayment}
 								>
-									Card payment
+									{payment.mayBe ? "Commitment" : "Card payment"}
 								</Button>
 							) : null}
 							{item.guess ? (
@@ -2376,9 +2385,9 @@ function ReviewCard({
 								variant="outline"
 								className={cn("max-sm:flex-auto", largeTextButton)}
 								disabled={!hydrated}
-								onClick={onPayment}
+								onClick={payment.mayBe ? onCommitment : onPayment}
 							>
-								It’s a card payment
+								{payment.mayBe ? "Make it a Commitment" : "It’s a card payment"}
 							</Button>
 						</div>
 					) : null}

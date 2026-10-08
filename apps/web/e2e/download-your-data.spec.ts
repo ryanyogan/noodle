@@ -250,11 +250,11 @@ test("the download's money-in.csv, money-in-rules.csv and card-payment-rules.csv
 	const detail = page
 		.locator("[role=dialog], [data-slot=transaction-detail]")
 		.filter({ has: page.getByRole("group", { name: "Transaction type" }) });
-	const tile = detail.getByRole("button", { name: "Credit card payment", exact: true });
+	const tile = detail.getByRole("button", { name: "Card payment", exact: true });
 	await expect(tile).toBeEnabled();
 	await tile.click();
 	await choose(detail, "Payment to", "Visa");
-	await detail.getByRole("button", { name: "Link payment", exact: true }).click();
+	await detail.getByRole("button", { name: "It’s a card payment", exact: true }).click();
 	await expect(toast("marked as a Transfer to Visa")).toBeVisible();
 	await expect(payment).toHaveCount(0, { timeout: 20_000 });
 
