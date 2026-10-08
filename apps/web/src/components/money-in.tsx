@@ -4,7 +4,7 @@ import { Checkbox } from "@noodle/ui/components/checkbox";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useQuery } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { dayName, formatMoney } from "../format";
 import {
 	type MoneyInLine,
@@ -132,11 +132,14 @@ export function MoneyInFollowUpAsk({
 	line,
 	today,
 	onDone,
+	more,
 }: {
 	line: MoneyInLine;
 	today: string;
 	/** Called when the Parent is done with it: "Done", or the offer was taken or declined. */
 	onDone: () => void;
+	/** Asked with it, above "Done": the pay day a paycheck is the pay for (issue 156). */
+	more?: ReactNode;
 }) {
 	const accounts = useQuery(moneyInAccountsQuery()).data ?? [];
 	const asked = moneyInFollowUp(line, accounts);
@@ -152,6 +155,7 @@ export function MoneyInFollowUpAsk({
 			) : (
 				<WhosePayOffer line={line} onDone={onDone} />
 			)}
+			{more}
 			<Button
 				type="button"
 				variant="ghost"

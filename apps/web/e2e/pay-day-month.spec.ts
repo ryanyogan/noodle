@@ -133,6 +133,17 @@ test("a paycheck posted on the last day of last month for the 1st is this month'
 	const editor = page.getByRole("region", { name: "Harbor Freight Lines payroll" });
 	const choice = editor.getByRole("combobox", { name: "This is the pay for…" });
 	await expect(choice).toContainText(`Pay for ${shortDay(first)}`);
+	// Where the editor also asks whose pay it is, the pay day is asked with it, above "Done".
+	const done = editor.getByRole("button", { name: /^Done with / });
+	if ((await done.count()) > 0) {
+		const below = await choice.evaluate(
+			(select, button) =>
+				button !== null &&
+				(select.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+			await done.elementHandle(),
+		);
+		expect(below).toBe(true);
+	}
 	await expect(editor).toContainText(
 		`It landed ${shortDay(posted)} and counts in ${monthName(month)}’s Income.`,
 	);

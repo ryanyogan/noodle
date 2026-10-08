@@ -151,6 +151,8 @@ export function MoneyInBody({
 	};
 
 	const follows = moneyInFollowUp(line, accounts) !== null;
+	// Only Income that counts has a pay day to say.
+	const payDay = line.kind === "income" && !line.needsReview;
 	return (
 		<>
 			{heading("Edit money in")}
@@ -215,13 +217,19 @@ export function MoneyInBody({
 					{/* Said at once, as it is everywhere money in is asked about: not part of Save. */}
 					<MoneyInKindChoice line={line} onChanged={changed} />
 					{follows ? (
-						<MoneyInFollowUpAsk line={line} today={today} onDone={onClose} />
-					) : line.kind === "income" && !line.needsReview ? (
-						// Income with no wording to remember its sender by still has whose pay it is.
-						<WhosePayOffer line={line} />
-					) : null}
-					{line.kind === "income" && !line.needsReview ? (
-						<PayDayChoice line={line} onChanged={changed} />
+						// The pay day is asked with whose pay it is, both above "Done" (issue 156).
+						<MoneyInFollowUpAsk
+							line={line}
+							today={today}
+							onDone={onClose}
+							more={payDay ? <PayDayChoice line={line} onChanged={changed} /> : null}
+						/>
+					) : payDay ? (
+						<>
+							{/* Income with no wording to remember its sender by still has whose pay it is. */}
+							<WhosePayOffer line={line} />
+							<PayDayChoice line={line} onChanged={changed} />
+						</>
 					) : null}
 				</div>
 				<div
