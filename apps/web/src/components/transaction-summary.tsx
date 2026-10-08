@@ -1,17 +1,17 @@
 import type { MonthKey } from "@noodle/domain";
 import { RowButton } from "@noodle/ui/components/row-button";
 import { cn } from "@noodle/ui/lib/utils";
-import { useQuery, useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { formatMoney } from "../format";
-import { moneyInQuery } from "../money-in";
-import { monthIncome, monthSummary, type TransactionShow } from "../transaction-summary";
+import type { TransactionShow } from "../transaction-summary";
 import { type TransactionFilters, transactionsQuery } from "../transactions";
 
 // The month at a glance, over the Transactions table (issue 134): Money in, Money out and Needs
-// review. Each is a filter, pressed while it is on and kept in the address (`show`). Money in is
-// the address month's; Money out follows the page's other filters, and says so under its figure.
+// review. Each is a filter, pressed while it is on and kept in the address (`show`). All three
+// follow the page's other filters, as the table under them does: they come with its first page
+// (issue 152), so what they say is what it lists.
 
 function Figure({
 	show,
@@ -45,9 +45,6 @@ function Figure({
 	);
 }
 
-/** The line that says why the page's bar is off under Money in: what the bar is described by. */
-export const MONEY_IN_HINT_ID = "money-in-hint";
-
 const figure = "text-base font-semibold tabular-nums lg:text-2xl lg:tracking-tight";
 
 export function MonthSummary({
@@ -64,16 +61,10 @@ export function MonthSummary({
 }) {
 	// The list's own query (already loaded): its first page carries the month's figures.
 	const list = useSuspenseInfiniteQuery(transactionsQuery(month, filters)).data.pages[0]?.summary;
-	const moneyIn = useQuery(moneyInQuery(month)).data ?? [];
 	// Until hydrated, a press would do nothing.
 	const disabled = !useHydrated();
-	const { inCents, outCents, needsReview } = monthSummary(moneyIn, list);
-	const incomeCents = monthIncome(moneyIn);
+	const { inCents = 0, incomeCents = 0, outCents = 0, needsReview = 0 } = list ?? {};
 	const shared = { on: filters.show, onShow, disabled };
-	// Money out follows the page's filters; Money in is the whole month's whatever they are, and
-	// says so while they narrow the list (the simpler of the two: no filter but the month applies
-	// to every kind of money in).
-	const narrowed = Boolean(filters.bucket || filters.for || filters.account || filters.q);
 	return (
 		<>
 			{/* biome-ignore lint/a11y/useSemanticElements: a fieldset's legend can't sit in this grid. */}
@@ -100,14 +91,6 @@ export function MonthSummary({
 							{formatMoney(incomeCents)} of it Income
 						</span>
 					) : null}
-					{narrowed ? (
-						<span
-							className="text-[11px] font-normal text-subtle-foreground"
-							data-testid="month-in-caption"
-						>
-							All money in
-						</span>
-					) : null}
 				</Figure>
 				<Figure show="out" label="Money out" {...shared}>
 					<span className={figure} data-testid="month-total">
@@ -121,12 +104,6 @@ export function MonthSummary({
 					</span>
 				</Figure>
 			</div>
-			{/* Under Money in the page's search, filters and sort are off: they are for spending. */}
-			{filters.show === "in" ? (
-				<p id={MONEY_IN_HINT_ID} className="text-xs text-muted-foreground">
-					Search, filters and sort are for spending. Press Money in again to use them.
-				</p>
-			) : null}
 		</>
 	);
 }

@@ -711,6 +711,14 @@ export {
 	runMoneyInPass,
 } from "./money-in-pass";
 export {
+	listOrder,
+	loadMoneyInRow,
+	loadMoneyInRows,
+	loadMoneyInSummary,
+	type MoneyInRow,
+	moneyInRow,
+} from "./money-in-rows";
+export {
 	type CloseMonthInput,
 	closeMonth,
 	listHouseholds,

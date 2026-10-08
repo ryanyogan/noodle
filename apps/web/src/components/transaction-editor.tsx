@@ -977,7 +977,7 @@ function Remainder({ remainder }: { remainder: number | null }) {
 }
 
 /** Measures the on-screen keyboard for a page, as an open sheet does for itself. */
-function PageKeyboard() {
+export function PageKeyboard() {
 	useKeyboardInset();
 	return null;
 }

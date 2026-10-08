@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
+import { openMoneyIn } from "./money-in-rows";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import {
@@ -146,11 +147,8 @@ test("$700 Paid back settles tuition and skates, leaves $25 of the dentist owed,
 	await expect(list.getByTestId("owed-back-item")).toHaveCount(3);
 
 	// A Parent says the $700 is Paid back: it is offered oldest first that fit.
-	const casey = page
-		.getByRole("region", { name: "Money in" })
-		.getByTestId("money-in-row")
-		.filter({ hasText: "Casey" });
-	await casey.getByRole("button", { name: "Change what Casey is" }).click();
+	// Money in is a row of the table (issue 152): opened, its editor says what it is.
+	const { editor: casey } = await openMoneyIn(page, "Casey");
 	await casey.getByRole("button", { name: "Paid back", exact: true }).click();
 	await expect(toast(page, "$700 is Paid back")).toBeVisible();
 	const matching = casey.getByTestId("paid-back-matching");

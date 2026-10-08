@@ -155,9 +155,12 @@ export function TransactionTable({
 	detail,
 	picking,
 	onPick,
+	selects = true,
 	onEdit,
 	onChange,
 }: {
+	/** Whether rows can be selected here at all; no checkbox column when not. */
+	selects?: boolean;
 	/** The month `plan` is of: a row of another month is refiled in its own month's Plan. */
 	month: MonthKey;
 	parentId: string;
@@ -395,24 +398,32 @@ export function TransactionTable({
 				top={place === "top" && open ? region(open, undefined) : undefined}
 				// The checkbox column, Space, Shift+arrows and Ctrl+A over 97a's selection. The table
 				// keeps none of its own: "all that match, except these" covers rows not loaded yet.
-				selection={{
-					isSelected: ({ transaction }) => checked?.(transaction) ?? false,
-					canSelect: ({ transaction }) => canPick(transaction),
-					rowLabel: ({ transaction, view }) =>
-						canPick(transaction)
-							? `Select ${view.title}, ${view.amount}`
-							: `${view.title} is Goal spending and can’t be selected: it changes from its Goal`,
-					all: headerCheckOf(picking, more ? undefined : selectable),
-					allLabel: `Select all ${label}`,
-					onSelect: ({ ids, on }) => onPick(setPicked(picking ?? nothingPicked, ids, on)),
-					onSelectAll: (on) => onPick(on ? pickAll(false) : nothingPicked),
-					// A phone selects from the Select button, by tapping rows.
-					stacked: false,
-				}}
+				selection={
+					!selects
+						? undefined
+						: {
+								isSelected: ({ transaction }) => checked?.(transaction) ?? false,
+								canSelect: ({ transaction }) => canPick(transaction),
+								rowLabel: ({ transaction, view }) =>
+									canPick(transaction)
+										? `Select ${view.title}, ${view.amount}`
+										: transaction.moneyIn
+											? `${view.title} is money in and can’t be selected: open it to change it`
+											: `${view.title} is Goal spending and can’t be selected: it changes from its Goal`,
+								all: headerCheckOf(picking, more ? undefined : selectable),
+								allLabel: `Select all ${label}`,
+								onSelect: ({ ids, on }) => onPick(setPicked(picking ?? nothingPicked, ids, on)),
+								onSelectAll: (on) => onPick(on ? pickAll(false) : nothingPicked),
+								// A phone selects from the Select button, by tapping rows.
+								stacked: false,
+							}
+				}
 				rowProps={(_row, index) => ({
 					"data-slot": "list-row",
 					"data-index": index,
 					"data-transaction": _row.transaction.id,
+					// Money into an Account (issue 152): a row like the others, told apart only here.
+					"data-money-in": _row.transaction.moneyIn ? "" : undefined,
 					// Under the page's bar when it is brought into view.
 					className:
 						"scroll-mt-24 border-border/60 transition-colors duration-150 aria-[current=true]:bg-brand-soft aria-[current=true]:shadow-[inset_3px_0_0_var(--color-primary)] aria-[current=true]:hover:bg-brand-soft motion-reduce:transition-none",

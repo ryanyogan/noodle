@@ -1,17 +1,10 @@
-import {
-	MONEY_IN_KIND_LABELS,
-	MONEY_IN_KINDS,
-	type MonthKey,
-	suggestedMoneyInKind,
-} from "@noodle/domain";
-import { Badge } from "@noodle/ui/components/badge";
+import { MONEY_IN_KIND_LABELS, MONEY_IN_KINDS, suggestedMoneyInKind } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Checkbox } from "@noodle/ui/components/checkbox";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
-import { BANK_TOOK_BACK_WORD } from "../bank-took-back";
 import { dayName, formatMoney } from "../format";
 import {
 	type MoneyInLine,
@@ -19,19 +12,17 @@ import {
 	moneyInFollowUp,
 	moneyInKindText,
 	moneyInLabel,
-	moneyInQuery,
 	moneyInReviewQuery,
 	useMoneyInKindChange,
 } from "../money-in";
-import { moneyInShown, type TransactionShow } from "../transaction-summary";
-import { BankTookBackNote } from "./bank-took-back-note";
 import { AccountPairOffer } from "./money-in-rules";
 import { PaidBackMatching } from "./owed-back";
 import { RefundLinking } from "./refund-link";
 import { WhosePayOffer } from "./whose-pay";
 
-// Money in and its kind (issue 131, ADR-0057): listed on Transactions with its kind in plain
-// words, and asked about in Review when it was sent person to person. Money in is green with its
+// Money in and its kind (issue 131, ADR-0057): a row of the Transactions table (issue 152,
+// ADR-0061) whose opened row says its kind, and asked about in Review when it was sent person to
+// person. Money in is green with its
 // "+" and its kind is one word in a badge (issue 134).
 
 /**
@@ -177,89 +168,6 @@ export function MoneyInFollowUpAsk({
 
 /** Money in is green with its "+" (issue 134); money out stays plain ink. */
 const moneyInAmount = "font-semibold text-money-in tabular-nums";
-
-/** A month's money in under its Transactions: each line with its kind, which a Parent can change. */
-export function MoneyInSection({
-	month,
-	today,
-	show,
-}: {
-	month: MonthKey;
-	today: string;
-	/** The page's summary filter (issue 134): none of it for money out, what waits for review. */
-	show?: TransactionShow;
-}) {
-	const id = useId();
-	const query = useQuery(moneyInQuery(month));
-	const lines = moneyInShown(query.data ?? [], show);
-	const [open, setOpen] = useState<string | null>(null);
-	if (lines.length === 0) {
-		// Asked for alone and there is none: say so, rather than an empty page.
-		return show === "in" && query.data ? (
-			<p className="px-1 text-sm text-muted-foreground" data-testid="money-in-none">
-				No money in this month yet.
-			</p>
-		) : null;
-	}
-	return (
-		<Section aria-labelledby={id} data-testid="money-in">
-			<SectionHeader id={id} title="Money in" count={lines.length} />
-			<List>
-				{lines.map((line) => (
-					<ListRow
-						key={line.id}
-						data-testid="money-in-row"
-						title={moneyInLabel(line)}
-						meta={
-							<>
-								<span>{dayName(line.date, today)}</span>
-								<span aria-hidden="true">·</span>
-								<Badge
-									data-testid="money-in-kind"
-									variant={line.needsReview ? "pace" : "default"}
-									className="h-4.5 px-1.5 text-[11px]"
-								>
-									{moneyInKindText(line)}
-								</Badge>
-								{line.bankTookBackOn ? (
-									<Badge data-testid="bank-took-back" className="h-4.5 px-1.5 text-[11px]">
-										{BANK_TOOK_BACK_WORD}
-									</Badge>
-								) : null}
-							</>
-						}
-						trailing={
-							<>
-								<span className={moneyInAmount}>+{formatMoney(line.amount)}</span>
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									aria-expanded={open === line.id}
-									aria-label={`Change what ${moneyInLabel(line)} is`}
-									onClick={() => setOpen(open === line.id ? null : line.id)}
-								>
-									Change
-								</Button>
-							</>
-						}
-						below={
-							open === line.id ? (
-								<div className="grid gap-4">
-									<BankTookBackNote row={{ incomeId: line.id }} line={line} today={today} />
-									{/* Closed at once when nothing more is asked; else by the follow-up's "Done". */}
-									<MoneyInKindChoice line={line} onDone={() => setOpen(null)} />
-									<MoneyInFollowUpAsk line={line} today={today} onDone={() => setOpen(null)} />
-								</div>
-							) : undefined
-						}
-						belowFull
-					/>
-				))}
-			</List>
-		</Section>
-	);
-}
 
 /** Review: the money in that waits for a Parent to say what it is. Nothing when none waits. */
 export function MoneyInReview({ today, className }: { today: string; className?: string }) {

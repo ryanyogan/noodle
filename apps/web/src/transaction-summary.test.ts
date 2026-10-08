@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moneyInShown, monthSummary, summaryAfterChange } from "./transaction-summary";
+import { monthSummary, summaryAfterChange } from "./transaction-summary";
 
 const line = (
 	amount: number,
@@ -37,18 +37,6 @@ describe("the month's summary", () => {
 
 	it("is all zero for an empty month, and while the list loads", () => {
 		expect(monthSummary([], undefined)).toEqual({ inCents: 0, outCents: 0, needsReview: 0 });
-	});
-});
-
-describe("the money in listed under a filter", () => {
-	const lines = [line(500_000, "income"), line(30_000, "income", true), line(40_000, "transfer")];
-	it("is all of it with no filter or with Money in", () => {
-		expect(moneyInShown(lines, undefined)).toEqual(lines);
-		expect(moneyInShown(lines, "in")).toEqual(lines);
-	});
-	it("is none of it with Money out, and only what waits with Needs review", () => {
-		expect(moneyInShown(lines, "out")).toEqual([]);
-		expect(moneyInShown(lines, "review")).toEqual([lines[1]]);
 	});
 });
 

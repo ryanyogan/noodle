@@ -2,6 +2,7 @@ import { displayMerchant, MONEY_IN_KIND_LABELS, type Plan } from "@noodle/domain
 import { asBucketColor } from "./buckets";
 import { formatMoney } from "./format";
 import { forLabel, type MemberSummary, pickableMembers } from "./members";
+import type { MoneyInLine } from "./money-in";
 import { forNow } from "./transaction-cells";
 import type { TransactionRow } from "./transactions";
 import { transferDetail } from "./transfers";
@@ -53,8 +54,13 @@ export type RowView = {
 	amount: string;
 	/** Money came in (money back, a Refund): its amount is drawn in the money-in colour. */
 	moneyIn: boolean;
-	/** One word where the line isn't plain spending: Transfer, Between us, Refund. */
+	/** One word where the line isn't plain spending: Transfer, Between us, Refund, Income, Paid back. */
 	kindWord: string | null;
+	/**
+	 * Money into an Account that holds money (issue 152): its kind is all it says where a Bucket
+	 * would be, since it is assigned to nothing.
+	 */
+	kindOnly: boolean;
 	/** Who it was For, a name each (the row's chips): ["Everyone"] for the whole Household. */
 	forNames: string[];
 	/** The second line of a two-line row: what it's assigned to, who it was For, where it came from. */
@@ -101,6 +107,8 @@ export function rowView(
 	members: MemberSummary[],
 	waiting = false,
 ): RowView {
+	if (transaction.moneyIn && !transaction.transfer)
+		return moneyInView(transaction, transaction.moneyIn);
 	const split = transaction.splits.length > 0;
 	const assignment = assignmentOf(transaction, plan);
 	// A payment to a card says so: the bank's wording for one ("PAYMENT THANK YOU - WEB") cleans up,
@@ -110,6 +118,8 @@ export function rowView(
 	// wording, never for theirs.
 	const title =
 		(transaction.paysCard && !transaction.named ? "Card payment" : null) ||
+		// The arriving side of a Transfer kept as money in: its wording as it is, as it was listed.
+		(transaction.moneyIn ? transaction.note?.trim() || "Money in" : null) ||
 		transaction.merchantName ||
 		(transaction.note && displayMerchant(transaction.note)) ||
 		(transaction.goal
@@ -200,6 +210,7 @@ export function rowView(
 			: refund
 				? MONEY_IN_KIND_LABELS.refund
 				: null,
+		kindOnly: false,
 		forNames: (forIds ?? []).length === 0 ? ["Everyone"] : named.length ? named : ["Someone"],
 		detail,
 		aroundFor:
@@ -233,5 +244,43 @@ export function rowView(
 		autoFiled,
 		matched: Boolean(transaction.matchedIn),
 		waiting: !transaction.matchedIn && waiting,
+	};
+}
+
+/**
+ * Money into an Account that holds money, as a row (issue 152): its wording or the name a Parent
+ * gave it, its amount with a "+", its one-word kind (or that it waits in Review) and where it
+ * came into. The arriving side of a Transfer reads as a Transfer's other side does (`rowView`).
+ */
+function moneyInView(transaction: TransactionRow, line: MoneyInLine): RowView {
+	const title = line.note?.trim() || "Money in";
+	const amount = `+${formatMoney(line.amount)}`;
+	const kind = line.needsReview ? "Needs review" : MONEY_IN_KIND_LABELS[line.kind];
+	const account = transaction.importedFrom ?? "Typed in";
+	const [, accountName = account, accountDigits = ""] = /^(.*?)( ••\d{4})$/.exec(account) ?? [];
+	return {
+		kind: "plain",
+		title,
+		amount,
+		moneyIn: true,
+		kindWord: line.needsReview ? null : kind,
+		kindOnly: true,
+		forNames: [],
+		detail: `${kind} · ${account}`,
+		aroundFor: null,
+		assignment: { name: kind, color: null },
+		splitNames: [],
+		route: "",
+		source: account,
+		needsReview: line.needsReview,
+		assigned: kind,
+		who: "",
+		accountName,
+		accountDigits,
+		label: `${title}, ${amount}, ${kind}, ${transaction.importedFrom ? `into ${account}` : "typed in"}`,
+		pending: false,
+		autoFiled: false,
+		matched: false,
+		waiting: false,
 	};
 }

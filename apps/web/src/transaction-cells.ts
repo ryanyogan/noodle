@@ -27,7 +27,7 @@ type Row = Pick<
 	| "splits"
 	| "partlyPrivate"
 > &
-	Partial<Pick<TransactionRow, "paysCard">>;
+	Partial<Pick<TransactionRow, "paysCard" | "moneyIn">>;
 
 /**
  * What a row's cells offer. Its name: "edit" where the whole Transaction is assigned to one
@@ -40,7 +40,8 @@ type Row = Pick<
  * money back and a Refund have no single Bucket to swap: they are refiled in the opened row.
  */
 export function cellEdits(row: Row): { name: "edit" | "rename" | null; refile: boolean } {
-	if (row.goal || row.partlyPrivate) return { name: null, refile: false };
+	// Money in (issue 152) is renamed, and its kind said, in its opened row.
+	if (row.goal || row.partlyPrivate || row.moneyIn) return { name: null, refile: false };
 	const special =
 		row.splits.length > 0 || row.transfer !== null || row.refundOf !== null || row.amountCents < 1;
 	if (special) return { name: "rename", refile: false };

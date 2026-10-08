@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { moneyInKind, moneyInRows, openMoneyIn } from "./money-in-rows";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, hydrated, signedInPage } from "./session";
 
@@ -17,7 +18,6 @@ test.afterEach(async () => {
 });
 
 const income = (page: Page) => page.getByRole("region", { name: "Income" });
-const moneyIn = (page: Page) => page.getByRole("region", { name: "Money in" });
 const toast = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });
 
 async function addIncome(page: Page, amount: string, note: string) {
@@ -29,7 +29,7 @@ async function addIncome(page: Page, amount: string, note: string) {
 	await expect(sheet).toBeHidden();
 }
 
-test("money in is listed on Transactions with its kind, and a Parent can change it", async ({
+test("money in is a row of the Transactions table, opens like one, and a Parent can rename it and change its kind", async ({
 	browser,
 }) => {
 	test.slow();
@@ -43,22 +43,38 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 	await expect(income(page)).toContainText("$5,300 received of $5,000 usual take-home pay");
 
 	await page.goto("/transactions");
-	const rows = moneyIn(page).getByTestId("money-in-row");
-	// Money in is fetched once the page is live, which a cold dev server takes a while over.
+	// Rows of the one table, with a "+" and a one-word kind (issue 152): no section of their own.
+	const rows = moneyInRows(page);
 	await expect(rows).toHaveCount(2, { timeout: 30_000 });
-	const casey = rows.filter({ hasText: "Casey for tuition" });
-	await expect(casey).toContainText("+$300");
-	await expect(casey.getByTestId("money-in-kind")).toHaveText("Income");
+	await expect(
+		page.getByRole("grid", { name: /^Transactions in / }).locator("[data-money-in]"),
+	).toHaveCount(2);
+	await expect(page.getByRole("region", { name: "Money in" })).toHaveCount(0);
+	await expect(page.getByTestId("money-in")).toHaveCount(0);
+	const typed = rows.filter({ hasText: "Casey for tuition" });
+	await expect(typed).toContainText("+$300");
+	await expect(moneyInKind(typed)).toHaveText("Income");
 	// The month at a glance: both lines are Income; nothing is spent and nothing waits.
 	const summary = page.getByRole("group", { name: "The month at a glance" });
 	await expect(summary.getByTestId("month-in")).toHaveText("+$5,300");
 	await expect(summary.getByTestId("month-total")).toHaveText("$0");
 	await expect(summary.getByTestId("month-review")).toHaveText("0");
 
-	// The month's money in is in the server's HTML now (issue 134): wait for React before pressing.
-	const changeCasey = casey.getByRole("button", { name: "Change what Casey for tuition is" });
-	await hydrated(changeCasey);
-	await changeCasey.click();
+	// It opens as any row does: at its own address, with a name, an amount, a date and Save.
+	const { editor: casey } = await openMoneyIn(page, "Casey for tuition");
+	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}\/[0-9A-Z]{26}/);
+	await expect(casey.getByLabel("Amount")).toHaveValue("300.00");
+	await expect(casey.getByRole("button", { name: "Cancel" })).toBeVisible();
+	await casey.getByLabel("Name").fill("Casey, fall tuition");
+	await casey.getByRole("button", { name: "Save" }).click();
+	await expect(toast(page, "Saved your change to this money in")).toBeVisible();
+	await expect(casey).toBeHidden();
+	const listed = rows.filter({ hasText: "Casey, fall tuition" });
+	await expect(listed).toHaveCount(1);
+	await expect(rows.filter({ hasText: "Casey for tuition" })).toHaveCount(0);
+
+	// Opened again, it says what kind of money it is.
+	await openMoneyIn(page, "Casey, fall tuition");
 	await expect(casey.getByRole("button", { name: "Income", exact: true })).toHaveAttribute(
 		"aria-pressed",
 		"true",
@@ -67,7 +83,7 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 	await casey.getByRole("checkbox", { name: "Always, for money in like this" }).click();
 	await casey.getByRole("button", { name: "Paid back", exact: true }).click();
 	await expect(toast(page, "$300 is Paid back")).toBeVisible();
-	await expect(casey.getByTestId("money-in-kind")).toHaveText("Paid back");
+	await expect(moneyInKind(listed)).toHaveText("Paid back");
 	// Nothing is Owed back, so it waits unmatched (issue 132); it is never Income.
 	await expect(casey.getByTestId("paid-back-matching")).toContainText(
 		"$300 is Paid back, not matched yet",
@@ -77,8 +93,8 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 	// Of it, only the pay is Income: what This Month calls "received".
 	await expect(summary.getByTestId("month-in-income")).toHaveText("$5,000 of it Income");
 	// One "Done" closes the row once what it pays back has been looked at.
-	await casey.getByRole("button", { name: "Done with Casey for tuition" }).click();
-	await expect(casey.getByTestId("paid-back-matching")).toBeHidden();
+	await casey.getByRole("button", { name: "Done with Casey, fall tuition" }).click();
+	await expect(casey).toBeHidden();
 
 	// Each figure is a filter, kept in the address: Money out leaves the money in out, Money in
 	// shows it alone, and pressing the one that is on takes it off.
@@ -86,14 +102,18 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 	await moneyOut.click();
 	await expect(page).toHaveURL(/[?&]show=out/);
 	await expect(moneyOut).toHaveAttribute("aria-pressed", "true");
-	await expect(moneyIn(page)).toHaveCount(0);
+	await expect(rows).toHaveCount(0);
 	const moneyInFilter = summary.getByRole("button", { name: /^Money in/ });
 	await moneyInFilter.click();
 	await expect(page).toHaveURL(/[?&]show=in/);
 	await expect(rows).toHaveCount(2);
-	// Nothing in the bar narrows money in, so it waits while Money in shows alone.
-	await expect(page.getByRole("searchbox", { name: "Search notes and merchants" })).toBeDisabled();
-	await expect(page.getByRole("button", { name: /^Filters/ })).toBeDisabled();
+	// Money in alone is the same table, narrowed: its rows are all there is, and the bar's search
+	// and filters work on them as on any row.
+	await expect(
+		page.getByRole("grid", { name: /^Transactions in / }).locator("[data-transaction]"),
+	).toHaveCount(2);
+	await expect(page.getByRole("searchbox", { name: "Search notes and merchants" })).toBeEnabled();
+	await expect(page.getByRole("button", { name: /^Filters/ })).toBeEnabled();
 	await page.reload();
 	await expect(moneyInFilter).toHaveAttribute("aria-pressed", "true");
 	await expect(rows).toHaveCount(2);

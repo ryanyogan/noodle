@@ -40,6 +40,13 @@ import { endedBefore, purchaseEndedRestores, purchaseMayMove } from "./ended-mon
 import { setAsideSql } from "./goals";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
+import type { MoneyInLine } from "./money-in";
+import {
+	listOrder,
+	loadMoneyInRows,
+	loadMoneyInSummary,
+	type MoneyInRowsFilter,
+} from "./money-in-rows";
 import { loadPaidBackSpending, owedBackOffGoneSplits } from "./owed-back";
 import {
 	asPrivateSpending,
@@ -539,6 +546,12 @@ export type TransactionRow = {
 	waits?: boolean;
 	/** Which version of it this is: sent back with a change, so one made on an old one is refused (ADR-0041). */
 	version: number;
+	/**
+	 * It is a money-in line kept in `income` (issue 152, ADR-0061), listed as a row with a negative
+	 * amount: this is the line itself, which says its kind and is what changes go to. Only the
+	 * Transactions table asks for these rows (`moneyIn` on its query).
+	 */
+	moneyIn?: MoneyInLine;
 };
 
 /**
@@ -713,6 +726,13 @@ export async function loadTransactionsPage(
 		after?: TransactionCursor;
 		/** Only this Transaction (see `loadTransaction`). */
 		transactionId?: string;
+		/**
+		 * Money in kept in `income` is listed too, as rows in the same order (ADR-0061), and the
+		 * summary says what came in. Left out, the list is `transactions` alone, as an Account's is.
+		 */
+		moneyIn?: boolean;
+		/** With `moneyIn`: only money in ("in"), or none of it ("out"). */
+		show?: "in" | "out";
 		limit: number;
 	},
 ): Promise<{
@@ -727,7 +747,13 @@ export async function loadTransactionsPage(
 	 * The month's summary (issue 134), on the same page as `total`: what the other filters' rows
 	 * spent and how many of them wait to be filed, whether or not `review` narrows the list.
 	 */
-	summary: { outCents: number; needsReview: number } | null;
+	summary: {
+		outCents: number;
+		needsReview: number;
+		/** With `moneyIn`: what came in under the same filters, and how much of it is Income. */
+		inCents: number;
+		incomeCents: number;
+	} | null;
 }> {
 	const householdId = viewer.householdId;
 	const partly = partlyPrivate(viewer);
@@ -748,6 +774,18 @@ export async function loadTransactionsPage(
 			: undefined,
 	);
 	const filtered = query.review ? and(base, needsReview()) : base;
+	// Money in kept in `income`, under the filters that apply to it (ADR-0061).
+	const moneyInAsked = Boolean(query.moneyIn) && !query.transactionId;
+	const moneyInFilter: MoneyInRowsFilter = {
+		from:
+			query.month && !query.andEarlier
+				? (`${query.fromMonth ?? query.month}-01` as DayKey)
+				: undefined,
+		until: query.month ? nextMonthStart(query.month) : undefined,
+		accountId: query.accountId,
+		like: search ? likeEscaped(search) : undefined,
+		none: query.bucketId !== undefined || query.forMember !== undefined,
+	};
 	// Keyset paging: past the previous page's last row in the list's order. Rows the order can't
 	// tell apart go by date and then by ID, so no page repeats or skips one.
 	const byAmount = sort === "largest" || sort === "smallest";
@@ -884,14 +922,49 @@ export async function loadTransactionsPage(
 				),
 			),
 		)
-		.where(and(filtered, after))
+		// Money in alone: none of these rows.
+		.where(and(filtered, after, moneyInAsked && query.show === "in" ? sql`0 = 1` : undefined))
 		.orderBy(...order)
 		// One more than asked for says whether there's another page.
 		.limit(query.limit + 1);
-	const [rows, totalRows, summaryRows] = await Promise.all([rowsQuery, totalQuery, summaryQuery]);
-	const summary = summaryRows ? (summaryRows[0] ?? { outCents: 0, needsReview: 0 }) : null;
+	const [rows, totalRows, summaryRows, moneyInRows, moneyInSummary] = await Promise.all([
+		rowsQuery,
+		totalQuery,
+		summaryQuery,
+		moneyInAsked && query.show !== "out"
+			? loadMoneyInRows(db, householdId, {
+					...moneyInFilter,
+					review: query.review,
+					sort,
+					after: query.after,
+					limit: query.limit + 1,
+				})
+			: [],
+		moneyInAsked && summaryQuery ? loadMoneyInSummary(db, householdId, moneyInFilter) : null,
+	]);
+	const spent = summaryRows ? (summaryRows[0] ?? { outCents: 0, needsReview: 0 }) : null;
+	const summary = spent
+		? {
+				outCents: spent.outCents,
+				needsReview: spent.needsReview + (moneyInSummary?.waiting ?? 0),
+				inCents: moneyInSummary?.inCents ?? 0,
+				incomeCents: moneyInSummary?.incomeCents ?? 0,
+			}
+		: null;
 	const total = totalRows ? (totalRows[0]?.total ?? 0) : null;
-	const page = rows.slice(0, query.limit);
+	// The two tables' rows as one list (ADR-0061): each came in the list's order past the same
+	// cursor, one more than a page of each, so the first page's worth of both together is the page.
+	const inOrder = listOrder(sort);
+	const listed = [
+		...rows.map((row) => ({ place: row, row, moneyIn: null })),
+		...moneyInRows.map((found) => ({
+			place: { ...found.row, sortKey: found.sortKey },
+			row: null,
+			moneyIn: found.row,
+		})),
+	].sort((a, b) => inOrder(a.place, b.place));
+	const shown = listed.slice(0, query.limit);
+	const page = shown.flatMap((one) => (one.row ? [one.row] : []));
 	const ids = page.map((row) => row.id);
 	// One parameter however long the page: D1 takes 100 a statement, and a page may be longer.
 	const onPage = sql`(select value from json_each(${JSON.stringify(ids)}))`;
@@ -950,22 +1023,23 @@ export async function loadTransactionsPage(
 			},
 		]);
 	}
-	const last = page.at(-1);
+	const last = shown.at(-1)?.place;
 	return {
 		// Dates are always written as DayKeys.
-		transactions: page.map(
-			({ goalId, goalName, transfer, sortKey: _sortKey, named, ...row }) =>
-				({
-					...row,
-					named: named && row.merchantName !== (row.note ? cleanMerchant(row.note).name : null),
-					...transferOf(transfer),
-					goal: goalId ? { id: goalId, name: goalName ?? "A Goal" } : null,
-					for: forOf.get(row.id) ?? [],
-					splits: splitsOf.get(row.id) ?? [],
-				}) as TransactionRow,
-		),
+		transactions: shown.map((one) => {
+			if (!one.row) return one.moneyIn;
+			const { goalId, goalName, transfer, sortKey: _sortKey, named, ...row } = one.row;
+			return {
+				...row,
+				named: named && row.merchantName !== (row.note ? cleanMerchant(row.note).name : null),
+				...transferOf(transfer),
+				goal: goalId ? { id: goalId, name: goalName ?? "A Goal" } : null,
+				for: forOf.get(row.id) ?? [],
+				splits: splitsOf.get(row.id) ?? [],
+			} as TransactionRow;
+		}),
 		next:
-			rows.length > query.limit && last
+			listed.length > query.limit && last
 				? {
 						date: last.date as DayKey,
 						id: last.id,

@@ -68,10 +68,3 @@ export function summaryAfterChange<T extends { outCents: number; needsReview?: n
 		? { ...summary, outCents, needsReview: Math.max(0, summary.needsReview - 1) }
 		: { ...summary, outCents };
 }
-
-/** The money-in lines the page lists under a filter: none for money out, those waiting for review. */
-export function moneyInShown<T extends Line>(lines: T[], show: TransactionShow | undefined): T[] {
-	if (show === "out") return [];
-	if (show === "review") return lines.filter((line) => line.needsReview && !movesWithin(line));
-	return lines;
-}

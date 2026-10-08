@@ -72,8 +72,12 @@ export function setPicked(picking: Picking, ids: readonly string[], on: boolean)
 		: { ...picking, picked: changed(picking.picked, on) };
 }
 
-/** Goal spending can't be selected here: it changes from its Goal. */
-export const canPick = (transaction: { goal?: unknown }) => !transaction.goal;
+/**
+ * Goal spending can't be selected here: it changes from its Goal. Nor can money in (issue 152):
+ * deleting and filing many at once are for Transactions, and "all that match" never holds it.
+ */
+export const canPick = (transaction: { goal?: unknown; moneyIn?: unknown }) =>
+	!transaction.goal && !transaction.moneyIn;
 
 /** Whether the selection holds anything, as far as this screen can tell. */
 export const anyPicked = (picking: Picking) => picking.all !== null || picking.picked.size > 0;

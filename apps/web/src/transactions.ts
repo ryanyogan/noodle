@@ -68,15 +68,14 @@ export type TransactionFilters = {
 	/** More than the month (issue 99): the last 3 months, its year, or every month up to it. */
 	range?: TransactionRange;
 	/**
-	 * The summary's filter (issue 134). Only "review" narrows this list (to spending that waits to
-	 * be filed); "in" and "out" choose which of the page's two lists show.
+	 * The summary's filter (issue 134): only money in, only money out, or only what waits for a
+	 * Parent. Money in is rows of the same list (issue 152).
 	 */
 	show?: TransactionShow;
 };
 
-/** The filters as a list's key: "in" and "out" ask the server for nothing different. */
-const listKey = ({ show, ...filters }: TransactionFilters) =>
-	show === "review" ? { ...filters, show } : filters;
+/** The filters as a list's key. */
+const listKey = (filters: TransactionFilters) => filters;
 
 /**
  * Every cached list of more than a month (issue 99). Its rows are in several months, so it is
@@ -111,6 +110,7 @@ export const transactionsQuery = (month: MonthKey, filters: TransactionFilters) 
 					accountId: filters.account,
 					search: filters.q || undefined,
 					review: filters.show === "review" || undefined,
+					show: filters.show === "in" || filters.show === "out" ? filters.show : undefined,
 					sort: filters.sort,
 					after: pageParam,
 				},

@@ -85,6 +85,8 @@ export type MoneyInFilter = {
 	/** Only the lines waiting in Review. */
 	review?: boolean;
 	id?: string;
+	/** Only these lines. */
+	ids?: string[];
 };
 
 /** Money-in lines of every kind, newest first. */
@@ -118,6 +120,10 @@ export async function loadMoneyIn(
 			and(
 				eq(income.householdId, householdId),
 				filter.id ? eq(income.id, filter.id) : undefined,
+				// One parameter however many: D1 caps a statement's bound parameters.
+				filter.ids
+					? sql`${income.id} in (select value from json_each(${JSON.stringify(filter.ids)}))`
+					: undefined,
 				filter.from ? gte(income.date, filter.from) : undefined,
 				filter.until ? lt(income.date, filter.until) : undefined,
 				filter.review

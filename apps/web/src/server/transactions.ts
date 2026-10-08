@@ -12,6 +12,7 @@ import {
 	isCardKeptByHand,
 	loadBucketsInMonths,
 	loadBucketUses,
+	loadMoneyInRow,
 	loadRules,
 	loadTransaction,
 	loadTransactionsPage,
@@ -149,7 +150,13 @@ export type TransactionsPage = {
 	/** What the filtered month spent; on a month's first page only. */
 	total: number | null;
 	/** The month's summary (issue 134), with `total`: whatever `review` narrows the list to. */
-	summary: { outCents: number; needsReview: number } | null;
+	summary: {
+		outCents: number;
+		needsReview: number;
+		/** What came in under the same filters, and how much of it is Income (issue 152). */
+		inCents: number;
+		incomeCents: number;
+	} | null;
 };
 
 /** How the list is ordered; newest first when left out. */
@@ -188,6 +195,8 @@ export const getTransactions = createServerFn({ method: "GET" })
 			search: z.string().trim().max(SEARCH_MAX).optional(),
 			// Only spending that waits to be filed (issue 134).
 			review: z.boolean().optional(),
+			// Only money in, or none of it (issue 152): the summary's Money in and Money out.
+			show: z.enum(["in", "out"]).optional(),
 			sort: transactionSortSchema.optional(),
 			after: z
 				.object({
@@ -202,7 +211,12 @@ export const getTransactions = createServerFn({ method: "GET" })
 	)
 	.handler(
 		({ data, context }): Promise<TransactionsPage> =>
-			loadTransactionsPage(getDb(), viewerOf(context), { ...data, limit: PAGE_SIZE }),
+			// Money in is in this list too, as rows of the same table (ADR-0061).
+			loadTransactionsPage(getDb(), viewerOf(context), {
+				...data,
+				moneyIn: true,
+				limit: PAGE_SIZE,
+			}),
 	);
 
 /**
@@ -229,10 +243,14 @@ export const getRangeBuckets = createServerFn({ method: "GET" })
 export const getTransaction = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ transactionId: ulidSchema }))
-	.handler(
-		({ data, context }): Promise<TransactionRow | null> =>
-			loadTransaction(getDb(), viewerOf(context), data.transactionId),
-	);
+	.handler(async ({ data, context }): Promise<TransactionRow | null> => {
+		const db = getDb();
+		// A money-in line opens at the same address as any other row of the table (ADR-0061).
+		return (
+			(await loadTransaction(db, viewerOf(context), data.transactionId)) ??
+			(await loadMoneyInRow(db, context.household.id, data.transactionId))
+		);
+	});
 
 /**
  * How a Parent's change to a Transaction ended (ADR-0041): saved, with the version it is at now

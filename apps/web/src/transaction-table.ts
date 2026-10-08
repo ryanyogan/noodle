@@ -36,13 +36,15 @@ export const sortsByDate = (sort: TransactionSort) => sort === "newest" || sort 
  * rows to come the last day may go on in the next page, so it has no total yet (null).
  */
 export function dayTotals(
-	transactions: Pick<TransactionRow, "date" | "amountCents" | "transfer">[],
+	transactions: Pick<TransactionRow, "date" | "amountCents" | "transfer" | "moneyIn">[],
 	more: boolean,
 ): Map<DayKey, number | null> {
 	const totals = new Map<DayKey, number | null>();
 	for (const transaction of transactions) {
 		const sum = totals.get(transaction.date) ?? 0;
-		totals.set(transaction.date, transaction.transfer ? sum : sum + transaction.amountCents);
+		// Money in isn't spending, nor less of it: a day's total is what the day spent.
+		const counts = !transaction.transfer && !transaction.moneyIn;
+		totals.set(transaction.date, counts ? sum + transaction.amountCents : sum);
 	}
 	const last = transactions.at(-1);
 	if (more && last) totals.set(last.date, null);

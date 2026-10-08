@@ -491,7 +491,7 @@ describe("the month's summary and its Needs review filter (issue 134)", () => {
 
 	it("says what the month spent and how many wait, on the first page", async () => {
 		const page = await loadTransactionsPage(db, alex, { month, limit: 50 });
-		expect(page.summary).toEqual({ outCents: 8_500, needsReview: 2 });
+		expect(page.summary).toMatchObject({ outCents: 8_500, needsReview: 2 });
 		expect(page.total).toBe(8_500);
 	});
 
@@ -499,12 +499,12 @@ describe("the month's summary and its Needs review filter (issue 134)", () => {
 		const page = await loadTransactionsPage(db, alex, { month, review: true, limit: 50 });
 		expect(named(page.transactions).sort()).toEqual(["Corner shop", "Parking"]);
 		expect(page.total).toBe(2_000);
-		expect(page.summary).toEqual({ outCents: 8_500, needsReview: 2 });
+		expect(page.summary).toMatchObject({ outCents: 8_500, needsReview: 2 });
 	});
 
 	it("follows the other filters", async () => {
 		const page = await loadTransactionsPage(db, alex, { month, bucketId: "groceries", limit: 50 });
-		expect(page.summary).toEqual({ outCents: 4_000, needsReview: 0 });
+		expect(page.summary).toMatchObject({ outCents: 4_000, needsReview: 0 });
 	});
 
 	it("a selection of all that match holds only what waits", async () => {

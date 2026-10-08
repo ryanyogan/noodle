@@ -61,7 +61,6 @@ import { z } from "zod";
 import { QuickAddLink } from "../../../components/app-shell";
 import { type FilterOption, FilterSelect } from "../../../components/filter-select";
 import { DetailPending, sectionHeaderOverItem } from "../../../components/master-detail";
-import { MoneyInSection } from "../../../components/money-in";
 import { OwedBackList } from "../../../components/owed-back-list";
 import { useBringsSpendingIn } from "../../../components/transaction-list";
 import { DeleteSelectedSheet, SelectionBar } from "../../../components/transaction-selection";
@@ -70,7 +69,7 @@ import { TransactionTable, tableIsStacked } from "../../../components/transactio
 import { monthName } from "../../../format";
 import { type AccountView, useGoals } from "../../../goals";
 import { type MemberSummary, pickableMembers } from "../../../members";
-import { moneyInQuery, useReviewWaiting } from "../../../money-in";
+import { useReviewWaiting } from "../../../money-in";
 import { goalsQuery, membersQuery, monthQuery, reviewQuery } from "../../../queries";
 import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
@@ -162,8 +161,6 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 			context.queryClient.ensureQueryData(membersQuery()),
 			context.queryClient.ensureQueryData(reviewQuery()),
 			context.queryClient.ensureQueryData(goalsQuery()),
-			// The summary's Money in is in the server's HTML, not filled in afterwards.
-			context.queryClient.ensureQueryData(moneyInQuery(context.month)),
 			narrowing
 				? void context.queryClient.prefetchInfiniteQuery(list)
 				: context.queryClient.ensureInfiniteQueryData(list),
@@ -218,7 +215,9 @@ function TransactionsPage() {
 	const onEdit = (transaction: TransactionRow) => {
 		// While selecting where rows are stacked (a phone: no checkbox column), a tap selects or
 		// unselects instead of opening. In columns the checkbox selects and the row still opens.
-		if (picking && tableIsStacked()) return setPicking(togglePicked(picking, transaction.id));
+		// Money in is no part of a selection (issue 152): a tap on it then does nothing.
+		if (picking && tableIsStacked())
+			return transaction.moneyIn ? undefined : setPicking(togglePicked(picking, transaction.id));
 		if (!window.matchMedia("(min-width: 1024px)").matches) {
 			rememberListPlace(transaction.id);
 			return void navigate({
@@ -303,10 +302,10 @@ function TransactionsPage() {
 	const sameYear = month.slice(0, 4) === current.slice(0, 4);
 	// The order isn't a filter: every Transaction is still there.
 	// Nor is how many months are listed.
-	// The summary's Money in and Money out choose which list shows; only Needs review narrows one.
+	// The summary's three figures narrow the list too: to money in, to money out, to what waits.
 	const { sort: _sort, range, show, ...narrowing } = filters;
 	const narrowed = Object.values(narrowing).some((value) => value !== undefined);
-	const filtered = narrowed || show === "review";
+	const filtered = narrowed || show !== undefined;
 	// Another month or other filters: "all that match" would mean something else, so start again.
 	const shown = JSON.stringify([month, range, narrowing, show]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `shown` is what resets the selection
@@ -337,7 +336,7 @@ function TransactionsPage() {
 				title={sameYear ? monthName(month) : `${monthName(month)} ${month.slice(0, 4)}`}
 				actions={
 					<div className="flex flex-wrap items-center justify-end gap-1">
-						{picking ? null : (
+						{picking || show === "in" ? null : (
 							<Button
 								variant="outline"
 								size="sm"
@@ -422,8 +421,7 @@ function TransactionsPage() {
 						accounts={accounts}
 						filters={filters}
 						onChange={onChange}
-						onSelect={picking ? undefined : () => setPicking(nothingPicked)}
-						idle={show === "in" && !picked}
+						onSelect={picking || show === "in" ? undefined : () => setPicking(nothingPicked)}
 					/>
 				</div>
 				<div data-slot="transaction-list" className="min-w-0">
@@ -435,7 +433,7 @@ function TransactionsPage() {
 							picked && "max-lg:[&>[aria-label='Selecting_Transactions']]:hidden",
 						)}
 					>
-						{picking && (show !== "in" || picked) ? (
+						{picking && show !== "in" ? (
 							<SelectionBar
 								month={month}
 								current={current}
@@ -449,48 +447,47 @@ function TransactionsPage() {
 								onFiled={() => setPicking(null)}
 							/>
 						) : null}
-						{/* Money in alone: the table steps aside (an open Transaction keeps it, it lives there). */}
-						{show !== "in" || picked ? (
-							<TransactionList
-								parentId={parentId}
-								picking={picking}
-								onPick={onPick}
-								month={month}
-								filters={filters}
-								today={asOf}
-								plan={plan}
-								members={members}
-								filtered={filtered}
-								picked={picked}
-								onSort={(sort) => onChange({ sort })}
-								onEdit={onEdit}
-								onCellChange={change.mutate}
-								detail={
-									picked ? (
-										<ShownFilters.Provider value={filters}>
-											{/* Tapped in the list on a phone: its page comes in from the right, as
+						<TransactionList
+							parentId={parentId}
+							picking={picking}
+							onPick={onPick}
+							// Money in alone: nothing listed can be selected, and "all that match" would
+							// hold Transactions that aren't showing.
+							selects={show !== "in"}
+							month={month}
+							filters={filters}
+							today={asOf}
+							plan={plan}
+							members={members}
+							filtered={filtered}
+							picked={picked}
+							onSort={(sort) => onChange({ sort })}
+							onEdit={onEdit}
+							onCellChange={change.mutate}
+							detail={
+								picked ? (
+									<ShownFilters.Provider value={filters}>
+										{/* Tapped in the list on a phone: its page comes in from the right, as
 											    the desktop's panel does (ADR-0047). Clipped at the screen's edges
 											    meanwhile, so the page can't be scrolled sideways after it. Only
 											    then: an address opened on its own is simply there. */}
-											<div
-												className={cn(
-													slides &&
-														"max-lg:-mx-(--gutter) max-lg:overflow-x-clip max-lg:px-(--gutter)",
-												)}
-											>
-												<div className={cn(slides && "max-lg:animate-side-in")}>
-													<Suspense fallback={<DetailPending />}>
-														<Outlet />
-													</Suspense>
-												</div>
+										<div
+											className={cn(
+												slides &&
+													"max-lg:-mx-(--gutter) max-lg:overflow-x-clip max-lg:px-(--gutter)",
+											)}
+										>
+											<div className={cn(slides && "max-lg:animate-side-in")}>
+												<Suspense fallback={<DetailPending />}>
+													<Outlet />
+												</Suspense>
 											</div>
-										</ShownFilters.Provider>
-									) : undefined
-								}
-							/>
-						) : null}
+										</div>
+									</ShownFilters.Provider>
+								) : undefined
+							}
+						/>
 						<OwedBackList today={asOf} />
-						<MoneyInSection month={month} today={asOf} show={show} />
 					</div>
 				</div>
 			</div>
@@ -524,7 +521,6 @@ function Filters({
 	filters,
 	onChange,
 	onSelect,
-	idle = false,
 }: {
 	month: MonthKey;
 	plan: Pick<Plan, "buckets">;
@@ -534,11 +530,9 @@ function Filters({
 	onChange: (filters: TransactionFilters) => void;
 	/** Starts selecting, from the phone's Select button. Left out while selecting. */
 	onSelect?: () => void;
-	/** Money in is showing alone (issue 134): nothing here narrows or orders it, so it all waits. */
-	idle?: boolean;
 }) {
 	// Until hydrated, a change would only move the select, not the list.
-	const hydrated = useHydrated() && !idle;
+	const hydrated = useHydrated();
 	const [search, setSearch] = useState(filters.q ?? "");
 	const change = useRef(onChange);
 	change.current = onChange;
@@ -828,12 +822,15 @@ function TransactionList({
 	picked,
 	picking,
 	onPick,
+	selects,
 	onSort,
 	onEdit,
 	onCellChange,
 	detail,
 }: {
 	parentId: string;
+	/** Whether rows can be selected at all (not while only money in shows). */
+	selects: boolean;
 	/** The open Transaction's editor, drawn under its row in the table. */
 	detail?: ReactNode;
 	/** A rename or refile made in a cell of the table. */
@@ -956,6 +953,7 @@ function TransactionList({
 			detail={detail}
 			picking={picking}
 			onPick={onPick}
+			selects={selects}
 			onEdit={onEdit}
 			onChange={onCellChange}
 		/>

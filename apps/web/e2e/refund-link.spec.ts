@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
+import { moneyInKind, openMoneyIn } from "./money-in-rows";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { createPlannedHousehold, hydrated, signedInPage } from "./session";
@@ -66,16 +67,10 @@ test("a Refund in checking is linked to its purchase, whose Bucket gets the mone
 
 	// A Parent says it is a Refund: the row stays open and asks which purchase it is for.
 	await page.goto(`/transactions/${now}`);
-	const row = page
-		.getByRole("region", { name: "Money in" })
-		.getByTestId("money-in-row")
-		.filter({ hasText: "Pure Hockey" });
-	const change = row.getByRole("button", { name: "Change what Pure Hockey is" });
-	await expect(change).toBeVisible({ timeout: 30_000 });
-	await hydrated(change);
-	await change.click();
+	// Money in is a row of the table (issue 152): opened, its editor says what it is.
+	const { row: listed, editor: row } = await openMoneyIn(page, "Pure Hockey");
 	await row.getByRole("button", { name: "Refund", exact: true }).click();
-	await expect(row.getByTestId("money-in-kind")).toHaveText("Refund");
+	await expect(moneyInKind(listed)).toHaveText("Refund");
 	const linking = row.getByTestId("refund-link");
 	await expect(linking).toContainText("Which purchase is this a Refund for?");
 	const purchases = linking.getByTestId("refund-purchase");
@@ -105,9 +100,7 @@ test("a Refund in checking is linked to its purchase, whose Bucket gets the mone
 
 	// Unlink takes it off again, and the question is back.
 	await page.goto(`/transactions/${now}`);
-	await expect(change).toBeVisible({ timeout: 30_000 });
-	await hydrated(change);
-	await change.click();
+	await openMoneyIn(page, "Pure Hockey");
 	const unlink = linking.getByRole("button", { name: "Unlink" });
 	await unlink.click();
 	await expect(toast(page, "Unlinked.")).toBeVisible();

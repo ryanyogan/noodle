@@ -12,6 +12,7 @@ import {
 import { cn } from "@noodle/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {
+	ArrowDownLeft,
 	ArrowLeftRight,
 	Check,
 	ChevronRight,
@@ -135,6 +136,15 @@ function What({ view, stacked = false }: { view: RowView; stacked?: boolean }) {
 				{view.kindWord}
 			</Badge>
 		) : null;
+	// Money into an Account (issue 152): its kind is all there is to say, or that it waits.
+	if (view.kindOnly)
+		return view.needsReview ? (
+			<Badge dot variant="pace" data-slot="needs-review" className={pill}>
+				Needs review
+			</Badge>
+		) : (
+			kind
+		);
 	if (view.kind === "goal")
 		return (
 			<>
@@ -236,6 +246,10 @@ function NameCell({
 				) : view.kind === "split" ? (
 					<Tile aria-hidden="true" className={plainTile}>
 						<SplitIcon className="size-4" />
+					</Tile>
+				) : view.kindOnly ? (
+					<Tile aria-hidden="true" className={plainTile}>
+						<ArrowDownLeft className="size-4" />
 					</Tile>
 				) : (
 					<Tile
@@ -407,7 +421,9 @@ function NameCell({
 					{/* Where it came from has only the room that is left: what it was for stays whole. */}
 					{view.source && view.kind !== "transfer" && view.kind !== "goal" ? (
 						<span aria-hidden="true" className="min-w-0 flex-[1_1_0%] truncate">
-							· {view.source}
+							{/* Money in that has its kind in a badge before this has nothing here to follow. */}
+							{view.kindOnly && !view.needsReview ? "" : "· "}
+							{view.source}
 						</span>
 					) : null}
 				</span>

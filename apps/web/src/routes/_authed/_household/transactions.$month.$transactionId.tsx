@@ -6,6 +6,7 @@ import { createFileRoute, getRouteApi, Link, Navigate } from "@tanstack/react-ro
 import { ChevronLeft, X } from "lucide-react";
 import { useCallback, useContext } from "react";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
+import { MoneyInBody, type MoneyInTableRow } from "../../../components/money-in-editor";
 import { OwedBackOnPurchase } from "../../../components/owed-back";
 import { TransactionBody } from "../../../components/transaction-editor";
 import { dayName } from "../../../format";
@@ -140,6 +141,53 @@ function TransactionPane() {
 				params={{ month: itsMonth, transactionId }}
 				replace
 			/>
+		);
+	}
+	// Money in is a row of the same table (issue 152, ADR-0061), and opens where any row does.
+	if (transaction.moneyIn) {
+		const row = transaction as MoneyInTableRow;
+		return (
+			<Card className={inTable}>
+				<MoneyInBody
+					// Another line, or this one changed on another screen: the form starts again on it.
+					key={`${row.id}:${row.version}`}
+					row={row}
+					today={data.asOf}
+					heading={(title) => (
+						<DetailHeader
+							eyebrow={<span className="lg:hidden">{dayName(row.date, data.asOf)}</span>}
+							title={
+								<>
+									<span className="max-[359px]:text-base lg:sr-only">{title}</span>
+									<span className="max-lg:hidden">
+										<span className="sr-only">: </span>
+										{row.note?.trim() || "Money in"}
+									</span>
+								</>
+							}
+							leading={back}
+							pager={
+								<>
+									<DetailPager
+										ids={loaded.filter((one) => !one.goal).map((one) => one.id)}
+										id={row.id}
+										noun="Transaction"
+										link={(id) => ({
+											to: "/transactions/$month/$transactionId",
+											params: { month, transactionId: id },
+											search: true,
+											resetScroll: false,
+										})}
+									/>
+									{closeLink}
+								</>
+							}
+						/>
+					)}
+					onClose={close}
+					onLeave={(toMonth) => (ranged && toMonth ? close() : leave())}
+				/>
+			</Card>
 		);
 	}
 	// Spending from a Goal is changed on its Goal, as its row in the list goes there.
