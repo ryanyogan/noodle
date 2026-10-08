@@ -1,3 +1,4 @@
+import { looksLikeCardPayment, looksPersonToPerson, parentNamedIn } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Combobox } from "@noodle/ui/components/combobox";
 import {
@@ -11,14 +12,21 @@ import { RowButton } from "@noodle/ui/components/row-button";
 import { useQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { ArrowLeftRight, ChevronDown, CreditCard, ReceiptText, Sparkles } from "lucide-react";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
-import { cardPaymentCardsQuery, useCardPaymentFiling } from "../card-payments";
+import {
+	cardPaymentCardsQuery,
+	onCardPaymentAsked,
+	takeAskedCardPayment,
+	useCardPaymentFiling,
+} from "../card-payments";
 import { formatMoney } from "../format";
+import { membersQuery } from "../queries";
 import type { ReviewItem } from "../review";
 import { nameOf, type TransactionRow } from "../transactions";
 import { useMoneyChange } from "../transfers";
 import { CardPaymentQuestion } from "./card-payment";
+import { parentNames } from "./review-between-us";
 
 type Mode = "default" | "payment" | "transfer" | "between-us";
 
@@ -60,6 +68,27 @@ const SHORT: Record<Mode, string> = {
 	"between-us": "Between us",
 };
 
+/**
+ * What the bank's wording suggests for money out, said once under the tiles: the tile to press if
+ * it is so. Only ever a tile that is offered; nothing when the wording says nothing.
+ */
+function wordingHint(
+	transaction: TransactionRow,
+	names: readonly string[],
+	offered: readonly Mode[],
+): string | null {
+	if (transaction.amountCents <= 0) return null;
+	const text = transaction.note || transaction.merchantName;
+	if (looksLikeCardPayment(text))
+		return "Looks like a card payment. If it is, choose Credit card payment.";
+	if (!offered.includes("between-us")) return null;
+	const named = parentNamedIn(text, names);
+	if (named) return `Looks like money sent to ${named}. If it is, choose Between us.`;
+	if (looksPersonToPerson(text))
+		return "Looks like money sent to a person. If it went to the other Parent, choose Between us.";
+	return null;
+}
+
 /** Page-local treatment switch. A payment is available even after a mistaken Bucket filing. */
 export function TransactionTreatment({
 	transaction,
@@ -80,7 +109,15 @@ export function TransactionTreatment({
 	renderHeader?: (choices: ReactNode, mode: Mode) => ReactNode;
 }) {
 	const hydrated = useHydrated();
-	const [mode, setMode] = useState<Mode>("default");
+	// The row's own "It’s a card payment" may have asked already (askCardPayment): the tiles then
+	// open on Credit card payment, at "Payment to". Review's cards ask in their own way.
+	const [mode, setMode] = useState<Mode>(() =>
+		!renderHeader && takeAskedCardPayment(transaction.id) ? "payment" : "default",
+	);
+	useEffect(() => {
+		if (renderHeader) return;
+		return onCardPaymentAsked(transaction.id, () => setMode("payment"));
+	}, [transaction.id, renderHeader]);
 	const payment = mode === "payment";
 	function choose(next: Mode) {
 		setMode(next);
@@ -89,6 +126,8 @@ export function TransactionTreatment({
 	const [cardId, setCardId] = useState("");
 	const id = useId();
 	const cards = useQuery({ ...cardPaymentCardsQuery(), enabled: payment });
+	// The Parents' names, for the tiles' reading of the bank's wording; Review's card has its own.
+	const { data: members } = useQuery({ ...membersQuery(), enabled: !renderHeader });
 	const mark = useMoneyChange();
 	const file = useCardPaymentFiling();
 	const busy = !hydrated || mark.isPending || file.isPending;
@@ -137,6 +176,10 @@ export function TransactionTreatment({
 	];
 	const typeOf = (kind: Mode) =>
 		kind === "default" ? { name: defaultLabel, ...DEFAULTS[defaultLabel] } : TYPES[kind];
+	const hint =
+		!renderHeader && mode === "default"
+			? wordingHint(transaction, parentNames(members ?? []), offered)
+			: null;
 	return (
 		<div
 			// Its rows shrink with the card: a long button wraps rather than widening it.
@@ -221,6 +264,11 @@ export function TransactionTreatment({
 					})}
 				</fieldset>
 			)}
+			{hint ? (
+				<p data-slot="type-hint" className="text-[13px] text-muted-foreground">
+					{hint}
+				</p>
+			) : null}
 			{/* Keep unsaved spending fields intact if the Parent switches back. */}
 			<div hidden={mode !== "default"}>{children}</div>
 			{mode === "transfer" || mode === "between-us" ? (

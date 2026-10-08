@@ -3,6 +3,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { strFromU8, unzipSync } from "fflate";
 import { createTestParent } from "./parents";
 import {
+	choose,
 	chooseKind,
 	createPlannedHousehold,
 	enterJoinedHousehold,
@@ -248,13 +249,12 @@ test("the download's money-in.csv, money-in-rules.csv and card-payment-rules.csv
 	await payment.click();
 	const detail = page
 		.locator("[role=dialog], [data-slot=transaction-detail]")
-		.filter({ has: page.getByRole("heading", { name: "Transfer" }) });
-	await expect(detail.getByRole("button", { name: "It’s a card payment" })).toBeEnabled();
-	await detail.getByRole("button", { name: "It’s a card payment" }).click();
-	await detail
-		.getByTestId("card-payment-choice")
-		.getByRole("button", { name: "Visa", exact: true })
-		.click();
+		.filter({ has: page.getByRole("group", { name: "Transaction type" }) });
+	const tile = detail.getByRole("button", { name: "Credit card payment", exact: true });
+	await expect(tile).toBeEnabled();
+	await tile.click();
+	await choose(detail, "Payment to", "Visa");
+	await detail.getByRole("button", { name: "Link payment", exact: true }).click();
 	await expect(toast("marked as a Transfer to Visa")).toBeVisible();
 	await expect(payment).toHaveCount(0, { timeout: 20_000 });
 

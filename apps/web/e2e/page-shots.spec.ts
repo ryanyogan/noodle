@@ -2406,14 +2406,15 @@ test.beforeAll(async ({ browser }) => {
 			ready: (page) => zelleFromSam(page, true),
 		},
 		{
-			// Money sent to Sam, in no Bucket: "Mark as Transfer" and "It’s between us" side by side.
+			// Money sent to Sam, in no Bucket: the type tiles, with the line under them that points at
+			// "Between us".
 			name: "42-transaction-between-us",
 			path: `/transactions/${month}/${sentToSam}`,
 			window: true,
 			ready: async (page) => {
-				const button = page.getByRole("button", { name: "It’s between us" }).first();
-				await expect(button).toBeVisible({ timeout: 15_000 });
-				await button.evaluate((node) => node.scrollIntoView({ block: "center" }));
+				const tile = page.getByRole("button", { name: "Between us", exact: true }).first();
+				await expect(tile).toBeVisible({ timeout: 15_000 });
+				await tile.evaluate((node) => node.scrollIntoView({ block: "center" }));
 			},
 		},
 		// What was never pictured before the final phone pass (issue 74): Review's sheets, a long line

@@ -225,6 +225,8 @@ export function TransactionBody({
 			</>
 		);
 	}
+	// The type tiles hold the Transfer choices then, so the form doesn't offer them a second time.
+	const typed = paymentOptions && !!transaction.importedFrom && transaction.splits.length === 0;
 	const editor = (
 		<EditForm
 			// A fresh form for each Transaction opened.
@@ -239,6 +241,7 @@ export function TransactionBody({
 			wide={wide}
 			today={today}
 			splitting={splitting}
+			typeChosenAbove={typed}
 		/>
 	);
 	return (
@@ -250,7 +253,7 @@ export function TransactionBody({
 				today={today}
 				className="mb-4"
 			/>
-			{paymentOptions && transaction.importedFrom && transaction.splits.length === 0 ? (
+			{typed ? (
 				<TransactionTreatment
 					key={formKey}
 					transaction={transaction}
@@ -324,6 +327,7 @@ function EditForm({
 	wide,
 	splitting,
 	today,
+	typeChosenAbove,
 }: {
 	transaction: TransactionRow;
 	plan: Pick<Plan, "buckets" | "commitments">;
@@ -331,6 +335,8 @@ function EditForm({
 	onChange: (next: TransactionEdit | null) => void;
 	onDate?: (date: DayKey, alone: boolean) => void;
 	onClose: () => void;
+	/** The type tiles are above the form: they offer Transfer and Between us, so it doesn't. */
+	typeChosenAbove: boolean;
 	/** In a pane, not a sheet: Cancel closes the pane. */
 	inline: boolean;
 	/** Room for two columns (the row open in the table): the fields, and beside them the rest. */
@@ -813,7 +819,7 @@ function EditForm({
 					onDone={onClose}
 					today={today}
 				/>
-				{transaction.importedFrom ? (
+				{transaction.importedFrom && !typeChosenAbove ? (
 					<TransferSection transaction={transaction} onDone={onClose} />
 				) : null}
 			</div>
