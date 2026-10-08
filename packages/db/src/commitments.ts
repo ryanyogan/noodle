@@ -326,12 +326,40 @@ export const FOLLOWED_WITHIN_DAYS = 60;
 
 /**
  * Over a row of `accounts`: Noodle follows it, so what's bought on it is already counted in
- * Buckets. It syncs with its bank, or a purchase was imported into it in the last 60 days.
+ * Buckets. It syncs with its bank; or a Parent said its purchases are added by hand (issue 151);
+ * or a purchase was imported into it in the last 60 days; or nobody has said how its purchases get
+ * in and one was put on it in the last 60 days any way at all (a Quick Add, a Wallet capture).
+ * A card answered "they won't get in" is followed only by an import.
  */
 const followedSql = (today: DayKey) =>
-	sql`(${accounts.bankConnectionId} is not null or exists (select 1 from transactions ft
-		where ft.account_id = ${accounts.id} and ft.source = 'import' and ft.amount_cents > 0
+	// `is`, not `=`: a card never asked about is null, and `not (null or …)` would refuse every link.
+	sql`(${accounts.bankConnectionId} is not null or ${accounts.purchases} is 'hand'
+		or exists (select 1 from transactions ft
+		where ft.account_id = ${accounts.id} and ft.amount_cents > 0
+		and (ft.source = 'import' or ${accounts.purchases} is null)
 		and ft.date >= ${addDays(today, -FOLLOWED_WITHIN_DAYS)}))`;
+
+/**
+ * The Commitments that pay down a card Noodle follows without being a set payment on a balance
+ * being carried: a payment filed in one counts the card's purchases a second time (what Plan
+ * health's "would count twice" row names). A Rule that files into one is not applied (issue 151).
+ */
+export async function countingTwice(db: Db, householdId: string, today: DayKey): Promise<string[]> {
+	const rows = await db
+		.select({ id: commitments.id })
+		.from(commitments)
+		.innerJoin(accounts, eq(accounts.id, commitments.accountId))
+		.where(
+			and(
+				eq(commitments.householdId, householdId),
+				eq(accounts.householdId, householdId),
+				eq(accounts.kind, "credit-card"),
+				sql`coalesce(${commitments.carriedBalance}, 0) = 0`,
+				followedSql(today),
+			),
+		);
+	return rows.map((row) => row.id);
+}
 
 /** The Household's credit cards in use that Noodle follows (followedSql), by ID. */
 export async function followedCards(db: Db, householdId: string, today: DayKey): Promise<string[]> {

@@ -1648,7 +1648,11 @@ const PAYMENT_FILED = "Card payments usually aren’t spending.";
  */
 const paymentWhy = (payment: Exclude<PaymentCase, { kind: "commitment" }>) =>
 	payment.kind === "followed"
-		? `What you bought on ${payment.card ?? "the card"} is already in your Buckets, so the payment itself isn’t spending.`
+		? `What you bought on ${payment.card ?? "the card"} is already in your Buckets, so the payment itself isn’t spending.${
+				payment.commitment
+					? ` ${payment.commitment} pays ${payment.card ?? "the card"} down, but filing the payment there would count what you bought twice, so Noodle no longer does, even where a Rule says to. Plan health has what to do with ${payment.commitment}.`
+					: ""
+			}`
 		: `Noodle can’t see what was bought on ${payment.card ?? "this card"}, so the payment is the spending.`;
 
 /** The top card's other actions: split it, file it in the Parent's own Personal Allowance, or make a Rule. */

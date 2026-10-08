@@ -38,7 +38,7 @@ After you file a card, Noodle may ask "Always file" that merchant in the Bucket 
 
 Some cards are not spending at all, and Review says so.
 
-- **It's a card payment.** A payment to a card Noodle follows is a Transfer. What you bought on the card is already in your Buckets. Mark it and it leaves Review without counting anywhere. [Paying off debt](/docs/paying-off-debt) explains why.
+- **It's a card payment.** A payment to a card Noodle follows (a connected card, one whose statements you upload, or one whose purchases you add by hand) is a Transfer. What you bought on the card is already in your Buckets. Mark it and it leaves Review without counting anywhere. [Paying off debt](/docs/paying-off-debt) explains why.
 - **A card Noodle does not follow.** Noodle cannot see what was bought on it, so the payment is the spending. You can **Make it a Commitment** right there: Noodle plans it monthly at the payment's amount and files the payment in it, with **Undo** and **Edit** beside it. Or connect the card.
 - **It's between us.** Money one Parent sent the other is not spending. If it paid someone else, pick a Bucket.
 

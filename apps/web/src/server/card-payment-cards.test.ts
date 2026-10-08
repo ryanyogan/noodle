@@ -26,13 +26,14 @@ describe("the cards “It’s a card payment” offers", () => {
 		// Not asked, but a statement's purchases came in lately: by statements.
 		["statements", card(null, null), true, true, null],
 		["statements", card(null, null), true, false, null],
-		["hand", card("hand", null), false, true, filedIn],
+		// Kept by hand: its purchases are in Buckets, so its payment is a Transfer (issue 151).
+		["hand", card("hand", null), false, true, null],
 		["hand", card("hand", null), false, false, null],
-		// Kept by hand whatever a stray statement says.
-		["hand", card("hand", null), true, true, filedIn],
+		// And with a statement imported lately too: Review and this choice now agree on a Transfer.
+		["hand", card("hand", null), true, true, null],
 		["none", card("none", null), false, true, filedIn],
 		["none", card("none", null), false, false, null],
-		// Not asked and not followed: a Household from before the question.
+		// Not asked, nothing seen on it lately: a Household from before the question.
 		[null, card(null, null), false, true, filedIn],
 		[null, card(null, null), false, false, null],
 	] as const)(
@@ -49,7 +50,7 @@ describe("the cards “It’s a card payment” offers", () => {
 	);
 
 	it("gives each card its own Commitment, and none to a card another one pays down", () => {
-		const cards = [card("hand", null), { ...card("hand", null), id: "visa", name: "Visa" }];
+		const cards = [card("none", null), { ...card("none", null), id: "visa", name: "Visa" }];
 		expect(cardPaymentCardsOf(cards, [], [bill]).map((each) => each.commitment)).toEqual([
 			filedIn,
 			null,

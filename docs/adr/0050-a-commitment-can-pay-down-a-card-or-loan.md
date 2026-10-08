@@ -56,4 +56,20 @@ Every reader of what's owed uses this one figure: the Account page and list, a p
 - a payment marked as a Transfer naming the card (`transfers.other_account_id`, one-sided) comes off, beside the Commitment payments this ADR already takes off. The card's page lists both under Payments.
 - The monthly balance check (`accounts.statement_day`, `checkStatementBalance`) replaces "what's owed drifts low" for these cards: the statement's balance is compared with what's recorded up to its day and then taken as the balance.
 
-"It's a card payment" reads the same answer: bank or statements is a Transfer; `none` (or not asked) files it in the Commitment that pays the card down when there is one. Snapshots carry the new columns and `capture_cards` by name (ADR-0048); the Household's export still lists an Account's name, kind, balance and owed, not how its purchases get in.
+"It's a card payment" reads the same answer: bank, statements or hand is a Transfer; `none` (or not asked, with nothing seen on the card lately) files it in the Commitment that pays the card down when there is one. (Corrected 2026-10-07, see the note below: the code had `hand` filing in the Commitment.) Snapshots carry the new columns and `capture_cards` by name (ADR-0048); the Household's export still lists an Account's name, kind, balance and owed, not how its purchases get in.
+
+## Note, 2026-10-07: a card kept by hand is followed (issue 151)
+
+**What the code did.** "Followed" meant only a Bank Connection or a purchase imported in the last 60 days. A card answered `hand` (or never asked, with Quick Adds or Wallet captures on it) was therefore not followed: Review read its payment as "Payment to a card Noodle doesn't follow" with **Make it a Commitment** first, or filed it in the Commitment already paying the card down; `cardPaymentIsSpending` said the same for "It's a card payment"; a Commitment could be linked to the card without the carried-balance tick; Plan health was silent.
+
+**Why that was wrong.** Such a card's purchases are in Buckets already. The payment filed in a Commitment counted them a second time: spending too high by the payment, and Free to Spend too low by the Commitment's amount every month it stayed in the Plan. CONTEXT.md and this ADR already said a card kept by hand is paid by a Transfer naming it.
+
+**What changed** (going forward only; nothing already filed is rewritten):
+
+- `followedSql` (and so `followedCards`, `mayPayDown`, `commitmentLink`, Review, the "Pays down" form and Plan health) also follows a card answered `hand`, and a card never asked about with a purchase put on it in the last 60 days from any source. A card answered `none` is followed only by an import, as before. We chose this over asking "How do its purchases get in?" inside Review: the question is still asked on Accounts and the card's page, and nothing is guessed into `accounts.purchases`.
+- `cardPaymentIsSpending` is true only for `none`, or for a card never asked about that isn't followed. So Review and "It's a card payment" agree for a `hand` card with a statement imported lately too.
+- An existing Commitment linked to such a card without the carried-balance tick is named by Plan health's "would count twice" row, with its two ways out (end it, or keep it for a balance being carried). Review reads the card's payments as "Card payment — not spending" and says the payment is no longer filed in that Commitment.
+- A Rule that files into such a Commitment (stated by an earlier "Make it a Commitment") is kept but not applied (`countingTwice`: on Import, on a capture, on looking again at Review, and by "apply this Rule"): its lines wait in Review with no guess. Ending the Commitment or ticking "a balance I'm carrying" is the repair; the Rule applies again once the Commitment is for a carried balance.
+- A payment line that says "APPLECARD" as one word is read as naming an Account called "Apple Card".
+
+Payments already filed in such a Commitment, and the months they are in, stay as they are until a Parent changes them.

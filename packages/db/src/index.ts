@@ -550,6 +550,7 @@ export {
 	type CommitmentLinkResult,
 	type CommitmentPaymentResult,
 	commitmentLink,
+	countingTwice,
 	endCommitment,
 	FOLLOWED_WITHIN_DAYS,
 	followedCards,

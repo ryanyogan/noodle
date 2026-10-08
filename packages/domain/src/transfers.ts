@@ -136,6 +136,8 @@ const wordsOf = (text: string) =>
 	text
 		.toLowerCase()
 		.replace(/\bamex\b/g, "american express")
+		// An Apple Card's payment says its name as one word ("APPLECARD GSBANK PAYMENT").
+		.replace(/\bapplecard\b/g, "apple card")
 		.replace(/\bcitibank\b/g, "citi")
 		.match(/[a-z0-9]+/g) ?? [];
 
@@ -275,7 +277,16 @@ export type PaymentCase =
 			accountId: string;
 			account: string;
 	  }
-	| { kind: "followed"; card: string | null }
+	| {
+			kind: "followed";
+			card: string | null;
+			/**
+			 * A Commitment that pays this card down without being for a balance being carried: the
+			 * payment is not filed there, whatever a Rule says (issue 151), since that would count the
+			 * card's purchases twice. Plan health names it with its two ways out.
+			 */
+			commitment?: string;
+	  }
 	| { kind: "not-followed"; card: string | null; accountId: string | null };
 
 /** Money sent to a person, a purchase, or a bill that is never a card's or a loan's payment. */
@@ -401,8 +412,11 @@ export function paymentCase(
 	if (!likely) return null;
 	if (likely.card) {
 		const card = cards.find((candidate) => candidate.name === likely.card);
+		const leftOut = card
+			? commitments.find((c) => c.accountId === card.id && !c.carriedBalance)?.name
+			: undefined;
 		return card?.followed
-			? { kind: "followed", card: card.name }
+			? { kind: "followed", card: card.name, ...(leftOut ? { commitment: leftOut } : {}) }
 			: { kind: "not-followed", card: likely.card, accountId: card?.id ?? null };
 	}
 	// Several of the Household's cards fit and Noodle follows them all: a Transfer, whichever it is.

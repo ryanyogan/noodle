@@ -299,9 +299,11 @@ describe("Review's tree for a payment to a card or loan", () => {
 		});
 		// A Commitment without the tick doesn't take a followed card's payment (it would count twice).
 		const plain = paying("c-chase", "Chase payment", "sapphire");
+		// It is named, so Review can say the payment is no longer filed there (issue 151).
 		expect(paymentCase(out(CHASE), [sapphire], [plain])).toEqual({
 			kind: "followed",
 			card: "Chase Sapphire",
+			commitment: "Chase payment",
 		});
 		expect(paymentCase(out(CHASE), [sapphire], [{ ...plain, carriedBalance: true }])).toMatchObject(
 			{ kind: "commitment", commitmentId: "c-chase" },
@@ -312,6 +314,31 @@ describe("Review's tree for a payment to a card or loan", () => {
 			kind: "followed",
 			card: null,
 		});
+	});
+
+	it("reads a card kept by hand as followed: a Transfer, with or without a Commitment that isn't for a carried balance", () => {
+		// An Apple Card's own wording says its name as one word.
+		const text = "APPLECARD GSBANK PAYMENT 8841";
+		const apple = account("apple", "Apple Card", "credit-card", true);
+		expect(paymentCase(out(text), [apple], [])).toEqual({ kind: "followed", card: "Apple Card" });
+		const bill = paying("c-apple", "Apple Card bill", "apple");
+		expect(paymentCase(out(text), [apple], [bill])).toEqual({
+			kind: "followed",
+			card: "Apple Card",
+			commitment: "Apple Card bill",
+		});
+		expect(paymentCase(out(text), [apple], [{ ...bill, carriedBalance: true }])).toMatchObject({
+			kind: "commitment",
+			commitmentId: "c-apple",
+		});
+		// Its purchases never get in ("they won't"): not followed, so the payment is the spending.
+		const unseen = { ...apple, followed: false };
+		expect(paymentCase(out(text), [unseen], [])).toMatchObject({
+			kind: "not-followed",
+			card: "Apple Card",
+			accountId: "apple",
+		});
+		expect(paymentCase(out(text), [unseen], [bill])).toMatchObject({ kind: "commitment" });
 	});
 
 	it("says a card payment is the spending when Noodle can't see into the card", () => {

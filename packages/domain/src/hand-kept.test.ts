@@ -68,10 +68,13 @@ describe("what's owed on a card kept by hand", () => {
 });
 
 describe("a payment to a card", () => {
-	it("is the spending on a card kept by hand that a Commitment pays down", () => {
-		expect(cardPaymentIsSpending("hand", true)).toBe(true);
+	it("is a Transfer on a card kept by hand, even one a Commitment pays down: its purchases are in Buckets", () => {
+		expect(cardPaymentIsSpending("hand", true)).toBe(false);
+		// Whatever a stray statement says, the answer is the same as Review's.
+		const withStatement = cardKept({ bankConnectionId: null, purchases: "hand", followed: true });
+		expect(cardPaymentIsSpending(withStatement, true)).toBe(false);
 	});
-	it("is the spending on a card not asked yet that a Commitment pays down", () => {
+	it("is the spending on a card not asked yet, with nothing seen on it, that a Commitment pays down", () => {
 		const kept = cardKept({ bankConnectionId: null, purchases: null, followed: false });
 		expect(cardPaymentIsSpending(kept, true)).toBe(true);
 	});
@@ -86,7 +89,7 @@ describe("a payment to a card", () => {
 	it("is a Transfer on a card kept by its statements or its bank, Commitment or not", () => {
 		expect(cardPaymentIsSpending("statements", true)).toBe(false);
 		expect(cardPaymentIsSpending("bank", true)).toBe(false);
-		// Not asked, but a statement's purchases came in lately: by statements.
+		// Not asked, but purchases came in on it lately (a statement, or added by hand): followed.
 		const followed = cardKept({ bankConnectionId: null, purchases: null, followed: true });
 		expect(cardPaymentIsSpending(followed, true)).toBe(false);
 	});

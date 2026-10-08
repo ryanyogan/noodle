@@ -162,6 +162,7 @@ export function CardPaymentQuestion({
 		);
 	}
 
+	// Cards whose purchases aren't in Noodle and a Commitment pays down: the payment is the spending.
 	const byHand = (cards ?? []).filter((card) => card.commitment);
 	return (
 		<div data-testid="card-payment-choice" className="grid basis-full gap-2">
@@ -170,9 +171,9 @@ export function CardPaymentQuestion({
 			</p>
 			{byHand.map((card) => (
 				<p key={card.id} className="text-[13px] text-muted-foreground">
-					{card.name}
-					{card.kept === "none" ? "’s purchases don’t come into Noodle" : " is kept by hand"}, so
-					its payment is the spending: it’s filed in {card.commitment?.name}.
+					{card.name}’s purchases{" "}
+					{card.kept === "none" ? "don’t come into Noodle" : "aren’t in Noodle"}, so its payment is
+					the spending: it’s filed in {card.commitment?.name}.
 				</p>
 			))}
 			<div className="flex flex-wrap gap-2">

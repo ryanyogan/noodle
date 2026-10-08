@@ -90,8 +90,10 @@ export type CardPaymentCard = {
 	id: string;
 	name: string;
 	/**
-	 * Set for a card kept by hand (no Bank Connection, no statement lately) that a Commitment pays
-	 * down: the payment is its spending, so it's filed there. Null: the payment is a Transfer.
+	 * Set for a card whose purchases aren't in Noodle (a Parent said they won't get in, or nobody
+	 * was asked and nothing has been seen on it lately) that a Commitment pays down: the payment
+	 * is its spending, so it's filed there. Null: the payment is a Transfer (a card kept by hand
+	 * too: its purchases are in Buckets).
 	 */
 	commitment: { id: string; name: string } | null;
 	/** How its purchases get in (cardKept): its bank, statements, by hand, not at all; null: not asked. */
@@ -128,8 +130,8 @@ export async function loadCardPaymentCards(
 /**
  * Each of the Household's cards as "It's a card payment" offers it: how its purchases get in, and
  * the Commitment its payment is filed in when the payment is the spending (cardPaymentIsSpending:
- * a Commitment of this month's Plan pays the card down and its purchases don't come in from its
- * bank or its statements). `followed`: the cards a statement's purchases came in for lately.
+ * a Commitment of this month's Plan pays the card down and its purchases aren't in Noodle).
+ * `followed`: the cards Noodle follows without a Bank Connection (followedCards).
  */
 export function cardPaymentCardsOf(
 	cards: (Parameters<typeof cardKept>[0] & { id: string; name: string })[],
