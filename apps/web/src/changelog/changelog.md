@@ -33,6 +33,10 @@ Rules (changelog.test.ts checks them):
 - A loan's page lists each month's payment against its schedule, and a loan that is paid off stops being planned from the next month.
 - Reports › People shows where the money went for every Member, Parents too, with Everyone on its own, and a Bucket's page can be narrowed by who it was for.
 - Review offers who a Transaction was For when the same merchant was For the same person before.
+- A Parent on a salary can be paid every two weeks or weekly, counted from any one pay day you pick. A month with one pay day more than most says the pay above your take-home pay shows as Extra income.
+- A pay day whose paycheck hasn't come in five days after it is said on This Month and at the Check-in, until the pay is in.
+- The download's money-in.csv has a Pay day column, so the month each paycheck counts in is in your download.
+- Where a line of Income asks whose pay it is, the pay day it is for is asked with it, above Done.
 
 ## 2026-10-07: Refunds, whose Account it is, and a shorter Free to Spend
 

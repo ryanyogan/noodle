@@ -61,6 +61,16 @@ Open the line's actions on the Income page.
 - **It's between us · not Income** marks money the other Parent sent you.
 - **Remove income** takes it away.
 
+## Pay days
+
+On **Plan**, then **Income**, under **How you're paid**, each Parent says how they are paid: on a salary, with what one paycheck usually is and when it is due, or hourly, which is nothing to set.
+
+- A salary is paid twice a month on two days, monthly on one, or every two weeks or weekly. For every two weeks or weekly, pick any one pay day and Noodle counts the rest from it.
+- Each month lists the paychecks to expect, one per pay day. A pay day reads **In** once Income that is that Parent's pay lands within five days of it, with what came and the day it posted.
+- A paycheck counts in the month of its pay day, whatever day the bank posted it. A line of Income can say which pay day it is for, or that it is not a paycheck for one.
+- A pay day still not in five days after it is said on This Month and at the Check-in: "pay for Oct 15 hasn't come in". The line goes when the pay is in. If the pay landed and Noodle missed it, open the line and say whose pay it is.
+- A month with one pay day more than most (three every two weeks, five weekly) brings a paycheck above your take-home pay. It shows as Extra income for you to place. See [Extra income](/docs/extra-income).
+
 ## Pay that varies
 
 When a Parent's pay varies, the Income page shows its range over the last three full months, like "$1,800 so far · usually $2,100–$2,900". The Plan still counts on the low end. When the low end moves, Noodle offers **Use $2,300 as what you can count on**, with the new figure.
