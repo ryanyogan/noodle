@@ -183,6 +183,10 @@ test("“It’s a card payment” asks which card, names it on the Transfer, and
 	await expect(
 		page.getByText("Checking → Visa", { exact: true }).filter({ visible: true }).first(),
 	).toBeVisible();
+	// The toast that says so sits over the list "Payment to" opens below, and stays for as long as
+	// the pointer rests on it: off it, and gone, before anything under it is clicked.
+	await page.mouse.move(0, 0);
+	await expect(toast(page, "marked as a Transfer to")).toHaveCount(0, { timeout: 15_000 });
 
 	// The row offers it itself: its menu opens the row on that tile, at "Payment to". A card that isn't in
 	// Noodle: is the payment the spending? No: a Transfer with no other side, which counts nowhere.
