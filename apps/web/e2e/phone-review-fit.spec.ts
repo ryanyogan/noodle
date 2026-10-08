@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { settledAxe } from "./axe";
 import { openCommitmentForm } from "./commitment-form";
 import { createTestParent } from "./parents";
@@ -355,5 +355,106 @@ test("on a phone no Review card is wider than the screen: every kind of payment 
 		}
 		expect(await misfits(page), `${width}: the list`).toEqual([]);
 		if (width === 393) await axe(page, "the list");
+	}
+});
+
+/** Opens the Account called `name` from the Accounts page and uploads `csv` to it as a statement. */
+async function upload(page: Page, name: string, csv: string) {
+	await page.getByRole("link", { name: new RegExp(`^${name}, `) }).click();
+	await expect(page.locator("[data-slot=detail-title]:visible")).toContainText(name);
+	await page.getByRole("button", { name: "Upload statement" }).click();
+	const sheet = page.getByRole("dialog", { name: "Upload a statement" });
+	await sheet.getByLabel("Statement file").setInputFiles({
+		name: `${name.toLowerCase()}.csv`,
+		mimeType: "text/csv",
+		buffer: Buffer.from(csv),
+	});
+	await sheet.getByRole("button", { name: "Import 1 line" }).click();
+	await expect(sheet).toBeHidden();
+}
+
+/** Each of the card's buttons called one of `names` whose words are cut off or wrapped. */
+function clipped(card: Locator, names: string[]) {
+	return card.evaluate((node, wanted) => {
+		const found: string[] = [];
+		for (const button of node.querySelectorAll("button")) {
+			const box = button.getBoundingClientRect();
+			if (box.width === 0 || box.height === 0) continue;
+			const name = (button.getAttribute("aria-label") ?? button.textContent ?? "").trim();
+			if (!wanted.includes(name)) continue;
+			if (button.scrollWidth > button.clientWidth + 1)
+				found.push(`"${name}" is ${button.scrollWidth} wide in ${button.clientWidth}`);
+			// Its words are on one line: a button that wrapped them is taller than a tap target.
+			if (box.height > 60) found.push(`"${name}" is ${Math.round(box.height)} tall`);
+		}
+		return found;
+	}, names);
+}
+
+// Issue 150: the bank's wording names no card, and a card Noodle follows, whose name says no
+// issuer, may be the one paid. The card leads with "It’s a card payment" (which asks which card),
+// "Make it a Commitment" comes second, and its why names the card: longer words than any other
+// payment card's, on the same rows.
+test("on a phone the card payment that asks which card first fits, one by one and in the list", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Gas", "300"],
+		],
+	});
+	const thisMonth = page.url();
+	const today = await page.evaluate(() => new Date().toLocaleDateString("en-US"));
+	// A card Noodle follows (the fake files its purchase in Gas), and the Account its payment leaves.
+	await addAccount(page, "Titanium", "credit-card", "900");
+	await upload(
+		page,
+		"Titanium",
+		`Transaction Date,Description,Debit,Credit\n${today},SHELL OIL 5741,38.50,`,
+	);
+	await addAccount(page, "Checking", "checking");
+	await upload(
+		page,
+		"Checking",
+		`Details,Posting Date,Description,Amount,Type,Balance,Check or Slip #\nDEBIT,${today},"CARDMEMBER SERV WEB PYMT",-250.00,ACH_DEBIT,2250.00,`,
+	);
+
+	const WHY =
+		"The bank doesn’t say which card. If it pays Titanium, it isn’t spending; for a card that isn’t in Noodle, the payment is the spending.";
+	const NAMES = ["It’s a card payment", "Make it a Commitment"];
+	const card = page.locator("[data-testid=review-card][data-payment=not-followed]");
+	await reloadUntil(page, new URL("/review?view=list", thisMonth).href, () =>
+		expect(card).toHaveCount(1, { timeout: 2_000 }),
+	);
+
+	// The narrowest phones (the short one folds the second choice in beside the picker) and a usual one.
+	for (const [width, height] of WIDTHS.filter(([wide]) => wide === 320 || wide === 393)) {
+		await page.setViewportSize({ width, height });
+		for (const view of ["", "?view=list"] as const) {
+			const where = `${width}×${height}, ${view ? "the list" : "one by one"}`;
+			await page.goto(`/review${view}`);
+			const mark = card.getByRole("button", { name: NAMES[0] });
+			const make = card.getByRole("button", { name: NAMES[1] });
+			// (Enabled once the page is hydrated.)
+			await expect(mark, where).toBeEnabled(clientRendered);
+			await page.evaluate(() => document.fonts.ready);
+			await expect(card.getByTestId("review-payment-why"), where).toBeVisible();
+			await expect(card.getByTestId("review-payment-why"), where).toContainText(WHY);
+			await expect(make, where).toBeVisible();
+			// Which card is asked first: its button has the first row, and the other is under it.
+			const [first, second] = await Promise.all([mark.boundingBox(), make.boundingBox()]);
+			if (!first || !second) throw new Error(`${where}: the card's two buttons aren't drawn`);
+			expect(
+				second.y,
+				`${where}: “Make it a Commitment” is under “It’s a card payment”`,
+			).toBeGreaterThanOrEqual(first.y + first.height);
+			expect(await clipped(card, NAMES), `${where}: no button's words are cut off`).toEqual([]);
+			expect(await misfits(page), where).toEqual([]);
+			if (width === 393) await axe(page, where);
+		}
 	}
 });

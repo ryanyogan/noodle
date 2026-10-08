@@ -437,6 +437,71 @@ test("Review asks which card for a payment to a card Noodle doesn't follow, and 
 	await expect(page.getByTestId("review-card")).toHaveCount(0);
 });
 
+test("Review leads with “It’s a card payment” when the bank doesn't say which card and a card Noodle follows may be it", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const thisMonth = page.url();
+	const day = await today(page);
+	// Noodle follows the card (a purchase on it is here), under a name that says no issuer; and
+	// the bank's wording for its payment names no card at all.
+	await uploadStatement(
+		page,
+		{ name: "Titanium", kind: "credit-card", balance: "900" },
+		"titanium.csv",
+		[HEADER, `DEBIT,${day},"REI #44 SEATTLE",-60.00,DEBIT_CARD,,`],
+	);
+	await uploadStatement(
+		page,
+		{ name: "Checking", kind: "checking", balance: "2,500" },
+		"checking.csv",
+		[HEADER, `DEBIT,${day},"CARDMEMBER SERV WEB PYMT",-250.00,ACH_DEBIT,2250.00,`],
+	);
+
+	const payment = page.locator("[data-testid=review-card][data-payment=not-followed]");
+	await reloadUntil(page, new URL("/review?view=list", thisMonth).href, () =>
+		expect(payment).toHaveCount(1, { timeout: 2_000 }),
+	);
+	await expect(payment).toContainText("Card payment · which card does it pay?");
+	await expect(payment.getByTestId("review-payment-why")).toContainText(
+		"The bank doesn’t say which card. If it pays Titanium, it isn’t spending; for a card that isn’t in Noodle, the payment is the spending.",
+	);
+	// Which card is the first question: "Make it a Commitment" comes after it.
+	const mark = payment.getByRole("button", { name: "It’s a card payment" });
+	const make = payment.getByRole("button", { name: "Make it a Commitment" });
+	await expect(mark).toHaveCount(1);
+	await expect(make).toHaveCount(1);
+	// (Enabled once the page is hydrated.)
+	await expect(mark).toBeEnabled({ timeout: 30_000 });
+	const [first, second] = await Promise.all([mark.boundingBox(), make.boundingBox()]);
+	if (!first || !second) throw new Error("the card's two buttons aren't drawn");
+	expect(
+		first.y + first.height <= second.y || (first.y <= second.y && first.x < second.x),
+		"“It’s a card payment” is before “Make it a Commitment”",
+	).toBe(true);
+
+	await mark.click();
+	// Nothing is marked on the click: it asks, with the card that may be the one.
+	const asking = page.getByRole("dialog", { name: "It’s a card payment" });
+	const choice = asking.getByTestId("card-payment-choice");
+	await expect(choice).toContainText("Which card does it pay?");
+	await expect(choice.getByRole("button", { name: "A card that isn’t in Noodle" })).toBeVisible();
+	await expect(page.getByTestId("review-card").filter({ hasText: "CARDMEMBER" })).toHaveCount(1);
+	await choice.getByRole("button", { name: "Titanium", exact: true }).click();
+	await expect(toast(page, "marked as a Transfer to Titanium")).toBeVisible();
+	await expect(asking).toBeHidden();
+	await expect(payment).toHaveCount(0, SETTLED);
+
+	// It's a Transfer to the card, not spending: nothing of it waits to be assigned.
+	await openTransactions(page, thisMonth);
+	await expect(
+		page.getByText("Checking → Titanium", { exact: true }).filter({ visible: true }).first(),
+	).toBeVisible();
+	await expect(unassigned(page, "250")).toHaveCount(0);
+});
+
 /** The payment cards waiting in Review, in the view at `view` ("" is one by one). */
 async function reviewCards(page: Page, thisMonth: string, view: "" | "?view=list", text: string) {
 	const cards = page.getByTestId("review-card").filter({ hasText: text });
