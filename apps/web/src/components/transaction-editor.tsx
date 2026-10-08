@@ -20,6 +20,7 @@ import {
 	SheetFooter,
 	SheetHeader,
 } from "@noodle/ui/components/sheet";
+import { useKeyboardInset } from "@noodle/ui/lib/page-lock";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { Clock, Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
@@ -826,7 +827,21 @@ function EditForm({
 			{/* In the sheet the actions are the form's own children, as they were before the editor had
 			    columns: the sheet's footer stays at its foot, above a phone's keyboard, only as a child
 			    of what scrolls (issue 99). Under a row they run across both columns. */}
-			<div className={inline ? "col-span-full grid gap-4" : "contents"}>
+			<div
+				data-slot="editor-actions"
+				className={
+					inline
+						? cn(
+								"col-span-full grid gap-4",
+								// On a phone's page they stay in view while the form scrolls, as the sheet's
+								// footer did: above the tab bar, or above the keyboard while it is up.
+								"max-lg:sticky max-lg:z-1 max-lg:-mx-(--card-pad) max-lg:border-t max-lg:bg-card max-lg:px-(--card-pad) max-lg:py-3",
+								"max-lg:bottom-[max(calc(var(--tabbar-height)+var(--safe-bottom)),var(--keyboard-inset,0px))]",
+							)
+						: "contents"
+				}
+			>
+				{inline ? <PageKeyboard /> : null}
 				{confirmDelete ? (
 					<Confirm
 						confirmLabel="Delete Transaction"
@@ -959,6 +974,12 @@ function Remainder({ remainder }: { remainder: number | null }) {
 						: `${formatMoney(-remainder)} too much`}
 		</p>
 	);
+}
+
+/** Measures the on-screen keyboard for a page, as an open sheet does for itself. */
+function PageKeyboard() {
+	useKeyboardInset();
+	return null;
 }
 
 /**

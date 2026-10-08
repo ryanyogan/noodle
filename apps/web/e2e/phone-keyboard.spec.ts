@@ -149,10 +149,9 @@ test("Quick Add's For can be reached and changed on a short screen, and with the
 });
 
 // A Transaction on a phone is a page, not a sheet (ADR-0024, 2026-10-08): the field being typed
-// in is above the keyboard, the page doesn't jump, and what was typed is kept. Its Save is at the
-// end of the page, which Safari lets the Parent scroll to over the keyboard (the page ends clear
-// of the tab bar); the stand-in keyboard here can't pan the page, so that isn't measured.
-test("a Transaction's page keeps the field being typed in above the keyboard, and saves", async ({
+// in is above the keyboard, the page doesn't jump, what was typed is kept, and Save stays in view
+// above the keyboard, as it did in the sheet.
+test("a Transaction's page keeps the field being typed in and Save above the keyboard", async ({
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email);
@@ -186,6 +185,7 @@ test("a Transaction's page keeps the field being typed in above the keyboard, an
 	await page.keyboard.press("End");
 	await page.keyboard.type(" for the week");
 	await expectAboveKeyboard(page, note);
+	await expectAboveKeyboard(page, sheet.getByRole("button", { name: "Save" }));
 	expect(await scrollY(page)).toBe(before);
 	await expect(note).toHaveValue("Costco for the week");
 
@@ -193,6 +193,7 @@ test("a Transaction's page keeps the field being typed in above the keyboard, an
 	await amount.click();
 	await amount.fill("12.50");
 	await expectAboveKeyboard(page, amount);
+	await expectAboveKeyboard(page, sheet.getByRole("button", { name: "Save" }));
 	await expect(note).toHaveValue("Costco for the week");
 
 	await keyboardGone();

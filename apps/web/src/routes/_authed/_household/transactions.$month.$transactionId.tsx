@@ -26,7 +26,8 @@ const list = getRouteApi("/_authed/_household/transactions/$month");
 
 // Under its row the editor is part of the table: the table's card is its card (issue 99).
 const inTable =
-	"p-(--card-pad) lg:[[data-open-place]_&]:rounded-none lg:[[data-open-place]_&]:border-0 lg:[[data-open-place]_&]:bg-transparent lg:[[data-open-place]_&]:p-0 lg:[[data-open-place]_&]:shadow-none";
+	// Below lg nothing is clipped, so the editor's actions can stay in view while the page scrolls.
+	"p-(--card-pad) max-lg:overflow-visible lg:[[data-open-place]_&]:rounded-none lg:[[data-open-place]_&]:border-0 lg:[[data-open-place]_&]:bg-transparent lg:[[data-open-place]_&]:p-0 lg:[[data-open-place]_&]:shadow-none";
 
 /**
  * A Transaction in its month's list (#67, issue 99): from lg its editor opens in place, under its
