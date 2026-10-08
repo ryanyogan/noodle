@@ -10,6 +10,7 @@ import {
 	type MoneyInKindResult,
 	type MoneyInLine,
 	matchPayDays,
+	matchPayToCome,
 	rememberAccountPair,
 	type StoredMoneyInRule,
 	saveMoneyInRule,
@@ -50,6 +51,8 @@ async function withPayDay<R extends Extract<MoneyInKindResult, { ok: true }>>(
 ): Promise<R> {
 	const db = getDb();
 	const { matched, months } = await matchPayDays(db, householdId, { only: [result.line.id] });
+	// Or the Pay to come it is exactly (ADR-0066): a line with a pay day is never one.
+	await matchPayToCome(db, householdId, { only: [result.line.id] });
 	if (matched === 0) return result;
 	const [line] = await loadMoneyIn(db, householdId, { id: result.line.id });
 	return {

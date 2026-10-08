@@ -1949,3 +1949,62 @@ export const ruleStatements = sqliteTable(
 	},
 	(t) => [index("rule_statements_household_idx").on(t.householdId)],
 );
+
+// Pay to come (issue 159, phase a; ADR-0066): pay a Parent has earned that is not in yet. It
+// counts nowhere; the Income it arrives as counts in the month it lands, like any other.
+export const payToCome = sqliteTable(
+	"pay_to_come",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		// The Parent whose pay it is.
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		// Who it is from: a client's name, as the Parent typed it.
+		fromName: text("from_name").notNull(),
+		amountCents: integer("amount_cents").notNull(),
+		// The day it is expected ("YYYY-MM-DD"); null when the Parent didn't say.
+		expectedOn: text("expected_on"),
+		// The Household's day it was recorded on: Income from then on can be it.
+		recordedOn: text("recorded_on").notNull(),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("pay_to_come_household_idx").on(t.householdId, t.memberId)],
+);
+
+// A line of Income a Pay to come arrived as, and how much of it that line is. With `not_this`, a
+// Parent said the line is not that pay. `income_id` is not a foreign key on purpose: a line of
+// Income can be removed, and what it covered is then waiting again (reads join to Income that
+// still counts).
+export const payToComeArrivals = sqliteTable(
+	"pay_to_come_arrivals",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		payToComeId: text("pay_to_come_id")
+			.notNull()
+			.references(() => payToCome.id),
+		incomeId: text("income_id").notNull(),
+		amountCents: integer("amount_cents").notNull(),
+		notThis: integer("not_this", { mode: "boolean" }),
+		// A Parent said it, rather than the rule for the exact amount.
+		byHand: integer("by_hand", { mode: "boolean" }),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [
+		index("pay_to_come_arrivals_household_idx").on(t.householdId),
+		uniqueIndex("pay_to_come_arrivals_pair_idx").on(t.payToComeId, t.incomeId),
+		// One line of Income is one payment at most.
+		uniqueIndex("pay_to_come_arrivals_income_idx").on(t.incomeId).where(sql`not_this IS NULL`),
+	],
+);

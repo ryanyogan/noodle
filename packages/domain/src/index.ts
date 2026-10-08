@@ -466,6 +466,7 @@ export {
 	suggestPairings,
 } from "./pairing";
 export * from "./pay-days";
+export * from "./pay-to-come";
 export * from "./pay-range";
 export {
 	PAYMENT_HISTORY_MONTHS,

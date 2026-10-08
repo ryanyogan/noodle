@@ -23,6 +23,7 @@ import {
 	moneyInRuleRemovedEvents,
 } from "./log-events";
 import { matchPayDays } from "./pay-day-match";
+import { matchPayToCome } from "./pay-to-come";
 import {
 	accounts,
 	income,
@@ -677,6 +678,8 @@ export async function stateWhosePay(
 	// The deposits that have just become a Parent's pay take the pay days they should have
 	// (ADR-0063).
 	await matchPayDays(db, householdId, { only: ids });
+	// And the Pay to come they are exactly, if a Parent recorded any (ADR-0066).
+	await matchPayToCome(db, householdId, { only: ids });
 	return { pattern, changed: ids.length };
 }
 

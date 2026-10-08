@@ -19,6 +19,7 @@ import type { Db } from "./index";
 import { matchImported } from "./matches";
 import { loadMoneyInRules, markMoneyInByRule } from "./money-in";
 import { matchPayDays } from "./pay-day-match";
+import { matchPayToCome } from "./pay-to-come";
 import { statementLinesBanked } from "./same-lines";
 import { accounts, bankConnections, csvMappings, imports, income, transactions } from "./schema";
 import { detectTransfers } from "./transfers";
@@ -302,6 +303,9 @@ export async function importStatement(
 	// A paycheck that has just landed near a salaried Parent's pay day is the pay for it, and
 	// counts in the pay day's month (ADR-0063). After the Transfers: money that only moved isn't pay.
 	await matchPayDays(db, householdId, { only: received.map((line) => line.id) });
+	// Pay a Parent recorded as earned and not in yet, arriving for exactly that amount, is in
+	// (ADR-0066). After the pay days: a salaried Parent's paycheck is never it.
+	await matchPayToCome(db, householdId, { only: received.map((line) => line.id) });
 	// A Rule's Transfer or Between us, for money in that paired with nothing. A line this Import
 	// didn't write (it was here already) has a different ID, so nothing is marked for it.
 	await markMoneyInByRule(db, householdId, ruled, input.newId);
