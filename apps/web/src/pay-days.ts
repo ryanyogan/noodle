@@ -87,7 +87,11 @@ export function useSetPayDay() {
 			noteVersion(line.id, result.line.version);
 			return result.line;
 		},
-		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
+		// Not waited for: the line says what it now is at once, and the list it is open in may
+		// draw it again as the months are read.
+		onSettled: () => {
+			void queryClient.invalidateQueries({ queryKey: monthsKey });
+		},
 	});
 }
 

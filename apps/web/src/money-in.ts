@@ -1,6 +1,12 @@
-import { MONEY_IN_KIND_LABELS, type MoneyInKind, type MonthKey, monthOfDay } from "@noodle/domain";
+import { MONEY_IN_KIND_LABELS, type MoneyInKind, type MonthKey } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
-import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	type QueryClient,
+	queryOptions,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { ulid } from "ulid";
 import { formatMoney } from "./format";
 import { monthChangeKey } from "./plan-changes";
@@ -32,6 +38,32 @@ export const moneyInQuery = (month: MonthKey) =>
 		queryKey: [...monthQuery(month).queryKey, "money-in"],
 		queryFn: () => getMoneyIn({ data: { month } }),
 	});
+
+/**
+ * Shows a change to a line at once in every month's money in that has it: the month it landed
+ * in and, when it is the pay for a pay day, the month it counts in (ADR-0063). Answers with how
+ * to put the lists back.
+ */
+async function patchMoneyIn(
+	queryClient: QueryClient,
+	lineId: string,
+	patch: (line: MoneyInLine) => MoneyInLine,
+) {
+	const lists = {
+		predicate: ({ queryKey }: { queryKey: readonly unknown[] }) =>
+			queryKey.length === 3 && queryKey[0] === monthsKey[0] && queryKey[2] === "money-in",
+	};
+	await queryClient.cancelQueries(lists);
+	const before = queryClient.getQueriesData<MoneyInLine[]>(lists);
+	queryClient.setQueriesData<MoneyInLine[]>(lists, (lines) =>
+		lines?.map((row) => (row.id === lineId ? patch(row) : row)),
+	);
+	return {
+		rollback: () => {
+			for (const [queryKey, lines] of before) queryClient.setQueryData(queryKey, lines);
+		},
+	};
+}
 
 /** The money in waiting in Review. */
 export const moneyInReviewQuery = () =>
@@ -128,15 +160,8 @@ export function useMoneyInKindChange() {
 		scope: reviewWrites,
 		meta: { outbox: "money-in-kind" },
 		mutationFn: sendMoneyInKind,
-		onMutate: async ({ line, kind }) => {
-			const { queryKey } = moneyInQuery(monthOfDay(line.date));
-			await queryClient.cancelQueries({ queryKey });
-			const before = queryClient.getQueryData(queryKey);
-			queryClient.setQueryData(queryKey, (lines) =>
-				lines?.map((row) => (row.id === line.id ? { ...row, kind, needsReview: false } : row)),
-			);
-			return { rollback: () => queryClient.setQueryData(queryKey, before) };
-		},
+		onMutate: ({ line, kind }) =>
+			patchMoneyIn(queryClient, line.id, (row) => ({ ...row, kind, needsReview: false })),
 		onError: (error, _variables, context) => {
 			context?.rollback();
 			toast(refusedText(error, "Couldn’t change it, so it’s as it was."), { tone: "error" });
@@ -265,6 +290,7 @@ export type MoneyInEdit = {
 	date?: string;
 };
 
+/** `month` is where the edit was made; it shows in every month's money in that has the line. */
 export type MoneyInEditChange = { line: MoneyInLine; edit: MoneyInEdit; month: MonthKey };
 
 /**
@@ -295,27 +321,16 @@ export function useMoneyInEdit() {
 		scope: reviewWrites,
 		meta: { outbox: "money-in-edit" },
 		mutationFn: sendMoneyInEdit,
-		onMutate: async ({ line, edit, month }) => {
-			const { queryKey } = moneyInQuery(month);
-			await queryClient.cancelQueries({ queryKey });
-			const before = queryClient.getQueryData(queryKey);
-			queryClient.setQueryData(queryKey, (lines) =>
-				lines?.map((row) =>
-					row.id === line.id
-						? {
-								...row,
-								...(edit.whosePay !== undefined ? { whosePay: edit.whosePay } : {}),
-								...(edit.note !== undefined ? { note: edit.note } : {}),
-								...(edit.amountCents !== undefined
-									? { amount: edit.amountCents as MoneyInLine["amount"] }
-									: {}),
-								...(edit.date !== undefined ? { date: edit.date as MoneyInLine["date"] } : {}),
-							}
-						: row,
-				),
-			);
-			return { rollback: () => queryClient.setQueryData(queryKey, before) };
-		},
+		onMutate: ({ line, edit }) =>
+			patchMoneyIn(queryClient, line.id, (row) => ({
+				...row,
+				...(edit.whosePay !== undefined ? { whosePay: edit.whosePay } : {}),
+				...(edit.note !== undefined ? { note: edit.note } : {}),
+				...(edit.amountCents !== undefined
+					? { amount: edit.amountCents as MoneyInLine["amount"] }
+					: {}),
+				...(edit.date !== undefined ? { date: edit.date as MoneyInLine["date"] } : {}),
+			})),
 		onError: (error, _variables, context) => {
 			context?.rollback();
 			toast(refusedText(error, "Couldn’t save your change, so it’s as it was."), {

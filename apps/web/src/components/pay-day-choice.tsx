@@ -1,4 +1,4 @@
-import { monthOfDay } from "@noodle/domain";
+import { countsOn, monthOfDay } from "@noodle/domain";
 import { Field } from "@noodle/ui/components/field";
 import { OptionSelect } from "@noodle/ui/components/select";
 import { toast } from "@noodle/ui/components/toast";
@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { useId } from "react";
 import { monthName, shortDay } from "../format";
-import { refusedText } from "../money-in";
+import { MoneyInRefused, refusedText } from "../money-in";
 import { NOT_A_PAYCHECK, payDayChoicesQuery, useSetPayDay } from "../pay-days";
 import type { MoneyInLine } from "../server/money-in";
 
@@ -27,6 +27,7 @@ export function PayDayChoice({
 	const hydrated = useHydrated();
 	const { data: choices } = useQuery(payDayChoicesQuery(line));
 	const change = useSetPayDay();
+	const countsIn = monthOfDay(countsOn(line));
 	// Another line's pay day already is not offered; this line's own always is.
 	const days = (choices ?? []).filter((choice) => !choice.taken || choice.day === line.payDay);
 	if (days.length === 0 && !line.payDay) return null;
@@ -37,8 +38,8 @@ export function PayDayChoice({
 			htmlFor={`${id}-pay-day`}
 			hint={
 				line.payDay
-					? `It landed ${shortDay(line.date)} and counts in ${monthName(monthOfDay(line.payDay))}’s Income.`
-					: `It counts in ${monthName(monthOfDay(line.date))}’s Income, the month it landed.`
+					? `It landed ${shortDay(line.date)} and counts in ${monthName(countsIn)}’s Income.`
+					: `It counts in ${monthName(countsIn)}’s Income, the month it landed.`
 			}
 		>
 			<OptionSelect
@@ -70,9 +71,14 @@ export function PayDayChoice({
 								);
 							},
 							onError: (error) =>
-								toast(refusedText(error, "Couldn’t change it, so it’s as it was."), {
-									tone: "error",
-								}),
+								toast(
+									// Refused by the month it would leave (ADR-0052): said for a paycheck, which
+									// stays Income either way.
+									error instanceof MoneyInRefused && error.reason === "extra-income"
+										? `Some of ${monthName(countsIn)}’s Extra income has gone somewhere already, so this still counts in ${monthName(countsIn)}.`
+										: refusedText(error, "Couldn’t change it, so it’s as it was."),
+									{ tone: "error" },
+								),
 						},
 					)
 				}
