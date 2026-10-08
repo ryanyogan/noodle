@@ -324,11 +324,15 @@ export async function endCommitment(db: Db, input: EndCommitmentInput): Promise<
 
 type EndCommitmentInput = Author & { householdId: string; commitmentId: string; month: MonthKey };
 
-/** endCommitment as statements (its Plan change, then itself), for a batch with others. */
-export const commitmentEnd = (db: Db, input: EndCommitmentInput) => {
+/**
+ * endCommitment as statements (its Plan change, then itself), for a batch with others. `only`:
+ * a further condition both are held to (archiving a paid-off loan: only once it is archived).
+ */
+export const commitmentEnd = (db: Db, input: EndCommitmentInput, only?: SQL) => {
 	const endable = and(
 		ownCommitment(input.householdId, input.commitmentId),
 		or(isNull(commitments.endedFromMonth), gt(commitments.endedFromMonth, input.month)),
+		only,
 	);
 	return [
 		logChange(db, commitments, endable, {

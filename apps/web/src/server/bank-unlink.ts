@@ -63,12 +63,19 @@ export type ArchiveAccountFnResult =
 /** Archives an Account, unlinking it from its bank first when it still syncs. */
 export async function archiveAccountAndUnlink(
 	deps: Deps,
-	input: { householdId: string; accountId: string; memberId?: string },
+	input: { householdId: string; accountId: string; memberId?: string; endPaidOff?: boolean },
 ): Promise<ArchiveAccountFnResult> {
 	const account = await loadAccountToArchive(deps.db, input.householdId, input.accountId);
 	if (!account || account.archived) return { ok: false, reason: "not-found" };
 	// Said before anything is unlinked: a refused archive changes nothing.
 	if (account.goals.length > 0) return { ok: false, reason: "goals", goals: account.goals };
+	// So is a Commitment still in the Plan that pays it down (ADR-0050); a paid-off loan's holds it
+	// only until the Parent has been told that archiving ends it.
+	const holding = [
+		...account.commitments,
+		...(input.endPaidOff ? [] : account.ends.map((commitment) => commitment.name)),
+	];
+	if (holding.length > 0) return { ok: false, reason: "commitments", commitments: holding };
 	if (account.bankConnectionId) {
 		const unlinked = await unlinkBankAccount(deps, input);
 		if (!unlinked.ok && unlinked.reason !== "not-found") {
