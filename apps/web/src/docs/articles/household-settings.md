@@ -51,6 +51,8 @@ Nudges are set for each device.
 
 On an iPhone or iPad, add Noodle to your Home Screen first (Share, then Add to Home Screen) and open it from there.
 
+Every Nudge Noodle sends you is also listed in the bell, with the releases of the Changelog you haven't seen: the bell is at the top of the sidebar, and on a phone it is **Notifications**, the first row of More. A Nudge is listed there even on a device where Nudges are off, and opening the bell marks what it lists as read on all your devices.
+
 ## Start fresh
 
 Start fresh empties your Household so you can begin again.
