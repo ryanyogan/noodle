@@ -139,3 +139,19 @@ export function ruledLoanPayment(
 		? { commitmentId: chosen.loan.commitmentId }
 		: "ask";
 }
+
+/**
+ * The loans a Rule into `commitmentId` chooses between by amount, read from the wording the Rule
+ * is stated for as `ruledLoanPayment` reads a line: the Rule's own loan and every other that
+ * wording mentions. None when the Rule files as stated. What the Rules list says of it.
+ */
+export function loansRuledByAmount<L extends LoanPaidDown>(
+	commitmentId: string,
+	pattern: string,
+	loans: L[],
+): L[] {
+	const stated = loans.find((loan) => loan.commitmentId === commitmentId);
+	if (!stated) return [];
+	const among = loansNamed({ text: pattern }, loans, "mentions");
+	return among.length >= 2 && among.includes(stated) ? among : [];
+}

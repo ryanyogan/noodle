@@ -1,5 +1,6 @@
 import {
 	type DayKey,
+	loansRuledByAmount,
 	ruleFor as matchingRule,
 	merchantKey,
 	type Rule,
@@ -52,6 +53,11 @@ export type RuleRow = StoredRule & {
 	matched: number;
 	/** Who pays back part of what it files, and what part in percent, when it remembers (ADR-0058). */
 	owedBack?: { who: string; percent: number };
+	/**
+	 * A lender's Rule with several loans there (issue 153): the Commitments it files a payment into
+	 * by its amount, the one it is stated for among them.
+	 */
+	byAmount?: string[];
 };
 
 /** The Rules `viewer` may read: the Household's, and their own private ones. */
@@ -178,14 +184,27 @@ export async function listRules(db: Db, viewer: Viewer): Promise<RuleRow[]> {
 		viewer.householdId,
 		rows.map((row) => row.id),
 	);
-	return rows.map(({ owner, owedBackWho, owedBackPercent, ...rule }) => ({
-		...rule,
-		for: forRows.get(rule.id) ?? [],
-		private: owner !== null,
-		...(owedBackWho && owedBackPercent
-			? { owedBack: { who: owedBackWho, percent: owedBackPercent } }
-			: {}),
-	}));
+	// A Rule into a loan's Commitment sends each payment to the loan whose payment it is when its
+	// wording fits several (ruledLoanPayment): the row says so, of the loans still being paid down.
+	const loans = rows.some((row) => row.commitmentId)
+		? (await loadLoansPaidDown(db, viewer.householdId)).filter(
+				(loan) => loan.endedFromMonth === null,
+			)
+		: [];
+	return rows.map(({ owner, owedBackWho, owedBackPercent, ...rule }) => {
+		const among = rule.commitmentId
+			? loansRuledByAmount(rule.commitmentId, rule.pattern, loans)
+			: [];
+		return {
+			...rule,
+			for: forRows.get(rule.id) ?? [],
+			private: owner !== null,
+			...(owedBackWho && owedBackPercent
+				? { owedBack: { who: owedBackWho, percent: owedBackPercent } }
+				: {}),
+			...(among.length > 0 ? { byAmount: among.map((loan) => loan.commitment) } : {}),
+		};
+	});
 }
 
 /** Replaces a Rule's For with `forMemberIds` (the Household's Members still in it only), if it's `ruleId`'s. */

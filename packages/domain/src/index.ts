@@ -301,6 +301,7 @@ export {
 	lenderPayment,
 	loanByAmount,
 	loansNamed,
+	loansRuledByAmount,
 	ruledLoanPayment,
 } from "./lender-payments";
 export {

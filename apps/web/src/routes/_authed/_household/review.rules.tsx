@@ -185,6 +185,10 @@ function RuleListRow({
 							rule.owedBack
 								? `${rule.owedBack.who} pays back ${owedBackPartText(rule.owedBack.percent)}`
 								: null,
+							// A lender with several loans (issue 153): the amount says which loan's payment it is.
+							rule.byAmount
+								? `Files each payment by its amount: ${new Intl.ListFormat("en", { type: "disjunction" }).format(rule.byAmount)}`
+								: null,
 						]}
 					/>
 				</span>

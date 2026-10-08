@@ -4,6 +4,7 @@ import {
 	lenderPayment,
 	loanByAmount,
 	loansNamed,
+	loansRuledByAmount,
 	ruledLoanPayment,
 } from "./index";
 
@@ -165,5 +166,22 @@ describe("ruledLoanPayment", () => {
 		expect(
 			ruledLoanPayment(sofa.commitmentId, line("SOFA WAREHOUSE", 12_000), [sofa, bike]),
 		).toBeNull();
+	});
+});
+
+describe("loansRuledByAmount", () => {
+	it("says the loans a lender's Rule chooses between, its own among them", () => {
+		expect(
+			loansRuledByAmount(sofa.commitmentId, "zipline.com payments", [sofa, bike, car]),
+		).toEqual([sofa, bike]);
+	});
+
+	it("says none for the only loan at the lender, or a Rule into no loan's Commitment", () => {
+		expect(loansRuledByAmount(sofa.commitmentId, "zipline", [sofa, car])).toEqual([]);
+		expect(loansRuledByAmount("commitment-rent", "zipline", [sofa, bike])).toEqual([]);
+	});
+
+	it("says none for a Rule stated for another wording, as its payments are filed", () => {
+		expect(loansRuledByAmount(sofa.commitmentId, "sofa warehouse", [sofa, bike])).toEqual([]);
 	});
 });
