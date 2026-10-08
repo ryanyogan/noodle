@@ -65,3 +65,37 @@ export function forTotals(spending: AttributedSpend[], base: ForTotals = noForTo
 	}
 	return { household, members };
 }
+
+/** Who a figure is For when it is the whole Household's, where a Member's ID would name a Member. */
+export const EVERYONE = "everyone";
+
+/**
+ * The part of `spend` that counts For `who` (a Member's ID, or EVERYONE), exactly as forTotals
+ * counts it: all of it For the whole Household or one Member, an even share when it is For
+ * several, and nothing when it isn't theirs.
+ */
+export function shareFor(spend: Pick<AttributedSpend, "amount" | "for">, who: string): Cents {
+	const memberIds = [...new Set(spend.for)];
+	if (who === EVERYONE) return memberIds.length === 0 ? spend.amount : 0;
+	const at = memberIds.indexOf(who);
+	return at < 0 ? 0 : (shares(spend.amount, memberIds.length)[at] ?? 0);
+}
+
+/**
+ * The spending behind one of forTotals' figures: what was For `who` (a Member's ID, or
+ * EVERYONE), each with `who`'s share as its amount, so they add up to the figure to the cent.
+ */
+export function spendingFor<S extends AttributedSpend>(spending: S[], who: string): S[] {
+	return spending
+		.filter((spend) => (who === EVERYONE ? spend.for.length === 0 : spend.for.includes(who)))
+		.map((spend) => ({ ...spend, amount: shareFor(spend, who) }));
+}
+
+/**
+ * Who `spending` was For, as spendingFor takes them: each Member named, then EVERYONE if any of
+ * it was the whole Household's.
+ */
+export function forWhom(spending: Pick<AttributedSpend, "for">[]): string[] {
+	const members = new Set(spending.flatMap((spend) => spend.for));
+	return [...members, ...(spending.some((spend) => spend.for.length === 0) ? [EVERYONE] : [])];
+}

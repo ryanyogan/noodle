@@ -72,7 +72,7 @@ test("Household settings is settings only, grouped under short headings (#69)", 
 		]);
 		// Account is the sidebar's on a desktop; a phone has it as the last group.
 		await expect(page.getByRole("heading", { name: "Children", level: 3 })).toBeVisible();
-		await expect(page.getByText("What each Child cost")).toHaveCount(0);
+		await expect(page.getByText("Where the money went for each person")).toHaveCount(0);
 		await expect(page.getByRole("link", { name: "the Glossary" })).toHaveCount(0);
 		await expect(
 			page
