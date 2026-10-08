@@ -92,6 +92,8 @@ test("This Month shows the Plan: Free to Spend worked out and how last month end
 		"Goal funding−$150",
 		"Free to Spend$3,150",
 	]);
+	// The line above already says how the month is going, so the panel does not say it again.
+	await expect(freeToSpend.locator("[data-slot=free-sentence]")).toHaveCount(0);
 	// Space closes it and opens it again.
 	await page.keyboard.press("Space");
 	await expect(ledger).toHaveCount(0);

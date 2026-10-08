@@ -691,7 +691,9 @@ function FreeToSpend({
 			? `${formatMoney(ownFree)} ${ended ? `in ${monthName(state.month)}` : "this month"} · ${carriedOverText(state.freeCarriedIn, lastMonth)}`
 			: null;
 	const splitFirst = split !== null && !ended && !overPlanned && state.baseline !== null;
-	const sentence = ended || overPlanned ? null : monthSentence(state);
+	// The whole sentence is in the panel only when the line above is the split: otherwise the line
+	// above has already said how the month is going.
+	const sentence = splitFirst ? monthSentence(state) : null;
 	// Income below what's usual. A month still running is "behind by now". An ended month has no
 	// "by now" and nothing more to plan in it (issue 73): what it brought is set against the month
 	// before, which is what was expected of it; when that was take-home pay itself there is nothing

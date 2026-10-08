@@ -101,7 +101,7 @@ export function FreeWorking({
 				/>
 				How this is worked out
 			</CollapsibleTrigger>
-			<CollapsibleContent className="grid grid-cols-[minmax(0,1fr)] gap-3 px-(--card-pad) pb-(--card-pad) text-[13px] text-muted-foreground">
+			<CollapsibleContent className="grid grid-cols-[minmax(0,1fr)] gap-3 px-(--card-pad) pt-2 pb-(--card-pad) text-[13px] text-muted-foreground">
 				<ul aria-labelledby={id} data-slot="free-ledger" className="grid gap-1 tabular-nums">
 					{rows.map((row, index) => (
 						<li key={row.key} className="flex items-baseline justify-between gap-3">

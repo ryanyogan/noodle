@@ -89,6 +89,10 @@ test("money two ended months left is carried over, and covers a month ahead that
 	);
 	// Each month's carry and where the pay goes are part of the working (issue 149).
 	await openFreeWorking(page);
+	// The line above is the split here, so how the month is going is said in the panel.
+	await expect(freeToSpend(page).locator("[data-slot=free-sentence]")).toContainText(
+		"$5,110 free to spend",
+	);
 	await expect(
 		freeToSpend(page)
 			.getByRole("list", { name: "How this is worked out" })
