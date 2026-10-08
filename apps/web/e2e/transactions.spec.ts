@@ -1244,7 +1244,7 @@ test("a month before the first Plan: File in… says it had no Buckets, and its 
 	await page.context().close();
 });
 
-test("on a phone, a Transaction from before the first Plan says so in its sheet and is filed without a Bucket there", {
+test("on a phone, a Transaction from before the first Plan says so on its page and is filed without a Bucket there", {
 	tag: "@phone",
 }, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, {

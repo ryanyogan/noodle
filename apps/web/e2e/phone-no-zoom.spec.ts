@@ -104,12 +104,13 @@ test("no field on the main phone pages is small enough to zoom", async ({ browse
 	await expectNoZoom(page, "Transactions");
 
 	await list.getByRole("button", { name: /^Costco,/ }).click();
-	const edit = page.getByRole("dialog").filter({
+	// On a phone a Transaction is a page of its own, with Back (ADR-0024, 2026-10-08).
+	const edit = page.locator("[data-slot=transaction-detail]").filter({
 		has: page.getByRole("heading", { name: "Edit Transaction" }),
 	});
 	await expect(edit.getByLabel("Name")).toBeVisible();
 	await expectNoZoom(page, "Edit Transaction");
-	await page.keyboard.press("Escape");
+	await edit.getByRole("link", { name: "Back to Transactions" }).click();
 	await expect(edit).toBeHidden();
 
 	await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Month" }).click();
