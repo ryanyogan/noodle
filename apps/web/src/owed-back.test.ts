@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { commitmentsPaid } from "./commitments";
-import { bucketSpentText, owedBackOnCommitmentText, paidBackIntoText } from "./owed-back";
+import {
+	bucketSpentText,
+	owedBackApartText,
+	owedBackOnCommitmentText,
+	owedBackOnRowText,
+	paidBackIntoText,
+} from "./owed-back";
 
 describe("a Commitment with Owed back", () => {
 	it("reads how far over it is and who owes that back", () => {
@@ -89,5 +95,41 @@ describe("what the month's Bills have been paid", () => {
 		).toBe("$100 of $700 paid · $600 Paid back");
 		expect(commitmentsPaid([bill({ actual: 60_000, charges: 1 })])).toBe("$600 of $600 paid");
 		expect(commitmentsPaid([])).toBeNull();
+	});
+});
+
+describe("the Owed back part of a purchase, which never counts as spending", () => {
+	it("is said on the purchase's row, which keeps its full amount", () => {
+		expect(owedBackOnRowText([{ who: "Casey", owed: 30_000, paid: 0 }])).toBe(
+			"$300 owed back by Casey",
+		);
+		expect(owedBackOnRowText([{ who: "Casey", owed: 30_000, paid: 10_000 }])).toBe(
+			"$300 owed back by Casey",
+		);
+		expect(owedBackOnRowText([{ who: "Casey", owed: 30_000, paid: 30_000 }])).toBe(
+			"$300 Paid back by Casey",
+		);
+		// A split one: an item a Split, each person once.
+		expect(
+			owedBackOnRowText([
+				{ who: "Casey", owed: 10_000, paid: 0 },
+				{ who: "casey", owed: 5_000, paid: 5_000 },
+				{ who: "Robin", owed: 2_000, paid: 0 },
+			]),
+		).toBe("$170 owed back by Casey and Robin");
+		expect(owedBackOnRowText(undefined)).toBeNull();
+		expect(owedBackOnRowText([])).toBeNull();
+	});
+
+	it("is a Bucket's total apart from what it spent", () => {
+		expect(owedBackApartText(30_000)).toBe("$300 owed back");
+		expect(owedBackApartText(30_000, 10_000)).toBe("$300 owed back ($100 of it Paid back)");
+		expect(owedBackApartText(30_000, 30_000)).toBe("$300 owed back (all Paid back)");
+		expect(owedBackApartText(0)).toBeNull();
+		expect(owedBackApartText(undefined)).toBeNull();
+		expect(bucketSpentText({ spent: 30_000, owedBack: 30_000 })).toBe(
+			"$300 spent · $300 owed back",
+		);
+		expect(bucketSpentText({ spent: 30_000 })).toBe("$300 spent");
 	});
 });

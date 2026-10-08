@@ -563,3 +563,65 @@ describe("monthState: what was Paid back this month is said apart from what was 
 		).toBeUndefined();
 	});
 });
+
+describe("monthState: the Owed back part of a purchase never counts (ADR-0058, revised 2026-10-08)", () => {
+	const plan: Plan = {
+		...planOf("2026-10", { kids: 30_000 }),
+		commitments: [commitment("tuition", 60_000, "monthly", "2026-09-01")],
+	};
+	const state = monthState({
+		plan,
+		spending: [
+			{ bucketId: "kids", amount: 60_000, date: "2026-10-02" },
+			// Half is owed back; $100 of it has come.
+			{
+				bucketId: "kids",
+				amount: -30_000,
+				date: "2026-10-02",
+				paidBack: true,
+				owed: true,
+				settled: 10_000,
+			},
+			// Money back on a purchase from a month that had ended: Paid back, not owed.
+			{ bucketId: "kids", amount: -4_500, date: "2026-10-06", paidBack: true },
+		],
+		charges: [
+			{ commitmentId: "tuition", amount: 120_000, date: "2026-10-03" },
+			{
+				commitmentId: "tuition",
+				amount: -60_000,
+				date: "2026-10-03",
+				paidBack: true,
+				owed: true,
+				who: "Casey",
+			},
+		],
+		asOf: "2026-10-20",
+	});
+
+	it("leaves it out of what a Bucket spent, and says it apart from money Paid back", () => {
+		expect(state.buckets[0]).toMatchObject({
+			spent: 25_500,
+			left: 4_500,
+			owedBack: 30_000,
+			owedBackSettled: 10_000,
+			paidBack: 4_500,
+		});
+	});
+
+	it("reads a Commitment paid at the Household's share as paid, with who owes the rest", () => {
+		expect(state.commitments[0]).toMatchObject({
+			actual: 60_000,
+			charges: 1,
+			difference: 0,
+			status: "paid",
+			owedBack: { amount: 60_000, who: ["Casey"] },
+		});
+		expect(state.commitments[0]?.paidBack).toBeUndefined();
+	});
+
+	it("totals it for the month, and has none in a month without any", () => {
+		expect(state.owedBack).toBe(90_000);
+		expect(monthState({ plan, spending: [], asOf: "2026-10-20" }).owedBack).toBe(0);
+	});
+});

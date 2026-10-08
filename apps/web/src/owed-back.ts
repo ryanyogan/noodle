@@ -83,18 +83,55 @@ export function paidBackIntoText(
 }
 
 /**
+ * What was said Owed back on a purchase, for its row, which keeps the purchase's full amount:
+ * "$300 owed back by Casey", and "$300 Paid back by Casey" once all of it is. Null when nothing
+ * was said.
+ */
+export function owedBackOnRowText(
+	items: readonly { who: string; owed: number; paid: number }[] | undefined,
+): string | null {
+	const owed = (items ?? []).reduce((sum, item) => sum + item.owed, 0);
+	if (owed <= 0) return null;
+	const left = (items ?? []).reduce((sum, item) => sum + Math.max(0, item.owed - item.paid), 0);
+	// "casey" and "Casey" are one person, as first written.
+	const people = new Map<string, string>();
+	for (const item of items ?? [])
+		if (!people.has(item.who.toLowerCase())) people.set(item.who.toLowerCase(), item.who);
+	const who = [...people.values()];
+	return `${formatMoney(owed)} ${left > 0 ? "owed back" : "Paid back"} by ${names.format(who)}`;
+}
+
+/**
+ * The Owed back part of a month's purchases, said apart from spending: "$300 owed back", with
+ * "($100 of it Paid back)" or "(all Paid back)" once money has come. Null when there is none.
+ */
+export function owedBackApartText(owed: number | undefined, settled = 0): string | null {
+	if (!owed || owed <= 0) return null;
+	const said = `${formatMoney(owed)} owed back`;
+	if (settled <= 0) return said;
+	return settled >= owed
+		? `${said} (all Paid back)`
+		: `${said} (${formatMoney(settled)} of it Paid back)`;
+}
+
+/**
  * What a Bucket has spent this month: "$120 spent". Where money Paid back into it has taken the
  * month below zero it says that instead of negative spending: "$45 Paid back", or "$20 more Paid
  * back than spent" when there were purchases too. What a Refund linked to its purchase gave back
  * (`refunded`, a part of `paidBack`) is "refunded", never "Paid back", which is Owed back's word
  * (ADR-0058): "$20 refunded", "$20 more refunded than spent", and with both, "$20 refunded and $45
- * Paid back". A month a Refund on a card took below zero stays as it was.
+ * Paid back". A month a Refund on a card took below zero stays as it was. The Owed back part of
+ * its purchases, which `spent` leaves out, is said after it: "$300 spent · $300 owed back".
  */
 export function bucketSpentText(bucket: {
 	spent: number;
 	paidBack?: number | undefined;
 	refunded?: number | undefined;
+	owedBack?: number | undefined;
+	owedBackSettled?: number | undefined;
 }): string {
+	const apart = owedBackApartText(bucket.owedBack, bucket.owedBackSettled);
+	if (apart) return `${bucketSpentText({ ...bucket, owedBack: undefined })} · ${apart}`;
 	const back = bucket.paidBack ?? 0;
 	if (bucket.spent >= 0 || back < -bucket.spent) return `${formatMoney(bucket.spent)} spent`;
 	const refunded = Math.min(bucket.refunded ?? 0, back);

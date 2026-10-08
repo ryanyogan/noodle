@@ -5,6 +5,7 @@ import {
 	checkPaidBack,
 	cleanOwedBackName,
 	defaultOwedBack,
+	OWED_BACK_UNCOUNTED_FROM,
 	type OwedBack,
 	offerPaidBack,
 	owedBackByPerson,
@@ -12,6 +13,7 @@ import {
 	owedBackPersonIn,
 	owedBackRuleText,
 	owedBackSummary,
+	owedBackUncounted,
 	settleOwedBack,
 } from "./owed-back";
 
@@ -169,5 +171,14 @@ describe("what a Rule remembers about Owed back", () => {
 		expect(owedBackRuleText("tuition", "Casey", 50)).toBe("Tuition: Casey pays back half");
 		expect(owedBackRuleText("skate shop", "Leo", 100)).toBe("Skate shop: Leo pays back all of it");
 		expect(owedBackRuleText("dentist", "Casey", 30)).toBe("Dentist: Casey pays back 30%");
+	});
+});
+
+describe("which purchases count only the Household's share", () => {
+	it("is those dated October 1, 2026 or later: no month that had ended is counted again", () => {
+		expect(OWED_BACK_UNCOUNTED_FROM).toBe("2026-10-01");
+		expect(owedBackUncounted("2026-09-30")).toBe(false);
+		expect(owedBackUncounted("2026-10-01")).toBe(true);
+		expect(owedBackUncounted("2027-01-15")).toBe(true);
 	});
 });

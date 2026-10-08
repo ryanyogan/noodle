@@ -3,6 +3,7 @@ import { asBucketColor } from "./buckets";
 import { formatMoney, shortDay } from "./format";
 import { forLabel, type MemberSummary, pickableMembers } from "./members";
 import type { MoneyInLine } from "./money-in";
+import { owedBackOnRowText } from "./owed-back";
 import { forNow } from "./transaction-cells";
 import type { TransactionRow } from "./transactions";
 import { transferDetail } from "./transfers";
@@ -63,6 +64,11 @@ export type RowView = {
 	kindOnly: boolean;
 	/** A paycheck that counts on another day than it landed (ADR-0063): "pay for Oct 1". */
 	payFor?: string;
+	/**
+	 * What was said Owed back on it (ADR-0058): "$300 owed back by Casey". Its amount stays the
+	 * whole purchase; this says the part that isn't the Household's spending.
+	 */
+	owedBack?: string;
 	/** Who it was For, a name each (the row's chips): ["Everyone"] for the whole Household. */
 	forNames: string[];
 	/** The second line of a two-line row: what it's assigned to, who it was For, where it came from. */
@@ -162,6 +168,8 @@ export function rowView(
 	const moneyBack = transaction.amountCents < 0;
 	const refund = transaction.refundOf !== null;
 	const autoFiled = transaction.autoFiled !== null && !split && !transfer && !refund && !moneyBack;
+	const owedBack = owedBackOnRowText(transaction.owedBack);
+	const spokenOwed = owedBack ? `, ${owedBack}` : "";
 	const detail = transaction.goal
 		? `From the ${assignment.name} Goal`
 		: transfer
@@ -200,8 +208,8 @@ export function rowView(
 				: moneyBack
 					? `${spokenTitle}, ${amount}, Money back${spokenFrom}`
 					: split
-						? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ": ")}, For ${who}`
-						: `${spokenTitle}, ${amount}, ${assignment.name}${autoFiled ? " (filed automatically)" : ""}, For ${who}${spokenFrom}`;
+						? `${spokenTitle}, ${amount}${spokenOwed}, ${detail.replace(" · ", ": ")}, For ${who}`
+						: `${spokenTitle}, ${amount}${spokenOwed}, ${assignment.name}${autoFiled ? " (filed automatically)" : ""}, For ${who}${spokenFrom}`;
 	return {
 		kind: transaction.goal ? "goal" : transfer ? "transfer" : split ? "split" : "plain",
 		title,
@@ -213,6 +221,7 @@ export function rowView(
 				? MONEY_IN_KIND_LABELS.refund
 				: null,
 		kindOnly: false,
+		...(owedBack ? { owedBack } : {}),
 		forNames: (forIds ?? []).length === 0 ? ["Everyone"] : named.length ? named : ["Someone"],
 		detail,
 		aroundFor:

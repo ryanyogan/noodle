@@ -87,7 +87,7 @@ export function TransactionItem({
 }) {
 	const picking = checked !== undefined && !transaction.goal;
 	const day = dated ? `${shortDay(transaction.date)} · ` : "";
-	const { title, amount, detail, assignment, autoFiled, label, kind } = rowView(
+	const { title, amount, detail, assignment, autoFiled, label, kind, owedBack } = rowView(
 		transaction,
 		plan,
 		members,
@@ -101,6 +101,11 @@ export function TransactionItem({
 			{transaction.pending ? (
 				<Badge aria-hidden="true" dot className={pill}>
 					Pending
+				</Badge>
+			) : null}
+			{owedBack ? (
+				<Badge aria-hidden="true" data-testid="row-owed-back" className={pill}>
+					{owedBack}
 				</Badge>
 			) : null}
 			{transaction.bankTookBackOn ? (

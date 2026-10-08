@@ -363,6 +363,12 @@ function NameCell({
 							{view.kindWord}
 						</Badge>
 					) : null}
+					{/* The part someone is paying back (ADR-0058): the amount stays the whole purchase. */}
+					{view.owedBack ? (
+						<Badge aria-hidden="true" data-testid="row-owed-back" className={pill}>
+							{view.owedBack}
+						</Badge>
+					) : null}
 					{/* Kept after the bank took it back or changed it (issue 141); opening it says why. */}
 					{transaction.bankTookBackOn ? (
 						<Badge data-testid="bank-took-back" className={pill}>

@@ -12,6 +12,7 @@ import {
 	type MonthKey,
 	merchantKey,
 	monthOfDay,
+	OWED_BACK_UNCOUNTED_FROM,
 	REFUND_WINDOW_DAYS,
 	type SplitAssignment,
 	splitsBalance,
@@ -95,7 +96,11 @@ export type { Assignment, SplitAssignment };
  * Spending recorded against a Bucket, with who it was For and the Transaction's ID: a whole
  * Transaction, or one of its Splits (a split Transaction has one of these per Split in a Bucket).
  */
-export type BucketSpend = AttributedSpend & { id: string };
+export type BucketSpend = AttributedSpend & {
+	id: string;
+	/** On one that is `owed`: the Split of the purchase it is the Owed back part of, when split. */
+	splitId?: string;
+};
 
 /**
  * Spending assigned to Buckets on days from `from` up to, not including, `until`: whole
@@ -519,6 +524,11 @@ export type TransactionRow = {
 	paysCard?: boolean;
 	/** For money back linked as a Refund: the purchase's note, or "" when it has none. */
 	refundOf: string | null;
+	/**
+	 * What was said Owed back on it (ADR-0058), an item for the whole purchase or for each Split the
+	 * Viewer may see, with what has been Paid back on each; absent when nothing was said.
+	 */
+	owedBack?: { who: string; owed: Cents; paid: Cents }[];
 	for: string[];
 	/** Its Splits in the order they were entered, those the Viewer may see; none unless it's split. */
 	splits: SplitRow[];
@@ -790,6 +800,14 @@ export async function loadTransactionsPage(
 	const search = query.search?.trim();
 	const sort = query.sort ?? "newest";
 	const amount = sql<number>`case when ${partly} then ${visibleSplitsSum(viewer)} else ${transactions.amountCents} end`;
+	// Its Owed back items as the Viewer may see them: none said on a Split in the other Parent's
+	// Personal Allowance, nor one for the whole of a purchase partly in it.
+	const owedSeen = sql`ob.transaction_id = ${transactions.id} and (not ${partly}
+		or exists (select 1 from ${splits} where ${splits.id} = ob.split_id and ${visibleSplit(viewer)}))`;
+	// The Owed back part of a purchase that never counts as spending (ADR-0058, revised
+	// 2026-10-08): what the list spent leaves it out, as its Bucket and the month do.
+	const uncounted = sql<number>`(case when ${transactions.date} >= ${OWED_BACK_UNCOUNTED_FROM}
+		then (select coalesce(sum(ob.amount_cents), 0) from owed_back ob where ${owedSeen}) else 0 end)`;
 	// Money in kept in `income`, under the filters that apply to it (ADR-0061).
 	const moneyInAsked = Boolean(query.moneyIn) && !query.transactionId;
 	// A paired Transfer is one row here (ADR-0062).
@@ -860,7 +878,9 @@ export async function loadTransactionsPage(
 	const totalQuery =
 		query.month && !query.after
 			? db
-					.select({ total: sql<number>`coalesce(sum(${amount}), 0)`.mapWith(Number) })
+					.select({
+						total: sql<number>`coalesce(sum(${amount} - ${uncounted}), 0)`.mapWith(Number),
+					})
 					.from(transactions)
 					.where(and(filtered, sql`not ${isTransfer}`))
 			: null;
@@ -869,7 +889,7 @@ export async function loadTransactionsPage(
 			? db
 					.select({
 						outCents:
-							sql<number>`coalesce(sum(case when ${isTransfer} then 0 else ${amount} end), 0)`.mapWith(
+							sql<number>`coalesce(sum(case when ${isTransfer} then 0 else ${amount} - ${uncounted} end), 0)`.mapWith(
 								Number,
 							),
 						needsReview:
@@ -925,6 +945,10 @@ export async function loadTransactionsPage(
 			refundOf: sql<string | null>`(select coalesce(o.note, '') from refunds r
 				join transactions o on o.id = r.original_transaction_id
 				where r.refund_transaction_id = ${transactions.id} and r.removed_at is null)`,
+			owedBack: sql<string>`(select json_group_array(json_object('who', ob.who, 'owed', ob.amount_cents,
+					'paid', (select coalesce(sum(pm.amount_cents), 0) from paid_back_matches pm
+						where pm.owed_back_id = ob.id)))
+				from owed_back ob where ${owedSeen})`,
 			autoFiled: categorizations.method,
 			assignedName: sql<string | null>`coalesce(
 				(select ${buckets.name} from ${buckets} where ${buckets.id} = ${transactions.bucketId}),
@@ -1061,9 +1085,11 @@ export async function loadTransactionsPage(
 		// Dates are always written as DayKeys.
 		transactions: shown.map((one) => {
 			if (!one.row) return one.moneyIn;
-			const { goalId, goalName, transfer, sortKey: _sortKey, named, ...row } = one.row;
+			const { goalId, goalName, transfer, sortKey: _sortKey, named, owedBack, ...row } = one.row;
+			const owed = JSON.parse(owedBack ?? "[]") as NonNullable<TransactionRow["owedBack"]>;
 			return {
 				...row,
+				...(owed.length > 0 ? { owedBack: owed } : {}),
 				named: named && row.merchantName !== (row.note ? cleanMerchant(row.note).name : null),
 				...transferOf(transfer),
 				goal: goalId ? { id: goalId, name: goalName ?? "A Goal" } : null,

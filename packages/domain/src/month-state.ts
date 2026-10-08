@@ -23,6 +23,13 @@ export type Spend = {
 	paidBack?: true;
 	/** On one that is `paidBack`: it is a Refund linked to its purchase (ADR-0057), not Paid back. */
 	refund?: true;
+	/**
+	 * On one that is `paidBack`: no money came in. It is the Owed back part of a purchase made
+	 * that day, which never counts as spending (ADR-0058, revised 2026-10-08).
+	 */
+	owed?: true;
+	/** On one that is `owed`: what of it has been Paid back so far. */
+	settled?: Cents;
 };
 
 /**
@@ -37,7 +44,12 @@ export type Charge = {
 	paidBack?: true;
 	/** On one that is `paidBack`: it is a Refund linked to its purchase (ADR-0057), not Paid back. */
 	refund?: true;
-	/** Who paid it back, on one that is `paidBack`. */
+	/**
+	 * On one that is `paidBack`: no money came in. It is the Owed back part of a payment made that
+	 * day, which never counts as spending (ADR-0058, revised 2026-10-08).
+	 */
+	owed?: true;
+	/** Who paid it back, or owes it, on one that is `paidBack`. */
 	who?: string;
 };
 
@@ -89,6 +101,13 @@ export type BucketState = PlanBucket & {
 	paidBack?: Cents;
 	/** What of `paidBack` came from Refunds linked to their purchases (ADR-0057); absent when none. */
 	refunded?: Cents;
+	/**
+	 * The Owed back part of this month's purchases in it, which `spent` leaves out (ADR-0058,
+	 * revised 2026-10-08); absent when there is none.
+	 */
+	owedBack?: Cents;
+	/** What of `owedBack` has been Paid back so far; absent when none has. */
+	owedBackSettled?: Cents;
 	/** Negative once the Bucket is overspent. */
 	left: Cents;
 	pace: {
@@ -129,6 +148,11 @@ export type CommitmentState = PlanCommitment & {
 	 * off, and who paid it; absent when none was. See `paymentsView`.
 	 */
 	paidBack?: { amount: Cents; who: string[]; refunded?: Cents };
+	/**
+	 * The Owed back part of this month's payments of it, which `actual` and `difference` leave out
+	 * (ADR-0058, revised 2026-10-08), and who owes it; absent when there is none.
+	 */
+	owedBack?: { amount: Cents; who: string[] };
 };
 
 const commitmentStatus = (difference: number, charges: number, due: number): CommitmentStatus =>
@@ -196,6 +220,11 @@ export type MonthState = Omit<Plan, "buckets" | "commitments"> & {
 	windfallLeft: Cents;
 	/** What's left across Buckets, not counting any Bucket's overspending. */
 	leftInBuckets: Cents;
+	/**
+	 * The Owed back part of the month's purchases, in Buckets and Commitments together, which no
+	 * spending figure counts (ADR-0058, revised 2026-10-08).
+	 */
+	owedBack: Cents;
 	commitments: CommitmentState[];
 	buckets: BucketState[];
 };
@@ -248,9 +277,18 @@ export function monthState({
 	const paidBackByBucket = new Map<string, Cents>();
 	// What of it came from Refunds linked to their purchases: said as "refunded", not "Paid back".
 	const refundedByBucket = new Map<string, Cents>();
+	// The Owed back part of the month's purchases: it never counted, so it is no money back.
+	const owedByBucket = new Map<string, Cents>();
+	const settledByBucket = new Map<string, Cents>();
 	for (const spend of spending) {
 		if (monthOfDay(spend.date) !== plan.month) continue;
-		if (spend.paidBack)
+		if (spend.paidBack && spend.owed) {
+			owedByBucket.set(spend.bucketId, (owedByBucket.get(spend.bucketId) ?? 0) - spend.amount);
+			settledByBucket.set(
+				spend.bucketId,
+				(settledByBucket.get(spend.bucketId) ?? 0) + (spend.settled ?? 0),
+			);
+		} else if (spend.paidBack)
 			paidBackByBucket.set(
 				spend.bucketId,
 				(paidBackByBucket.get(spend.bucketId) ?? 0) - spend.amount,
@@ -314,6 +352,10 @@ export function monthState({
 			spent,
 			...(paidBackByBucket.get(bucket.id) ? { paidBack: paidBackByBucket.get(bucket.id) } : {}),
 			...(refundedByBucket.get(bucket.id) ? { refunded: refundedByBucket.get(bucket.id) } : {}),
+			...(owedByBucket.get(bucket.id) ? { owedBack: owedByBucket.get(bucket.id) } : {}),
+			...(settledByBucket.get(bucket.id)
+				? { owedBackSettled: settledByBucket.get(bucket.id) }
+				: {}),
 			left,
 			pace: { spent: paceSpent, leftShare: 1 - elapsed / days },
 			status,
@@ -325,8 +367,24 @@ export function monthState({
 	// Who paid it back, by Commitment: "casey" and "Casey" are one person, as first written.
 	const paidBackBy = new Map<string, Map<string, string>>();
 	const refundedByCommitment = new Map<string, Cents>();
+	// The Owed back part of the month's payments, and who owes it: left out of what it took.
+	const owedByCommitment = new Map<string, Cents>();
+	const owedBy = new Map<string, Map<string, string>>();
 	for (const charge of charges) {
 		if (monthOfDay(charge.date) !== plan.month) continue;
+		if (charge.paidBack && charge.owed) {
+			owedByCommitment.set(
+				charge.commitmentId,
+				(owedByCommitment.get(charge.commitmentId) ?? 0) - charge.amount,
+			);
+			const who = charge.who?.trim();
+			if (who) {
+				const people = owedBy.get(charge.commitmentId) ?? new Map<string, string>();
+				if (!people.has(who.toLowerCase())) people.set(who.toLowerCase(), who);
+				owedBy.set(charge.commitmentId, people);
+			}
+			continue;
+		}
 		if (charge.paidBack) {
 			paidBackByCommitment.set(
 				charge.commitmentId,
@@ -353,7 +411,8 @@ export function monthState({
 		const charged = chargedByCommitment.get(commitment.id) ?? [];
 		const actual =
 			charged.reduce((sum, amount) => sum + amount, 0) +
-			(paidBackByCommitment.get(commitment.id) ?? 0);
+			(paidBackByCommitment.get(commitment.id) ?? 0) -
+			(owedByCommitment.get(commitment.id) ?? 0);
 		const difference = actual - commitment.amount * Math.min(charged.length, dueDates.length);
 		const status = commitmentStatus(difference, charged.length, dueDates.length);
 		const back = -(paidBackByCommitment.get(commitment.id) ?? 0);
@@ -378,8 +437,22 @@ export function monthState({
 						},
 					}
 				: {}),
+			...(owedByCommitment.get(commitment.id)
+				? {
+						owedBack: {
+							amount: owedByCommitment.get(commitment.id) ?? 0,
+							who: [...(owedBy.get(commitment.id)?.values() ?? [])].sort((a, b) =>
+								a.localeCompare(b),
+							),
+						},
+					}
+				: {}),
 		};
 	});
+	// Everything owed on the month's purchases, whether or not what it is filed in is in the Plan.
+	const owedBackTotal =
+		[...owedByBucket.values()].reduce((sum, owed) => sum + owed, 0) +
+		[...owedByCommitment.values()].reduce((sum, owed) => sum + owed, 0);
 	return {
 		month: plan.month,
 		baseline: plan.baseline,
@@ -398,6 +471,7 @@ export function monthState({
 		windfall,
 		windfallLeft: pending,
 		leftInBuckets: buckets.reduce((sum, b) => sum + Math.max(0, b.left), 0),
+		owedBack: owedBackTotal,
 		commitments,
 		buckets,
 	};

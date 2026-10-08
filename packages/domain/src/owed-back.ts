@@ -6,6 +6,19 @@ import type { DayKey } from "./month";
 // money in of that kind; it is offered against what's open, oldest first, and nothing is applied
 // until a Parent confirms. Pure: no I/O.
 
+/**
+ * The first day whose purchases count only the Household's share (ADR-0058, revised 2026-10-08):
+ * the Owed back part of a purchase dated this day or later is not spending, in its Bucket or
+ * Commitment or in the month, and what is Paid back on it restores nothing. A purchase dated
+ * before it counts whole, and what is Paid back on it restores its Bucket or Commitment in the
+ * month the money arrives, as every month that had ended by the revision was counted. A fixed
+ * day, never "this month": a month counted one way is never counted the other way later.
+ */
+export const OWED_BACK_UNCOUNTED_FROM = "2026-10-01" as DayKey;
+
+/** The Owed back part of a purchase dated `date` never counts as spending. */
+export const owedBackUncounted = (date: DayKey): boolean => date >= OWED_BACK_UNCOUNTED_FROM;
+
 /** One Owed back item: what was said on a purchase, and how much of it has been Paid back. */
 export type OwedBack = {
 	id: string;

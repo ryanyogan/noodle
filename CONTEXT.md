@@ -189,11 +189,11 @@ Money returned for a prior purchase; it restores the Bucket the purchase came fr
 _Avoid_: Credit, return, income
 
 **Paid back**:
-Money in from someone outside the Household's pool of money (a Child's other parent, a Child from their own account, a friend) for something the Household bought. It isn't Income; it restores the Bucket or Commitment the purchase was filed in, in the month it arrives. One payment can pay back several purchases.
+Money in from someone outside the Household's pool of money (a Child's other parent, a Child from their own account, a friend) for something the Household bought. It isn't Income. It settles what is **Owed back** and changes nothing in the Bucket or Commitment, since the Owed back part of a purchase never counted there. One payment can pay back several purchases; money beyond what is owed waits as "Paid back, not matched yet". On a purchase dated before October 1, 2026, which counted whole in a month that has ended, it restores the Bucket or Commitment in the month it arrives instead (ADR-0058).
 _Avoid_: Reimbursement, refund, income, Between us
 
 **Owed back**:
-The part of a purchase someone has said they'll pay back, and who ("Owed back $600 · Casey"), until it is Paid back. The person is a name, not a Member.
+The part of a purchase (or of a Split) someone has said they'll pay back, and who ("Owed back $600 · Casey"), until it is Paid back. The person is a name, not a Member. It never counts as the Household's spending: only the Household's share counts against the Bucket or Commitment, in the month's spending and in Free to Spend, from the day it is said. The purchase still shows at its full amount with the owed part said ("$600 · $300 owed back by Casey"), and each Bucket and the month say an Owed back total apart from spending. A purchase dated before October 1, 2026 counted whole and is left so (ADR-0058, revised 2026-10-08).
 _Avoid_: Receivable, IOU, debt, split (that is a Split)
 
 **Quick Add**:
