@@ -95,7 +95,13 @@ export const removeChild = createServerFn({ method: "POST" })
 export type ForTotalsEarlier = {
 	totals: ForTotals;
 	/** Every Bucket the totals can name, archived ones included. */
-	buckets: { id: string; name: string; color: number }[];
+	buckets: {
+		id: string;
+		name: string;
+		color: number;
+		/** The other Parent's Personal Allowance: its total only, with no Transactions to open (ADR-0003). */
+		private: boolean;
+	}[];
 };
 
 /**
@@ -114,6 +120,11 @@ export const getForTotalsEarlierInYear = createServerFn({ method: "GET" })
 		]);
 		return {
 			totals: forTotals(spending),
-			buckets: records.buckets.map(({ id, name, color }) => ({ id, name, color })),
+			buckets: records.buckets.map(({ id, name, color, owner }) => ({
+				id,
+				name,
+				color,
+				private: Boolean(owner) && owner !== context.parent.id,
+			})),
 		};
 	});

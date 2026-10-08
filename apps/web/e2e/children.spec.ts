@@ -145,7 +145,9 @@ test("Quick Add is For Everyone unless a Child is picked, and each Child's cost 
 	await quickAdd(page, "186.42", "Groceries");
 
 	// What a Child cost is a report: Household links to it in Reports › People, filtered to them.
-	await expect(page.getByRole("heading", { name: "What each Child cost" })).toHaveCount(0);
+	await expect(
+		page.getByRole("heading", { name: /^Where the money went for each person/ }),
+	).toHaveCount(0);
 	await children(page).getByRole("link", { name: "See what Leo costs" }).click();
 	await expect(page).toHaveURL(/\/reports\?.*view=people.*member=/);
 	const leo = costOf(page, "Leo");
@@ -154,14 +156,15 @@ test("Quick Add is For Everyone unless a Child is picked, and each Child's cost 
 	await expect(leo.getByRole("row", { name: /^Total/ })).toHaveText(/Total\$84\.99\$84\.99/);
 	// Filtered to Leo, Maya's costs aren't shown.
 	await expect(costOf(page, "Maya")).toHaveCount(0);
-	// Groceries for Everyone is the Household's, not counted under either Child.
-	await expect(page.getByText(/^Spending For Everyone counts once/)).toContainText(
-		"$186 this month",
-	);
+	await expect(costOf(page, "Everyone")).toHaveCount(0);
 
 	// A full load of Reports is slow on a cold dev server (see clientRendered).
 	await page.goto("/reports?view=people");
 	await expect(costOf(page, "Maya")).toContainText("Nothing yet", clientRendered);
+	// Groceries for Everyone is the Household's own entry, not counted under either Child.
+	await expect(costOf(page, "Everyone").getByRole("row", { name: /^Groceries/ })).toHaveText(
+		/Groceries\$186\.42\$186\.42/,
+	);
 	await expect(costOf(page, "Leo").getByRole("row", { name: /^Total/ })).toHaveText(
 		/Total\$84\.99\$84\.99/,
 	);

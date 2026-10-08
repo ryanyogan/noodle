@@ -3,11 +3,14 @@ import {
 	type BucketRecord,
 	type BucketState,
 	canAssign,
+	EVERYONE,
+	forWhom,
 	groupNames,
 	inGroupOrder,
 	type MonthKey,
 	monthOfDay,
 	peersOf,
+	spendingFor,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { BudgetBar } from "@noodle/ui/components/budget-bar";
@@ -31,10 +34,12 @@ import {
 import { createFileRoute, Link, linkOptions, notFound, useHydrated } from "@tanstack/react-router";
 import { ArchiveRestore, ChartColumn, ChevronLeft, Pencil } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { z } from "zod";
 import { coversOfBucket } from "../../../bucket-covers";
 import { asBucketColor, availableParts, barState } from "../../../buckets";
 import { BucketSheet, useBucketChanges } from "../../../components/bucket-editor";
 import { BucketCovers } from "../../../components/cover";
+import { FilterSelect } from "../../../components/filter-select";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
 import { PlanHistoryList } from "../../../components/plan-history";
 import { PlanAmountForm } from "../../../components/plan-scope-field";
@@ -43,6 +48,7 @@ import { TermHelp } from "../../../components/term-help";
 import { EditTransactionSheet, TransactionItem } from "../../../components/transaction-list";
 import { useCovers } from "../../../covers";
 import { formatMoney, monthName } from "../../../format";
+import { forLabel } from "../../../members";
 import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
 import {
 	bucketQuery,
@@ -55,6 +61,7 @@ import { periodLabel, type ReportTable } from "../../../reports";
 import { BUCKET_MONTHS } from "../../../server/buckets";
 import { restoreBucket } from "../../../server/plan";
 import { ulidSchema } from "../../../server/schemas";
+import { forFilterSchema } from "../../../server/transactions";
 import { type TransactionRow, transactionsQuery } from "../../../transactions";
 
 /** Whether a Parent may see what's in a Bucket: any shared one, and their own Personal Allowance. */
@@ -65,8 +72,12 @@ const isOpenTo = (bucket: Pick<BucketRecord, "owner">, parentId: string) =>
 // month and its allowance history, and everything about it the Plan doesn't set (name, colour,
 // carries over, order, archiving). The other Parent's Personal Allowance shows its totals only
 // (ADR-0003): its Transactions are never fetched, and the server wouldn't return them anyway.
+// `?for=` narrows its Transactions to who they were For, a Member or "everyone" (issue 155): it is
+// in the address, so Reports › People links each person's figure to the Transactions behind it.
 export const Route = createFileRoute("/_authed/_household/plan/$month/_home/buckets/$id")({
-	loader: async ({ context, params }) => {
+	validateSearch: z.object({ for: forFilterSchema.optional().catch(undefined) }),
+	loaderDeps: ({ search }) => ({ for: search.for }),
+	loader: async ({ context, params, deps }) => {
 		if (!ulidSchema.safeParse(params.id).success) throw notFound();
 		const data = await context.queryClient.ensureQueryData(bucketQuery(params.id));
 		if (!data.bucket) throw notFound();
@@ -76,7 +87,7 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/_home/buck
 			context.queryClient.ensureQueryData(planHistoryQuery(month, params.id)),
 			isOpenTo(data.bucket, context.parentId)
 				? context.queryClient.ensureInfiniteQueryData(
-						transactionsQuery(month, { bucket: params.id }),
+						transactionsQuery(month, bucketFilters(params.id, deps.for)),
 					)
 				: null,
 		]);
@@ -84,6 +95,10 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/_home/buck
 	pendingComponent: DetailPending,
 	component: BucketPage,
 });
+
+/** The Bucket's list, narrowed to who it was For when the address says so. */
+const bucketFilters = (bucketId: string, forWho: string | undefined) =>
+	forWho ? { bucket: bucketId, for: forWho } : { bucket: bucketId };
 
 /** How many of this month's Transactions the page lists before "See all". */
 const RECENT_TRANSACTIONS = 5;
@@ -97,6 +112,8 @@ const BESIDE_CHART = "@2xl:[&_[data-slot=section-header]]:min-h-[42.6px]";
 function BucketPage() {
 	const { id } = Route.useParams();
 	const { parentId, month } = Route.useRouteContext();
+	const forWho = Route.useSearch({ select: (search) => search.for });
+	const navigate = Route.useNavigate();
 	const hydrated = useHydrated();
 	const data = useSuspenseQuery(bucketQuery(id)).data;
 	const state = useMonthState(month);
@@ -230,6 +247,14 @@ function BucketPage() {
 								bucketId={id}
 								parentId={parentId}
 								archived={archived}
+								forWho={forWho}
+								onFor={(next) =>
+									navigate({
+										search: { for: next || undefined },
+										replace: true,
+										resetScroll: false,
+									})
+								}
 							/>
 						) : (
 							<Section aria-labelledby="bucket-transactions">
@@ -506,24 +531,41 @@ function History({ months, color }: { months: BucketMonth[]; color: number }) {
 
 /**
  * This month's Transactions in the Bucket, newest first, each opening the editor as on
- * Transactions; the Transactions list has the rest.
+ * Transactions; the Transactions list has the rest. Narrowed to who they were For, it lists that
+ * person's (or Everyone's) and says their part of what was spent, counted as Reports › People
+ * counts it: spending For several people evenly between them.
  */
 function BucketTransactions({
 	month,
 	bucketId,
 	parentId,
 	archived,
+	forWho,
+	onFor,
 }: {
 	month: MonthKey;
 	bucketId: string;
 	parentId: string;
 	archived: boolean;
+	/** Who the list is narrowed to: a Member's ID, or "everyone"; left out for all of it. */
+	forWho: string | undefined;
+	onFor: (who: string) => void;
 }) {
-	const list = useSuspenseInfiniteQuery(transactionsQuery(month, { bucket: bucketId })).data;
-	const { plan, asOf } = useSuspenseQuery(monthQuery(month)).data;
+	const list = useSuspenseInfiniteQuery(
+		transactionsQuery(month, bucketFilters(bucketId, forWho)),
+	).data;
+	const { plan, asOf, spending } = useSuspenseQuery(monthQuery(month)).data;
 	const members = useQuery(membersQuery()).data ?? [];
 	const [editing, setEditing] = useState<TransactionRow | null>(null);
-	const shown = list.pages.flatMap((p) => p.transactions).slice(0, RECENT_TRANSACTIONS);
+	const all = list.pages.flatMap((p) => p.transactions);
+	const shown = forWho ? all : all.slice(0, RECENT_TRANSACTIONS);
+	const nameOf = (who: string) => (who === EVERYONE ? "Everyone" : forLabel(members, [who]));
+	// Who the month's spending here was For; the one in the address stays offered with nothing left.
+	const inBucket = spending.filter((spend) => spend.bucketId === bucketId);
+	const whom = forWhom(inBucket);
+	const offered = [...whom, ...(forWho && !whom.includes(forWho) ? [forWho] : [])];
+	const theirs = forWho ? spendingFor(inBucket, forWho) : [];
+	const sum = (spends: { amount: number }[]) => spends.reduce((total, s) => total + s.amount, 0);
 	return (
 		<Section aria-labelledby="bucket-transactions">
 			<SectionHeader
@@ -532,13 +574,37 @@ function BucketTransactions({
 				action={
 					shown.length > 0 ? (
 						<Button variant="ghost" size="sm" asChild>
-							<Link to="/transactions/$month" params={{ month }} search={{ bucket: bucketId }}>
+							<Link
+								to="/transactions/$month"
+								params={{ month }}
+								search={bucketFilters(bucketId, forWho)}
+							>
 								All in Transactions
 							</Link>
 						</Button>
 					) : undefined
 				}
 			/>
+			{offered.length > 0 ? (
+				<FilterSelect
+					id="bucket-for"
+					label="For"
+					value={forWho ?? ""}
+					onChange={onFor}
+					all="Anyone"
+					options={offered.map((who) => ({ value: who, label: nameOf(who) }))}
+					className="sm:max-w-56"
+				/>
+			) : null}
+			{forWho ? (
+				<p data-slot="bucket-for-part" className="text-[13px] text-muted-foreground">
+					For {nameOf(forWho)}: {formatMoney(sum(theirs))} of the {formatMoney(sum(inBucket))} spent
+					from it in {monthName(month)}.
+					{theirs.some((spend) => spend.for.length > 1)
+						? " Spending for several people counts evenly for each."
+						: null}
+				</p>
+			) : null}
 			{shown.length > 0 ? (
 				<List aria-label={`Latest in ${monthName(month)}`}>
 					{shown.map((transaction) => (
@@ -554,9 +620,11 @@ function BucketTransactions({
 				</List>
 			) : (
 				<Card className="p-(--card-pad) text-sm text-muted-foreground">
-					{archived
-						? "It’s archived, so nothing goes into it."
-						: "Nothing spent from it yet this month."}
+					{forWho
+						? `Nothing from it was for ${nameOf(forWho)} in ${monthName(month)}.`
+						: archived
+							? "It’s archived, so nothing goes into it."
+							: "Nothing spent from it yet this month."}
 				</Card>
 			)}
 			<EditTransactionSheet

@@ -44,8 +44,8 @@ import {
 	type ReportTable,
 } from "../reports";
 import type { AreaData, ReportData, ViewData } from "../server/reports";
-import { ChildCosts } from "./child-costs";
 import { GoalProgressBar } from "./goals";
+import { MemberCosts } from "./member-costs";
 import {
 	CalendarHeatmap,
 	ChartCard,
@@ -1480,21 +1480,21 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 		}))
 		.sort((a, b) => b.amount - a.amount);
 	const children = report.meta.members.filter((m) => m.kind === "child").map((m) => m.id);
-	// Filtered to one Child (Household's "See what … costs"), the by-Bucket costs show only theirs.
-	const costChildren = report.meta.members.filter(
-		(m) =>
-			m.kind === "child" &&
-			(!search.member || !children.includes(search.member) || m.id === search.member),
-	);
+	// Every Member, Children first as For lists them, then Everyone (issue 155). Filtered to one of
+	// them (Household's "See what … costs"), the by-Bucket costs show only theirs.
+	const everyone = !search.member || search.member === "everyone";
+	const costPeople = [
+		...report.meta.members.filter((m) => m.kind === "child"),
+		...report.meta.members.filter((m) => m.kind === "parent"),
+	].filter((m) => !search.member || m.id === search.member);
+	const costs = <MemberCosts of={costPeople} everyone={everyone} />;
 	// This month and the year so far don't depend on the period picked, so they show even when it's empty.
 	if (totals.length === 0)
-		return costChildren.length ? (
+		return (
 			<div className="grid gap-4 lg:gap-6">
 				<NothingYet />
-				<ChildCosts of={costChildren} />
+				{costs}
 			</div>
-		) : (
-			<NothingYet />
 		);
 	// Nothing For a Child in the period would draw a flat line on an axis of $0s.
 	const childSpending = data.cells.some((c) => children.includes(c.who) && c.amount > 0);
@@ -1565,11 +1565,7 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 					</p>
 				)}
 			</ChartCard>
-			{costChildren.length ? (
-				<div className="lg:col-span-5">
-					<ChildCosts of={costChildren} />
-				</div>
-			) : null}
+			<div className="lg:col-span-5">{costs}</div>
 		</div>
 	);
 }
