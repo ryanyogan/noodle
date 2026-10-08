@@ -5,6 +5,8 @@ import {
 	EVERYONE,
 	forTotals,
 	forWhom,
+	LIKELY_FOR_LOOKS_AT,
+	likelyFor,
 	shareFor,
 	shares,
 	spendingFor,
@@ -124,5 +126,53 @@ describe("spendingFor: the spending behind one person's figure", () => {
 		expect(spendingFor(spending, EVERYONE)).toEqual([spend("food", 18_642, "2026-09-06")]);
 		expect(forWhom(spending)).toEqual(["maya", "leo", "alex", EVERYONE]);
 		expect(forWhom(spending.filter((s) => s.for.length > 0))).not.toContain(EVERYONE);
+	});
+});
+
+describe("likelyFor: who a merchant's next Transaction is likely For", () => {
+	it("is who the merchant's earlier ones were all For, once there are two", () => {
+		expect(likelyFor([["maya"], ["maya"]])).toEqual(["maya"]);
+		expect(likelyFor([["maya"], ["maya"], ["maya"]])).toEqual(["maya"]);
+	});
+
+	it("is nobody after one alone, or none", () => {
+		expect(likelyFor([["maya"]])).toBeNull();
+		expect(likelyFor([])).toBeNull();
+	});
+
+	it("is nobody when they differ, one For Everyone among them included", () => {
+		expect(likelyFor([["maya"], ["leo"]])).toBeNull();
+		expect(likelyFor([["maya"], ["maya"], []])).toBeNull();
+		expect(likelyFor([["maya"], ["maya", "leo"]])).toBeNull();
+	});
+
+	it("is never Everyone: that is what a Transaction is anyway", () => {
+		expect(likelyFor([[], [], []])).toBeNull();
+	});
+
+	it("names several people when every one was For the same several, in any order", () => {
+		expect(
+			likelyFor([
+				["maya", "leo"],
+				["leo", "maya"],
+			]),
+		).toEqual(["leo", "maya"]);
+		expect(likelyFor([["maya", "maya"], ["maya"]])).toEqual(["maya"]);
+	});
+
+	it("goes by the latest ones only, so a new habit takes over", () => {
+		const latest = Array.from({ length: LIKELY_FOR_LOOKS_AT }, () => ["leo"]);
+		expect(likelyFor([...latest, ["maya"], []])).toEqual(["leo"]);
+		expect(likelyFor([["maya"], ...latest])).toBeNull();
+	});
+
+	it("leaves out a Member who has left, and keeps the rest", () => {
+		const earlier = [
+			["maya", "leo"],
+			["maya", "leo"],
+		];
+		expect(likelyFor(earlier, ["maya", "alex"])).toEqual(["maya"]);
+		expect(likelyFor(earlier, ["alex"])).toBeNull();
+		expect(likelyFor(earlier, ["maya", "leo"])).toEqual(["leo", "maya"]);
 	});
 });

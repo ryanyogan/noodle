@@ -99,3 +99,27 @@ export function forWhom(spending: Pick<AttributedSpend, "for">[]): string[] {
 	const members = new Set(spending.flatMap((spend) => spend.for));
 	return [...members, ...(spending.some((spend) => spend.for.length === 0) ? [EVERYONE] : [])];
 }
+
+/** How many of a merchant's latest filed Transactions likelyFor goes by. */
+export const LIKELY_FOR_LOOKS_AT = 6;
+
+/** How few of them say who a merchant's spending is For: one alone is not a habit. */
+export const LIKELY_FOR_AT_LEAST = 2;
+
+/**
+ * Who a merchant's next Transaction is likely For (issue 155), going by who its earlier ones were
+ * For (`earlier`, the latest first): the latest LIKELY_FOR_LOOKS_AT of them, when there are at
+ * least LIKELY_FOR_AT_LEAST and every one was For exactly the same Member or Members. Null when
+ * they differ, are too few, or were For Everyone, which a Transaction is anyway. Members no longer
+ * in the Household (`current` is who still is) are left out of the answer: the rest stay, and with
+ * nobody left it is null.
+ */
+export function likelyFor(earlier: For[], current?: Iterable<string>): For | null {
+	const latest = earlier.slice(0, LIKELY_FOR_LOOKS_AT).map((value) => [...new Set(value)].sort());
+	const [first] = latest;
+	if (!first || latest.length < LIKELY_FOR_AT_LEAST || first.length === 0) return null;
+	if (latest.some((value) => value.join() !== first.join())) return null;
+	const still = current ? new Set(current) : null;
+	const likely = still ? first.filter((memberId) => still.has(memberId)) : first;
+	return likely.length > 0 ? likely : null;
+}

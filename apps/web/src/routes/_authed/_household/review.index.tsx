@@ -96,7 +96,7 @@ import {
 	isFeesGuess,
 	newFeesBucket,
 } from "../../../components/review-fees";
-import { forPicked, ReviewFor } from "../../../components/review-for";
+import { forPicked, ReviewFor, ReviewForLikely } from "../../../components/review-for";
 import { RuleForm } from "../../../components/rule-form";
 import { SectionPending } from "../../../components/section-layout";
 import { Suggested } from "../../../components/suggested";
@@ -2137,6 +2137,15 @@ function ReviewCard({
 							</>
 						)}
 					</div>
+					{/* Issue 155: who its merchant's earlier ones were For, on a line of its own on every card. */}
+					{ghost ? null : (
+						<ReviewForLikely
+							item={item}
+							label={labelOf(item)}
+							members={members}
+							disabled={!hydrated}
+						/>
+					)}
 					{between ? (
 						// The narrowest phones are the shortest: there the tile says it alone.
 						<p

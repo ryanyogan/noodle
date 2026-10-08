@@ -255,7 +255,8 @@ function filingStatements(
 		),
 	];
 	if (withFor) {
-		// A Rule's For, for what it just filed that isn't For anyone yet (ADR-0011).
+		// A Rule's For, for what it just filed that isn't For anyone yet (ADR-0011), less any Member
+		// who has left the Household since.
 		const id = sql`json_extract(r.value, '$.id')`;
 		batch.push(
 			db
@@ -273,7 +274,7 @@ function filingStatements(
 								and ${newlyFiled(id, sql`json_extract(r.value, '$.bucketId')`, sql`json_extract(r.value, '$.commitmentId')`)}
 								and not exists (select 1 from ${transactionFor} x where x.transaction_id = ${id})
 								and exists (select 1 from ${members} where ${members.id} = f.value
-									and ${members.householdId} = ${householdId})`,
+									and ${members.householdId} = ${householdId} and ${members.removedAt} is null)`,
 						),
 				)
 				.onConflictDoNothing(),

@@ -104,12 +104,16 @@ const assignable = (householdId: string, memberId: string, bucketId: string) =>
 		assignableBy(memberId),
 	)})`;
 
-/** Each Rule's For, by Rule. */
+/**
+ * Each Rule's For, by Rule. A Member who has since left the Household is left out (issue 155):
+ * the Rule goes on filing, For whoever of its Members is still there, or nobody in particular.
+ */
 async function forOf(db: Db, householdId: string, ids: string[]): Promise<Map<string, string[]>> {
 	if (ids.length === 0) return new Map();
 	const rows = await db
 		.select({ ruleId: ruleFor.ruleId, memberId: ruleFor.memberId })
 		.from(ruleFor)
+		.innerJoin(members, and(eq(members.id, ruleFor.memberId), isNull(members.removedAt)))
 		.where(
 			and(
 				eq(ruleFor.householdId, householdId),
@@ -184,7 +188,7 @@ export async function listRules(db: Db, viewer: Viewer): Promise<RuleRow[]> {
 	}));
 }
 
-/** Replaces a Rule's For with `forMemberIds` (the Household's Members only), if it's `ruleId`'s. */
+/** Replaces a Rule's For with `forMemberIds` (the Household's Members still in it only), if it's `ruleId`'s. */
 function replaceFor(db: Db, householdId: string, ruleId: SQL, forMemberIds: string[], landed: SQL) {
 	return [
 		db.delete(ruleFor).where(and(sql`${ruleFor.ruleId} = ${ruleId}`, landed)),
@@ -202,7 +206,7 @@ function replaceFor(db: Db, householdId: string, ruleId: SQL, forMemberIds: stri
 						and(
 							landed,
 							sql`exists (select 1 from ${members} where ${members.id} = value
-								and ${members.householdId} = ${householdId})`,
+								and ${members.householdId} = ${householdId} and ${members.removedAt} is null)`,
 						),
 					),
 			)
