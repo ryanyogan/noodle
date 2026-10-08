@@ -21,6 +21,7 @@ import {
 	getLatePay,
 	getPayDayChoices,
 	getPayDays,
+	getPayDaysNotMoved,
 	type ParentPayDays,
 	type ParentPaySaved,
 	type PayDayNotMoved,
@@ -40,6 +41,14 @@ export const payDaysQuery = (month: MonthKey) =>
 		// Under the month's key: Income landing, or changing whose pay it is, refetches it.
 		queryKey: [...monthQuery(month).queryKey, "pay-days"],
 		queryFn: () => getPayDays({ data: { month } }),
+	});
+
+/** The paychecks left in the month they landed in, of this month or due into it, and why. */
+export const payDaysNotMovedQuery = (month: MonthKey) =>
+	queryOptions({
+		// Under the month's key, like the pay days: whatever changes its Income refetches it.
+		queryKey: [...monthQuery(month).queryKey, "pay-days-not-moved"],
+		queryFn: () => getPayDaysNotMoved({ data: { month } }),
 	});
 
 /** The pay days that haven't come in, this month's and last month's. */

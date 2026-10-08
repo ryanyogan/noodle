@@ -3,6 +3,7 @@ import {
 	loadMoneyInLine,
 	loadParentPay,
 	loadPayDayChoices,
+	loadPayDaysNotMoved,
 	type MoneyInKindResult,
 	matchPayDays,
 	type PayDayChoice,
@@ -22,6 +23,7 @@ import {
 	MAX_CENTS,
 	type MonthKey,
 	monthKeyAt,
+	monthOfDay,
 	parsePaySchedule,
 	type SalaryPay,
 } from "@noodle/domain";
@@ -101,6 +103,20 @@ export const getPayDays = createServerFn({ method: "GET" })
 	.handler(
 		async ({ data, context }): Promise<ParentPayDays[]> =>
 			(await readPayDays(context.household, [data.month])).parents,
+	);
+
+/**
+ * The paychecks left in the month they landed in that `month` is one side of (the month they
+ * landed in, or their pay day's), and why. Read from what is kept, so a reload still says them.
+ */
+export const getPayDaysNotMoved = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ month: monthKeySchema }))
+	.handler(
+		async ({ data, context }): Promise<PayDayNotMoved[]> =>
+			(await loadPayDaysNotMoved(getDb(), context.household.id)).filter(
+				(line) => monthOfDay(line.date) === data.month || monthOfDay(line.payDay) === data.month,
+			),
 	);
 
 /**

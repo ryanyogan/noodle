@@ -65,25 +65,12 @@ const payDayFree = (householdId: string, memberId: string, day: DayKey): SQL =>
 		and o.pay_member_id = ${memberId} and o.pay_day = ${day} and o.id <> income.id
 		and ${sql.raw(incomeCountsRaw("o.id"))})`;
 
-/**
- * Keeps on the Household's Income the pay days it should have (`payDayMatches`): all of it, or
- * `only` the lines that have just arrived or changed. With `claim` (a Parent has just said how
- * they are paid) a line nobody has said whose pay it is becomes the Parent's whose paycheck it
- * can only be. Safe to run again: a line with a pay day, or one a Parent spoke for by hand, is
- * never touched. A line that would change month is skipped, not failed, while a month it would
- * leave or join has been closed, or Extra income decided in the month it would leave needs it.
- */
-export async function matchPayDays(
-	db: Db,
-	householdId: string,
-	options: { claim?: boolean; only?: readonly string[] } = {},
-): Promise<PayDaysMatched> {
-	const none: PayDaysMatched = { matched: 0, months: [], notMoved: [] };
-	if (options.only && options.only.length === 0) return none;
+/** The salaried Parents and the Household's Income that counts, as `payDayMatches` reads them. */
+async function readPay(db: Db, householdId: string) {
 	const parents = (await loadParentPay(db, householdId)).flatMap((parent) =>
 		parent.pay ? [{ memberId: parent.memberId, pay: parent.pay }] : [],
 	);
-	if (parents.length === 0) return none;
+	if (parents.length === 0) return { parents, lines: [] };
 	const rows = await db
 		.select({
 			id: income.id,
@@ -105,6 +92,26 @@ export async function matchPayDays(
 		payDay: row.payDay as DayKey | null,
 		byHand: row.byHand === true,
 	}));
+	return { parents, lines };
+}
+
+/**
+ * Keeps on the Household's Income the pay days it should have (`payDayMatches`): all of it, or
+ * `only` the lines that have just arrived or changed. With `claim` (a Parent has just said how
+ * they are paid) a line nobody has said whose pay it is becomes the Parent's whose paycheck it
+ * can only be. Safe to run again: a line with a pay day, or one a Parent spoke for by hand, is
+ * never touched. A line that would change month is skipped, not failed, while a month it would
+ * leave or join has been closed, or Extra income decided in the month it would leave needs it.
+ */
+export async function matchPayDays(
+	db: Db,
+	householdId: string,
+	options: { claim?: boolean; only?: readonly string[] } = {},
+): Promise<PayDaysMatched> {
+	const none: PayDaysMatched = { matched: 0, months: [], notMoved: [] };
+	if (options.only && options.only.length === 0) return none;
+	const { parents, lines } = await readPay(db, householdId);
+	if (parents.length === 0) return none;
 	const matches = payDayMatches({ parents, lines, claim: options.claim, only: options.only });
 	if (matches.length === 0) return none;
 	const lineOf = new Map(lines.map((line) => [line.id, line]));
@@ -182,6 +189,60 @@ export async function matchPayDays(
 		};
 	});
 	return { matched: kept.size, months: [...months].sort(), notMoved };
+}
+
+/**
+ * The paychecks the automatic rule is leaving in the month they landed in, and why: what
+ * `matchPayDays` would report as not moved were a Parent to save how they are paid now, read
+ * without writing anything. A line that could move (nothing holds it) is not one of them.
+ */
+export async function loadPayDaysNotMoved(db: Db, householdId: string): Promise<PayDayNotMoved[]> {
+	const { parents, lines } = await readPay(db, householdId);
+	if (parents.length === 0) return [];
+	const lineOf = new Map(lines.map((line) => [line.id, line]));
+	const left = payDayMatches({ parents, lines, claim: true }).flatMap((match) => {
+		const line = lineOf.get(match.lineId);
+		const to = monthOfDay(match.payDay);
+		return line && monthOfDay(line.date) !== to
+			? [{ line, payDay: match.payDay, from: monthOfDay(line.date), to }]
+			: [];
+	});
+	if (left.length === 0) return [];
+	const closed = new Set(
+		await closedAmong(db, householdId, [...new Set(left.flatMap(({ from, to }) => [from, to]))]),
+	);
+	// Of the rest, the ones Extra income decided in the month they would leave still needs.
+	const open = left.filter(({ from, to }) => !closed.has(from) && !closed.has(to));
+	const needed = new Set<string>();
+	for (const from of new Set(open.map((one) => one.from))) {
+		const ids = open.filter((one) => one.from === from).map((one) => one.line.id);
+		const rows = await db
+			.select({ id: income.id })
+			.from(income)
+			.where(
+				and(
+					eq(income.householdId, householdId),
+					sql`${income.id} in (select value from json_each(${JSON.stringify(ids)}))`,
+					sql`not (${stillCovered(householdId, from)})`,
+				),
+			);
+		for (const row of rows) needed.add(row.id);
+	}
+	return left.flatMap(({ line, payDay, from, to }): PayDayNotMoved[] => {
+		const shut = closed.has(from) ? from : closed.has(to) ? to : null;
+		if (!shut && !needed.has(line.id)) return [];
+		return [
+			{
+				lineId: line.id,
+				note: line.note,
+				amount: line.amount,
+				date: line.date,
+				payDay,
+				reason: shut ? "month-closed" : "extra-income",
+				month: shut ?? from,
+			},
+		];
+	});
 }
 
 /** A pay day a line can be said to be the pay for; `taken` when another line already is. */

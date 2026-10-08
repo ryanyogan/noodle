@@ -789,6 +789,7 @@ export {
 export { loadParentPay, type ParentPay, setParentPay } from "./parent-pay";
 export {
 	loadPayDayChoices,
+	loadPayDaysNotMoved,
 	matchPayDays,
 	type PayDayChoice,
 	type PayDayNotMoved,
