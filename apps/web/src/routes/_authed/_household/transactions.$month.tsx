@@ -48,14 +48,21 @@ import {
 	Search,
 	X,
 } from "lucide-react";
-import { type ReactNode, Suspense, useEffect, useId, useRef, useState } from "react";
+import {
+	type ReactNode,
+	Suspense,
+	useEffect,
+	useId,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { z } from "zod";
 import { QuickAddLink } from "../../../components/app-shell";
 import { type FilterOption, FilterSelect } from "../../../components/filter-select";
 import { DetailPending, sectionHeaderOverItem } from "../../../components/master-detail";
 import { MoneyInSection } from "../../../components/money-in";
 import { OwedBackList } from "../../../components/owed-back-list";
-import { TransactionEditor } from "../../../components/transaction-editor";
 import { useBringsSpendingIn } from "../../../components/transaction-list";
 import { DeleteSelectedSheet, SelectionBar } from "../../../components/transaction-selection";
 import { MonthSummary } from "../../../components/transaction-summary";
@@ -69,7 +76,14 @@ import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
 import { forFilterSchema, SEARCH_MAX, transactionSortSchema } from "../../../server/transactions";
 import { ShownFilters } from "../../../transaction-filters-shown";
-import { animateTransactionClose, cancelTransactionClose } from "../../../transaction-motion";
+import {
+	animateTransactionClose,
+	cancelTransactionClose,
+	forgetListPlace,
+	rememberListPlace,
+	restoreListPlace,
+	slidesInFromList,
+} from "../../../transaction-motion";
 import {
 	RANGE_OPTIONS,
 	rangeName,
@@ -86,14 +100,11 @@ import {
 import { TRANSACTION_SHOWS } from "../../../transaction-summary";
 import { escapeStep } from "../../../transaction-table";
 import {
-	dateChange,
-	monthOfTransaction,
 	rangeBucketsQuery,
 	type TransactionChange,
 	type TransactionFilters,
 	type TransactionRow,
 	type TransactionSort,
-	transactionLabel,
 	transactionsQuery,
 	useTransactionChange,
 } from "../../../transactions";
@@ -191,23 +202,6 @@ function TransactionsPage() {
 	const plan = { ...data.plan, buckets: data.plan.buckets.filter((b) => canAssign(b, parentId)) };
 	const members = useSuspenseQuery(membersQuery()).data;
 	const { accounts } = useGoals();
-	const [editing, setEditing] = useState<TransactionRow | null>(null);
-	// A row of another month (a list of more than a month, issue 99) is edited against its own
-	// month's Plan: the sheet waits for it.
-	const editingMonth = editing ? monthOfTransaction(editing) : month;
-	const otherMonth = useQuery({
-		...monthQuery(editingMonth),
-		enabled: editingMonth !== month,
-	}).data;
-	const editingPlan =
-		editingMonth === month
-			? plan
-			: otherMonth
-				? {
-						...otherMonth.plan,
-						buckets: otherMonth.plan.buckets.filter((b) => canAssign(b, parentId)),
-					}
-				: null;
 	// Select mode (#97): what is selected, by ID or as "all that match", never by rows on screen.
 	const [picking, setPicking] = useState<Picking | null>(null);
 	const [confirming, setConfirming] = useState(false);
@@ -217,36 +211,56 @@ function TransactionsPage() {
 	const hydrated = useHydrated();
 	// The Transaction open under its row in the table (its route is this one's child).
 	const picked = useParams({ strict: false, select: (params) => params.transactionId });
-	// From lg a Transaction opens in place, under its row, at its own address; on a phone, in a
-	// sheet. A click on the row that is open closes it again.
+	// A Transaction opens at its own address: from lg in place, under its row, where a click on
+	// the row that is open closes it again; on a phone as a page of its own, which slides in from
+	// the right and starts at its top (ADR-0024, 2026-10-08: the sheet a phone used to open had no
+	// room for a Transaction, and no Owed back).
 	const onEdit = (transaction: TransactionRow) => {
 		// While selecting where rows are stacked (a phone: no checkbox column), a tap selects or
 		// unselects instead of opening. In columns the checkbox selects and the row still opens.
 		if (picking && tableIsStacked()) return setPicking(togglePicked(picking, transaction.id));
-		if (window.matchMedia("(min-width: 1024px)").matches) {
-			// Pressed while a pane is still closing: that close is off. Its own row stays open, and
-			// another row opens without the first one's ending closing it.
-			const reopened = cancelTransactionClose();
-			if (transaction.id === picked) {
-				if (reopened) return;
-				return animateTransactionClose(
-					() =>
-						void navigate({
-							to: "/transactions/$month",
-							params: { month },
-							search: true,
-							resetScroll: false,
-						}),
-				);
-			}
-			void navigate({
+		if (!window.matchMedia("(min-width: 1024px)").matches) {
+			rememberListPlace(transaction.id);
+			return void navigate({
 				to: "/transactions/$month/$transactionId",
 				params: { month, transactionId: transaction.id },
 				search: true,
-				resetScroll: false,
 			});
-		} else setEditing(transaction);
+		}
+		// Pressed while a pane is still closing: that close is off. Its own row stays open, and
+		// another row opens without the first one's ending closing it.
+		const reopened = cancelTransactionClose();
+		if (transaction.id === picked) {
+			if (reopened) return;
+			return animateTransactionClose(
+				() =>
+					void navigate({
+						to: "/transactions/$month",
+						params: { month },
+						search: true,
+						resetScroll: false,
+					}),
+			);
+		}
+		void navigate({
+			to: "/transactions/$month/$transactionId",
+			params: { month, transactionId: transaction.id },
+			search: true,
+			resetScroll: false,
+		});
 	};
+	// Back from a Transaction's page on a phone, however it was left (Back, Esc, Save, Delete):
+	// the list is where it was scrolled to, with focus on the row. After the rows are drawn again
+	// and before the screen is, so the list is never seen at the wrong place.
+	const wasPicked = useRef(picked);
+	useLayoutEffect(() => {
+		const was = wasPicked.current;
+		wasPicked.current = picked;
+		if (was && !picked) restoreListPlace(was);
+	}, [picked]);
+	// Gone from Transactions altogether: the place kept is no use to another visit.
+	useEffect(() => forgetListPlace, []);
+	const slides = slidesInFromList(picked);
 	// Esc closes the pane as it closes the sheet, unless a menu, picker or dialog is open to take
 	// it. It goes to the list's address, not Back: a Transaction's address opened on its own has
 	// nothing to go back to. Listened for here rather than in the pane, which hydrates later than
@@ -454,9 +468,22 @@ function TransactionsPage() {
 								detail={
 									picked ? (
 										<ShownFilters.Provider value={filters}>
-											<Suspense fallback={<DetailPending />}>
-												<Outlet />
-											</Suspense>
+											{/* Tapped in the list on a phone: its page comes in from the right, as
+											    the desktop's panel does (ADR-0047). Clipped at the screen's edges
+											    meanwhile, so the page can't be scrolled sideways after it. Only
+											    then: an address opened on its own is simply there. */}
+											<div
+												className={cn(
+													slides &&
+														"max-lg:-mx-(--gutter) max-lg:overflow-x-clip max-lg:px-(--gutter)",
+												)}
+											>
+												<div className={cn(slides && "max-lg:animate-side-in")}>
+													<Suspense fallback={<DetailPending />}>
+														<Outlet />
+													</Suspense>
+												</div>
+											</div>
 										</ShownFilters.Provider>
 									) : undefined
 								}
@@ -476,25 +503,6 @@ function TransactionsPage() {
 				onDeleted={() => {
 					setConfirming(false);
 					setPicking(null);
-				}}
-			/>
-			<TransactionEditor
-				paymentOptions
-				transaction={editingPlan ? editing : null}
-				today={asOf}
-				plan={editingPlan ?? plan}
-				members={members}
-				parentId={parentId}
-				onClose={() => setEditing(null)}
-				onChange={(next) => {
-					if (!editing) return;
-					change.mutate({ transaction: editing, label: transactionLabel(editing), next });
-					setEditing(null);
-				}}
-				onDate={(date) => {
-					if (!editing) return;
-					change.mutate(dateChange(editing, date));
-					setEditing(null);
 				}}
 			/>
 		</>

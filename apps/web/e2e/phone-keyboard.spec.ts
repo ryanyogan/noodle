@@ -148,7 +148,13 @@ test("Quick Add's For can be reached and changed on a short screen, and with the
 	}
 });
 
-test("Edit Transaction stays above the keyboard with Save in view", async ({ browser }) => {
+// A Transaction on a phone is a page, not a sheet (ADR-0024, 2026-10-08): the field being typed
+// in is above the keyboard, the page doesn't jump, and what was typed is kept. Its Save is at the
+// end of the page, which Safari lets the Parent scroll to over the keyboard (the page ends clear
+// of the tab bar); the stand-in keyboard here can't pan the page, so that isn't measured.
+test("a Transaction's page keeps the field being typed in above the keyboard, and saves", async ({
+	browser,
+}) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 	const quickAdd = page.getByRole("dialog", { name: "Quick Add" });
@@ -167,27 +173,26 @@ test("Edit Transaction stays above the keyboard with Save in view", async ({ bro
 		.locator("[data-slot=data-table-body]")
 		.getByRole("button", { name: /^Costco,/ })
 		.click();
-	const sheet = page.getByRole("dialog").filter({
+	const sheet = page.locator("[data-slot=transaction-detail]").filter({
 		has: page.getByRole("heading", { name: "Edit Transaction" }),
 	});
 	await expect(sheet).toBeVisible();
+	await expect(page.getByRole("dialog")).toHaveCount(0);
 	const keyboardGone = await withKeyboard(page, keyboardHeight);
-	const before = await scrollY(page);
 
 	const note = sheet.getByLabel("Name");
 	await note.click();
+	const before = await scrollY(page);
 	await page.keyboard.press("End");
 	await page.keyboard.type(" for the week");
-	await expectAboveKeyboard(page, sheet);
 	await expectAboveKeyboard(page, note);
-	await expectAboveKeyboard(page, sheet.getByRole("button", { name: "Save" }));
 	expect(await scrollY(page)).toBe(before);
 	await expect(note).toHaveValue("Costco for the week");
 
 	const amount = sheet.getByLabel("Amount");
 	await amount.click();
 	await amount.fill("12.50");
-	await expectAboveKeyboard(page, sheet.getByRole("button", { name: "Save" }));
+	await expectAboveKeyboard(page, amount);
 	await expect(note).toHaveValue("Costco for the week");
 
 	await keyboardGone();

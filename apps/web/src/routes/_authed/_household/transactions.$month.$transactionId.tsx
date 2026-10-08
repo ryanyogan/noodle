@@ -30,8 +30,8 @@ const inTable =
 
 /**
  * A Transaction in its month's list (#67, issue 99): from lg its editor opens in place, under its
- * row in the table, which keeps its columns and its place; below lg it is a page with Back (a tap
- * on a phone still opens the sheet).
+ * row in the table, which keeps its columns and its place; below lg it is a page with Back, which
+ * a tap on a row opens too, sliding in from the right (ADR-0024, 2026-10-08).
  */
 export const Route = createFileRoute("/_authed/_household/transactions/$month/$transactionId")({
 	pendingComponent: DetailPending,

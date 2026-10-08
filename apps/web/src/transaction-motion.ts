@@ -1,6 +1,50 @@
 /** How long the pane takes to shut. */
 const CLOSE_MS = 180;
 
+/**
+ * The Transaction a phone opened from its list, and how far the list was scrolled then. Below lg
+ * a Transaction is a page of its own (ADR-0024), started at its top; Back puts the list where it
+ * was, with focus on the row.
+ */
+let fromList: { id: string; y: number } | null = null;
+
+/** A row tapped below lg: its page slides in from the right, and the list's place is kept. */
+export function rememberListPlace(id: string) {
+	fromList = { id, y: window.scrollY };
+}
+
+/** The list has gone (another page): the place kept is no use to the next visit. */
+export function forgetListPlace() {
+	fromList = null;
+}
+
+/**
+ * Whether this Transaction's page was opened from the list just now, so it slides in. Never for
+ * an address opened on its own, or reached with previous and next: those are simply there.
+ */
+export function slidesInFromList(id: string | undefined) {
+	return id !== undefined && fromList?.id === id;
+}
+
+/**
+ * Back at the list below lg: where it was scrolled to when a row was tapped, with focus on the
+ * row of the Transaction just left (the one stepped to with previous or next, if that was used).
+ * Called once the list's rows are drawn again. Nothing to do when the address was opened on its
+ * own, or from lg, where the list never left.
+ */
+export function restoreListPlace(id: string) {
+	const place = fromList;
+	fromList = null;
+	if (!place || window.matchMedia("(min-width: 1024px)").matches) return;
+	window.scrollTo(0, place.y);
+	const row = document.querySelector<HTMLElement>(
+		`[data-transaction="${CSS.escape(id)}"] button:not([role=checkbox]):not([data-cell])`,
+	);
+	row?.focus({ preventScroll: true });
+	// Still where it was unless previous and next went to a row off the screen.
+	row?.scrollIntoView({ block: "nearest" });
+}
+
 /** The close that is under way, if any: its pane and the animation shutting it. */
 let closing: { region: HTMLElement; animation: Animation } | null = null;
 
