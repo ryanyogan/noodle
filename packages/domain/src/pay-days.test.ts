@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Cents, DayKey, MonthKey } from "./index";
 import {
 	expectedPaychecks,
+	latePay,
 	type PaycheckLine,
 	type PaySchedule,
 	parsePaySchedule,
@@ -215,5 +216,55 @@ describe("expectedPaychecks", () => {
 	it("ignores Income nowhere near a paycheck or a pay day", () => {
 		const days = read([line("a", "2026-10-08", 2500), line("b", "2026-10-15", 40)]);
 		expect(days.map((day) => day.state)).toEqual(["late", "expected"]);
+	});
+});
+
+describe("latePay", () => {
+	const pay = { paycheck: cents(2500), schedule: twice() };
+	const of = (lines: PaycheckLine[], today: string, since: string | null = "2026-08-01") =>
+		latePay(
+			[
+				{
+					memberId: "m1",
+					name: "Robin",
+					payDays: (["2026-09", "2026-10"] as MonthKey[]).flatMap((month) =>
+						expectedPaychecks({ pay, month, lines, today: today as DayKey }),
+					),
+				},
+			],
+			since as DayKey | null,
+		);
+
+	it("is nothing while a pay day's days are not over, and the pay day once they are", () => {
+		const september = [line("a", "2026-09-01", 2500), line("b", "2026-09-15", 2500)];
+		expect(of(september, "2026-10-06")).toEqual([]);
+		expect(of(september, "2026-10-07")).toEqual([
+			{ memberId: "m1", name: "Robin", day: "2026-10-01", expected: cents(2500) },
+		]);
+	});
+
+	it("goes once the paycheck is in, by the rule or kept by hand on a line far from the day", () => {
+		const september = [line("a", "2026-09-01", 2500), line("b", "2026-09-15", 2500)];
+		expect(of([...september, line("c", "2026-10-06", 2440)], "2026-10-07")).toEqual([]);
+		const byHand = { ...line("d", "2026-10-12", 1900), payDay: "2026-10-01" as DayKey };
+		expect(of([...september, byHand], "2026-10-13")).toEqual([]);
+	});
+
+	it("lists the month before's with this month's, earliest first", () => {
+		expect(of([], "2026-10-07").map((late) => late.day)).toEqual([
+			"2026-09-01",
+			"2026-09-15",
+			"2026-10-01",
+		]);
+	});
+
+	it("leaves out a pay day whose days were over before the earliest Income Noodle has", () => {
+		// Sep 15's days end Sep 20: Income from the 20th can still be it, from the 21st cannot.
+		expect(of([], "2026-10-07", "2026-09-20").map((late) => late.day)).toEqual([
+			"2026-09-15",
+			"2026-10-01",
+		]);
+		expect(of([], "2026-10-07", "2026-09-21").map((late) => late.day)).toEqual(["2026-10-01"]);
+		expect(of([], "2026-10-07", null)).toEqual([]);
 	});
 });

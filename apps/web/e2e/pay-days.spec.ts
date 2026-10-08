@@ -3,7 +3,7 @@ import { ulid } from "ulid";
 import { measure } from "./overflow";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { createPlannedHousehold, hydrated, signedInPage } from "./session";
 
 // How each Parent is paid, on Plan › Income (issue 156, phase 1): hourly until a Parent says, or
 // on a salary with one paycheck and its pay days, whose expected paychecks are listed for the
@@ -156,4 +156,75 @@ test("monthly pay on the 31st is listed on a shorter month's last day", async ({
 	const last = new Date(Date.UTC(year ?? 1970, monthNumber ?? 1, 0)).toISOString().slice(0, 10);
 	await expect(paychecks(page)).toHaveCount(1);
 	await expect(paychecks(page)).toContainText(`Pay for ${shortDay(last)}`);
+});
+
+test("a pay day that hasn't come in is said on This Month and in the Check-in, until the pay is in", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 1280, height: 900 },
+	});
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const month = /\/month\/(\d{4}-\d{2})/.exec(page.url())?.[1];
+	if (!month) throw new Error(`No month in ${page.url()}`);
+	const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+	// Paid monthly, on the day eight days ago: its five days after are over. Noodle has had
+	// Income for twenty days, so the pay day a month before that is from before its records.
+	const due = ago(8);
+	const household = `(select household_id from members where clerk_user_id = ${q(parent.userId)})`;
+	const member = `(select id from members where clerk_user_id = ${q(parent.userId)})`;
+	const schedule = JSON.stringify({ kind: "monthly", day: Number(due.slice(8)) });
+	await seedSql([
+		`update members set paycheck_cents = 250000, pay_schedule = ${q(schedule)} where clerk_user_id = ${q(parent.userId)}`,
+		`insert into income (id, household_id, date, amount_cents, note) values (${q(ulid())}, ${household}, ${q(ago(20))}, 4200, 'Interest earned')`,
+	]);
+	const said = new RegExp(`’s pay for ${shortDay(due)} hasn’t come in`);
+
+	await page.goto(`/month/${month}`);
+	const late = page.getByTestId("late-pay");
+	await expect(late.getByRole("listitem")).toHaveCount(1);
+	await expect(late).toContainText(said);
+	await expect(late).toContainText("About $2,500 was due");
+	await expect(page.getByRole("region", { name: "To do" })).toContainText("Pay hasn’t come in");
+
+	// A phone: the closed strip names it, and nothing runs off the side with it open.
+	await page.setViewportSize({ width: 320, height: 720 });
+	const strip = page.getByRole("region", { name: "To do" }).getByRole("button").first();
+	await expect(strip).toContainText("Pay hasn’t come in");
+	await hydrated(strip);
+	await strip.click();
+	await expect(late).toContainText(said);
+	let size = await measure(page);
+	expect(size.sticking).toEqual([]);
+	expect(size.scrollWidth).toBeLessThanOrEqual(size.width);
+
+	// The Check-in says it too, over its cards, and the line leads to that month's Plan › Income.
+	await page.goto("/check-in");
+	await expect(late).toContainText(said);
+	size = await measure(page);
+	expect(size.sticking).toEqual([]);
+	expect(size.scrollWidth).toBeLessThanOrEqual(size.width);
+	await page.setViewportSize({ width: 1280, height: 900 });
+	const link = late.getByRole("link", { name: said });
+	await hydrated(link);
+	await link.click();
+	await expect(page).toHaveURL(new RegExp(`/plan/${due.slice(0, 7)}/income`));
+	const row = paychecks(page).filter({ hasText: `Pay for ${shortDay(due)}` });
+	await expect(row).toHaveAttribute("data-state", "late");
+	await expect(row).toContainText("Hasn’t come in");
+
+	// The pay lands a day after the pay day: it is In, and nothing says it hasn't come in.
+	await seedSql([
+		`insert into income (id, household_id, date, amount_cents, note, pay_member_id) values (${q(ulid())}, ${household}, ${q(ago(7))}, 251040, 'Harbor Freight Lines payroll', ${member})`,
+	]);
+	await page.reload();
+	await expect(row).toHaveAttribute("data-state", "in");
+	await page.goto(`/month/${month}`);
+	await expect(page.getByRole("region", { name: "Free to Spend" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Buckets" })).toBeVisible();
+	await expect(late).toHaveCount(0);
+	await page.goto("/check-in");
+	await expect(page.getByRole("heading", { name: "Check-in" })).toBeVisible();
+	await expect(late).toHaveCount(0);
 });

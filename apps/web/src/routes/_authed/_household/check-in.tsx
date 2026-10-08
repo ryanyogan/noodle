@@ -30,6 +30,7 @@ import {
 	checkInStackLine,
 	checkInSummaryLines,
 } from "../../../check-in";
+import { LatePayLines } from "../../../components/late-pay";
 import { PerkResetLine } from "../../../components/perk-reset";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, fullDay, monthName, shortDay } from "../../../format";
@@ -164,7 +165,9 @@ function CheckInPage() {
 				)}
 			>
 				{/* Above both columns, so the steps and the card start on one line. */}
-				<div className="empty:hidden lg:col-span-full">
+				<div className="grid gap-2 empty:hidden lg:col-span-full">
+					{/* A pay day that hasn't come in: said here, never a card to deal with or a Nudge. */}
+					<LatePayLines />
 					<PerkResetLine />
 				</div>
 				{view.stack.length > 0 ? (

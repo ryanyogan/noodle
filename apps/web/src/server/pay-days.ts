@@ -17,7 +17,11 @@ import {
 	dayKeyAt,
 	type ExpectedPaycheck,
 	expectedPaychecks,
+	type LatePay,
+	latePay,
 	MAX_CENTS,
+	type MonthKey,
+	monthKeyAt,
 	parsePaySchedule,
 	type SalaryPay,
 } from "@noodle/domain";
@@ -47,40 +51,68 @@ export type ParentPayDays = {
 };
 
 /**
- * Each Parent with how they are paid and, for one on a salary, the month's expected paychecks
- * read against Income that counts and is their pay: the pay day kept on a line first, then the
- * lines that fit one and have none kept yet.
+ * Each Parent's expected paychecks in each of `months` (consecutive, earliest first), read against
+ * Income that counts and is their pay: the pay day kept on a line first, then the lines that fit
+ * one and have none kept yet. With the day of the earliest Income those months can see.
  */
+async function readPayDays(
+	household: { id: string; timeZone: string },
+	months: readonly MonthKey[],
+): Promise<{ parents: ParentPayDays[]; since: DayKey | null }> {
+	const parents = await loadParentPay(getDb(), household.id);
+	const [first, last] = [months[0], months.at(-1)];
+	if (!first || !last || !parents.some((parent) => parent.pay)) {
+		return { parents: parents.map((parent) => ({ ...parent, payDays: [] })), since: null };
+	}
+	// The months either side too: a paycheck lands up to a few days outside its pay day's
+	// month, and one line is one paycheck only, the neighbouring months' pay days included.
+	const lines = (
+		await loadMoneyIn(getDb(), household.id, {
+			from: `${addMonths(first, -2)}-01`,
+			until: `${addMonths(last, 3)}-01`,
+		})
+	).filter((line) => line.kind === "income" && !line.needsReview);
+	const today = dayKeyAt(new Date(), household.timeZone);
+	const since = lines.reduce<DayKey | null>(
+		(earliest, line) => (earliest === null || line.date < earliest ? line.date : earliest),
+		null,
+	);
+	return {
+		since,
+		parents: parents.map((parent) => {
+			const pay = parent.pay;
+			const own = lines
+				.filter((line) => line.whosePay === parent.memberId)
+				.map((line) => ({ ...line, byHand: line.payDayByHand }));
+			return {
+				...parent,
+				payDays: pay
+					? months.flatMap((month) => expectedPaychecks({ pay, month, lines: own, today }))
+					: [],
+			};
+		}),
+	};
+}
+
+/** Each Parent with how they are paid and, for one on a salary, the month's expected paychecks. */
 export const getPayDays = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ month: monthKeySchema }))
-	.handler(async ({ data, context }): Promise<ParentPayDays[]> => {
-		const parents = await loadParentPay(getDb(), context.household.id);
-		if (!parents.some((parent) => parent.pay)) {
-			return parents.map((parent) => ({ ...parent, payDays: [] }));
-		}
-		// The months either side too: a paycheck lands up to a few days outside its pay day's
-		// month, and one line is one paycheck only, the neighbouring months' pay days included.
-		const lines = (
-			await loadMoneyIn(getDb(), context.household.id, {
-				from: `${addMonths(data.month, -2)}-01`,
-				until: `${addMonths(data.month, 3)}-01`,
-			})
-		).filter((line) => line.kind === "income" && !line.needsReview);
-		const today = dayKeyAt(new Date(), context.household.timeZone);
-		return parents.map((parent) => ({
-			...parent,
-			payDays: parent.pay
-				? expectedPaychecks({
-						pay: parent.pay,
-						month: data.month,
-						lines: lines
-							.filter((line) => line.whosePay === parent.memberId)
-							.map((line) => ({ ...line, byHand: line.payDayByHand })),
-						today,
-					})
-				: [],
-		}));
+	.handler(
+		async ({ data, context }): Promise<ParentPayDays[]> =>
+			(await readPayDays(context.household, [data.month])).parents,
+	);
+
+/**
+ * The pay days that haven't come in (`latePay`): this month's and last month's, a pay day near a
+ * month's end being due into the next. What This Month and the Check-in say plainly.
+ */
+export const getLatePay = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(async ({ context }): Promise<LatePay[]> => {
+		const month = monthKeyAt(new Date(), context.household.timeZone);
+		const { parents, since } = await readPayDays(context.household, [addMonths(month, -1), month]);
+		return latePay(parents, since);
 	});
 
 const payScheduleSchema = z.unknown().transform((value, ctx) => {

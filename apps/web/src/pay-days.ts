@@ -2,6 +2,7 @@ import {
 	type Cents,
 	DEFAULT_PAY_DAYS,
 	type ExpectedPaycheck,
+	type LatePay,
 	type MonthKey,
 	monthOfDay,
 	type PaySchedule,
@@ -15,6 +16,7 @@ import { MoneyInRefused } from "./money-in";
 import { monthQuery, monthsKey } from "./queries";
 import type { MoneyInLine } from "./server/money-in";
 import {
+	getLatePay,
 	getPayDayChoices,
 	getPayDays,
 	type ParentPayDays,
@@ -37,6 +39,19 @@ export const payDaysQuery = (month: MonthKey) =>
 		queryKey: [...monthQuery(month).queryKey, "pay-days"],
 		queryFn: () => getPayDays({ data: { month } }),
 	});
+
+/** The pay days that haven't come in, this month's and last month's. */
+export const latePayQuery = () =>
+	queryOptions({
+		// Under the months' key: Income landing, or a Parent saying whose pay or which pay day,
+		// refetches it.
+		queryKey: [...monthsKey, "late-pay"],
+		queryFn: () => getLatePay(),
+	});
+
+/** "Robin's pay for Oct 15 hasn't come in". */
+export const latePayText = (late: LatePay) =>
+	`${late.name}’s pay for ${shortDay(late.day)} hasn’t come in`;
 
 /** Says how a Parent is paid; every month's expected paychecks are read again after. */
 export function useSetParentPay() {

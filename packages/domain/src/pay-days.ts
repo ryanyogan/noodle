@@ -281,3 +281,29 @@ export function nearbyPayDays(schedule: PaySchedule, date: DayKey): DayKey[] {
 		.flatMap((by) => payDaysIn(schedule, addMonths(monthOfDay(date), by)))
 		.filter((day) => Math.abs(daysBetween(day, date)) <= PAY_DAY_BY_HAND_DAYS);
 }
+
+/** A pay day whose days are over with no paycheck in: "Sam's pay for Oct 15 hasn't come in". */
+export type LatePay = { memberId: string; name: string; day: DayKey; expected: Cents };
+
+/**
+ * The pay days that haven't come in, among each Parent's expected paychecks (`expectedPaychecks`,
+ * of any months), earliest first. One goes once Income is its paycheck, by the rule or by hand.
+ * `since` is the day of the earliest Income Noodle has: a pay day whose days were over before
+ * then is from before the Household's records, not late, and with no Income at all none is.
+ */
+export function latePay(
+	parents: readonly { memberId: string; name: string; payDays: readonly ExpectedPaycheck[] }[],
+	since: DayKey | null,
+): LatePay[] {
+	if (since === null) return [];
+	return parents
+		.flatMap(({ memberId, name, payDays }) =>
+			payDays
+				.filter(
+					(paycheck) =>
+						paycheck.state === "late" && addDays(paycheck.day, PAY_DAY_WINDOW_DAYS) >= since,
+				)
+				.map(({ day, expected }) => ({ memberId, name, day, expected })),
+		)
+		.sort((a, b) => a.day.localeCompare(b.day));
+}

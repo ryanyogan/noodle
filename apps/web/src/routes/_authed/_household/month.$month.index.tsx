@@ -55,6 +55,7 @@ import {
 	MonthIncome,
 } from "../../../components/extra-income";
 import { FreeWorking, freeLedgerRows } from "../../../components/free-working";
+import { LatePayLines, useLatePay } from "../../../components/late-pay";
 import { LowerTakeHomePayNote, useLowerTakeHomePay } from "../../../components/lower-take-home-pay";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthGlance, monthSentence, monthStatus } from "../../../components/month-glance";
@@ -156,6 +157,8 @@ function ThisMonth() {
 	const current = monthOfDay(state.asOf);
 	const isCurrent = month === current;
 	const perkLine = usePerkResetSoon();
+	// A salaried Parent's pay days that haven't come in (issue 156), said in the running month.
+	const latePay = useLatePay();
 	// What the To do strip holds is decided here, from the same data each prompt reads.
 	const getStarted = useGetStartedSteps(state);
 	const setupState = useSuspenseQuery(setupQuery()).data;
@@ -387,6 +390,12 @@ function ThisMonth() {
 														}
 													/>
 												),
+											},
+										isCurrent &&
+											latePay.length > 0 && {
+												label: "Pay hasn’t come in",
+												open: true,
+												content: <LatePayLines late={latePay} />,
 											},
 										isCurrent &&
 											perkLine !== null && {
