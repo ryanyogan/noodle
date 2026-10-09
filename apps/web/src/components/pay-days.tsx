@@ -38,6 +38,7 @@ import {
 } from "../pay-days";
 import type { PayDayNotMoved } from "../server/pay-days";
 import { AmountInput } from "./goals";
+import { PayToCome } from "./pay-to-come";
 
 // "How you're paid" on Plan › Income (issue 156): each Parent on a salary or hourly, and a
 // salaried Parent's expected paychecks for the month, each read as in once Income that is their
@@ -69,7 +70,8 @@ export function PayDays({ month }: { month: MonthKey }) {
 				</h2>
 				<p className="text-sm text-muted-foreground">
 					On a salary, Noodle lists the paychecks to expect each month, says which are in, and
-					counts each in its pay day’s month. Hourly pay, or pay that varies, counts as it arrives.
+					counts each in its pay day’s month. Hourly pay, or pay that varies, counts as it arrives;
+					pay that’s earned and not in yet can be kept here as pay to come.
 				</p>
 			</div>
 			{parents ? (
@@ -99,6 +101,8 @@ export function PayDays({ month }: { month: MonthKey }) {
 			{salaried.map((parent) => (
 				<ExpectedPaychecks key={parent.memberId} month={month} parent={parent} />
 			))}
+			{/* What a Parent whose pay varies has earned that isn't in yet (issue 159). */}
+			<PayToCome month={month} />
 			{notMoved.length > 0 ? (
 				<section aria-labelledby="pay-not-moved" data-testid="pay-not-moved" className="grid gap-2">
 					<h3 id="pay-not-moved" className="text-sm font-medium">

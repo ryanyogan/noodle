@@ -94,7 +94,7 @@ export async function loadPayLines(
 	db: Db,
 	householdId: string,
 	pays: readonly PayToCome[],
-): Promise<PayToComeLine[]> {
+): Promise<(PayToComeLine & { note: string | null })[]> {
 	const waiting = pays.filter((pay) => payToComeLeft(pay) > 0);
 	const [first] = waiting.map((pay) => pay.recordedOn).sort();
 	if (!first) return [];
@@ -104,6 +104,7 @@ export async function loadPayLines(
 			amount: income.amountCents,
 			date: income.date,
 			whosePay: income.payMemberId,
+			note: income.note,
 		})
 		.from(income)
 		.where(
