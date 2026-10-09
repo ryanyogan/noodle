@@ -38,6 +38,7 @@ import {
 	useSetParentPay,
 } from "../pay-days";
 import { AmountInput } from "./goals";
+import { PayHistories } from "./pay-history";
 import { PayToCome } from "./pay-to-come";
 
 // "How you're paid" on Plan › Income (issue 156): each Parent on a salary or hourly, and a
@@ -101,6 +102,8 @@ export function PayDays({ month }: { month: MonthKey }) {
 			{salaried.map((parent) => (
 				<ExpectedPaychecks key={parent.memberId} month={month} parent={parent} />
 			))}
+			{/* What a Parent whose pay varies has been paid, month by month (issue 159). */}
+			<PayHistories month={month} />
 			{/* What a Parent whose pay varies has earned that isn't in yet (issue 159). */}
 			<PayToCome month={month} />
 			{notMoved.length > 0 ? (
