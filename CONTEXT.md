@@ -117,7 +117,7 @@ In a low month (Income more than $25 below it) a Parent can lower Just that mont
 _Avoid_: Baseline, expected income, salary, budgeted income, gross income
 
 **Income**:
-Money in that is pay or other earnings: a paycheck, a bonus, a tax refund, interest earned. Each has **whose pay** it is (a Parent, or the Household). Money in is one of Income, a Refund, Paid back, a Transfer or Between us, and a Parent can change which; only Income counts toward the Take-home pay and Extra income. Income counts in the month it landed, unless it is the pay for a **Pay day**: then it counts in the Pay day's month (ADR-0063). A Parent whose pay varies is shown its range over the last three full months ("usually $2,100–$2,900"); the Plan still counts on the low end (ADR-0040).
+Money in that is pay or other earnings: a paycheck, a bonus, a tax refund, interest earned. Each has **whose pay** it is (a Parent, or the Household). Money in is one of Income, a Refund, Paid back, a Transfer or Between us, and a Parent can change which; only Income counts toward the Take-home pay and Extra income. Income counts in the month it landed, unless it is the pay for a **Pay day**: then it counts in the Pay day's month (ADR-0063). A Parent whose pay varies is shown its range over the last three full months ("usually $2,100–$2,900"); the Plan still counts on the low end (ADR-0040). With six months of their Income, Plan › Income says what **To plan on** from their **Pay history** instead.
 _Avoid_: Deposit, credit, earnings; salary
 
 **Pay day**:
@@ -127,6 +127,18 @@ _Avoid_: Payday schedule, pay period, expected income
 **Pay to come**:
 Pay a Parent whose pay varies has earned that is not in yet: who it is from (a client's name), the amount, and the day it is expected, if they know. A Parent records it on Plan › Income, where it reads "Earned, not in yet" with its total, and one past its expected day is said plainly: "Late by 12 days". It counts nowhere (not as Income, toward the Take-home pay, as Extra income or in Free to Spend) until it **arrives**: pay counts in the month it lands, as Income like any other (ADR-0066). When Income that is the same Parent's pay lands for exactly what is still to come, and it can be nothing else, Noodle marks it in; Income within $50 of it (what a wire fee takes off) is offered ("Is this it?"), and a Parent can say any of that Parent's Income is all of it or part of it, a part leaving the rest waiting. "Undo" makes it wait again, and Noodle never offers that line for it again. It is the Household's, as Income is: both Parents see it and either can record it.
 _Avoid_: Invoice (a Parent may never send one, and the word is avoided for Receipts), receivable, accounts receivable, expected income, pending pay, owed (Owed back is something else)
+
+**Pay history** (in the app, "What Wren's pay has been"):
+A Parent's Income by month over the last 12 months, for a Parent whose pay varies: on Plan › Income as a row of bars with the average of the last 6 and 12 months, the lowest month and the highest. Only months that have ended count, from the first month Noodle has that Parent's Income for (a month of nothing after that is a month of $0); the month being read is shown and is in no figure, and with fewer than 6 the page says so ("3 months so far"). Nothing is stored (ADR-0067).
+_Avoid_: Income trend, earnings history, pay stub
+
+**To plan on**:
+The pay a Parent whose pay varies can count on, as their Pay history suggests it once there are 6 months: the **second-lowest month**, so one freak month doesn't set it ("In 11 of the last 12 months Wren's pay came to $3,800 or more. Only March ($900) was lower, and one month like that is left out."). With what everyone else's pay can be counted on for it makes a Take-home pay, offered as "Use $7,300 as your take-home pay": one press, a Plan change from that month on. It never changes on its own, and the Take-home pay is still one Household figure (ADR-0067).
+_Avoid_: Baseline, floor, safe income, conservative estimate
+
+**Lean month**:
+The Household's current month while its Income is more than $25 below the Take-home pay. This Month and Plan › Income say what is **in so far** and what is to go ("$2,800 of the $4,000 your Plan counts on is in so far, $1,200 to go"), and call it **short** only in the month's last five days. The Pay to come expected by the end of the month is set against the gap ("$2,500 of pay to come is expected by Oct 24, which would cover it") and still counts nowhere. Before the last five days it is said only when Pay to come is waiting (ADR-0067).
+_Avoid_: Behind (early in a month), shortfall, deficit, bad month
 
 **Extra income**:
 Income received beyond the Take-home pay in a month (the better month of a Parent whose pay varies, a third paycheck, a bonus, a tax refund), awaiting a decision on where it goes.
