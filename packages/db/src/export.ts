@@ -14,6 +14,7 @@ import { type LogEventRow, listLogEvents } from "./log-events";
 import { listMembers, type MemberSummary } from "./members";
 import { loadMoneyIn } from "./money-in";
 import { loadOwedBack, loadPaidBackSpending } from "./owed-back";
+import { loadPayToCome } from "./pay-to-come";
 import { loadPlanRecords } from "./plan";
 import { loadPlanChanges } from "./plan-log";
 import { privateTotalId, privateTotals, type Viewer } from "./privacy";
@@ -128,6 +129,21 @@ export type ExportData = {
 		card: string | null;
 		createdBy: string | null;
 		createdAt: number;
+	}[];
+	/**
+	 * Pay to come (ADR-0066), in the order it was recorded: pay earned and not in yet, with the
+	 * Income it has arrived as. It is the Household's, as Income is, so both Parents get all of it.
+	 */
+	payToCome: {
+		id: string;
+		/** The Parent whose pay it is. */
+		memberId: string;
+		from: string;
+		amountCents: number;
+		expectedOn: string | null;
+		recordedOn: string;
+		/** Each line of Income it arrived as: the day it landed and how much of the pay it is. */
+		arrivals: { date: string; coversCents: number }[];
 	}[];
 	/**
 	 * What someone said they'd pay back, oldest purchase first, with how much of it is Paid back
@@ -467,6 +483,18 @@ export async function loadExportData(
 			card: nameOf(rule.accountId),
 			createdBy: rule.createdBy,
 			createdAt: rule.createdAt.getTime(),
+		})),
+		payToCome: (await loadPayToCome(db, viewer.householdId)).map((pay) => ({
+			id: pay.id,
+			memberId: pay.memberId,
+			from: pay.from,
+			amountCents: pay.amount,
+			expectedOn: pay.expectedOn,
+			recordedOn: pay.recordedOn,
+			arrivals: pay.arrivals.map((arrival) => ({
+				date: arrival.date,
+				coversCents: arrival.covers,
+			})),
 		})),
 		owedBack: owedBackItems.map((item) => ({
 			id: item.id,

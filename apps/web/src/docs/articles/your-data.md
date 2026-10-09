@@ -17,7 +17,7 @@ Open **Household settings** and go to **Your data**.
 2. When it is ready, the button changes to **Download** and says how long it is ready for.
 3. Press it and save the file to your phone or computer.
 
-The file is a ZIP. Inside are your Transactions, Accounts, Plan by month, Plan changes and Rules as spreadsheets, plus your statements and receipts.
+The file is a ZIP. Inside are your Transactions, Accounts, Plan by month, Plan changes, Rules and pay to come as spreadsheets, plus your statements and receipts. The pay to come file (pay-to-come.csv) lists pay that was earned and not in yet: who it is from, the amount, when it was expected, how much has arrived and how much is still to come.
 
 - The link works for 24 hours, and only for you.
 - The other Parent's Personal Allowance is not included, only its total each month. Each Parent can prepare a download of their own.
