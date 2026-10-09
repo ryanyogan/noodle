@@ -19,9 +19,12 @@ import {
 	loadTransactionsPage,
 	loadUnmatchedPaidBack,
 	offerPaidBackFor,
+	removeOwedBack,
 	sayOwedBack,
 	setTakeHomePay,
 	splitTransaction,
+	undoOwedBackWriteOff,
+	writeOffOwedBack,
 } from "./index";
 import { bucketLeftSql } from "./moves";
 import { setCarriesOver } from "./plan";
@@ -299,9 +302,21 @@ describe("a purchase with part Owed back, from October 1", () => {
 		await caseyPays("zelle", "2026-10-06", 35_000);
 		const page = await loadTransactionsPage(db, viewer, { month: october, limit: 50 });
 		expect(page.transactions.map((row) => [row.id, row.amountCents, row.owedBack])).toEqual([
-			["gear", 20_000, [{ who: "Casey", owed: 10_000, paid: 0 }]],
-			["tuition-oct", 120_000, [{ who: "Casey", owed: 60_000, paid: 500 }]],
-			["sticks", 60_000, [{ who: "Casey", owed: 30_000, paid: 30_000 }]],
+			[
+				"gear",
+				20_000,
+				[{ who: "Casey", owed: 10_000, paid: 0, writtenOff: 0, writtenOffOn: null }],
+			],
+			[
+				"tuition-oct",
+				120_000,
+				[{ who: "Casey", owed: 60_000, paid: 500, writtenOff: 0, writtenOffOn: null }],
+			],
+			[
+				"sticks",
+				60_000,
+				[{ who: "Casey", owed: 30_000, paid: 30_000, writtenOff: 0, writtenOffOn: null }],
+			],
 		]);
 		// $2,000 went out; $1,000 of it is the Household's.
 		expect(page.total).toBe(100_000);
@@ -332,5 +347,126 @@ describe("a purchase with part Owed back, from October 1", () => {
 		expect(narrowed.cells.reduce((sum, cell) => sum + cell.amount, 0)).toBe(35_000);
 		const others = await loadSpendCells(db, octoberReport({ member: "everyone" }), "all");
 		expect(others.cells.reduce((sum, cell) => sum + cell.amount, 0)).toBe(65_000);
+	});
+});
+
+describe("writing off what is Owed back", () => {
+	const november: MonthKey = "2026-11";
+	const inNovember: DayKey = "2026-11-05";
+	const openIds = async () => (await loadOwedBack(db, viewer, { open: true })).map((o) => o.id);
+
+	it("counts in the month it is written off, never in the purchase's month", async () => {
+		const before = await left("hockey", november);
+		const result = await writeOffOwedBack(db, viewer, {
+			owedBackId: "ob-sticks",
+			today: inNovember,
+		});
+		expect(result).toMatchObject({
+			ok: true,
+			item: { writtenOff: 30_000, writtenOffOn: inNovember },
+		});
+		// October is as it was: the purchase whole, its Owed back part taken off.
+		expect(await spent(october)).toContainEqual(["hockey", -30_000, "owed"]);
+		expect(await left("hockey", october)).toBe(5_000);
+		// November has it as spending in the purchase's Bucket.
+		expect(await spent(november)).toEqual([["hockey", 30_000, "back"]]);
+		expect(await left("hockey", november)).toBe(before - 30_000);
+		const [row] = await loadSpending(db, viewer, november);
+		expect(row).toMatchObject({ id: "sticks", writeOff: true, for: ["leo"] });
+		// It has left the open list and is among what was written off.
+		expect(await openIds()).not.toContain("ob-sticks");
+		expect((await loadOwedBack(db, viewer, { writtenOff: true })).map((o) => o.id)).toEqual([
+			"ob-sticks",
+		]);
+		// Writing it off again changes nothing.
+		const again = await writeOffOwedBack(db, viewer, {
+			owedBackId: "ob-sticks",
+			today: "2026-12-01" as DayKey,
+		});
+		expect(again).toMatchObject({ ok: true, item: { writtenOffOn: inNovember } });
+	});
+
+	it("counts what was owed on a Split in that Split's Bucket", async () => {
+		await writeOffOwedBack(db, viewer, { owedBackId: "ob-gear", today });
+		expect(await spent(october)).toContainEqual(["hockey", 10_000, "back"]);
+		expect(await left("hockey", october)).toBe(-5_000);
+		expect(await left("health", october)).toBe(15_000);
+		// The Bucket's Owed back row says it is owed no longer.
+		const owed = (await loadSpending(db, viewer, october)).find((s) => s.owed && s.id === "gear");
+		expect(owed).toMatchObject({ amount: -10_000, writtenOff: 10_000 });
+	});
+
+	it("counts in the Commitment the payment was filed in, never as a payment", async () => {
+		await writeOffOwedBack(db, viewer, { owedBackId: "ob-tuition", today });
+		const charges = await loadCharges(db, viewer, october);
+		expect(net(charges.map((c) => [c.commitmentId, c.amount]))).toBe(120_000);
+		expect(charges.find((c) => c.writeOff)).toMatchObject({
+			commitmentId: "tuition",
+			amount: 60_000,
+			date: today,
+			paidBack: true,
+		});
+	});
+
+	it("writes off only what is left after a part payment", async () => {
+		// $100: skates in full at $45, and $55 of sticks.
+		await caseyPays("zelle", "2026-10-06" as DayKey, 10_000);
+		const result = await writeOffOwedBack(db, viewer, { owedBackId: "ob-sticks", today });
+		expect(result).toMatchObject({ ok: true, item: { paid: 5_500, writtenOff: 24_500 } });
+		// The $45 Paid back on skates, bought in September, restores the Bucket as before.
+		expect(await left("hockey", october)).toBe(5_000 + 4_500 - 24_500);
+		expect(await openIds()).toEqual(["ob-tuition", "ob-gear"]);
+		// Nothing is left of it to write off once all of it is Paid back.
+		expect(await writeOffOwedBack(db, viewer, { owedBackId: "ob-skates", today })).toEqual({
+			ok: false,
+			reason: "nothing-owed",
+		});
+	});
+
+	it("is undone while the month it was written off in is running", async () => {
+		const before = await spent(october);
+		await writeOffOwedBack(db, viewer, { owedBackId: "ob-sticks", today });
+		expect(await left("hockey", october)).toBe(-25_000);
+		// Who and how much stay as they are while it is written off.
+		expect(
+			await sayOwedBack(db, viewer, { owedBackId: "x", transactionId: "sticks", who: "Robin" }),
+		).toEqual({ ok: false, reason: "written-off" });
+		const undone = await undoOwedBackWriteOff(db, viewer, {
+			owedBackId: "ob-sticks",
+			today: "2026-10-20" as DayKey,
+		});
+		expect(undone).toMatchObject({ ok: true, item: { writtenOff: 0, writtenOffOn: null } });
+		expect(await spent(october)).toEqual(before);
+		expect(await left("hockey", october)).toBe(5_000);
+		expect(await openIds()).toContain("ob-sticks");
+	});
+
+	it("stays written off once that month has ended", async () => {
+		await writeOffOwedBack(db, viewer, { owedBackId: "ob-sticks", today });
+		const later = { owedBackId: "ob-sticks", today: "2026-11-01" as DayKey };
+		expect(await undoOwedBackWriteOff(db, viewer, later)).toEqual({
+			ok: false,
+			reason: "month-ended",
+		});
+		expect(await removeOwedBack(db, viewer, later)).toEqual({ ok: false, reason: "month-ended" });
+		expect(await left("hockey", october)).toBe(-25_000);
+	});
+
+	it("only closes an item on a purchase from before October 1, which counted whole", async () => {
+		const before = await spent(october);
+		const result = await writeOffOwedBack(db, viewer, { owedBackId: "ob-skates", today });
+		expect(result).toMatchObject({ ok: true, item: { writtenOff: 4_500 } });
+		expect(await spent(october)).toEqual(before);
+		expect(await spent(september)).toEqual([["hockey", 4_500, ""]]);
+		expect(await left("hockey", october)).toBe(5_000);
+		expect(await openIds()).not.toContain("ob-skates");
+	});
+
+	it("refuses another Household", async () => {
+		const other = { householdId: "other-household", memberId: "someone" };
+		const input = { owedBackId: "ob-sticks", today };
+		expect(await writeOffOwedBack(db, other, input)).toEqual({ ok: false, reason: "refused" });
+		expect(await undoOwedBackWriteOff(db, other, input)).toEqual({ ok: false, reason: "refused" });
+		expect(await openIds()).toContain("ob-sticks");
 	});
 });

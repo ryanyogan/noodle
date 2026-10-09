@@ -76,7 +76,8 @@ export const owedBackUncountedRaw = (date: string) => `${date} >= '${OWED_BACK_U
 /**
  * The FROM of every read of what Paid back restores, in raw SQL: one row (`m`) per match on a
  * purchase that counted whole, with its Owed back item's purchase and Split; per Owed back item
- * of a purchase that counts only the Household's share, on the purchase's day; and per Refund in
+ * of a purchase that counts only the Household's share, on the purchase's day, and again, as a
+ * negative amount that counts as spending, on the day a Parent wrote it off; and per Refund in
  * checking linked to its purchase
  * (refund-links.ts), which restores the same way; the purchase (`t`) and, when the purchase is
  * split, the Split it restores (`p`: the one the item names, else the largest). `m.split_id` is
@@ -92,6 +93,10 @@ export const PAID_BACK_RESTORES_FROM = `(select pm.household_id, pm.amount_cents
 		select ob.household_id, ob.amount_cents, ot.date, ob.transaction_id, ob.split_id
 		from owed_back ob join transactions ot on ot.id = ob.transaction_id
 		where ${owedBackUncountedRaw("ot.date")}
+		union all
+		select ob.household_id, -ob.written_off_cents, ob.written_off_on, ob.transaction_id, ob.split_id
+		from owed_back ob join transactions ot on ot.id = ob.transaction_id
+		where ${owedBackUncountedRaw("ot.date")} and ob.written_off_on is not null
 		union all
 		select rl.household_id, ri.amount_cents, rl.counts_on, rl.transaction_id, null
 		from refund_links rl join income ri on ri.id = rl.income_id) m

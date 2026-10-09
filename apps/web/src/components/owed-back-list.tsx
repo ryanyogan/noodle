@@ -1,4 +1,10 @@
-import { type MonthKey, monthOfDay, owedBackByPerson, owedBackLeft } from "@noodle/domain";
+import {
+	type DayKey,
+	type MonthKey,
+	monthOfDay,
+	owedBackByPerson,
+	owedBackLeft,
+} from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Section } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
@@ -10,8 +16,10 @@ import { dayName, formatMoney } from "../format";
 import {
 	owedBackOnCommitmentText,
 	owedBackOpenQuery,
+	owedBackWrittenOffQuery,
 	unmatchedPaidBackQuery,
 	useOwedBackOnCommitment,
+	useWriteOffOwedBack,
 } from "../owed-back";
 
 // The "Owed back" list (issue 132, ADR-0058): each person with what they still owe and the
@@ -40,12 +48,17 @@ const SHOWN_AT_ONCE = 3;
 
 /**
  * "Owed back", kept small (issue 152): one line saying who owes how much, then each purchase on a
- * line of its own, which opens it. More than three lines fold behind "Show all". Nothing when
- * nobody owes and nothing waits.
+ * line of its own, which opens it and can be written off. More than three lines fold behind "Show
+ * all". What was written off this year is listed last, and can be undone while the month it was
+ * written off in is running. Nothing when nobody owes, nothing waits and nothing was written off.
  */
 export function OwedBackList({ today }: { today: string }) {
 	const open = useQuery(owedBackOpenQuery()).data ?? [];
 	const unmatched = useQuery(unmatchedPaidBackQuery()).data ?? [];
+	const writtenOff = (useQuery(owedBackWrittenOffQuery()).data ?? []).filter(
+		(item) => item.writtenOffOn?.slice(0, 4) === today.slice(0, 4),
+	);
+	const writeOff = useWriteOffOwedBack();
 	const hash = useLocation({ select: (location) => location.hash });
 	// What the Parent chose; until they do, a few lines show and more than a few fold.
 	const [chosen, setChosen] = useState<boolean | null>(null);
@@ -54,10 +67,10 @@ export function OwedBackList({ today }: { today: string }) {
 		if (hash === OWED_BACK_LIST_ID) setChosen(true);
 	}, [hash]);
 	const people = owedBackByPerson(open);
-	if (people.length === 0 && unmatched.length === 0) return null;
+	if (people.length === 0 && unmatched.length === 0 && writtenOff.length === 0) return null;
 	const total = people.reduce((sum, person) => sum + person.left, 0);
 	const waiting = unmatched.reduce((sum, line) => sum + line.unmatched, 0);
-	const lines = open.length + unmatched.length;
+	const lines = open.length + unmatched.length + writtenOff.length;
 	const folds = lines > SHOWN_AT_ONCE;
 	const shown = chosen ?? !folds;
 	const [only] = people;
@@ -150,6 +163,17 @@ export function OwedBackList({ today }: { today: string }) {
 										<span className="ml-auto shrink-0 font-semibold tabular-nums">
 											{formatMoney(owedBackLeft(item))}
 										</span>
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											disabled={writeOff.isPending}
+											aria-label={`Write off the ${formatMoney(owedBackLeft(item))} ${item.who} owes for ${item.purchase ?? "a purchase"}`}
+											onClick={() => writeOff.mutate({ owedBackId: item.id })}
+											className="-mr-1 shrink-0 px-1 text-muted-foreground"
+										>
+											Write off
+										</Button>
 									</li>
 								))}
 							</ul>
@@ -172,6 +196,49 @@ export function OwedBackList({ today }: { today: string }) {
 									<span className="ml-auto shrink-0 font-semibold tabular-nums">
 										+{formatMoney(line.unmatched)}
 									</span>
+								</li>
+							))}
+						</ul>
+					</div>
+				) : null}
+				{shown && writtenOff.length > 0 ? (
+					<div className="mt-1 grid border-t pt-1" data-testid="owed-back-written-off">
+						<p className="py-0.5 font-medium">Written off</p>
+						<ul className="grid">
+							{writtenOff.map((item) => (
+								<li key={item.id} className="flex min-w-0 items-baseline gap-2">
+									<Link
+										to="/transactions/$month/$transactionId"
+										params={{ month: monthOfDay(item.date), transactionId: item.transactionId }}
+										className="min-w-0 truncate py-1 font-medium hover:underline max-sm:py-2"
+									>
+										{item.purchase ?? "A purchase"}
+									</Link>
+									<span className="shrink-0 text-muted-foreground">
+										{item.who}
+										<span className="max-sm:hidden">
+											{" · "}
+											{dayName(item.writtenOffOn ?? item.date, today)}
+										</span>
+									</span>
+									<span className="ml-auto shrink-0 font-semibold tabular-nums">
+										{formatMoney(item.writtenOff)}
+									</span>
+									{/* Only while the month it was written off in is running. */}
+									{item.writtenOffOn &&
+									monthOfDay(item.writtenOffOn) === monthOfDay(today as DayKey) ? (
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											disabled={writeOff.isPending}
+											aria-label={`Undo writing off ${formatMoney(item.writtenOff)} for ${item.purchase ?? "a purchase"}`}
+											onClick={() => writeOff.mutate({ owedBackId: item.id, undo: true })}
+											className="-mr-1 shrink-0 px-1 text-muted-foreground"
+										>
+											Undo
+										</Button>
+									) : null}
 								</li>
 							))}
 						</ul>

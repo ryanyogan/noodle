@@ -213,6 +213,8 @@ describe("saying someone's paying part of a purchase back", () => {
 				purchaseAmount: 120_000,
 				bucketId: null,
 				commitmentId: "tuition",
+				writtenOff: 0,
+				writtenOffOn: null,
 			},
 		]);
 	});
@@ -663,6 +665,8 @@ describe("around Owed back", () => {
 				who: "Casey",
 				owedCents: 60_000,
 				paidBackCents: 60_000,
+				writtenOffCents: 0,
+				writtenOffOn: null,
 			},
 			{
 				id: "ob-skates",
@@ -673,6 +677,8 @@ describe("around Owed back", () => {
 				who: "Casey",
 				owedCents: 4_500,
 				paidBackCents: 4_500,
+				writtenOffCents: 0,
+				writtenOffOn: null,
 			},
 			{
 				id: "ob-dentist",
@@ -683,6 +689,8 @@ describe("around Owed back", () => {
 				who: "Casey",
 				owedCents: 8_000,
 				paidBackCents: 5_500,
+				writtenOffCents: 0,
+				writtenOffOn: null,
 			},
 		]);
 		expect(data.paidBackMatches).toHaveLength(3);

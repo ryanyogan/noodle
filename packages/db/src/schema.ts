@@ -1840,6 +1840,10 @@ export const owedBack = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		// Written off (ADR-0058, revised 2026-10-08): the day a Parent gave up on what was still
+		// owed, and how much that was. Both null until then, and again once it is undone.
+		writtenOffOn: text("written_off_on"),
+		writtenOffCents: integer("written_off_cents"),
 	},
 	(t) => [
 		index("owed_back_household_idx").on(t.householdId),

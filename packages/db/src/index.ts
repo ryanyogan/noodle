@@ -773,6 +773,7 @@ export {
 	type OwedBackItem,
 	type OwedBackRemoveResult,
 	type OwedBackResult,
+	type OwedBackWriteOffResult,
 	offerPaidBackFor,
 	type PaidBackConfirmResult,
 	type PaidBackLine,
@@ -781,6 +782,8 @@ export {
 	type StoredPaidBackMatch,
 	sayOwedBack,
 	type UnmatchedPaidBack,
+	undoOwedBackWriteOff,
+	writeOffOwedBack,
 } from "./owed-back";
 export {
 	applyOwedBackRules,

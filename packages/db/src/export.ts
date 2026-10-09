@@ -159,6 +159,9 @@ export type ExportData = {
 		who: string;
 		owedCents: number;
 		paidBackCents: number;
+		/** What a Parent wrote off of it, and the day they did; 0 and null when nothing. */
+		writtenOffCents: number;
+		writtenOffOn: string | null;
 	}[];
 	/** What each Paid back money-in line settled, and the day it counts on. */
 	paidBackMatches: {
@@ -505,6 +508,8 @@ export async function loadExportData(
 			who: item.who,
 			owedCents: item.owed,
 			paidBackCents: item.paid,
+			writtenOffCents: item.writtenOff,
+			writtenOffOn: item.writtenOffOn,
 		})),
 		paidBackMatches: matchRows.filter((match) => owedIds.has(match.owedBackId)),
 		refundLinks: await loadRefundLinksForExport(db, viewer),

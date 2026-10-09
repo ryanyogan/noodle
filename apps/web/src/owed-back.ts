@@ -1,4 +1,4 @@
-import { type Cents, owedBackSummary } from "@noodle/domain";
+import { type Cents, owedBackSummary, owedBackUncounted } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ulid } from "ulid";
@@ -16,6 +16,7 @@ import {
 	type OwedBackItem,
 	rememberOwedBackRule,
 	setOwedBack,
+	writeOffOwedBackItem,
 } from "./server/owed-back";
 
 export type { OwedBackItem, PaidBackOffered } from "./server/owed-back";
@@ -37,6 +38,13 @@ export const owedBackOpenQuery = () =>
 	queryOptions({
 		queryKey: [...owedBackKey, "open"],
 		queryFn: () => getOwedBack({ data: { open: true } }),
+	});
+
+/** What a Parent wrote off, oldest purchase first: the list's "Written off". */
+export const owedBackWrittenOffQuery = () =>
+	queryOptions({
+		queryKey: [...owedBackKey, "written-off"],
+		queryFn: () => getOwedBack({ data: { writtenOff: true } }),
 	});
 
 /** Paid back lines with money that isn't matched to anything Owed back yet, newest first. */
@@ -84,20 +92,33 @@ export function paidBackIntoText(
 
 /**
  * What was said Owed back on a purchase, for its row, which keeps the purchase's full amount:
- * "$300 owed back by Casey", and "$300 Paid back by Casey" once all of it is. Null when nothing
- * was said.
+ * "$300 owed back by Casey", and "$300 Paid back by Casey" once all of it is. Once a Parent has
+ * written off what was left it is "$300 written off", after what was Paid back when some was:
+ * "$100 Paid back by Casey · $200 written off". Null when nothing was said.
  */
 export function owedBackOnRowText(
-	items: readonly { who: string; owed: number; paid: number }[] | undefined,
+	items:
+		| readonly { who: string; owed: number; paid: number; writtenOff?: number | undefined }[]
+		| undefined,
 ): string | null {
 	const owed = (items ?? []).reduce((sum, item) => sum + item.owed, 0);
 	if (owed <= 0) return null;
-	const left = (items ?? []).reduce((sum, item) => sum + Math.max(0, item.owed - item.paid), 0);
+	const writtenOff = (items ?? []).reduce((sum, item) => sum + (item.writtenOff ?? 0), 0);
+	const left = (items ?? []).reduce(
+		(sum, item) => sum + Math.max(0, item.owed - item.paid - (item.writtenOff ?? 0)),
+		0,
+	);
 	// "casey" and "Casey" are one person, as first written.
 	const people = new Map<string, string>();
 	for (const item of items ?? [])
 		if (!people.has(item.who.toLowerCase())) people.set(item.who.toLowerCase(), item.who);
 	const who = [...people.values()];
+	if (left === 0 && writtenOff > 0) {
+		const off = `${formatMoney(writtenOff)} written off`;
+		return writtenOff >= owed
+			? off
+			: `${formatMoney(owed - writtenOff)} Paid back by ${names.format(who)} · ${off}`;
+	}
 	return `${formatMoney(owed)} ${left > 0 ? "owed back" : "Paid back"} by ${names.format(who)}`;
 }
 
@@ -168,11 +189,18 @@ export const paidBackOfferQuery = (incomeId: string) =>
 		queryFn: () => getPaidBackOffer({ data: { incomeId } }),
 	});
 
-/** "Owed back $600 · Casey": what's still owed on an item, and who owes it. */
-export const owedBackText = (item: Pick<OwedBackItem, "owed" | "paid" | "who">) =>
-	item.paid >= item.owed
-		? `Paid back ${formatMoney(item.owed)} · ${item.who}`
-		: `Owed back ${formatMoney(item.owed - item.paid)} · ${item.who}`;
+/**
+ * "Owed back $600 · Casey": what's still owed on an item, and who owes it; "Written off $600 ·
+ * Casey" once a Parent has written off what was left.
+ */
+export const owedBackText = (
+	item: Pick<OwedBackItem, "owed" | "paid" | "who"> & { writtenOff?: number },
+) =>
+	item.writtenOff
+		? `Written off ${formatMoney(item.writtenOff)} · ${item.who}`
+		: item.paid >= item.owed
+			? `Paid back ${formatMoney(item.owed)} · ${item.who}`
+			: `Owed back ${formatMoney(item.owed - item.paid)} · ${item.who}`;
 
 class Refused extends Error {
 	constructor(readonly reason: string) {
@@ -214,11 +242,13 @@ export function useSayOwedBack() {
 						? "That’s more than the purchase."
 						: reason === "paid-back"
 							? "More than that has been Paid back on it already."
-							: reason === "on-whole"
-								? "It’s already Owed back on the whole purchase. Take that off to say it for a Split."
-								: reason === "on-splits"
-									? "It’s already Owed back on its Splits. Take those off to say it for the whole purchase."
-									: "Couldn’t save it, so it’s as it was.",
+							: reason === "written-off"
+								? "It’s written off. Undo that to change it."
+								: reason === "on-whole"
+									? "It’s already Owed back on the whole purchase. Take that off to say it for a Split."
+									: reason === "on-splits"
+										? "It’s already Owed back on its Splits. Take those off to say it for the whole purchase."
+										: "Couldn’t save it, so it’s as it was.",
 				{ tone: "error" },
 			);
 		},
@@ -239,11 +269,50 @@ export function useClearOwedBack() {
 		onError: (error) =>
 			toast(
 				reasonOf(error) === "month-ended"
-					? "Money Paid back on this counted in a month that has ended, so it stays."
+					? "This counted in a month that has ended, so it stays."
 					: "Couldn’t take it off, so it’s as it was.",
 				{ tone: "error" },
 			),
 		onSuccess: () => toast("Nobody’s paying this back", { tone: "success" }),
+		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
+	});
+}
+
+/**
+ * A Parent writes off what is still Owed back on an item: it counts as spending this month, in
+ * the purchase's Bucket or Commitment. With `undo`, it is Owed back again.
+ */
+export function useWriteOffOwedBack() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationKey: monthChangeKey,
+		mutationFn: async (input: { owedBackId: string; undo?: boolean }) => {
+			const result = await writeOffOwedBackItem({ data: input });
+			if (!result.ok) throw new Refused(result.reason);
+			return result.item;
+		},
+		onError: (error, input) => {
+			const reason = reasonOf(error);
+			toast(
+				reason === "month-ended"
+					? "It was written off in a month that has ended, so it stays written off."
+					: reason === "nothing-owed"
+						? "All of it has been Paid back, so there’s nothing to write off."
+						: input.undo
+							? "Couldn’t undo it, so it’s still written off."
+							: "Couldn’t write it off, so it’s as it was.",
+				{ tone: "error" },
+			);
+		},
+		onSuccess: (item, input) =>
+			toast(
+				input.undo
+					? owedBackText(item)
+					: owedBackUncounted(item.date)
+						? `Written off. ${formatMoney(item.writtenOff)} counts as spending this month`
+						: `Written off ${formatMoney(item.writtenOff)}. It counted when it was bought`,
+				{ tone: "success" },
+			),
 		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
 	});
 }

@@ -212,6 +212,8 @@ describe("exportFiles", () => {
 						who: "Casey",
 						owedCents: 6000,
 						paidBackCents: 2550,
+						writtenOffCents: 0,
+						writtenOffOn: null,
 					},
 					{
 						id: "camp",
@@ -222,6 +224,8 @@ describe("exportFiles", () => {
 						who: "Casey",
 						owedCents: 30000,
 						paidBackCents: 30000,
+						writtenOffCents: 0,
+						writtenOffOn: null,
 					},
 				],
 				paidBackMatches: [
@@ -242,9 +246,19 @@ describe("exportFiles", () => {
 		]);
 		// Whether the part owed counts as spending goes by the purchase's day.
 		expect(parseCsv(files["owed-back.csv"] as string)).toEqual([
-			["Date", "Purchase", "Who", "Owed back", "Paid back", "Still owed", "Counts as spending"],
-			["2026-09-18", "Dinner out", "Casey", "60", "25.5", "34.5", "Yes, until Paid back"],
-			["2026-10-01", "Hockey camp", "Casey", "300", "300", "0", "No"],
+			[
+				"Date",
+				"Purchase",
+				"Who",
+				"Owed back",
+				"Paid back",
+				"Still owed",
+				"Counts as spending",
+				"Written off",
+				"Amount written off",
+			],
+			["2026-09-18", "Dinner out", "Casey", "60", "25.5", "34.5", "Yes, until Paid back", "", ""],
+			["2026-10-01", "Hockey camp", "Casey", "300", "300", "0", "No", "", ""],
 		]);
 		expect(parseCsv(files["refund-links.csv"] as string)).toEqual([
 			[
