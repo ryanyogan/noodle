@@ -187,6 +187,7 @@ test("a loan's payments read against its schedule, paying it off ends its Commit
 		.locator("[data-slot=data-table-body]")
 		.getByRole("button", { name: new RegExp(`^Payment, .*${NAME}`) });
 	await expect(payment).toHaveCount(1);
+	await hydrated(payment);
 	await payment.first().click();
 	const pane = page
 		.locator("[role=dialog], [data-slot=transaction-detail]")
