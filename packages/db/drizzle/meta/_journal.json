@@ -589,6 +589,13 @@
       "when": 1794000000000,
       "tag": "0091_bell",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "6",
+      "when": 1794100000000,
+      "tag": "0092_pay_to_come",
+      "breakpoints": true
     }
   ]
 }

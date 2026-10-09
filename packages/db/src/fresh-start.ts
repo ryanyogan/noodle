@@ -64,6 +64,9 @@ export const HOUSEHOLD_TABLES = {
 	owedBack: s.owedBack,
 	paidBackMatches: s.paidBackMatches,
 	refundLinks: s.refundLinks,
+	// Pay to come (issue 159): after income, whose lines an arrival names.
+	payToCome: s.payToCome,
+	payToComeArrivals: s.payToComeArrivals,
 	moves: s.moves,
 	pushSubscriptions: s.pushSubscriptions,
 	nudgePreferences: s.nudgePreferences,

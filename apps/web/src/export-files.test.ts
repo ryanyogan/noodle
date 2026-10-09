@@ -52,6 +52,7 @@ const data = (over: Partial<ExportData> = {}): ExportData => ({
 	owedBack: [],
 	paidBackMatches: [],
 	refundLinks: [],
+	payToCome: [],
 	files: [],
 	...over,
 });
@@ -442,6 +443,7 @@ describe("exportFiles", () => {
 			"money-in.csv",
 			"owed-back.csv",
 			"paid-back.csv",
+			"pay-to-come.csv",
 			"plan-changes.csv",
 			"plan.csv",
 			"refund-links.csv",
@@ -468,5 +470,45 @@ describe("exportAvailable", () => {
 	it("says when it's ready until in plain words", () => {
 		const now = new Date(2026, 9, 3, 15, 40);
 		expect(readyUntil(now.getTime() + EXPORT_LIFETIME_MS, now)).toBe("3:40 PM tomorrow");
+	});
+});
+
+describe("pay to come in the download", () => {
+	it("lists what was earned, what has arrived of it and what is still to come", () => {
+		const files = exportFiles(
+			data({
+				payToCome: [
+					{
+						id: "p1",
+						memberId: "sam",
+						from: "Larkspur Studio",
+						amountCents: 180_000,
+						expectedOn: "2026-10-20",
+						recordedOn: "2026-10-02",
+						arrivals: [{ date: "2026-10-09", coversCents: 60_000 }],
+					},
+				],
+			}),
+		);
+		const [head, row] = parseCsv(files["pay-to-come.csv"] as string);
+		expect(head).toEqual([
+			"Whose pay",
+			"From",
+			"Amount",
+			"Expected",
+			"Recorded",
+			"Arrived",
+			"Still to come",
+			"Arrived on",
+		]);
+		expect(row?.slice(1)).toEqual([
+			"Larkspur Studio",
+			"1800",
+			"2026-10-20",
+			"2026-10-02",
+			"600",
+			"1200",
+			"2026-10-09",
+		]);
 	});
 });

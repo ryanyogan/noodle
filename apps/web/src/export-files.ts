@@ -299,6 +299,34 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		]);
 	}
 
+	// Pay to come (ADR-0066): what a Parent earned that was not in yet, what has arrived of it and
+	// what is still to come. None of it is Income; what arrived is in money-in.csv as Income.
+	const payToCome: (string | number | null)[][] = [
+		[
+			"Whose pay",
+			"From",
+			"Amount",
+			"Expected",
+			"Recorded",
+			"Arrived",
+			"Still to come",
+			"Arrived on",
+		],
+	];
+	for (const pay of data.payToCome) {
+		const arrived = pay.arrivals.reduce((sum, arrival) => sum + arrival.coversCents, 0);
+		payToCome.push([
+			whosePay(pay.memberId),
+			pay.from,
+			dollars(pay.amountCents),
+			pay.expectedOn ?? "",
+			pay.recordedOn,
+			dollars(arrived),
+			dollars(Math.max(0, pay.amountCents - arrived)),
+			pay.arrivals.map((arrival) => arrival.date).join("; "),
+		]);
+	}
+
 	const purchaseOf = new Map(data.transactions.map((t) => [t.id, t]));
 	const refundLinks: (string | number | null)[][] = [
 		["Counts on", "Refund", "Purchase date", "Purchase", "Purchase amount", "Bucket", "Commitment"],
@@ -329,6 +357,7 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		"owed-back.csv": toCsv(owedBack),
 		"paid-back.csv": toCsv(paidBack),
 		"refund-links.csv": toCsv(refundLinks),
+		"pay-to-come.csv": toCsv(payToCome),
 		"household.json": `${JSON.stringify({ ...data, files: data.files.map((f) => f.path) }, null, 2)}\n`,
 	};
 }
