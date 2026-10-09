@@ -49,6 +49,7 @@ import { EditTransactionSheet, TransactionItem } from "../../../components/trans
 import { useCovers } from "../../../covers";
 import { formatMoney, monthName } from "../../../format";
 import { forLabel } from "../../../members";
+import { owedBackApartText } from "../../../owed-back";
 import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
 import {
 	bucketQuery,
@@ -385,6 +386,7 @@ function BackToBuckets({ month }: { month: MonthKey }) {
 /** What's left of what it has this month (or how far over, headed to match), where that came from, and its Pace. */
 function ThisMonth({ bucket }: { bucket: BucketState }) {
 	const parts = availableParts(bucket);
+	const owedBack = owedBackApartText(bucket.owedBack, bucket.owedBackSettled);
 	return (
 		<Card role="region" aria-labelledby="bucket-this-month">
 			<div className="grid gap-3 p-(--card-pad)">
@@ -439,6 +441,13 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 					}`}
 				/>
 				{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
+				{/* The purchases below keep their full amounts, so what "spent" leaves out is said here
+				    (ADR-0058, revised 2026-10-08). */}
+				{owedBack ? (
+					<p data-testid="bucket-owed-back" className="text-xs text-muted-foreground tabular-nums">
+						{owedBack} on this month’s purchases. It isn’t counted as spending.
+					</p>
+				) : null}
 			</div>
 			<StatGrid layout="ruled" wrapLast className="grid-cols-2 @md:grid-cols-3">
 				{/* The label's row takes what is spare: in a narrow panel "Even spending by today" takes

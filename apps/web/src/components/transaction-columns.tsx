@@ -355,7 +355,7 @@ function NameCell({
 						</TooltipProvider>
 					) : null}
 				</span>
-				<span className="peer/badges col-start-1 row-start-2 me-1.5 flex shrink-0 items-center gap-1.5 empty:hidden sm:col-start-2 sm:row-start-1 sm:ms-1.5 sm:me-0">
+				<span className="peer/badges col-start-1 row-start-2 me-1.5 flex shrink-0 items-center gap-1.5 empty:hidden sm:col-start-2 sm:row-start-1 sm:ms-1.5 sm:me-0 sm:min-w-0 sm:shrink">
 					{/* One word where the line isn't plain spending (issue 134); the row's label says it too. */}
 					{view.kindWord ? (
 						// The Assigned to column says it once the table is in columns.
@@ -365,8 +365,12 @@ function NameCell({
 					) : null}
 					{/* The part someone is paying back (ADR-0058): the amount stays the whole purchase. */}
 					{view.owedBack ? (
-						<Badge aria-hidden="true" data-testid="row-owed-back" className={pill}>
-							{view.owedBack}
+						<Badge
+							aria-hidden="true"
+							data-testid="row-owed-back"
+							className={cn(pill, "min-w-0 shrink")}
+						>
+							<span className="min-w-0 truncate">{view.owedBack}</span>
 						</Badge>
 					) : null}
 					{/* Kept after the bank took it back or changed it (issue 141); opening it says why. */}
@@ -391,6 +395,8 @@ function NameCell({
 						view.who === FOR_DIFFERS && "flex-wrap",
 						// On the narrowest phones the marks get the second line and the detail a third.
 						"max-[389px]:peer-[:not(:empty)]/badges:col-span-2 max-[389px]:peer-[:not(:empty)]/badges:col-start-1 max-[389px]:peer-[:not(:empty)]/badges:row-start-3",
+						// "$300 owed back by Casey" fills the second line of any phone: the detail goes under it.
+						view.owedBack && "max-sm:col-span-2 max-sm:col-start-1 max-sm:row-start-3",
 					)}
 				>
 					{dated ? (

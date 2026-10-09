@@ -1,4 +1,4 @@
-import type { DayKey } from "@noodle/domain";
+import { type DayKey, owedBackUncounted } from "@noodle/domain";
 import type { TableSort } from "@noodle/ui/lib/data-table";
 import type { TransactionRow, TransactionSort } from "./transactions";
 
@@ -32,11 +32,15 @@ export function transactionSortOf(sort: TableSort): TransactionSort {
 export const sortsByDate = (sort: TransactionSort) => sort === "newest" || sort === "oldest";
 
 /**
- * What each loaded day spent: a Transfer's sides count nowhere, money back takes off. With more
+ * What each loaded day spent: a Transfer's sides count nowhere, money back takes off, and the
+ * Owed back part of a purchase is left out as the month leaves it out. With more
  * rows to come the last day may go on in the next page, so it has no total yet (null).
  */
 export function dayTotals(
-	transactions: Pick<TransactionRow, "date" | "amountCents" | "transfer" | "moneyIn">[],
+	transactions: Pick<
+		TransactionRow,
+		"date" | "amountCents" | "transfer" | "moneyIn" | "owedBack"
+	>[],
 	more: boolean,
 ): Map<DayKey, number | null> {
 	const totals = new Map<DayKey, number | null>();
@@ -44,7 +48,12 @@ export function dayTotals(
 		const sum = totals.get(transaction.date) ?? 0;
 		// Money in isn't spending, nor less of it: a day's total is what the day spent.
 		const counts = !transaction.transfer && !transaction.moneyIn;
-		totals.set(transaction.date, counts ? sum + transaction.amountCents : sum);
+		// Nor is the part someone is paying back, for a purchase from October 1, 2026 on (ADR-0058,
+		// revised 2026-10-08): the day adds up to the month's spending, the row keeps its full amount.
+		const owed = owedBackUncounted(transaction.date)
+			? (transaction.owedBack ?? []).reduce((part, item) => part + item.owed, 0)
+			: 0;
+		totals.set(transaction.date, counts ? sum + transaction.amountCents - owed : sum);
 	}
 	const last = transactions.at(-1);
 	if (more && last) totals.set(last.date, null);
