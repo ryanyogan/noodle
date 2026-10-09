@@ -217,6 +217,13 @@ function PlanHome() {
 						)}
 					</>
 				) : null}
+				{/* What's owed back on the month's purchases, said apart from spending (issue 158): with
+				    the Buckets whose figures leave it out, under their table and its total. */}
+				<OwedBackApart
+					owedBack={state.owedBack}
+					buckets={state.buckets}
+					commitments={state.commitments}
+				/>
 				{/* Under the list (#76), on this month only: adding one writes this month's Plan. */}
 				{state.editable && month === current ? <Suggested kinds={["new-bucket"]} /> : null}
 				{allowances.length > 0 || state.editable ? (
@@ -263,12 +270,6 @@ function PlanHome() {
 						) : null}
 					</Section>
 				) : null}
-				{/* What's owed back on the month's purchases, said apart from spending (issue 158). */}
-				<OwedBackApart
-					owedBack={state.owedBack}
-					buckets={state.buckets}
-					commitments={state.commitments}
-				/>
 				{/* Where the Plan's changes used to be listed: they are in the Log (issue 139). */}
 				{unpaid ? null : <SeeWhatChanged month={month} className="-ms-2 justify-self-start" />}
 			</div>
