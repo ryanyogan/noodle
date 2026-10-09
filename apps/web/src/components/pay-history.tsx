@@ -70,7 +70,7 @@ function ParentPayHistoryCard({
 							data-testid="pay-month"
 							data-counted={m.counted || undefined}
 							title={`${monthName(m.month)}: ${formatMoney(m.total)}`}
-							className="grid min-w-0 flex-1 gap-1"
+							className="flex min-w-0 flex-1 flex-col gap-1"
 						>
 							<span className="flex h-20 items-end" aria-hidden>
 								<span
@@ -83,7 +83,13 @@ function ParentPayHistoryCard({
 								/>
 							</span>
 							<span className="border-t pt-1 text-center text-[10px] text-muted-foreground">
-								<span aria-hidden>{shortMonth(m.month)}</span>
+								{/* A phone has room for the month's first letter. */}
+								<span aria-hidden className="sm:hidden">
+									{shortMonth(m.month).slice(0, 1)}
+								</span>
+								<span aria-hidden className="hidden sm:inline">
+									{shortMonth(m.month).slice(0, 3)}
+								</span>
 								<span className="sr-only">
 									{monthName(m.month)}: {formatMoney(m.total)}
 									{m.counted ? "" : ", not in the averages"}
@@ -133,9 +139,7 @@ function ParentPayHistoryCard({
 					<ul className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-x-4 gap-y-1">
 						{history.months.map((m) => (
 							<li key={m.month} className="flex justify-between gap-2">
-								<span className="text-muted-foreground">
-									{shortMonth(m.month)} {m.month.slice(0, 4)}
-								</span>
+								<span className="text-muted-foreground">{shortMonth(m.month)}</span>
 								<span className="tabular-nums">
 									{m.counted || m.month === month ? formatMoney(m.total) : "—"}
 								</span>
