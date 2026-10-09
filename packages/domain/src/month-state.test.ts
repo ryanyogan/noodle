@@ -624,4 +624,69 @@ describe("monthState: the Owed back part of a purchase never counts (ADR-0058, r
 		expect(state.owedBack).toBe(90_000);
 		expect(monthState({ plan, spending: [], asOf: "2026-10-20" }).owedBack).toBe(0);
 	});
+
+	// $200 of the Bucket's $300 and all of Tuition's $600 are written off on October 8.
+	const writtenOff = monthState({
+		plan,
+		spending: [
+			{ bucketId: "kids", amount: 60_000, date: "2026-10-02" },
+			{
+				bucketId: "kids",
+				amount: -30_000,
+				date: "2026-10-02",
+				paidBack: true,
+				owed: true,
+				settled: 10_000,
+				writtenOff: 20_000,
+			},
+			{ bucketId: "kids", amount: 20_000, date: "2026-10-08", paidBack: true, writeOff: true },
+		],
+		charges: [
+			{ commitmentId: "tuition", amount: 120_000, date: "2026-10-03" },
+			{
+				commitmentId: "tuition",
+				amount: -60_000,
+				date: "2026-10-03",
+				paidBack: true,
+				owed: true,
+				writtenOff: 60_000,
+				who: "Casey",
+			},
+			{
+				commitmentId: "tuition",
+				amount: 60_000,
+				date: "2026-10-08",
+				paidBack: true,
+				writeOff: true,
+				who: "Casey",
+			},
+		],
+		asOf: "2026-10-20",
+	});
+
+	it("counts what was written off as a Bucket's spending, and as owed no longer", () => {
+		expect(writtenOff.buckets[0]).toMatchObject({
+			spent: 50_000,
+			left: -20_000,
+			owedBack: 10_000,
+			owedBackSettled: 10_000,
+		});
+		// It is spending, not money that came back.
+		expect(writtenOff.buckets[0]?.paidBack).toBeUndefined();
+	});
+
+	it("adds what was written off to what a Commitment took, never as a payment", () => {
+		expect(writtenOff.commitments[0]).toMatchObject({
+			actual: 120_000,
+			charges: 1,
+			difference: 60_000,
+			status: "differs",
+		});
+		expect(writtenOff.commitments[0]?.owedBack).toBeUndefined();
+		expect(writtenOff.commitments[0]?.paidBack).toBeUndefined();
+	});
+
+	it("totals only what is still owed for the month", () => {
+		expect(writtenOff.owedBack).toBe(10_000);
+	});
 });

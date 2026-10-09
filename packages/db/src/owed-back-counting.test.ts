@@ -28,7 +28,13 @@ import {
 } from "./index";
 import { bucketLeftSql } from "./moves";
 import { setCarriesOver } from "./plan";
-import { loadDailySpend, loadForCells, loadSpendCells, type ReportScope } from "./reports";
+import {
+	loadDailySpend,
+	loadForCells,
+	loadReportItems,
+	loadSpendCells,
+	type ReportScope,
+} from "./reports";
 import { loadRolledOver } from "./rollover";
 import { testDb } from "./test-db";
 
@@ -460,6 +466,65 @@ describe("writing off what is Owed back", () => {
 		expect(await spent(september)).toEqual([["hockey", 4_500, ""]]);
 		expect(await left("hockey", october)).toBe(5_000);
 		expect(await openIds()).not.toContain("ob-skates");
+	});
+
+	it("is a line of its own in Reports, Written off, on the day and where the purchase is filed", async () => {
+		await writeOffOwedBack(db, viewer, { owedBackId: "ob-sticks", today });
+		await writeOffOwedBack(db, viewer, { owedBackId: "ob-tuition", today });
+		const { cells } = await loadSpendCells(db, octoberReport(), "all");
+		expect(cells.reduce((sum, cell) => sum + cell.amount, 0)).toBe(190_000);
+		const days = await loadDailySpend(db, octoberReport());
+		expect(days.find((day) => day.day === today)?.amount).toBe(90_000);
+		const { items } = await loadReportItems(db, octoberReport(), "date", 50);
+		const lines = items.filter((item) => item.writtenOff);
+		expect(lines).toHaveLength(2);
+		expect(lines).toContainEqual(
+			expect.objectContaining({
+				id: "sticks",
+				date: today,
+				amount: 30_000,
+				target: "bucket:hockey",
+				paidBack: true,
+			}),
+		);
+		expect(lines).toContainEqual(
+			expect.objectContaining({
+				id: "tuition-oct",
+				date: today,
+				amount: 60_000,
+				target: "commitment:tuition",
+				paidBack: true,
+			}),
+		);
+		// Neither is said to be Owed back; the part taken off on the purchase's day still is.
+		expect(lines.every((item) => !item.owedBack)).toBe(true);
+		expect(items).toContainEqual(
+			expect.objectContaining({ id: "sticks", amount: -30_000, owedBack: true }),
+		);
+	});
+
+	it("stays with its purchase in a narrowed Report, in the month it is written off too", async () => {
+		await writeOffOwedBack(db, viewer, { owedBackId: "ob-sticks", today });
+		await writeOffOwedBack(db, viewer, { owedBackId: "ob-tuition", today });
+		const total = async (report: ReportScope) =>
+			(await loadSpendCells(db, report, "all")).cells.reduce((sum, cell) => sum + cell.amount, 0);
+		// Sticks were For Leo, tuition is everyone's.
+		expect(await total(octoberReport({ member: "leo" }))).toBe(65_000);
+		expect(await total(octoberReport({ member: "everyone" }))).toBe(125_000);
+		const forLeo = await loadReportItems(db, octoberReport({ member: "leo" }), "date", 50);
+		expect(forLeo.items.filter((item) => item.writtenOff).map((item) => item.id)).toEqual([
+			"sticks",
+		]);
+		// Gear's $100 is written off in November: its purchase is not in that month's range.
+		await writeOffOwedBack(db, viewer, { owedBackId: "ob-gear", today: inNovember });
+		const novemberReport = (filters: ReportScope["filters"] = {}): ReportScope => ({
+			viewer,
+			range: { from: "2026-11-01" as DayKey, until: "2026-12-01" as DayKey },
+			filters,
+		});
+		expect(await total(novemberReport())).toBe(10_000);
+		expect(await total(novemberReport({ member: "leo" }))).toBe(10_000);
+		expect(await total(novemberReport({ member: "everyone" }))).toBe(0);
 	});
 
 	it("refuses another Household", async () => {

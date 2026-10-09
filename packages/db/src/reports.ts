@@ -287,16 +287,33 @@ async function loadRestores(db: Db, scope: ReportScope): Promise<Restore[]> {
 	// parameter: D1 allows 100 bound parameters a statement.
 	const ids = JSON.stringify([...new Set(owed.map((restore) => restore.part))]);
 	const [whole, split] = partsOf(scope);
-	const [wholes, parts] = await db.batch([
+	// What was written off counts on its own day, which may be months after its purchase's: its
+	// purchase is asked for on any day.
+	const [wholeAnyDay, splitAnyDay] = partsOf({
+		...scope,
+		range: { from: "0000-01-01" as DayKey, until: "9999-12-31" as DayKey },
+	});
+	const [wholes, parts, wholesAnyDay, partsAnyDay] = await db.batch([
 		fromParts(db, whole, { id: transactions.id }).where(
 			and(whole.where, sql`${transactions.id} in (select value from json_each(${ids}))`),
 		),
 		fromParts(db, split, { id: splits.id }).where(
 			and(split.where, sql`${splits.id} in (select value from json_each(${ids}))`),
 		),
+		fromParts(db, wholeAnyDay, { id: transactions.id }).where(
+			and(wholeAnyDay.where, sql`${transactions.id} in (select value from json_each(${ids}))`),
+		),
+		fromParts(db, splitAnyDay, { id: splits.id }).where(
+			and(splitAnyDay.where, sql`${splits.id} in (select value from json_each(${ids}))`),
+		),
 	]);
 	const counted = new Set(([...wholes, ...parts] as { id: string }[]).map((row) => row.id));
-	return owed.filter((restore) => counted.has(restore.part ?? ""));
+	const countedAnyDay = new Set(
+		([...wholesAnyDay, ...partsAnyDay] as { id: string }[]).map((row) => row.id),
+	);
+	return owed.filter((restore) =>
+		(restore.writeOff ? countedAnyDay : counted).has(restore.part ?? ""),
+	);
 }
 
 /**

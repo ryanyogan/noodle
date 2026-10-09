@@ -485,10 +485,12 @@ export function monthState({
 				: {}),
 		};
 	});
-	// Everything owed on the month's purchases, whether or not what it is filed in is in the Plan.
+	// Everything owed on the month's purchases, whether or not what it is filed in is in the Plan,
+	// without what a Parent has written off.
 	const owedBackTotal =
 		[...owedByBucket.values()].reduce((sum, owed) => sum + owed, 0) +
-		[...owedByCommitment.values()].reduce((sum, owed) => sum + owed, 0);
+		[...owedByCommitment.values()].reduce((sum, owed) => sum + owed, 0) -
+		[...noLongerOwed.values()].reduce((sum, owed) => sum + owed, 0);
 	return {
 		month: plan.month,
 		baseline: plan.baseline,
