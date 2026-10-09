@@ -15,6 +15,7 @@ import { BucketTable, bucketsHaveHandles } from "../../../components/bucket-tabl
 import { LumpCallout } from "../../../components/coming-up";
 import { AmountInput } from "../../../components/goals";
 import { SeeWhatChanged } from "../../../components/household-log";
+import { OwedBackApart } from "../../../components/owed-back-apart";
 import { PlanDraftSection } from "../../../components/plan-draft";
 import { SaveFailed } from "../../../components/plan-editing";
 import { PlanHealth } from "../../../components/plan-health";
@@ -262,6 +263,12 @@ function PlanHome() {
 						) : null}
 					</Section>
 				) : null}
+				{/* What's owed back on the month's purchases, said apart from spending (issue 158). */}
+				<OwedBackApart
+					owedBack={state.owedBack}
+					buckets={state.buckets}
+					commitments={state.commitments}
+				/>
 				{/* Where the Plan's changes used to be listed: they are in the Log (issue 139). */}
 				{unpaid ? null : <SeeWhatChanged month={month} className="-ms-2 justify-self-start" />}
 			</div>

@@ -1,3 +1,4 @@
+import { OWED_BACK_UNCOUNTED_FROM } from "@noodle/domain";
 import { type AnyColumn, type SQL, sql } from "drizzle-orm";
 import { income, matches, transactions, transfers } from "./schema";
 
@@ -63,10 +64,20 @@ export const incomeCountsOnRaw = (row: string) => `coalesce(${row}.pay_day, ${ro
 // Paid back (ADR-0058) counts as spending in reverse too, though its money is a row in `income`:
 // each confirmed match gives its amount back to the Bucket, Commitment or Goal its purchase is
 // filed in, on the match's `counts_on` day. The purchase's month is never touched.
+//
+// Revised 2026-10-08: that holds for purchases dated before OWED_BACK_UNCOUNTED_FROM, whose months
+// were counted so. From that day on the Owed back part of a purchase never counts: each Owed back
+// item takes its amount off the purchase's Bucket, Commitment or Goal on the purchase's own day,
+// and a match on it restores nothing.
+
+/** The purchase `date` names (a column, in raw SQL) counts only the Household's share. */
+export const owedBackUncountedRaw = (date: string) => `${date} >= '${OWED_BACK_UNCOUNTED_FROM}'`;
 
 /**
- * The FROM of every read of what Paid back restores, in raw SQL: one row (`m`) per match, with
- * its Owed back item's purchase and Split, and per Refund in checking linked to its purchase
+ * The FROM of every read of what Paid back restores, in raw SQL: one row (`m`) per match on a
+ * purchase that counted whole, with its Owed back item's purchase and Split; per Owed back item
+ * of a purchase that counts only the Household's share, on the purchase's day; and per Refund in
+ * checking linked to its purchase
  * (refund-links.ts), which restores the same way; the purchase (`t`) and, when the purchase is
  * split, the Split it restores (`p`: the one the item names, else the largest). `m.split_id` is
  * only named in a `where`: SQLite before 3.52 can't find an outer row from the `order by` of a
@@ -75,6 +86,12 @@ export const incomeCountsOnRaw = (row: string) => `coalesce(${row}.pay_day, ${ro
 export const PAID_BACK_RESTORES_FROM = `(select pm.household_id, pm.amount_cents, pm.counts_on,
 			ob.transaction_id, ob.split_id
 		from paid_back_matches pm join owed_back ob on ob.id = pm.owed_back_id
+		join transactions ot on ot.id = ob.transaction_id
+		where not ${owedBackUncountedRaw("ot.date")}
+		union all
+		select ob.household_id, ob.amount_cents, ot.date, ob.transaction_id, ob.split_id
+		from owed_back ob join transactions ot on ot.id = ob.transaction_id
+		where ${owedBackUncountedRaw("ot.date")}
 		union all
 		select rl.household_id, ri.amount_cents, rl.counts_on, rl.transaction_id, null
 		from refund_links rl join income ri on ri.id = rl.income_id) m
@@ -90,7 +107,8 @@ export const paidBackRestoresRaw = (column: "bucket_id" | "commitment_id" | "goa
 
 /**
  * What was Paid back into the Bucket `bucketId` (SQL giving its ID) on days from `from` through
- * `to`, as a positive sum.
+ * `to`, with the Owed back part of its purchases on those days that never counted, as a positive
+ * sum.
  */
 export const paidBackToBucketSql = (householdId: string, bucketId: SQL, from: string, to: string) =>
 	sql`coalesce((select sum(m.amount_cents) from ${sql.raw(PAID_BACK_RESTORES_FROM)}

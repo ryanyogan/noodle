@@ -9,6 +9,7 @@ import {
 	type MonthlySpend,
 	monthEnded,
 	monthOfDay,
+	OWED_BACK_UNCOUNTED_FROM,
 	type OwedBack,
 	offerPaidBack,
 	owedBackPersonIn,
@@ -575,19 +576,36 @@ export async function loadUnmatchedPaidBack(
 	return rows as UnmatchedPaidBack[];
 }
 
-// What Paid back restores, for the reads that total spending (counting.ts).
+// What Paid back restores, for the reads that total spending (counting.ts), and with it the Owed
+// back part of a purchase that never counts (ADR-0058, revised 2026-10-08). Which of the two a
+// purchase has goes by its day: before OWED_BACK_UNCOUNTED_FROM it counted whole and a match
+// restores it on the day the money counts; from that day on each Owed back item takes its amount
+// off on the purchase's own day and a match restores nothing.
 
+/** Matches that restore: those on purchases that counted whole. */
 const matchRestores = (householdId: string) =>
 	and(
 		eq(paidBackMatches.householdId, householdId),
 		eq(transactions.householdId, householdId),
+		lt(transactions.date, OWED_BACK_UNCOUNTED_FROM),
+		counts(),
+	);
+
+/** Owed back items whose part of the purchase never counts. */
+const neverCounts = (householdId: string) =>
+	and(
+		eq(owedBack.householdId, householdId),
+		eq(transactions.householdId, householdId),
+		gte(transactions.date, OWED_BACK_UNCOUNTED_FROM),
 		counts(),
 	);
 
 /**
  * What was Paid back into Buckets on days from `from` up to, not including, `until`, as spending
  * in reverse: one per match, with its purchase's ID and For. Into another Parent's Personal
- * Allowance it is only a total for the Bucket's month, as their spending is (ADR-0003).
+ * Allowance it is only a total for the Bucket's month, as their spending is (ADR-0003). With
+ * them, marked `owed`, the Owed back part of each purchase on those days that never counts: one
+ * per item on the purchase's day, with what has been Paid back on it so far (`settled`).
  */
 export async function loadPaidBackSpending(
 	db: Db,
@@ -619,8 +637,35 @@ export async function loadPaidBackSpending(
 			),
 		)
 		.orderBy(paidBackMatches.countsOn, paidBackMatches.id);
+	const uncounted = await db
+		.select({
+			id: owedBack.transactionId,
+			splitId: sql<string | null>`${restoredSplit}`.as("restored_split_id"),
+			bucketId: bucket.as("restored_bucket_id"),
+			amount: owedBack.amountCents,
+			date: transactions.date,
+			hidden: sql<number>`${othersAllowance(viewer.memberId, bucket as unknown as string)}`.as(
+				"hidden",
+			),
+			settled: paidSql.as("settled"),
+		})
+		.from(owedBack)
+		.innerJoin(transactions, eq(transactions.id, owedBack.transactionId))
+		.where(
+			and(
+				neverCounts(viewer.householdId),
+				gte(transactions.date, from),
+				lt(transactions.date, until),
+				sql`${bucket} is not null`,
+			),
+		)
+		.orderBy(transactions.date, owedBack.id);
 	// A Refund in checking linked to its purchase restores as a match does (refund-links.ts).
-	const rows = [...matched, ...(await refundSpendingRows(db, viewer, from, until))];
+	const rows: ((typeof matched)[number] & { refund?: true; owed?: true; settled?: number })[] = [
+		...matched,
+		...uncounted.map((row) => ({ ...row, owed: true as const })),
+		...(await refundSpendingRows(db, viewer, from, until)),
+	];
 	if (rows.length === 0) return [];
 	const seen = rows.filter((row) => !row.hidden);
 	// One JSON parameter each: D1 allows 100 bound parameters a statement.
@@ -667,7 +712,8 @@ export async function loadPaidBackSpending(
 				date: `${month}-01` as DayKey,
 				for: [],
 				paidBack: true,
-				...("refund" in row ? { refund: true as const } : {}),
+				...(row.refund ? { refund: true as const } : {}),
+				...(row.owed ? { owed: true as const, settled: (row.settled ?? 0) as Cents } : {}),
 			};
 		}
 		return {
@@ -677,21 +723,29 @@ export async function loadPaidBackSpending(
 			date,
 			for: row.splitId ? forOf(row.splitId, partFor) : forOf(row.id, wholeFor),
 			paidBack: true,
-			...("refund" in row ? { refund: true as const } : {}),
+			...(row.refund ? { refund: true as const } : {}),
+			...(row.owed
+				? {
+						owed: true as const,
+						settled: (row.settled ?? 0) as Cents,
+						...(row.splitId ? { splitId: row.splitId } : {}),
+					}
+				: {}),
 		};
 	});
 }
 
 /**
  * What was Paid back into Commitments on days from `from` to `to` (inclusive), as charges in
- * reverse: one per match, with its purchase's ID.
+ * reverse: one per match, with its purchase's ID. With them, marked `owed`, the Owed back part of
+ * each payment on those days that never counts: one per item on the payment's day.
  */
 export async function loadPaidBackCharges(
 	db: Db,
 	viewer: Viewer,
 	from: DayKey,
 	to: DayKey,
-): Promise<(Charge & { id: string })[]> {
+): Promise<(Charge & { id: string; splitId?: string })[]> {
 	const commitment = restoredCommitment();
 	const rows = await db
 		.select({
@@ -713,17 +767,46 @@ export async function loadPaidBackCharges(
 			),
 		)
 		.orderBy(paidBackMatches.countsOn, paidBackMatches.id);
+	const uncounted = await db
+		.select({
+			id: owedBack.transactionId,
+			splitId: sql<string | null>`${restoredSplit}`.as("restored_split_id"),
+			commitmentId: commitment.as("restored_commitment_id"),
+			amount: sql<number>`-${owedBack.amountCents}`.as("amount"),
+			date: transactions.date,
+			who: owedBack.who,
+		})
+		.from(owedBack)
+		.innerJoin(transactions, eq(transactions.id, owedBack.transactionId))
+		.where(
+			and(
+				neverCounts(viewer.householdId),
+				// A purchase in the other Parent's Personal Allowance is never read one by one.
+				visibleTo(viewer),
+				gte(transactions.date, from),
+				lte(transactions.date, to),
+				sql`${commitment} is not null`,
+			),
+		)
+		.orderBy(transactions.date, owedBack.id);
 	// Marked, so nothing reads one as a payment: not "paid this month", the payment history, or
 	// an "about" average.
 	const refunds = await refundChargeRows(db, viewer, from, to);
-	return [...rows, ...refunds].map((row) => ({ ...row, paidBack: true })) as (Charge & {
-		id: string;
-	})[];
+	return [
+		...rows,
+		...uncounted.map(({ splitId, ...row }) => ({
+			...row,
+			owed: true as const,
+			...(splitId ? { splitId } : {}),
+		})),
+		...refunds,
+	].map((row) => ({ ...row, paidBack: true })) as (Charge & { id: string; splitId?: string })[];
 }
 
 /**
  * What was Paid back into each Bucket in each month from `since` up to, not including, `month`,
- * as spending in reverse, for what a Bucket carries over.
+ * as spending in reverse, for what a Bucket carries over; and, in the month of its purchase, the
+ * Owed back part that never counts.
  */
 export async function loadPaidBackByMonth(
 	db: Db,
@@ -751,6 +834,24 @@ export async function loadPaidBackByMonth(
 			),
 		)
 		.groupBy(bucket, monthOf);
+	const boughtIn = sql<string>`substr(${transactions.date}, 1, 7)`;
+	const uncounted = await db
+		.select({
+			bucketId: bucket.as("restored_bucket_id"),
+			month: boughtIn.as("month"),
+			amount: sql<number>`-sum(${owedBack.amountCents})`.as("amount"),
+		})
+		.from(owedBack)
+		.innerJoin(transactions, eq(transactions.id, owedBack.transactionId))
+		.where(
+			and(
+				neverCounts(householdId),
+				gte(transactions.date, `${since}-01`),
+				lt(transactions.date, `${month}-01`),
+				sql`${bucket} is not null`,
+			),
+		)
+		.groupBy(bucket, boughtIn);
 	const refunds = await refundRowsByMonth(db, householdId, since, month);
-	return [...rows, ...refunds] as MonthlySpend[];
+	return [...rows, ...uncounted, ...refunds] as MonthlySpend[];
 }

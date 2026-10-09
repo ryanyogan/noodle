@@ -212,9 +212,20 @@ describe("exportFiles", () => {
 						owedCents: 6000,
 						paidBackCents: 2550,
 					},
+					{
+						id: "camp",
+						transactionId: "camp",
+						splitId: null,
+						date: "2026-10-01",
+						purchase: "Hockey camp",
+						who: "Casey",
+						owedCents: 30000,
+						paidBackCents: 30000,
+					},
 				],
 				paidBackMatches: [
 					{ incomeId: "venmo", owedBackId: "owed", amountCents: 2550, countsOn: "2026-10-02" },
+					{ incomeId: "venmo", owedBackId: "camp", amountCents: 30000, countsOn: "2026-10-09" },
 				],
 				refundLinks: [
 					{ incomeId: "back", transactionId: "skates", amountCents: 2000, countsOn: "2026-10-05" },
@@ -225,6 +236,14 @@ describe("exportFiles", () => {
 		expect(parseCsv(files["paid-back.csv"] as string)).toEqual([
 			["Counts on", "Paid back", "Who", "Purchase date", "Purchase", "Owed back"],
 			["2026-10-02", "25.5", "Casey", "2026-09-18", "Dinner out", "60"],
+			// From October 1, 2026 on the money restores nothing, so it counts on no day.
+			["", "300", "Casey", "2026-10-01", "Hockey camp", "300"],
+		]);
+		// Whether the part owed counts as spending goes by the purchase's day.
+		expect(parseCsv(files["owed-back.csv"] as string)).toEqual([
+			["Date", "Purchase", "Who", "Owed back", "Paid back", "Still owed", "Counts as spending"],
+			["2026-09-18", "Dinner out", "Casey", "60", "25.5", "34.5", "Yes, until Paid back"],
+			["2026-10-01", "Hockey camp", "Casey", "300", "300", "0", "No"],
 		]);
 		expect(parseCsv(files["refund-links.csv"] as string)).toEqual([
 			[

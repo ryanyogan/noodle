@@ -1,5 +1,11 @@
 import type { ExportData } from "@noodle/db";
-import { MONEY_IN_KIND_LABELS, owedBackPartText, toCsv } from "@noodle/domain";
+import {
+	type DayKey,
+	MONEY_IN_KIND_LABELS,
+	owedBackPartText,
+	owedBackUncounted,
+	toCsv,
+} from "@noodle/domain";
 
 // The files a Household's "Download your data" ZIP holds (ADR-0028), built from what the Parent
 // may see. CSVs are escaped by toCsv: quoted where needed, and a cell a spreadsheet would read as
@@ -258,7 +264,7 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		]);
 	}
 	const owedBack: (string | number | null)[][] = [
-		["Date", "Purchase", "Who", "Owed back", "Paid back", "Still owed"],
+		["Date", "Purchase", "Who", "Owed back", "Paid back", "Still owed", "Counts as spending"],
 	];
 	for (const o of data.owedBack) {
 		owedBack.push([
@@ -268,6 +274,9 @@ export function exportFiles(data: ExportData): Record<string, string> {
 			dollars(o.owedCents),
 			dollars(o.paidBackCents),
 			dollars(o.owedCents - o.paidBackCents),
+			// A purchase from October 1, 2026 on counts only the Household's share (ADR-0058, revised
+			// 2026-10-08); an earlier one counted whole, and what is Paid back on it restores its Bucket.
+			owedBackUncounted(o.date as DayKey) ? "No" : "Yes, until Paid back",
 		]);
 	}
 
@@ -280,7 +289,8 @@ export function exportFiles(data: ExportData): Record<string, string> {
 	for (const m of data.paidBackMatches) {
 		const item = owedItem.get(m.owedBackId);
 		paidBack.push([
-			m.countsOn,
+			// Empty where the money restores nothing: the part it settles never counted as spending.
+			item && owedBackUncounted(item.date as DayKey) ? "" : m.countsOn,
 			dollars(m.amountCents),
 			item?.who ?? "",
 			item?.date ?? "",

@@ -1,5 +1,6 @@
+import type { DayKey } from "@noodle/domain";
 import { describe, expect, it } from "vitest";
-import { editsInCell, escapeStep, openPlace } from "./transaction-table";
+import { dayTotals, editsInCell, escapeStep, openPlace } from "./transaction-table";
 
 // Esc on the Transactions page steps back one thing at a time (issue 99).
 describe("escapeStep", () => {
@@ -63,5 +64,39 @@ describe("editsInCell", () => {
 		expect(editsInCell("a", "a")).toBe(false);
 		expect(editsInCell("b", "a")).toBe(true);
 		expect(editsInCell("a", undefined)).toBe(true);
+	});
+});
+
+describe("dayTotals", () => {
+	const owedBack = [{ who: "Casey", owed: 30_000, paid: 0 }];
+	const bought = (date: string, amountCents: number, more: object = {}) => ({
+		date: date as DayKey,
+		amountCents,
+		transfer: null,
+		moneyIn: undefined,
+		...more,
+	});
+
+	it("leaves the Owed back part out of a day from October 1, 2026 on, as the month does", () => {
+		const totals = dayTotals(
+			[bought("2026-10-01", 60_000, { owedBack }), bought("2026-10-01", 2_500)],
+			false,
+		);
+		expect(totals.get("2026-10-01" as DayKey)).toBe(32_500);
+	});
+
+	it("leaves it out whether or not it has been Paid back", () => {
+		const paid = [{ who: "Casey", owed: 30_000, paid: 30_000 }];
+		expect(
+			dayTotals([bought("2026-10-01", 60_000, { owedBack: paid })], false).get(
+				"2026-10-01" as DayKey,
+			),
+		).toBe(30_000);
+	});
+
+	it("counts an earlier purchase whole, as its month was counted", () => {
+		expect(
+			dayTotals([bought("2026-09-30", 60_000, { owedBack })], false).get("2026-09-30" as DayKey),
+		).toBe(60_000);
 	});
 });

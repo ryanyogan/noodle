@@ -1,6 +1,6 @@
 # ADR-0058: Paid back and Owed back, for money from outside the Household
 
-Status: accepted (2026-10-06)
+Status: accepted (2026-10-06), revised 2026-10-08 (see the end)
 
 ## Context
 
@@ -24,3 +24,17 @@ The Parents pay for things that someone outside the Household's pool of money pa
 
 - Noodle cannot say what a Child has in their account.
 - What someone owes is a list ("Owed back"), not a balance: it is only as complete as the purchases a Parent marked.
+
+## Revised 2026-10-08: what's owed back never counts as our spending
+
+The owner has reversed "it counts in the month it arrives" (issue 158). Counting the whole purchase until the money came made a Bucket read over for weeks for money that was never the Household's to spend, and it made the month's spending and Free to Spend depend on when someone else paid. What the owner wants is that what's owed back never counts against a Bucket or the month.
+
+- **Only the Household's share counts.** The Owed back part of a purchase (or of a Split) is not spending from the day it is said: not against its Bucket or Commitment, not in the month's spending or in what a Bucket carries over, not in Free to Spend, Reports (by Bucket, by day, by who it was For, and narrowed), the Check-in or the Transactions list's total. It takes the purchase's own day, so a purchase and its Owed back part are always in the same month.
+- **The purchase is still shown whole.** Its row keeps its full amount and says the part owed ("$600 · $300 owed back by Casey", and "Paid back by Casey" once all of it has come). Each Bucket and Commitment that has any, and the month, say an **Owed back** total apart from spending.
+- **Paid back money settles the item and changes nothing in the Bucket**, since that part never counted. Money beyond what is owed still waits as "Paid back, not matched yet" and is never Income.
+- **Months that had ended are not changed.** The rule goes by the purchase's day, with one fixed day: a purchase dated **October 1, 2026 or later** counts only the Household's share; a purchase dated before that counts whole, as its month was counted, and what is Paid back on it still restores its Bucket or Commitment in the month the money arrives, exactly as decided above. October 2026 was the running month when this was decided, so no ended month's figures and no carried-over Free to Spend (ADR-0054) move. The day is fixed, never "the running month": a month counted one way is never counted the other way later.
+- **Nothing recorded is rewritten.** The counting is derived when read from the Owed back items and the purchase's day; there is no migration. A match on a purchase from October 1 on keeps its `counts_on` day, which no figure reads.
+
+"Count only the Household's share from the start" was considered and rejected above because it hides money that has really left the Account. The row at its full amount and the Owed back totals are what keep it in sight.
+
+Still to come (issue 158, phase b): something never paid stays owed and uncounted until a Parent writes it off, and it then counts as spending in the month it is written off.

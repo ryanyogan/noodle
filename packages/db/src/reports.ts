@@ -220,6 +220,13 @@ type Restore = {
 	private: boolean;
 	/** Who the purchase was For; a Commitment's restores have it only from `restoresWithFor`. */
 	for: string[];
+	/**
+	 * No money came in: it is the Owed back part of the purchase, which never counts (ADR-0058,
+	 * revised 2026-10-08), on the purchase's own day.
+	 */
+	owed?: true;
+	/** On one that is `owed`: the part of the purchase it is of, a Split's ID or the Transaction's. */
+	part?: string;
 };
 
 /**
@@ -227,11 +234,12 @@ type Restore = {
  * money counts, in the Bucket or Commitment its purchase is filed in: the third source beside
  * whole Transactions and Splits, read as This Month reads it so the two agree. Into another
  * Parent's Personal Allowance it is a private total for the month. It isn't a purchase, so a
- * Report narrowed by what only a purchase has (merchant, Account, For, amount) has none.
+ * Report narrowed by what only a purchase has (merchant, Account, For, amount) has none. The Owed
+ * back part of a purchase that never counts comes the same way, on the purchase's day; it is part
+ * of a purchase, so a Report so narrowed keeps it wherever it keeps the purchase.
  */
 async function loadRestores(db: Db, scope: ReportScope): Promise<Restore[]> {
 	const { viewer, range, filters } = scope;
-	if (!privateTotalsFit(filters)) return [];
 	const [toBuckets, toCommitments] = await Promise.all([
 		loadPaidBackSpending(db, viewer, range.from, range.until),
 		// One-off spending leaves Commitments out, and so what restores them.
@@ -245,6 +253,7 @@ async function loadRestores(db: Db, scope: ReportScope): Promise<Restore[]> {
 			amount: spend.amount,
 			for: spend.for,
 			private: spend.id === privateTotalId(spend.bucketId, monthOfDay(spend.date)),
+			...(spend.owed ? { owed: true as const, part: spend.splitId ?? spend.id } : {}),
 		})),
 		...toCommitments
 			// Charges are read through their last day; a Report's range stops before `until`.
@@ -256,11 +265,29 @@ async function loadRestores(db: Db, scope: ReportScope): Promise<Restore[]> {
 				amount: charge.amount,
 				private: false,
 				for: [],
+				...(charge.owed ? { owed: true as const, part: charge.splitId ?? charge.id } : {}),
 			})),
 	];
-	return restores.filter(
+	const inTargets = restores.filter(
 		(restore) => !filters.targets?.length || filters.targets.includes(restore.target),
 	);
+	if (privateTotalsFit(filters)) return inTargets;
+	const owed = inTargets.filter((restore) => restore.owed && !restore.private);
+	if (owed.length === 0) return [];
+	// The parts the narrowed Report counts, among those something is Owed back on. One JSON
+	// parameter: D1 allows 100 bound parameters a statement.
+	const ids = JSON.stringify([...new Set(owed.map((restore) => restore.part))]);
+	const [whole, split] = partsOf(scope);
+	const [wholes, parts] = await db.batch([
+		fromParts(db, whole, { id: transactions.id }).where(
+			and(whole.where, sql`${transactions.id} in (select value from json_each(${ids}))`),
+		),
+		fromParts(db, split, { id: splits.id }).where(
+			and(split.where, sql`${splits.id} in (select value from json_each(${ids}))`),
+		),
+	]);
+	const counted = new Set(([...wholes, ...parts] as { id: string }[]).map((row) => row.id));
+	return owed.filter((restore) => counted.has(restore.part ?? ""));
 }
 
 /**
@@ -598,6 +625,11 @@ export type ReportItem = {
 	 * counts (ADR-0058). It has no note, merchant or Account of its own.
 	 */
 	paidBack?: true;
+	/**
+	 * On one that is `paidBack`: no money came in. It is the Owed back part of the Transaction
+	 * `id`, which never counts as spending (ADR-0058, revised 2026-10-08), on the purchase's day.
+	 */
+	owedBack?: true;
 };
 
 /**
@@ -662,6 +694,7 @@ export async function loadReportItems(
 				accountId: null,
 				split: false,
 				paidBack: true,
+				...(restore.owed ? { owedBack: true as const } : {}),
 			}),
 		);
 	// For one Member, each is that Member's share, as the figure the rows are behind counts it.

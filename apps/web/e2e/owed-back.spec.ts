@@ -11,7 +11,8 @@ import {
 	uploadStatement,
 } from "./session";
 
-// Paid back and Owed back (issue 132, ADR-0058), the ticket's scenario from end to end: tuition
+// Paid back and Owed back (issue 132, ADR-0058), the ticket's scenario from end to end, for
+// purchases counted the old way (before October 1, 2026; "last month" below): tuition
 // of $1,200 last month with half Owed back by Casey, skates ($45) and the dentist ($80) Owed back
 // in full; $700 arrives this month, a Parent says it is Paid back, and it is offered against what
 // is open, oldest first that fit. Tuition and skates are settled, the dentist keeps $25 owed, the
@@ -30,13 +31,18 @@ test.afterEach(async () => {
 const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** This month and the one before it, in the browser's (and so the Household's) time zone. */
+/**
+ * This month, in the browser's (and so the Household's) time zone, and the month the scenario's
+ * purchases are in. That one is always September 2026, the last month counted whole: a purchase
+ * from October 1, 2026 on counts only the Household's share and what is Paid back on it restores
+ * nothing (ADR-0058, revised 2026-10-08; owed-back-uncounted.spec.ts walks that). "The month
+ * before this one" would stop being such a month in November 2026.
+ */
 function months() {
 	const now = new Date();
-	const before = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 	return {
 		now: `${now.getFullYear()}-${pad(now.getMonth() + 1)}`,
-		last: `${before.getFullYear()}-${pad(before.getMonth() + 1)}`,
+		last: "2026-09",
 	};
 }
 
