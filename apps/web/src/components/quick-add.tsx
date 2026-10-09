@@ -1,7 +1,9 @@
 import {
 	type BucketState,
+	type Cents,
 	canAssign,
 	dayKeyAt,
+	defaultOwedBack,
 	hourAt,
 	matchBuckets,
 	monthKeyAt,
@@ -16,6 +18,7 @@ import { RowButton } from "@noodle/ui/components/row-button";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { Tile } from "@noodle/ui/components/tile";
+import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
@@ -53,6 +56,7 @@ import {
 } from "../quick-add";
 import { type CaptureDraft, type SnapResult, typedAmount } from "../snap";
 import { ForPicker } from "./for-picker";
+import { OwedBackFields, type OwedBackSaying, owedBackSayable } from "./owed-back";
 import { SnapAndSpeak } from "./quick-add-capture";
 
 /** The search param that opens Quick Add over whatever screen is showing. */
@@ -226,6 +230,7 @@ function QuickAddForm({
 			hour: hourAt(now, timeZone),
 			month: monthKeyAt(now, timeZone),
 			transactionId: ulid(),
+			owedBackId: ulid(),
 		};
 	});
 	const queryClient = useQueryClient();
@@ -237,6 +242,8 @@ function QuickAddForm({
 	const [note, setNote] = useState(draft.note);
 	const members = useSuspenseQuery(membersQuery()).data;
 	const [forMemberIds, setForMemberIds] = useState(draft.forMemberIds);
+	// Someone's paying part of it back (issue 158): who, and how much once they say other than half.
+	const [owedBack, setOwedBack] = useState<QuickAddOwing | null>(null);
 	// "Paid with", only for a Household with a card kept by hand (issue 136): this device's last
 	// choice, unless a card's balance check asked for its own. Not awaited: the sheet opens without it.
 	const cards = handKeptCards(useQuery(goalsQuery()).data?.accounts ?? []);
@@ -411,6 +418,14 @@ function QuickAddForm({
 
 	function add(bucket: BucketState) {
 		if (cents === 0) return shake();
+		const owed = owedBack ? owingOf(owedBack, cents) : null;
+		// The amount was typed down under what they said they'd pay back: nothing is saved yet.
+		if (owed && owed.amount > cents) {
+			shake();
+			return toast("They’re paying back more than it came to. Change how much.", {
+				tone: "error",
+			});
+		}
 		// A double tap lands here twice; the ID would make it count once anyway.
 		if (added.current) return;
 		added.current = true;
@@ -426,6 +441,14 @@ function QuickAddForm({
 			receiptId: receipt?.receiptId,
 			datedToday,
 			accountId: cards.some((c) => c.id === accountId) ? accountId : null,
+			owedBack: owed
+				? {
+						id: entry.owedBackId,
+						who: owingName(owed, members),
+						memberId: owed.memberId,
+						amountCents: owed.amount as Cents,
+					}
+				: undefined,
 		});
 	}
 
@@ -745,6 +768,12 @@ function QuickAddForm({
 				</div>
 				<div className="flex flex-wrap items-center gap-x-4">
 					<ForLine members={members} value={forMemberIds} onChange={setForMemberIds} />
+					<OwedBackLine
+						members={members}
+						amountCents={cents}
+						value={owedBack}
+						onChange={setOwedBack}
+					/>
 					{cards.length > 0 ? (
 						<PaidWithLine
 							cards={cards}
@@ -953,6 +982,131 @@ function ForLine({
 							setOpen(false);
 						}}
 					/>
+				</PopoverContent>
+			</Popover>
+		</div>
+	);
+}
+
+/** Who's paying part of a Quick Add back; `amount` null is half of whatever is typed. */
+type QuickAddOwing = { who: string; memberId: string | null; amount: number | null };
+
+/** It with its amount: what was said, else half of what the Quick Add comes to now. */
+const owingOf = (owing: QuickAddOwing, cents: number): OwedBackSaying => ({
+	...owing,
+	amount: owing.amount ?? defaultOwedBack(cents as Cents),
+});
+
+/** Who it names: the Child picked, else the name typed. */
+const owingName = (owing: { who: string; memberId: string | null }, members: MemberSummary[]) =>
+	members.find((member) => member.id === owing.memberId)?.name ?? owing.who.trim();
+
+/**
+ * "Someone's paying part of this back", on one line beside For (issue 158): who and how much open
+ * over the Buckets, the same fields as on an open Transaction, and it is said as the Quick Add is
+ * saved. Half of the amount unless they say, and still half when the amount changes after.
+ */
+function OwedBackLine({
+	members,
+	amountCents,
+	value,
+	onChange,
+}: {
+	members: MemberSummary[];
+	/** What the Quick Add comes to so far; none yet and it asks for the amount first. */
+	amountCents: number;
+	value: QuickAddOwing | null;
+	onChange: (value: QuickAddOwing | null) => void;
+}) {
+	const [open, setOpen] = useState(false);
+	// The picker stays inside the sheet, so it's part of the dialog.
+	const [host, setHost] = useState<HTMLDivElement | null>(null);
+	// What is being said, until Done keeps it.
+	const [saying, setSaying] = useState<OwedBackSaying | null>(null);
+	const half = defaultOwedBack(amountCents as Cents);
+	const now =
+		saying ?? (value ? owingOf(value, amountCents) : { who: "", memberId: null, amount: half });
+	const { named, fits } = owedBackSayable(now, amountCents);
+	const kept = value ? owingOf(value, amountCents) : null;
+	return (
+		<div ref={setHost} className="flex h-8 items-center">
+			<Popover
+				open={open}
+				onOpenChange={(next) => {
+					setOpen(next);
+					setSaying(null);
+				}}
+			>
+				<PopoverTrigger asChild>
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="-ms-2 gap-1 text-muted-foreground"
+						data-testid="quick-add-owed-back"
+					>
+						Owed back:{" "}
+						<span
+							className={cn(
+								"text-foreground",
+								kept && amountCents > 0 && kept.amount > amountCents && "text-over",
+							)}
+						>
+							{kept
+								? `${amountCents > 0 ? `${formatMoney(kept.amount)} · ` : ""}${owingName(kept, members)}`
+								: "Nobody"}
+						</span>
+						<ChevronDown strokeWidth={1.75} aria-hidden="true" />
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent
+					container={host}
+					side="top"
+					align="start"
+					className="grid w-[min(24rem,calc(100vw-32px))] gap-3"
+				>
+					<p className="text-sm font-medium">Someone’s paying part of this back</p>
+					{amountCents > 0 ? (
+						<OwedBackFields
+							value={now}
+							onChange={setSaying}
+							amountCents={amountCents}
+							people={members.filter((member) => member.kind === "child")}
+						/>
+					) : (
+						<p className="text-sm text-muted-foreground">
+							Type the amount first: they’re paying back half of it unless you say.
+						</p>
+					)}
+					<div className="flex flex-wrap gap-2">
+						{amountCents > 0 ? (
+							<Button
+								type="button"
+								size="sm"
+								disabled={!named || !fits}
+								onClick={() => {
+									// Half stays half when the amount changes; anything else is kept as typed.
+									onChange({ ...now, amount: now.amount === half ? null : now.amount });
+									setOpen(false);
+								}}
+							>
+								Done
+							</Button>
+						) : null}
+						{value ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="ghost"
+								onClick={() => {
+									onChange(null);
+									setOpen(false);
+								}}
+							>
+								Nobody’s paying this back
+							</Button>
+						) : null}
+					</div>
 				</PopoverContent>
 			</Popover>
 		</div>

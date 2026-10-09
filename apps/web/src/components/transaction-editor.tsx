@@ -45,6 +45,7 @@ import { AmountInput } from "./goals";
 import { MatchSection } from "./match-section";
 import { MoneyDetail, TransferSection } from "./money-sections";
 import { NoBuckets, useFileWithout } from "./no-buckets";
+import { OwedBackOnPurchase } from "./owed-back";
 import { usePlaceChoices } from "./place-choices";
 import { Confirm } from "./plan-editing";
 import { ReceiptSection } from "./receipt-section";
@@ -809,6 +810,15 @@ function EditForm({
 					<TransferSection transaction={transaction} onDone={onClose} />
 				) : null}
 			</div>
+			{/* In a sheet (Review's, issue 158) who's paying part of it back is said here too; on the
+			    Transaction's own page it sits under the editor. */}
+			{inline ? null : (
+				<OwedBackOnPurchase
+					transaction={transaction}
+					members={members}
+					className="border-t border-border pt-4"
+				/>
+			)}
 			{/* In the sheet the actions are the form's own children, as they were before the editor had
 			    columns: the sheet's footer stays at its foot, above a phone's keyboard, only as a child
 			    of what scrolls (issue 99). Under a row they run across both columns. */}

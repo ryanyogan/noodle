@@ -9,7 +9,10 @@ import {
 import { Button } from "@noodle/ui/components/button";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
+import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
+import { HandCoins } from "lucide-react";
 import { useId, useState } from "react";
 import { dayName, formatMoney } from "../format";
 import type { MoneyInLine } from "../money-in";
@@ -22,6 +25,7 @@ import {
 	useClearOwedBack,
 	useConfirmPaidBack,
 	useOwedBackRule,
+	useOwedBackSaidOn,
 	useSayOwedBack,
 } from "../owed-back";
 import { MoneyInput } from "./money-input";
@@ -31,6 +35,86 @@ import { OwedBackListLink } from "./owed-back-list";
 // of it back, and confirming which of those a Paid back money-in line settles.
 
 type Child = { id: string; name: string };
+
+/** Who's paying it back, as the fields hold it: a name or a Child, and how much. */
+export type OwedBackSaying = { who: string; memberId: string | null; amount: number };
+
+/** Whether it names someone, and is no more than what it is said on. */
+export const owedBackSayable = (said: OwedBackSaying, amountCents: number) => ({
+	named: said.memberId !== null || said.who.trim() !== "",
+	fits: said.amount > 0 && said.amount <= amountCents,
+});
+
+/**
+ * Who and how much: a name or one of the Children, and an amount up to what it is said on. The
+ * one set of fields wherever it is said: an open Transaction, a Review card, Quick Add.
+ */
+export function OwedBackFields({
+	value,
+	onChange,
+	amountCents,
+	people,
+	whole = "the purchase",
+}: {
+	value: OwedBackSaying;
+	onChange: (next: OwedBackSaying) => void;
+	amountCents: number;
+	people: Child[];
+	/** What it can be no more than, in words. */
+	whole?: string;
+}) {
+	const id = useId();
+	const { fits } = owedBackSayable(value, amountCents);
+	return (
+		<>
+			<div className="grid items-start gap-3 sm:grid-cols-2">
+				<Field label="Who’s paying it back" htmlFor={`${id}-who`}>
+					<Input
+						id={`${id}-who`}
+						autoComplete="off"
+						maxLength={OWED_BACK_NAME_MAX}
+						placeholder="A name, like Casey"
+						value={value.memberId ? "" : value.who}
+						disabled={value.memberId !== null}
+						onChange={(event) => onChange({ ...value, who: event.currentTarget.value })}
+					/>
+				</Field>
+				<Field label="How much" htmlFor={`${id}-amount`}>
+					<MoneyInput
+						id={`${id}-amount`}
+						value={value.amount}
+						onCommit={(amount) => onChange({ ...value, amount })}
+						aria-invalid={!fits || undefined}
+					/>
+				</Field>
+			</div>
+			{people.length > 0 ? (
+				// biome-ignore lint/a11y/useSemanticElements: a fieldset's legend can't sit in this row.
+				<div role="group" aria-label="Or one of the Children" className="flex flex-wrap gap-2">
+					{people.map((child) => (
+						<Button
+							key={child.id}
+							type="button"
+							size="sm"
+							variant={value.memberId === child.id ? "default" : "outline"}
+							aria-pressed={value.memberId === child.id}
+							onClick={() =>
+								onChange({ ...value, memberId: value.memberId === child.id ? null : child.id })
+							}
+						>
+							{child.name}
+						</Button>
+					))}
+				</div>
+			) : null}
+			{fits ? null : (
+				<p role="alert" className="text-xs font-medium text-over">
+					Up to {formatMoney(amountCents)}, what {whole} came to.
+				</p>
+			)}
+		</>
+	);
+}
 
 /** Who and how much, for a purchase: a name or a Child, and half unless said. */
 function OwedBackForm({
@@ -48,78 +132,59 @@ function OwedBackForm({
 	people: Child[];
 	onDone: () => void;
 }) {
-	const id = useId();
 	const say = useSayOwedBack();
-	const [who, setWho] = useState(item && !item.memberId ? item.who : "");
-	const [memberId, setMemberId] = useState<string | null>(item?.memberId ?? null);
-	const [amount, setAmount] = useState<number>(item?.owed ?? defaultOwedBack(amountCents as Cents));
-	const named = memberId !== null || who.trim() !== "";
-	const fits = amount > 0 && amount <= amountCents;
+	const [said, setSaid] = useState<OwedBackSaying>({
+		who: item && !item.memberId ? item.who : "",
+		memberId: item?.memberId ?? null,
+		amount: item?.owed ?? defaultOwedBack(amountCents as Cents),
+	});
+	const { named, fits } = owedBackSayable(said, amountCents);
+	const save = () => {
+		if (!named || !fits || say.isPending) return;
+		say.mutate(
+			{
+				transactionId,
+				splitId,
+				who: said.who,
+				memberId: said.memberId,
+				amountCents: said.amount as Cents,
+			},
+			{ onSuccess: onDone },
+		);
+	};
 	return (
-		<form
+		// Not a form of its own: in Review's sheet it sits inside the editor's form. Enter saves it.
+		// biome-ignore lint/a11y/useSemanticElements: a form can't sit inside the editor's form.
+		<div
+			role="group"
+			aria-label="Who’s paying part of this back"
 			className="grid gap-3"
 			data-testid="owed-back-form"
-			onSubmit={(event) => {
+			onKeyDown={(event) => {
+				// Enter in "How much" keeps what was typed, as it does everywhere; in the name it saves.
+				if (event.key !== "Enter" || event.defaultPrevented) return;
+				if (!(event.target instanceof HTMLInputElement)) return;
+				// Never the form around it: Enter here saves who and how much, nothing else.
 				event.preventDefault();
-				if (!named || !fits) return;
-				say.mutate(
-					{ transactionId, splitId, who, memberId, amountCents: amount as Cents },
-					{ onSuccess: onDone },
-				);
+				save();
 			}}
 		>
-			<div className="grid items-start gap-3 sm:grid-cols-2">
-				<Field label="Who’s paying it back" htmlFor={`${id}-who`}>
-					<Input
-						id={`${id}-who`}
-						autoComplete="off"
-						maxLength={OWED_BACK_NAME_MAX}
-						placeholder="A name, like Casey"
-						value={memberId ? "" : who}
-						disabled={memberId !== null}
-						onChange={(event) => setWho(event.currentTarget.value)}
-					/>
-				</Field>
-				<Field label="How much" htmlFor={`${id}-amount`}>
-					<MoneyInput
-						id={`${id}-amount`}
-						value={amount}
-						onCommit={setAmount}
-						aria-invalid={!fits || undefined}
-					/>
-				</Field>
-			</div>
-			{people.length > 0 ? (
-				// biome-ignore lint/a11y/useSemanticElements: a fieldset's legend can't sit in this row.
-				<div role="group" aria-label="Or one of the Children" className="flex flex-wrap gap-2">
-					{people.map((child) => (
-						<Button
-							key={child.id}
-							type="button"
-							size="sm"
-							variant={memberId === child.id ? "default" : "outline"}
-							aria-pressed={memberId === child.id}
-							onClick={() => setMemberId(memberId === child.id ? null : child.id)}
-						>
-							{child.name}
-						</Button>
-					))}
-				</div>
-			) : null}
-			{fits ? null : (
-				<p role="alert" className="text-xs font-medium text-over">
-					Up to {formatMoney(amountCents)}, what {splitId ? "this Split" : "the purchase"} came to.
-				</p>
-			)}
+			<OwedBackFields
+				value={said}
+				onChange={setSaid}
+				amountCents={amountCents}
+				people={people}
+				whole={splitId ? "this Split" : "the purchase"}
+			/>
 			<div className="flex flex-wrap gap-2">
-				<Button type="submit" size="sm" disabled={!named || !fits || say.isPending}>
+				<Button type="button" size="sm" disabled={!named || !fits || say.isPending} onClick={save}>
 					Save
 				</Button>
 				<Button type="button" size="sm" variant="ghost" onClick={onDone}>
 					Cancel
 				</Button>
 			</div>
-		</form>
+		</div>
 	);
 }
 
@@ -183,6 +248,7 @@ function OwedBackOn({
 	item,
 	people,
 	canMoveToWhole = false,
+	asking = false,
 }: {
 	transactionId: string;
 	/** The Split it is said on; null for the whole purchase. */
@@ -197,10 +263,12 @@ function OwedBackOn({
 	 * purchase, as the one item it was (issue 141).
 	 */
 	canMoveToWhole?: boolean;
+	/** Starts on who and how much when nothing is said yet: the Parent has already asked for it. */
+	asking?: boolean;
 }) {
 	const clear = useClearOwedBack();
 	const say = useSayOwedBack();
-	const [editing, setEditing] = useState(false);
+	const [editing, setEditing] = useState(asking && !item);
 	return (
 		<div className="grid gap-3" data-testid={splitId ? "owed-back-split" : "owed-back-whole"}>
 			{item ? (
@@ -284,6 +352,8 @@ function OwedBackOn({
 export function OwedBackOnPurchase({
 	transaction,
 	members,
+	asking = false,
+	className = "mt-4 border-t border-border pt-4",
 }: {
 	transaction: {
 		id: string;
@@ -291,6 +361,10 @@ export function OwedBackOnPurchase({
 		splits?: { id: string; amountCents: number; goal?: unknown }[];
 	};
 	members: { id: string; name: string; kind: string }[];
+	/** Opened to say it (a Review card's sheet): who and how much show at once. */
+	asking?: boolean;
+	/** How it is set off from what is over it. */
+	className?: string;
 }) {
 	const items = useQuery(owedBackOnQuery(transaction.id)).data;
 	if (transaction.amountCents <= 0 || !items) return null;
@@ -305,7 +379,7 @@ export function OwedBackOnPurchase({
 		(one) => one.splitId !== null && !splits.some((split) => split.id === one.splitId),
 	);
 	return (
-		<div className="mt-4 grid gap-3 border-t border-border pt-4" data-testid="owed-back">
+		<div className={cn("grid gap-3", className)} data-testid="owed-back">
 			{/* An item whose Split is gone is the only thing said: it offers the whole purchase itself. */}
 			{(splits.length === 0 || whole) && !(loose.length > 0 && items.length === loose.length) ? (
 				<OwedBackOn
@@ -315,6 +389,7 @@ export function OwedBackOnPurchase({
 					label={splits.length > 0 ? "The whole purchase" : undefined}
 					item={whole}
 					people={children}
+					asking={asking}
 				/>
 			) : null}
 			{offered.map((split) => (
@@ -342,6 +417,77 @@ export function OwedBackOnPurchase({
 				/>
 			))}
 		</div>
+	);
+}
+
+/**
+ * On a Review card (issue 158): "Someone's paying part of this back" in a button the size of
+ * Edit, which opens who and how much in a sheet, so a short phone's card is no taller for it.
+ * Money out only. Once said the card reads "$300 owed back by Casey" (OwedBackSaidOnCard).
+ */
+export function OwedBackOnCard({
+	transaction,
+	label,
+	members,
+	disabled,
+}: {
+	transaction: { id: string; amountCents: number };
+	/** What the purchase is called on its card. */
+	label: string;
+	members: { id: string; name: string; kind: string }[];
+	disabled?: boolean;
+}) {
+	const [open, setOpen] = useState(false);
+	const said = useOwedBackSaidOn(transaction.id);
+	if (transaction.amountCents <= 0) return null;
+	return (
+		<>
+			<Button
+				variant={said ? "secondary" : "ghost"}
+				size="icon"
+				aria-label={
+					said ? `${said} on ${label}: change it` : `Someone’s paying part of ${label} back`
+				}
+				title="Someone’s paying part of this back"
+				data-testid="review-owed-back"
+				disabled={disabled}
+				onClick={() => setOpen(true)}
+			>
+				<HandCoins />
+			</Button>
+			<Sheet open={open} onOpenChange={setOpen}>
+				<SheetContent>
+					<SheetHeader title="Someone’s paying part of this back" description={label} />
+					{open ? (
+						<div className="grid gap-4">
+							<p className="text-sm text-muted-foreground">
+								Their part is Owed back until it comes, and never counts as your spending.
+							</p>
+							<OwedBackOnPurchase transaction={transaction} members={members} asking className="" />
+							<SheetFooter>
+								<Button type="button" variant="outline" onClick={() => setOpen(false)}>
+									Done
+								</Button>
+							</SheetFooter>
+						</div>
+					) : null}
+				</SheetContent>
+			</Sheet>
+		</>
+	);
+}
+
+/** Under a Review card's choices, once it is said: "$300 owed back by Casey". Nothing before. */
+export function OwedBackSaidOnCard({ transactionId }: { transactionId: string }) {
+	const said = useOwedBackSaidOn(transactionId);
+	if (!said) return null;
+	return (
+		<p
+			className="text-[13px] text-muted-foreground tabular-nums"
+			data-testid="review-owed-back-said"
+		>
+			{said}
+		</p>
 	);
 }
 

@@ -78,6 +78,7 @@ import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
 import { CardPaymentQuestion } from "../../../components/card-payment";
 import { ReviewMatchOffer } from "../../../components/match-section";
 import { MoneyInReview } from "../../../components/money-in";
+import { OwedBackOnCard, OwedBackSaidOnCard } from "../../../components/owed-back";
 import { usePlaceChoices } from "../../../components/place-choices";
 import {
 	BETWEEN_US_WHY,
@@ -2306,6 +2307,15 @@ function ReviewCard({
 							>
 								<Pencil />
 							</Button>
+							{/* A purchase with somewhere to file it: someone outside may be paying part back. */}
+							{forChips ? (
+								<OwedBackOnCard
+									transaction={item}
+									label={labelOf(item)}
+									members={members}
+									disabled={!hydrated}
+								/>
+							) : null}
 							{between ? <BetweenUsButton disabled={!hydrated} onClick={onBetweenUs} /> : null}
 							{payment?.kind === "followed" ? (
 								<Button
@@ -2373,6 +2383,7 @@ function ReviewCard({
 							) : null}
 						</div>
 					)}
+					{forChips ? <OwedBackSaidOnCard transactionId={item.id} /> : null}
 					{payment?.kind === "not-followed" && !caution ? (
 						// Its other two ways out: see into the card, or say the payment isn't spending after all.
 						// The narrowest phones have no height for this row: there "Connect the card" ends the why

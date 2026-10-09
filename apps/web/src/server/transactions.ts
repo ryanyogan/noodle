@@ -19,6 +19,7 @@ import {
 	loadUnfiledReceipt,
 	nameSameMerchant as nameSameMerchantInDb,
 	renameTransaction as renameTransactionInDb,
+	sayOwedBack,
 	setTransactionFor as setTransactionForInDb,
 	splitTransaction as splitTransactionInDb,
 	summarizeDeletion,
@@ -33,6 +34,7 @@ import {
 	dayKeyAt,
 	MAX_CENTS,
 	type MonthKey,
+	OWED_BACK_NAME_MAX,
 	type Rule,
 	splitsBalance,
 } from "@noodle/domain";
@@ -75,9 +77,19 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 			datedToday: z.boolean().default(false),
 			// The card kept by hand it was paid with (issue 136): the Quick Add is the record there.
 			accountId: ulidSchema.optional(),
+			// Someone outside the Household is paying part of it back (ADR-0058): a name or a Child,
+			// and how much of it, said as it is saved.
+			owedBack: z
+				.object({
+					id: ulidSchema,
+					who: z.string().max(OWED_BACK_NAME_MAX * 2),
+					memberId: ulidSchema.nullable().optional(),
+					amountCents: z.number().int().min(1).max(MAX_CENTS),
+				})
+				.optional(),
 		}),
 	)
-	.handler(async ({ data, context }) => {
+	.handler(async ({ data, context }): Promise<{ owedBackSaid: boolean }> => {
 		const db = getDb();
 		const viewer = viewerOf(context);
 		const today = dayKeyAt(new Date(), context.household.timeZone);
@@ -100,6 +112,17 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 			accountId: data.accountId ?? null,
 		});
 		if (!result.ok) throw new Error("That Bucket isn’t in this month’s Plan.");
+		// Said after the purchase is written, under its own ID: a retry says it once. The purchase
+		// stays saved if it is refused (nobody named, more than the purchase), and the Parent is told.
+		const said = data.owedBack
+			? await sayOwedBack(db, viewer, {
+					owedBackId: data.owedBack.id,
+					transactionId: data.transactionId,
+					who: data.owedBack.who,
+					memberId: data.owedBack.memberId ?? null,
+					amountCents: data.owedBack.amountCents as never,
+				})
+			: null;
 		// Every month: what's left can roll into later ones. On a card, what's owed there too.
 		const onCard = data.accountId ? (["goals"] as const) : [];
 		await notifyHousehold(
@@ -109,6 +132,7 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 				: ["months", "bucket-uses", ...onCard],
 			[{ type: "quick-add", transactionId: data.transactionId }],
 		);
+		return { owedBackSaid: said?.ok ?? false };
 	});
 
 /** Recent spending's Buckets, so Quick Add can offer the likeliest first. */

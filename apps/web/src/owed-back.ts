@@ -152,6 +152,15 @@ export function useOwedBackOnCommitment(commitmentId: string) {
 	return owedBackSummary(data.filter((item) => item.commitmentId === commitmentId));
 }
 
+/**
+ * "$300 owed back by Casey" for a purchase with something still owed on it, from the one read of
+ * all that is Owed back: a screen of Review cards asks once, not once a card. Null when nothing is.
+ */
+export function useOwedBackSaidOn(transactionId: string): string | null {
+	const { data } = useQuery(owedBackOpenQuery());
+	return owedBackOnRowText(data?.filter((item) => item.transactionId === transactionId));
+}
+
 /** A Paid back line offered against what's still Owed back. */
 export const paidBackOfferQuery = (incomeId: string) =>
 	queryOptions({

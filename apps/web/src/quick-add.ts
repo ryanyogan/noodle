@@ -1,5 +1,5 @@
 import type { BucketSpend } from "@noodle/db";
-import { type DayKey, monthOfDay } from "@noodle/domain";
+import { type Cents, type DayKey, monthOfDay, owedBackUncounted } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatMoney } from "./format";
@@ -25,6 +25,39 @@ export type QuickAddVariables = {
 	datedToday?: boolean;
 	/** The card kept by hand it was paid with: it's the record there, and adds to what's owed. */
 	accountId?: string | null;
+	/** Someone's paying part of it back (ADR-0058): said as it is saved, under an ID a retry keeps. */
+	owedBack?: QuickAddOwedBack | undefined;
+};
+
+/** Who's paying part of a Quick Add back, and how much of it. */
+export type QuickAddOwedBack = {
+	id: string;
+	/** The name typed, or the Child's: what the toast says. */
+	who: string;
+	/** A Child, instead of a name. */
+	memberId: string | null;
+	amountCents: Cents;
+};
+
+/**
+ * What a Quick Add counts as spending: all of it, less the part someone's paying back when it is
+ * dated from the day that part stopped counting (ADR-0058, revised 2026-10-08).
+ */
+export const quickAddCounts = (
+	variables: Pick<QuickAddVariables, "amountCents" | "date" | "owedBack">,
+): Cents =>
+	(variables.owedBack && owedBackUncounted(variables.date)
+		? Math.max(0, variables.amountCents - variables.owedBack.amountCents)
+		: variables.amountCents) as Cents;
+
+/** "$40 added to Kids", and "· $20 owed back by Casey" when someone's paying part of it back. */
+export const quickAddedText = (
+	variables: Pick<QuickAddVariables, "amountCents" | "bucketName" | "owedBack">,
+): string => {
+	const added = `${formatMoney(variables.amountCents)} added to ${variables.bucketName}`;
+	return variables.owedBack
+		? `${added} · ${formatMoney(variables.owedBack.amountCents)} owed back by ${variables.owedBack.who}`
+		: added;
 };
 
 /** An Account as "Paid with" reads it. */
@@ -82,7 +115,7 @@ export function withQuickAdd(data: MonthData, variables: QuickAddVariables): Mon
 	const spend: BucketSpend = {
 		id: variables.transactionId,
 		bucketId: variables.bucketId,
-		amount: variables.amountCents,
+		amount: quickAddCounts(variables),
 		date: variables.date,
 		for: variables.forMemberIds,
 	};
@@ -108,6 +141,7 @@ export function useQuickAdd() {
 			receiptId,
 			datedToday,
 			accountId,
+			owedBack,
 		}: QuickAddVariables) =>
 			addQuickAdd({
 				data: {
@@ -119,6 +153,15 @@ export function useQuickAdd() {
 					receiptId,
 					datedToday,
 					accountId: accountId ?? undefined,
+					owedBack: owedBack
+						? {
+								id: owedBack.id,
+								// A Child is named by the server, from the Household's Members.
+								who: owedBack.memberId ? "" : owedBack.who,
+								memberId: owedBack.memberId,
+								amountCents: owedBack.amountCents,
+							}
+						: undefined,
 				},
 			}),
 		onMutate: async (variables) => {
@@ -135,8 +178,14 @@ export function useQuickAdd() {
 				{ tone: "error", action: { label: "Retry", onClick: () => quickAdd.mutate(variables) } },
 			);
 		},
-		onSuccess: (_data, variables) => {
-			toast(`${formatMoney(variables.amountCents)} added to ${variables.bucketName}`);
+		onSuccess: (data, variables) => {
+			// Saved, but who's paying part back was refused: said, with where to say it again.
+			if (variables.owedBack && !data.owedBackSaid)
+				return toast(
+					`${quickAddedText({ ...variables, owedBack: undefined })}. Couldn’t say who’s paying part of it back: open it in Transactions to say it.`,
+					{ tone: "error" },
+				);
+			toast(quickAddedText(variables));
 		},
 		onSettled: (_data, _error, variables) => {
 			// On a card kept by hand it adds to what's owed there.
