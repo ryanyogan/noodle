@@ -325,7 +325,10 @@ test("Owed back is one line and its purchases, and more than three fold behind S
 	await expect(items).toHaveCount(3);
 	await expect(items.nth(0)).toContainText("$600 of $1,200");
 	await expect(items.nth(0)).toContainText("$600");
-	await expect(list.getByRole("button")).toHaveCount(0);
+	// Each line can be written off (issue 158); there is nothing to show or hide.
+	await expect(list.getByRole("button", { name: /^Write off/ })).toHaveCount(3);
+	await expect(list.getByRole("button", { name: /^(Show all|Hide)/ })).toHaveCount(0);
+	await expect(list.getByTestId("owed-back-age")).toHaveCount(3);
 	// Small: the heading's line and three more, where each purchase used to take a tall row.
 	expect((await list.boundingBox())?.height).toBeLessThan(180);
 	for (const width of [1280, 320]) {
