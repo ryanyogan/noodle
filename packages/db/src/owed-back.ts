@@ -13,6 +13,7 @@ import {
 	type OwedBack,
 	offerPaidBack,
 	owedBackPersonIn,
+	type PaidBackBy,
 	type PaidBackCheck,
 	type PaidBackMatch,
 	type PaidBackOffer,
@@ -139,6 +140,39 @@ export async function loadOwedBack(
 		.orderBy(transactions.date, owedBack.id);
 	// Dates are always written as DayKeys.
 	return rows as OwedBackItem[];
+}
+
+/**
+ * What has been Paid back and matched on days from `from` up to, not including, `until`, by the
+ * day the money arrived: one per match, with who owed it, on purchases `viewer` may see. The list
+ * sums it per person with paidBackInYear (@noodle/domain).
+ */
+export async function loadPaidBackBy(
+	db: Db,
+	viewer: Viewer,
+	from: DayKey,
+	until: DayKey,
+): Promise<PaidBackBy[]> {
+	const bucket = restoredBucket();
+	const rows = await db
+		.select({ who: owedBack.who, amount: paidBackMatches.amountCents, date: income.date })
+		.from(paidBackMatches)
+		.innerJoin(income, eq(income.id, paidBackMatches.incomeId))
+		.innerJoin(owedBack, eq(owedBack.id, paidBackMatches.owedBackId))
+		.innerJoin(transactions, eq(transactions.id, owedBack.transactionId))
+		.where(
+			and(
+				eq(paidBackMatches.householdId, viewer.householdId),
+				eq(owedBack.householdId, viewer.householdId),
+				visibleTo(viewer),
+				sql`not ${othersAllowance(viewer.memberId, bucket as unknown as string)}`,
+				gte(income.date, from),
+				lt(income.date, until),
+			),
+		)
+		.orderBy(income.date, paidBackMatches.id);
+	// Dates are always written as DayKeys.
+	return rows as PaidBackBy[];
 }
 
 export type OwedBackResult =

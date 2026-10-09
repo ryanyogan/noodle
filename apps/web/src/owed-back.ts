@@ -12,6 +12,7 @@ import {
 	getOwedBack,
 	getOwedBackRule,
 	getPaidBackOffer,
+	getPaidBackThisYear,
 	getUnmatchedPaidBack,
 	type OwedBackItem,
 	rememberOwedBackRule,
@@ -45,6 +46,13 @@ export const owedBackWrittenOffQuery = () =>
 	queryOptions({
 		queryKey: [...owedBackKey, "written-off"],
 		queryFn: () => getOwedBack({ data: { writtenOff: true } }),
+	});
+
+/** What has been Paid back and matched this year, one per match: "Paid back $1,450 this year". */
+export const paidBackThisYearQuery = () =>
+	queryOptions({
+		queryKey: [...owedBackKey, "paid-this-year"],
+		queryFn: () => getPaidBackThisYear(),
 	});
 
 /** Paid back lines with money that isn't matched to anything Owed back yet, newest first. */

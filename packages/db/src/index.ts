@@ -768,6 +768,7 @@ export {
 	confirmPaidBack,
 	loadOwedBack,
 	loadPaidBack,
+	loadPaidBackBy,
 	loadUnmatchedPaidBack,
 	type OwedBackFilter,
 	type OwedBackItem,
