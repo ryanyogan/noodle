@@ -9,12 +9,14 @@ import {
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { MonthIncome } from "../../../components/extra-income";
 import { MoneyInNotIncome } from "../../../components/income-inbound";
 import { CountOnOffer, IncomeTable } from "../../../components/income-table";
+import { LeanMonthNote } from "../../../components/lean-month";
 import { LowerTakeHomePayNote, useLowerTakeHomePay } from "../../../components/lower-take-home-pay";
 import { PayDays } from "../../../components/pay-days";
 import { SaveFailed } from "../../../components/plan-editing";
@@ -24,6 +26,7 @@ import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
 import { glossary } from "../../../glossary";
+import { payHistoryQuery } from "../../../pay-history";
 import { usePlanChange, usePlanChanges, withTakeHomePay } from "../../../plan-changes";
 import { useMonthState } from "../../../queries";
 import { setTakeHomePay } from "../../../server/plan";
@@ -45,6 +48,9 @@ function PlanIncome() {
 	const total = received.reduce((sum, i) => sum + i.amount, 0);
 	// A low month: always here for the current month, quietly; This Month says it in its last days.
 	const lowering = useLowerTakeHomePay(month);
+	// With six months of a Parent's pay to go on, what to plan on is said under their history
+	// (ADR-0067), in place of the three-month figure here: never two figures for one press.
+	const { data: histories } = useQuery(payHistoryQuery(month));
 	const lower = state.editable
 		? lowerTakeHomePay({ baseline: state.baseline, income: state.income, month, asOf: state.asOf })
 		: null;
@@ -68,7 +74,7 @@ function PlanIncome() {
 						</Card>
 					) : null}
 					{/* When a Parent's pay varies and its low end has moved: one Household figure still. */}
-					{state.editable && state.baseline !== null ? (
+					{state.editable && state.baseline !== null && histories && !histories.suggested ? (
 						<CountOnOffer month={month} baseline={state.baseline} />
 					) : null}
 				</>
@@ -80,6 +86,8 @@ function PlanIncome() {
 				baseline={state.baseline}
 				editable={state.editable}
 			/>
+			{/* A lean month: what is in so far, and the pay to come against the rest (issue 159). */}
+			<LeanMonthNote month={month} className="rounded-xl bg-surface-2 px-3 py-2.5 text-sm" />
 			{/* This Month's Income section, with Add income and the same row actions; here the
 			    entries are a table a Parent works in (issue 133). The total is said above. */}
 			<MonthIncome

@@ -306,6 +306,7 @@ export {
 	type Service,
 	services,
 } from "./insights";
+export * from "./lean-month";
 export {
 	type LenderPayment,
 	type LoanByAmount,
@@ -467,6 +468,8 @@ export {
 	suggestPairings,
 } from "./pairing";
 export * from "./pay-days";
+export * from "./pay-history";
+export * from "./pay-plan-on";
 export * from "./pay-range";
 export * from "./pay-to-come";
 export {

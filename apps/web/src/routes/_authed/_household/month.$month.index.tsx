@@ -56,6 +56,7 @@ import {
 } from "../../../components/extra-income";
 import { FreeWorking, freeLedgerRows } from "../../../components/free-working";
 import { LatePayLines, useLatePay } from "../../../components/late-pay";
+import { LeanMonthNote } from "../../../components/lean-month";
 import { LowerTakeHomePayNote, useLowerTakeHomePay } from "../../../components/lower-take-home-pay";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthGlance, monthSentence, monthStatus } from "../../../components/month-glance";
@@ -787,6 +788,11 @@ function FreeToSpend({
 							{incomeNote}
 						</p>
 					) : null}
+					{/* A lean month, and the pay to come expected against it (issue 159). */}
+					<LeanMonthNote
+						month={state.month}
+						className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5 text-sm"
+					/>
 				</div>
 				{state.baseline === null ? null : (
 					<FreeWorking
