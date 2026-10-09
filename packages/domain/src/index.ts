@@ -306,6 +306,7 @@ export {
 	type Service,
 	services,
 } from "./insights";
+export * from "./lean-month";
 export {
 	type LenderPayment,
 	type LoanByAmount,

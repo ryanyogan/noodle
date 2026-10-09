@@ -16,6 +16,7 @@ import { useState } from "react";
 import { MonthIncome } from "../../../components/extra-income";
 import { MoneyInNotIncome } from "../../../components/income-inbound";
 import { CountOnOffer, IncomeTable } from "../../../components/income-table";
+import { LeanMonthNote } from "../../../components/lean-month";
 import { LowerTakeHomePayNote, useLowerTakeHomePay } from "../../../components/lower-take-home-pay";
 import { PayDays } from "../../../components/pay-days";
 import { SaveFailed } from "../../../components/plan-editing";
@@ -85,6 +86,8 @@ function PlanIncome() {
 				baseline={state.baseline}
 				editable={state.editable}
 			/>
+			{/* A lean month: what is in so far, and the pay to come against the rest (issue 159). */}
+			<LeanMonthNote month={month} className="rounded-xl bg-surface-2 px-3 py-2.5 text-sm" />
 			{/* This Month's Income section, with Add income and the same row actions; here the
 			    entries are a table a Parent works in (issue 133). The total is said above. */}
 			<MonthIncome
