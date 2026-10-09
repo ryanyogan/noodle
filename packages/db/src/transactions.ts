@@ -528,7 +528,14 @@ export type TransactionRow = {
 	 * What was said Owed back on it (ADR-0058), an item for the whole purchase or for each Split the
 	 * Viewer may see, with what has been Paid back on each; absent when nothing was said.
 	 */
-	owedBack?: { who: string; owed: Cents; paid: Cents }[];
+	owedBack?: {
+		who: string;
+		owed: Cents;
+		paid: Cents;
+		/** What a Parent wrote off of it, and the day they did; 0 and null when nothing. */
+		writtenOff: Cents;
+		writtenOffOn: DayKey | null;
+	}[];
 	for: string[];
 	/** Its Splits in the order they were entered, those the Viewer may see; none unless it's split. */
 	splits: SplitRow[];
@@ -805,9 +812,13 @@ export async function loadTransactionsPage(
 	const owedSeen = sql`ob.transaction_id = ${transactions.id} and (not ${partly}
 		or exists (select 1 from ${splits} where ${splits.id} = ob.split_id and ${visibleSplit(viewer)}))`;
 	// The Owed back part of a purchase that never counts as spending (ADR-0058, revised
-	// 2026-10-08): what the list spent leaves it out, as its Bucket and the month do.
+	// 2026-10-08): what the list spent leaves it out, as its Bucket and the month do. What was
+	// written off of it in the purchase's own month is that month's spending, so it stays in.
 	const uncounted = sql<number>`(case when ${transactions.date} >= ${OWED_BACK_UNCOUNTED_FROM}
-		then (select coalesce(sum(ob.amount_cents), 0) from owed_back ob where ${owedSeen}) else 0 end)`;
+		then (select coalesce(sum(ob.amount_cents - (case
+				when substr(ob.written_off_on, 1, 7) = substr(${transactions.date}, 1, 7)
+				then ob.written_off_cents else 0 end)), 0)
+			from owed_back ob where ${owedSeen}) else 0 end)`;
 	// Money in kept in `income`, under the filters that apply to it (ADR-0061).
 	const moneyInAsked = Boolean(query.moneyIn) && !query.transactionId;
 	// A paired Transfer is one row here (ADR-0062).
@@ -947,7 +958,8 @@ export async function loadTransactionsPage(
 				where r.refund_transaction_id = ${transactions.id} and r.removed_at is null)`,
 			owedBack: sql<string>`(select json_group_array(json_object('who', ob.who, 'owed', ob.amount_cents,
 					'paid', (select coalesce(sum(pm.amount_cents), 0) from paid_back_matches pm
-						where pm.owed_back_id = ob.id)))
+						where pm.owed_back_id = ob.id),
+					'writtenOff', coalesce(ob.written_off_cents, 0), 'writtenOffOn', ob.written_off_on))
 				from owed_back ob where ${owedSeen})`,
 			autoFiled: categorizations.method,
 			assignedName: sql<string | null>`coalesce(

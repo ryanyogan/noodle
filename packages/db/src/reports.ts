@@ -225,7 +225,12 @@ type Restore = {
 	 * revised 2026-10-08), on the purchase's own day.
 	 */
 	owed?: true;
-	/** On one that is `owed`: the part of the purchase it is of, a Split's ID or the Transaction's. */
+	/** What a Parent wrote off of a purchase's Owed back part: spending, on the day they did. */
+	writeOff?: true;
+	/**
+	 * On one that is `owed` or a `writeOff`: the part of the purchase it is of, a Split's ID or the
+	 * Transaction's.
+	 */
 	part?: string;
 };
 
@@ -254,6 +259,7 @@ async function loadRestores(db: Db, scope: ReportScope): Promise<Restore[]> {
 			for: spend.for,
 			private: spend.id === privateTotalId(spend.bucketId, monthOfDay(spend.date)),
 			...(spend.owed ? { owed: true as const, part: spend.splitId ?? spend.id } : {}),
+			...(spend.writeOff ? { writeOff: true as const, part: spend.splitId ?? spend.id } : {}),
 		})),
 		...toCommitments
 			// Charges are read through their last day; a Report's range stops before `until`.
@@ -266,28 +272,48 @@ async function loadRestores(db: Db, scope: ReportScope): Promise<Restore[]> {
 				private: false,
 				for: [],
 				...(charge.owed ? { owed: true as const, part: charge.splitId ?? charge.id } : {}),
+				...(charge.writeOff ? { writeOff: true as const, part: charge.splitId ?? charge.id } : {}),
 			})),
 	];
 	const inTargets = restores.filter(
 		(restore) => !filters.targets?.length || filters.targets.includes(restore.target),
 	);
 	if (privateTotalsFit(filters)) return inTargets;
-	const owed = inTargets.filter((restore) => restore.owed && !restore.private);
+	const owed = inTargets.filter(
+		(restore) => (restore.owed || restore.writeOff) && !restore.private,
+	);
 	if (owed.length === 0) return [];
 	// The parts the narrowed Report counts, among those something is Owed back on. One JSON
 	// parameter: D1 allows 100 bound parameters a statement.
 	const ids = JSON.stringify([...new Set(owed.map((restore) => restore.part))]);
 	const [whole, split] = partsOf(scope);
-	const [wholes, parts] = await db.batch([
+	// What was written off counts on its own day, which may be months after its purchase's: its
+	// purchase is asked for on any day.
+	const [wholeAnyDay, splitAnyDay] = partsOf({
+		...scope,
+		range: { from: "0000-01-01" as DayKey, until: "9999-12-31" as DayKey },
+	});
+	const [wholes, parts, wholesAnyDay, partsAnyDay] = await db.batch([
 		fromParts(db, whole, { id: transactions.id }).where(
 			and(whole.where, sql`${transactions.id} in (select value from json_each(${ids}))`),
 		),
 		fromParts(db, split, { id: splits.id }).where(
 			and(split.where, sql`${splits.id} in (select value from json_each(${ids}))`),
 		),
+		fromParts(db, wholeAnyDay, { id: transactions.id }).where(
+			and(wholeAnyDay.where, sql`${transactions.id} in (select value from json_each(${ids}))`),
+		),
+		fromParts(db, splitAnyDay, { id: splits.id }).where(
+			and(splitAnyDay.where, sql`${splits.id} in (select value from json_each(${ids}))`),
+		),
 	]);
 	const counted = new Set(([...wholes, ...parts] as { id: string }[]).map((row) => row.id));
-	return owed.filter((restore) => counted.has(restore.part ?? ""));
+	const countedAnyDay = new Set(
+		([...wholesAnyDay, ...partsAnyDay] as { id: string }[]).map((row) => row.id),
+	);
+	return owed.filter((restore) =>
+		(restore.writeOff ? countedAnyDay : counted).has(restore.part ?? ""),
+	);
 }
 
 /**
@@ -630,6 +656,11 @@ export type ReportItem = {
 	 * `id`, which never counts as spending (ADR-0058, revised 2026-10-08), on the purchase's day.
 	 */
 	owedBack?: true;
+	/**
+	 * On one that is `paidBack`: nothing came back. It is what a Parent wrote off of the Owed back
+	 * part of the Transaction `id`, a positive amount on the day it was written off.
+	 */
+	writtenOff?: true;
 };
 
 /**
@@ -695,6 +726,7 @@ export async function loadReportItems(
 				split: false,
 				paidBack: true,
 				...(restore.owed ? { owedBack: true as const } : {}),
+				...(restore.writeOff ? { writtenOff: true as const } : {}),
 			}),
 		);
 	// For one Member, each is that Member's share, as the figure the rows are behind counts it.

@@ -243,7 +243,13 @@ const percent = (label: string) => ({ label, kind: "percent" as const });
 const itemRows = (items: AreaData["items"], names: Names) =>
 	items.map((item) => [
 		item.date,
-		item.paidBack ? (item.owedBack ? "Owed back" : "Paid back") : (item.note ?? ""),
+		item.paidBack
+			? item.owedBack
+				? "Owed back"
+				: item.writtenOff
+					? "Written off"
+					: "Paid back"
+			: (item.note ?? ""),
 		names.label(item.target),
 		item.amount,
 	]);
@@ -790,7 +796,12 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 							>
 								<span className="flex items-baseline gap-3">
 									<span className="min-w-0 flex-1 truncate text-sm font-medium">
-										{(item.paidBack && (item.owedBack ? "Owed back" : "Paid back")) ||
+										{(item.paidBack &&
+											(item.owedBack
+												? "Owed back"
+												: item.writtenOff
+													? "Written off"
+													: "Paid back")) ||
 											item.merchantName ||
 											(item.note && displayMerchant(item.note)) ||
 											names.label(item.target)}
@@ -1120,7 +1131,12 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 									<KeyTile names={names} target={item.target} className="size-8" />
 									<span className="grid min-w-0 flex-1 gap-0.5">
 										<span className="truncate text-sm font-medium">
-											{(item.paidBack && (item.owedBack ? "Owed back" : "Paid back")) ||
+											{(item.paidBack &&
+												(item.owedBack
+													? "Owed back"
+													: item.writtenOff
+														? "Written off"
+														: "Paid back")) ||
 												item.merchantName ||
 												(item.note && displayMerchant(item.note)) ||
 												names.label(item.target)}

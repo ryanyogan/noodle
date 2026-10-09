@@ -264,7 +264,17 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		]);
 	}
 	const owedBack: (string | number | null)[][] = [
-		["Date", "Purchase", "Who", "Owed back", "Paid back", "Still owed", "Counts as spending"],
+		[
+			"Date",
+			"Purchase",
+			"Who",
+			"Owed back",
+			"Paid back",
+			"Still owed",
+			"Counts as spending",
+			"Written off",
+			"Amount written off",
+		],
 	];
 	for (const o of data.owedBack) {
 		owedBack.push([
@@ -273,10 +283,17 @@ export function exportFiles(data: ExportData): Record<string, string> {
 			o.who,
 			dollars(o.owedCents),
 			dollars(o.paidBackCents),
-			dollars(o.owedCents - o.paidBackCents),
+			dollars(o.owedCents - o.paidBackCents - o.writtenOffCents),
 			// A purchase from October 1, 2026 on counts only the Household's share (ADR-0058, revised
 			// 2026-10-08); an earlier one counted whole, and what is Paid back on it restores its Bucket.
-			owedBackUncounted(o.date as DayKey) ? "No" : "Yes, until Paid back",
+			// What is written off of the first kind counts in the month it was written off.
+			owedBackUncounted(o.date as DayKey)
+				? o.writtenOffOn
+					? "Only what was written off"
+					: "No"
+				: "Yes, until Paid back",
+			o.writtenOffOn ?? "",
+			o.writtenOffOn ? dollars(o.writtenOffCents) : "",
 		]);
 	}
 

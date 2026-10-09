@@ -37,4 +37,13 @@ The owner has reversed "it counts in the month it arrives" (issue 158). Counting
 
 "Count only the Household's share from the start" was considered and rejected above because it hides money that has really left the Account. The row at its full amount and the Owed back totals are what keep it in sight.
 
-Still to come (issue 158, phase b): something never paid stays owed and uncounted until a Parent writes it off, and it then counts as spending in the month it is written off.
+### Writing it off (issue 158, phase b)
+
+Something never paid stays Owed back, and uncounted, for as long as nobody says otherwise. No date makes it spending by itself.
+
+- **A Parent writes it off**, from the Owed back list or from the item on its purchase: all of what is still owed, so the rest of an item after a part payment. The item leaves the open list and is listed under "Written off".
+- **It counts as the Household's spending in the month it is written off**, on the day it is written off, in the purchase's Bucket or Commitment (the Split's, when it was said on a Split): in the month's spending, what a Bucket carries over, Free to Spend, Reports and the Check-in, through the same reads that leave the Owed back part out. The purchase's own month is never touched, so an ended month does not change.
+- **It can be undone while the month it was written off in is running**, and the item is then Owed back again. Once that month has ended it stays written off, the item cannot be taken off, and the purchase is held as one with money back that counted in an ended month.
+- **While written off, who and how much do not change.** The write-off is undone first.
+- **A purchase dated before October 1, 2026 counted whole already**, so writing off what is owed on it only closes the item and counts nothing more.
+- **Stored on the item**: `owed_back.written_off_on` (the day) and `written_off_cents` (what was still owed then), both null until written off (migration 0093). Kept as an amount so a later change to what was Paid back never changes what an ended month counted.

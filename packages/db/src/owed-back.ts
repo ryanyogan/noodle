@@ -56,7 +56,13 @@ export type OwedBackItem = OwedBack & {
 	/** Where the money goes back to: the purchase's (or the Split's) Bucket or Commitment. */
 	bucketId: string | null;
 	commitmentId: string | null;
+	/** What a Parent wrote off of it, 0 when nothing; and the day they did, the month it counts in. */
+	writtenOff: Cents;
+	writtenOffOn: DayKey | null;
 };
+
+/** What a Parent wrote off of the item of the enclosing query. */
+const writtenOffSql = sql<number>`coalesce(${owedBack.writtenOffCents}, 0)`;
 
 /**
  * The Split an item restores when its purchase is split: the one it names, else the largest. The
@@ -82,6 +88,8 @@ const paidSql = sql<number>`(select coalesce(sum(pm.amount_cents), 0) from paid_
 export type OwedBackFilter = {
 	/** Only what's still owed. */
 	open?: boolean;
+	/** Only what a Parent wrote off. */
+	writtenOff?: boolean;
 	transactionId?: string;
 	id?: string;
 };
@@ -112,6 +120,8 @@ export async function loadOwedBack(
 				${transactions.amountCents})`.as("purchase_amount"),
 			bucketId: bucket.as("restored_bucket_id"),
 			commitmentId: restoredCommitment().as("restored_commitment_id"),
+			writtenOff: writtenOffSql.as("written_off"),
+			writtenOffOn: owedBack.writtenOffOn,
 		})
 		.from(owedBack)
 		.innerJoin(transactions, eq(transactions.id, owedBack.transactionId))
@@ -122,7 +132,8 @@ export async function loadOwedBack(
 				sql`not ${othersAllowance(viewer.memberId, bucket as unknown as string)}`,
 				filter.id ? eq(owedBack.id, filter.id) : undefined,
 				filter.transactionId ? eq(owedBack.transactionId, filter.transactionId) : undefined,
-				filter.open ? sql`${owedBack.amountCents} > ${paidSql}` : undefined,
+				filter.open ? sql`${owedBack.amountCents} > ${paidSql} + ${writtenOffSql}` : undefined,
+				filter.writtenOff ? isNotNull(owedBack.writtenOffOn) : undefined,
 			),
 		)
 		.orderBy(transactions.date, owedBack.id);
@@ -136,11 +147,19 @@ export type OwedBackResult =
 	 * `refused`: not a purchase this Parent may change, or not a Child of the Household;
 	 * `no-name`: nobody was named; `too-much`: nothing, or more than the purchase;
 	 * `paid-back`: less than has already been Paid back on it; `on-whole`: said for a Split while
-	 * it is already said on the whole purchase; `on-splits`: the other way round.
+	 * it is already said on the whole purchase; `on-splits`: the other way round; `written-off`:
+	 * it was written off, which is undone before who or how much changes.
 	 */
 	| {
 			ok: false;
-			reason: "refused" | "no-name" | "too-much" | "paid-back" | "on-whole" | "on-splits";
+			reason:
+				| "refused"
+				| "no-name"
+				| "too-much"
+				| "paid-back"
+				| "on-whole"
+				| "on-splits"
+				| "written-off";
 	  };
 
 /**
@@ -199,6 +218,7 @@ export async function sayOwedBack(
 			splitId: owedBack.splitId,
 			amount: owedBack.amountCents,
 			paid: paidSql.as("paid"),
+			writtenOffOn: owedBack.writtenOffOn,
 		})
 		.from(owedBack)
 		.where(
@@ -220,6 +240,7 @@ export async function sayOwedBack(
 				orphans.length
 			: 0;
 	if (orphan && others === 0) {
+		if (orphan.writtenOffOn) return { ok: false, reason: "written-off" };
 		const [whole] = await db
 			.select({ amount: transactions.amountCents })
 			.from(transactions)
@@ -279,9 +300,10 @@ export async function sayOwedBack(
 	if (otherWay) return { ok: false, reason: splitId ? "on-whole" : "on-splits" };
 	const same = and(ofThePurchase, sql`coalesce(${owedBack.splitId}, '') = ${splitId ?? ""}`);
 	const [existing] = await db
-		.select({ id: owedBack.id, paid: paidSql.as("paid") })
+		.select({ id: owedBack.id, paid: paidSql.as("paid"), writtenOffOn: owedBack.writtenOffOn })
 		.from(owedBack)
 		.where(same);
+	if (existing?.writtenOffOn) return { ok: false, reason: "written-off" };
 	if (existing && amount < existing.paid) return { ok: false, reason: "paid-back" };
 	const memberId = input.memberId ?? null;
 	if (existing) {
@@ -338,7 +360,10 @@ export function owedBackOffGoneSplits(db: Db, householdId: string, transactionId
 
 export type OwedBackRemoveResult =
 	| { ok: true }
-	/** `month-ended`: money Paid back on it already counted in a month that has ended. */
+	/**
+	 * `month-ended`: money Paid back on it already counted in a month that has ended, or it was
+	 * written off in one.
+	 */
 	| { ok: false; reason: "refused" | "month-ended" };
 
 /**
@@ -352,6 +377,8 @@ export async function removeOwedBack(
 ): Promise<OwedBackRemoveResult> {
 	const [item] = await loadOwedBack(db, viewer, { id: input.owedBackId });
 	if (!item) return { ok: false, reason: "refused" };
+	if (item.writtenOffOn && item.writtenOffOn < runningFrom(input.today))
+		return { ok: false, reason: "month-ended" };
 	const ofTheItem = and(
 		eq(paidBackMatches.householdId, viewer.householdId),
 		eq(paidBackMatches.owedBackId, input.owedBackId),
@@ -377,6 +404,79 @@ export async function removeOwedBack(
 			),
 	]);
 	return { ok: true };
+}
+
+export type OwedBackWriteOffResult =
+	| { ok: true; item: OwedBackItem }
+	/**
+	 * `refused`: not an item this Parent may see; `nothing-owed`: all of it has been Paid back;
+	 * `month-ended`: it was written off in a month that has ended, so it stays written off.
+	 */
+	| { ok: false; reason: "refused" | "nothing-owed" | "month-ended" };
+
+/**
+ * A Parent writes off what is still Owed back on an item: nobody is going to pay it. The item is
+ * closed, and what was still owed counts as the Household's spending on `today`, in the
+ * purchase's Bucket or Commitment, so never in a month that has ended. On a purchase dated before
+ * OWED_BACK_UNCOUNTED_FROM, which counted whole already, it only closes the item. Writing off
+ * what is written off already changes nothing.
+ */
+export async function writeOffOwedBack(
+	db: Db,
+	viewer: Viewer,
+	input: { owedBackId: string; today: DayKey },
+): Promise<OwedBackWriteOffResult> {
+	const [item] = await loadOwedBack(db, viewer, { id: input.owedBackId });
+	if (!item) return { ok: false, reason: "refused" };
+	if (item.writtenOffOn) return { ok: true, item };
+	if (item.owed <= item.paid) return { ok: false, reason: "nothing-owed" };
+	// What is still owed is worked out in the write: the other Parent may be matching a payment.
+	await db
+		.update(owedBack)
+		.set({
+			writtenOffOn: input.today,
+			writtenOffCents: sql`${owedBack.amountCents} - ${paidSql}`,
+		})
+		.where(
+			and(
+				eq(owedBack.id, input.owedBackId),
+				eq(owedBack.householdId, viewer.householdId),
+				isNull(owedBack.writtenOffOn),
+				sql`${owedBack.amountCents} > ${paidSql}`,
+			),
+		);
+	const [after] = await loadOwedBack(db, viewer, { id: input.owedBackId });
+	if (!after) return { ok: false, reason: "refused" };
+	return after.writtenOffOn ? { ok: true, item: after } : { ok: false, reason: "nothing-owed" };
+}
+
+/**
+ * A Parent undoes a write-off while the month it was written off in is still running: the item
+ * is Owed back again and what was written off stops counting as spending. Refused once that
+ * month has ended.
+ */
+export async function undoOwedBackWriteOff(
+	db: Db,
+	viewer: Viewer,
+	input: { owedBackId: string; today: DayKey },
+): Promise<OwedBackWriteOffResult> {
+	const [item] = await loadOwedBack(db, viewer, { id: input.owedBackId });
+	if (!item) return { ok: false, reason: "refused" };
+	if (!item.writtenOffOn) return { ok: true, item };
+	const from = runningFrom(input.today);
+	if (item.writtenOffOn < from) return { ok: false, reason: "month-ended" };
+	await db
+		.update(owedBack)
+		.set({ writtenOffOn: null, writtenOffCents: null })
+		.where(
+			and(
+				eq(owedBack.id, input.owedBackId),
+				eq(owedBack.householdId, viewer.householdId),
+				gte(owedBack.writtenOffOn, from),
+			),
+		);
+	const [after] = await loadOwedBack(db, viewer, { id: input.owedBackId });
+	return after ? { ok: true, item: after } : { ok: false, reason: "refused" };
 }
 
 /** A confirmed match, as kept. */
@@ -527,7 +627,8 @@ export async function confirmPaidBack(
 						sql`exists (select 1 from income i where i.id = ${input.incomeId}
 							and i.household_id = ${householdId} and i.kind = 'paid-back')
 						and (select coalesce(sum(x.amount_cents), 0) from paid_back_matches x
-							where x.owed_back_id = o.id) + ${field("amount")} <= o.amount_cents`,
+							where x.owed_back_id = o.id) + ${field("amount")}
+							<= o.amount_cents - coalesce(o.written_off_cents, 0)`,
 					),
 			)
 			.onConflictDoNothing(),
@@ -580,7 +681,8 @@ export async function loadUnmatchedPaidBack(
 // back part of a purchase that never counts (ADR-0058, revised 2026-10-08). Which of the two a
 // purchase has goes by its day: before OWED_BACK_UNCOUNTED_FROM it counted whole and a match
 // restores it on the day the money counts; from that day on each Owed back item takes its amount
-// off on the purchase's own day and a match restores nothing.
+// off on the purchase's own day and a match restores nothing; what a Parent writes off of it
+// counts as spending on the day it is written off.
 
 /** Matches that restore: those on purchases that counted whole. */
 const matchRestores = (householdId: string) =>
@@ -600,12 +702,18 @@ const neverCounts = (householdId: string) =>
 		counts(),
 	);
 
+/** Those of them a Parent wrote off on days from `from` up to, not including, `until`. */
+const writtenOffIn = (householdId: string, from: DayKey, until: DayKey) =>
+	and(neverCounts(householdId), gte(owedBack.writtenOffOn, from), lt(owedBack.writtenOffOn, until));
+
 /**
  * What was Paid back into Buckets on days from `from` up to, not including, `until`, as spending
  * in reverse: one per match, with its purchase's ID and For. Into another Parent's Personal
  * Allowance it is only a total for the Bucket's month, as their spending is (ADR-0003). With
  * them, marked `owed`, the Owed back part of each purchase on those days that never counts: one
- * per item on the purchase's day, with what has been Paid back on it so far (`settled`).
+ * per item on the purchase's day, with what has been Paid back on it so far (`settled`) and what
+ * was written off of it (`writtenOff`). And, marked `writeOff`, what a Parent wrote off on those
+ * days: spending, a positive amount, on the day it was written off.
  */
 export async function loadPaidBackSpending(
 	db: Db,
@@ -648,6 +756,7 @@ export async function loadPaidBackSpending(
 				"hidden",
 			),
 			settled: paidSql.as("settled"),
+			writtenOff: writtenOffSql.as("written_off"),
 		})
 		.from(owedBack)
 		.innerJoin(transactions, eq(transactions.id, owedBack.transactionId))
@@ -660,10 +769,33 @@ export async function loadPaidBackSpending(
 			),
 		)
 		.orderBy(transactions.date, owedBack.id);
+	const writeOffs = await db
+		.select({
+			id: owedBack.transactionId,
+			splitId: sql<string | null>`${restoredSplit}`.as("restored_split_id"),
+			bucketId: bucket.as("restored_bucket_id"),
+			// Spending, where the rows beside it are spending in reverse.
+			amount: sql<number>`-${owedBack.writtenOffCents}`.as("amount"),
+			date: sql<string>`${owedBack.writtenOffOn}`.as("written_off_on"),
+			hidden: sql<number>`${othersAllowance(viewer.memberId, bucket as unknown as string)}`.as(
+				"hidden",
+			),
+		})
+		.from(owedBack)
+		.innerJoin(transactions, eq(transactions.id, owedBack.transactionId))
+		.where(and(writtenOffIn(viewer.householdId, from, until), sql`${bucket} is not null`))
+		.orderBy(owedBack.writtenOffOn, owedBack.id);
 	// A Refund in checking linked to its purchase restores as a match does (refund-links.ts).
-	const rows: ((typeof matched)[number] & { refund?: true; owed?: true; settled?: number })[] = [
+	const rows: ((typeof matched)[number] & {
+		refund?: true;
+		owed?: true;
+		settled?: number;
+		writtenOff?: number;
+		writeOff?: true;
+	})[] = [
 		...matched,
 		...uncounted.map((row) => ({ ...row, owed: true as const })),
+		...writeOffs.map((row) => ({ ...row, writeOff: true as const })),
 		...(await refundSpendingRows(db, viewer, from, until)),
 	];
 	if (rows.length === 0) return [];
@@ -714,6 +846,8 @@ export async function loadPaidBackSpending(
 				paidBack: true,
 				...(row.refund ? { refund: true as const } : {}),
 				...(row.owed ? { owed: true as const, settled: (row.settled ?? 0) as Cents } : {}),
+				...(row.owed && row.writtenOff ? { writtenOff: row.writtenOff as Cents } : {}),
+				...(row.writeOff ? { writeOff: true as const } : {}),
 			};
 		}
 		return {
@@ -728,8 +862,12 @@ export async function loadPaidBackSpending(
 				? {
 						owed: true as const,
 						settled: (row.settled ?? 0) as Cents,
+						...(row.writtenOff ? { writtenOff: row.writtenOff as Cents } : {}),
 						...(row.splitId ? { splitId: row.splitId } : {}),
 					}
+				: {}),
+			...(row.writeOff
+				? { writeOff: true as const, ...(row.splitId ? { splitId: row.splitId } : {}) }
 				: {}),
 		};
 	});
@@ -738,7 +876,8 @@ export async function loadPaidBackSpending(
 /**
  * What was Paid back into Commitments on days from `from` to `to` (inclusive), as charges in
  * reverse: one per match, with its purchase's ID. With them, marked `owed`, the Owed back part of
- * each payment on those days that never counts: one per item on the payment's day.
+ * each payment on those days that never counts: one per item on the payment's day. And, marked
+ * `writeOff`, what a Parent wrote off on those days, which the Commitment took that day.
  */
 export async function loadPaidBackCharges(
 	db: Db,
@@ -775,6 +914,7 @@ export async function loadPaidBackCharges(
 			amount: sql<number>`-${owedBack.amountCents}`.as("amount"),
 			date: transactions.date,
 			who: owedBack.who,
+			writtenOff: writtenOffSql.as("written_off"),
 		})
 		.from(owedBack)
 		.innerJoin(transactions, eq(transactions.id, owedBack.transactionId))
@@ -789,14 +929,41 @@ export async function loadPaidBackCharges(
 			),
 		)
 		.orderBy(transactions.date, owedBack.id);
+	const writeOffs = await db
+		.select({
+			id: owedBack.transactionId,
+			splitId: sql<string | null>`${restoredSplit}`.as("restored_split_id"),
+			commitmentId: commitment.as("restored_commitment_id"),
+			amount: sql<number>`${owedBack.writtenOffCents}`.as("amount"),
+			date: sql<string>`${owedBack.writtenOffOn}`.as("written_off_on"),
+			who: owedBack.who,
+		})
+		.from(owedBack)
+		.innerJoin(transactions, eq(transactions.id, owedBack.transactionId))
+		.where(
+			and(
+				neverCounts(viewer.householdId),
+				visibleTo(viewer),
+				gte(owedBack.writtenOffOn, from),
+				lte(owedBack.writtenOffOn, to),
+				sql`${commitment} is not null`,
+			),
+		)
+		.orderBy(owedBack.writtenOffOn, owedBack.id);
 	// Marked, so nothing reads one as a payment: not "paid this month", the payment history, or
 	// an "about" average.
 	const refunds = await refundChargeRows(db, viewer, from, to);
 	return [
 		...rows,
-		...uncounted.map(({ splitId, ...row }) => ({
+		...uncounted.map(({ splitId, writtenOff, ...row }) => ({
 			...row,
 			owed: true as const,
+			...(writtenOff ? { writtenOff } : {}),
+			...(splitId ? { splitId } : {}),
+		})),
+		...writeOffs.map(({ splitId, ...row }) => ({
+			...row,
+			writeOff: true as const,
 			...(splitId ? { splitId } : {}),
 		})),
 		...refunds,
@@ -806,7 +973,7 @@ export async function loadPaidBackCharges(
 /**
  * What was Paid back into each Bucket in each month from `since` up to, not including, `month`,
  * as spending in reverse, for what a Bucket carries over; and, in the month of its purchase, the
- * Owed back part that never counts.
+ * Owed back part that never counts; and, in the month it was written off, what a Parent wrote off.
  */
 export async function loadPaidBackByMonth(
 	db: Db,
@@ -852,6 +1019,22 @@ export async function loadPaidBackByMonth(
 			),
 		)
 		.groupBy(bucket, boughtIn);
+	const writtenOffMonth = sql<string>`substr(${owedBack.writtenOffOn}, 1, 7)`;
+	const writtenOff = await db
+		.select({
+			bucketId: bucket.as("restored_bucket_id"),
+			month: writtenOffMonth.as("month"),
+			amount: sql<number>`sum(${owedBack.writtenOffCents})`.as("amount"),
+		})
+		.from(owedBack)
+		.innerJoin(transactions, eq(transactions.id, owedBack.transactionId))
+		.where(
+			and(
+				writtenOffIn(householdId, `${since}-01` as DayKey, `${month}-01` as DayKey),
+				sql`${bucket} is not null`,
+			),
+		)
+		.groupBy(bucket, writtenOffMonth);
 	const refunds = await refundRowsByMonth(db, householdId, since, month);
-	return [...rows, ...uncounted, ...refunds] as MonthlySpend[];
+	return [...rows, ...uncounted, ...writtenOff, ...refunds] as MonthlySpend[];
 }

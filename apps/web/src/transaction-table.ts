@@ -51,7 +51,14 @@ export function dayTotals(
 		// Nor is the part someone is paying back, for a purchase from October 1, 2026 on (ADR-0058,
 		// revised 2026-10-08): the day adds up to the month's spending, the row keeps its full amount.
 		const owed = owedBackUncounted(transaction.date)
-			? (transaction.owedBack ?? []).reduce((part, item) => part + item.owed, 0)
+			? (transaction.owedBack ?? []).reduce(
+					(part, item) =>
+						// What was written off in the purchase's own month is that month's spending.
+						part +
+						item.owed -
+						(item.writtenOffOn?.slice(0, 7) === transaction.date.slice(0, 7) ? item.writtenOff : 0),
+					0,
+				)
 			: 0;
 		totals.set(transaction.date, counts ? sum + transaction.amountCents - owed : sum);
 	}

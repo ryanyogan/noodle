@@ -27,7 +27,7 @@ export const endedBefore = (today?: DayKey) =>
 
 /**
  * On `transactions` (or the purchase `id` names): money back on this purchase counted in a month
- * that has ended.
+ * that has ended, or what was Owed back on it was written off in one.
  */
 export const purchaseEndedRestores = (
 	from: DayKey,
@@ -35,6 +35,8 @@ export const purchaseEndedRestores = (
 ): SQL =>
 	sql`(exists (select 1 from paid_back_matches em join owed_back eo on eo.id = em.owed_back_id
 			where eo.transaction_id = ${id} and em.counts_on < ${from})
+		or exists (select 1 from owed_back ew
+			where ew.transaction_id = ${id} and ew.written_off_on < ${from})
 		or exists (select 1 from refund_links el
 			where el.transaction_id = ${id} and el.counts_on < ${from}))`;
 

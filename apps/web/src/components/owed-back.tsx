@@ -27,6 +27,7 @@ import {
 	useOwedBackRule,
 	useOwedBackSaidOn,
 	useSayOwedBack,
+	useWriteOffOwedBack,
 } from "../owed-back";
 import { MoneyInput } from "./money-input";
 import { OwedBackListLink } from "./owed-back-list";
@@ -268,6 +269,7 @@ function OwedBackOn({
 }) {
 	const clear = useClearOwedBack();
 	const say = useSayOwedBack();
+	const writeOff = useWriteOffOwedBack();
 	const [editing, setEditing] = useState(asking && !item);
 	return (
 		<div className="grid gap-3" data-testid={splitId ? "owed-back-split" : "owed-back-whole"}>
@@ -278,11 +280,33 @@ function OwedBackOn({
 						{owedBackText(item)}
 					</p>
 					<OwedBackListLink month={monthOfDay(item.date)}>All that’s Owed back</OwedBackListLink>
-					{editing ? null : (
+					{editing ? null : item.writtenOffOn ? (
+						// Written off: undone before anything else about it changes.
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							disabled={writeOff.isPending}
+							onClick={() => writeOff.mutate({ owedBackId: item.id, undo: true })}
+						>
+							Undo the write-off
+						</Button>
+					) : (
 						<>
 							<Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
 								Change
 							</Button>
+							{item.owed > item.paid ? (
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									disabled={writeOff.isPending}
+									onClick={() => writeOff.mutate({ owedBackId: item.id })}
+								>
+									{item.paid > 0 ? "Write off the rest" : "Write it off"}
+								</Button>
+							) : null}
 							{canMoveToWhole ? (
 								<Button
 									type="button"

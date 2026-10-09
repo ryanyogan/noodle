@@ -7,6 +7,7 @@ import {
 	type OwedBackRemoveResult,
 	type OwedBackResult,
 	type OwedBackRule,
+	type OwedBackWriteOffResult,
 	offerPaidBackFor,
 	owedBackRuleFor,
 	type PaidBackConfirmResult,
@@ -15,6 +16,8 @@ import {
 	removeOwedBack,
 	sayOwedBack,
 	type UnmatchedPaidBack,
+	undoOwedBackWriteOff,
+	writeOffOwedBack,
 } from "@noodle/db";
 import { dayKeyAt, MAX_CENTS, monthOfDay, OWED_BACK_NAME_MAX } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
@@ -35,11 +38,18 @@ const centsSchema = z.number().int().min(1).max(MAX_CENTS);
 /** Owed back items as this Parent may see their purchases, oldest first: all, or one purchase's. */
 export const getOwedBack = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ open: z.boolean().optional(), transactionId: ulidSchema.optional() }))
+	.validator(
+		z.object({
+			open: z.boolean().optional(),
+			writtenOff: z.boolean().optional(),
+			transactionId: ulidSchema.optional(),
+		}),
+	)
 	.handler(
 		({ data, context }): Promise<OwedBackItem[]> =>
 			loadOwedBack(getDb(), viewerOf(context), {
 				...(data.open ? { open: true } : {}),
+				...(data.writtenOff ? { writtenOff: true } : {}),
 				...(data.transactionId ? { transactionId: data.transactionId } : {}),
 			}),
 	);
@@ -79,6 +89,29 @@ export const clearOwedBack = createServerFn({ method: "POST" })
 		const result = await removeOwedBack(getDb(), viewerOf(context), { ...data, today });
 		if (result.ok)
 			await notifyHousehold(context.household.id, [`month:${monthOfDay(today)}`, "months"]);
+		return result;
+	});
+
+/**
+ * A Parent writes off what is still Owed back on an item, or undoes that (`undo`) while the month
+ * it was written off in is still running. What is written off counts as spending today, so in
+ * the running month. Idempotent: it sets whether the item is written off.
+ */
+export const writeOffOwedBackItem = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ owedBackId: ulidSchema, undo: z.boolean().optional() }))
+	.handler(async ({ data, context }): Promise<OwedBackWriteOffResult> => {
+		const today = dayKeyAt(new Date(), context.household.timeZone);
+		const input = { owedBackId: data.owedBackId, today };
+		const result = data.undo
+			? await undoOwedBackWriteOff(getDb(), viewerOf(context), input)
+			: await writeOffOwedBack(getDb(), viewerOf(context), input);
+		if (result.ok)
+			await notifyHousehold(context.household.id, [
+				`month:${monthOfDay(today)}`,
+				"months",
+				"bucket-uses",
+			]);
 		return result;
 	});
 

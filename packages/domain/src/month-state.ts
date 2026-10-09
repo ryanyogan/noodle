@@ -30,6 +30,13 @@ export type Spend = {
 	owed?: true;
 	/** On one that is `owed`: what of it has been Paid back so far. */
 	settled?: Cents;
+	/** On one that is `owed`: what of it a Parent has written off, so it is owed no longer. */
+	writtenOff?: Cents;
+	/**
+	 * On one that is `paidBack`: nothing came back. It is what a Parent wrote off of a purchase's
+	 * Owed back part, a positive amount that counts as spending on the day it was written off.
+	 */
+	writeOff?: true;
 };
 
 /**
@@ -49,6 +56,13 @@ export type Charge = {
 	 * day, which never counts as spending (ADR-0058, revised 2026-10-08).
 	 */
 	owed?: true;
+	/** On one that is `owed`: what of it a Parent has written off, so it is owed no longer. */
+	writtenOff?: Cents;
+	/**
+	 * On one that is `paidBack`: nothing came back. It is what a Parent wrote off of a payment's
+	 * Owed back part, a positive amount the Commitment took on the day it was written off.
+	 */
+	writeOff?: true;
 	/** Who paid it back, or owes it, on one that is `paidBack`. */
 	who?: string;
 };
@@ -283,12 +297,15 @@ export function monthState({
 	for (const spend of spending) {
 		if (monthOfDay(spend.date) !== plan.month) continue;
 		if (spend.paidBack && spend.owed) {
-			owedByBucket.set(spend.bucketId, (owedByBucket.get(spend.bucketId) ?? 0) - spend.amount);
+			owedByBucket.set(
+				spend.bucketId,
+				(owedByBucket.get(spend.bucketId) ?? 0) - spend.amount - (spend.writtenOff ?? 0),
+			);
 			settledByBucket.set(
 				spend.bucketId,
 				(settledByBucket.get(spend.bucketId) ?? 0) + (spend.settled ?? 0),
 			);
-		} else if (spend.paidBack)
+		} else if (spend.paidBack && !spend.writeOff)
 			paidBackByBucket.set(
 				spend.bucketId,
 				(paidBackByBucket.get(spend.bucketId) ?? 0) - spend.amount,
@@ -370,6 +387,10 @@ export function monthState({
 	// The Owed back part of the month's payments, and who owes it: left out of what it took.
 	const owedByCommitment = new Map<string, Cents>();
 	const owedBy = new Map<string, Map<string, string>>();
+	// What of that a Parent has written off, so it is owed no longer; and what was written off
+	// this month, which the Commitment took.
+	const noLongerOwed = new Map<string, Cents>();
+	const writtenOffByCommitment = new Map<string, Cents>();
 	for (const charge of charges) {
 		if (monthOfDay(charge.date) !== plan.month) continue;
 		if (charge.paidBack && charge.owed) {
@@ -383,6 +404,18 @@ export function monthState({
 				if (!people.has(who.toLowerCase())) people.set(who.toLowerCase(), who);
 				owedBy.set(charge.commitmentId, people);
 			}
+			if (charge.writtenOff)
+				noLongerOwed.set(
+					charge.commitmentId,
+					(noLongerOwed.get(charge.commitmentId) ?? 0) + charge.writtenOff,
+				);
+			continue;
+		}
+		if (charge.paidBack && charge.writeOff) {
+			writtenOffByCommitment.set(
+				charge.commitmentId,
+				(writtenOffByCommitment.get(charge.commitmentId) ?? 0) + charge.amount,
+			);
 			continue;
 		}
 		if (charge.paidBack) {
@@ -412,7 +445,10 @@ export function monthState({
 		const actual =
 			charged.reduce((sum, amount) => sum + amount, 0) +
 			(paidBackByCommitment.get(commitment.id) ?? 0) -
-			(owedByCommitment.get(commitment.id) ?? 0);
+			(owedByCommitment.get(commitment.id) ?? 0) +
+			(writtenOffByCommitment.get(commitment.id) ?? 0);
+		const stillOwed =
+			(owedByCommitment.get(commitment.id) ?? 0) - (noLongerOwed.get(commitment.id) ?? 0);
 		const difference = actual - commitment.amount * Math.min(charged.length, dueDates.length);
 		const status = commitmentStatus(difference, charged.length, dueDates.length);
 		const back = -(paidBackByCommitment.get(commitment.id) ?? 0);
@@ -437,10 +473,10 @@ export function monthState({
 						},
 					}
 				: {}),
-			...(owedByCommitment.get(commitment.id)
+			...(stillOwed > 0
 				? {
 						owedBack: {
-							amount: owedByCommitment.get(commitment.id) ?? 0,
+							amount: stillOwed,
 							who: [...(owedBy.get(commitment.id)?.values() ?? [])].sort((a, b) =>
 								a.localeCompare(b),
 							),
@@ -449,10 +485,12 @@ export function monthState({
 				: {}),
 		};
 	});
-	// Everything owed on the month's purchases, whether or not what it is filed in is in the Plan.
+	// Everything owed on the month's purchases, whether or not what it is filed in is in the Plan,
+	// without what a Parent has written off.
 	const owedBackTotal =
 		[...owedByBucket.values()].reduce((sum, owed) => sum + owed, 0) +
-		[...owedByCommitment.values()].reduce((sum, owed) => sum + owed, 0);
+		[...owedByCommitment.values()].reduce((sum, owed) => sum + owed, 0) -
+		[...noLongerOwed.values()].reduce((sum, owed) => sum + owed, 0);
 	return {
 		month: plan.month,
 		baseline: plan.baseline,

@@ -27,6 +27,8 @@ export type OwedBack = {
 	who: string;
 	owed: Cents;
 	paid: Cents;
+	/** What of it a Parent wrote off: it is owed no longer, and will not be Paid back. */
+	writtenOff?: Cents;
 };
 
 /** Part of a Paid back line put against one Owed back item. */
@@ -48,8 +50,8 @@ export function defaultOwedBack(amount: Cents): Cents {
 }
 
 /** What is still owed on an item. */
-export function owedBackLeft(item: Pick<OwedBack, "owed" | "paid">): Cents {
-	return Math.max(0, item.owed - item.paid) as Cents;
+export function owedBackLeft(item: Pick<OwedBack, "owed" | "paid" | "writtenOff">): Cents {
+	return Math.max(0, item.owed - item.paid - (item.writtenOff ?? 0)) as Cents;
 }
 
 const oldestFirst = (a: OwedBack, b: OwedBack) =>
