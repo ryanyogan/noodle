@@ -8,12 +8,14 @@ import {
 	OWED_BACK_UNCOUNTED_FROM,
 	type OwedBack,
 	offerPaidBack,
+	owedBackAge,
 	owedBackByPerson,
 	owedBackLeft,
 	owedBackPersonIn,
 	owedBackRuleText,
 	owedBackSummary,
 	owedBackUncounted,
+	paidBackInYear,
 	settleOwedBack,
 } from "./owed-back";
 
@@ -148,6 +150,29 @@ describe("the Owed back list", () => {
 			who: ["Casey", "Sam"],
 		});
 		expect(owedBackSummary([item("a", "2026-09-01", 100, "Casey", 100)])).toBeNull();
+	});
+});
+
+describe("what the list says of each person", () => {
+	it("says how old an open item is, from its purchase's day", () => {
+		const today = "2026-10-08" as DayKey;
+		expect(owedBackAge(today, today)).toBe("today");
+		expect(owedBackAge("2026-10-07" as DayKey, today)).toBe("1 day");
+		expect(owedBackAge("2026-09-06" as DayKey, today)).toBe("32 days");
+		// A purchase dated ahead is no older than today.
+		expect(owedBackAge("2026-10-09" as DayKey, today)).toBe("today");
+	});
+
+	it("sums what a person has Paid back this year, by the day the money arrived", () => {
+		const paid = [
+			{ who: "Casey", amount: 60_000 as Cents, date: "2026-02-11" as DayKey },
+			{ who: "casey", amount: 85_000 as Cents, date: "2026-10-03" as DayKey },
+			{ who: "Casey", amount: 40_000 as Cents, date: "2025-12-30" as DayKey },
+			{ who: "Sam", amount: 2_500 as Cents, date: "2026-10-03" as DayKey },
+		];
+		expect(paidBackInYear(paid, "Casey", "2026-10-08" as DayKey)).toBe(145_000);
+		expect(paidBackInYear(paid, "Sam", "2026-10-08" as DayKey)).toBe(2_500);
+		expect(paidBackInYear(paid, "Robin", "2026-10-08" as DayKey)).toBe(0);
 	});
 });
 

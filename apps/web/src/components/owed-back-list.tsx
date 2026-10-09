@@ -2,8 +2,10 @@ import {
 	type DayKey,
 	type MonthKey,
 	monthOfDay,
+	owedBackAge,
 	owedBackByPerson,
 	owedBackLeft,
+	paidBackInYear,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Section } from "@noodle/ui/components/section";
@@ -17,6 +19,7 @@ import {
 	owedBackOnCommitmentText,
 	owedBackOpenQuery,
 	owedBackWrittenOffQuery,
+	paidBackThisYearQuery,
 	unmatchedPaidBackQuery,
 	useOwedBackOnCommitment,
 	useWriteOffOwedBack,
@@ -47,8 +50,9 @@ export function OwedBackListLink({ month, children }: { month: MonthKey; childre
 const SHOWN_AT_ONCE = 3;
 
 /**
- * "Owed back", kept small (issue 152): one line saying who owes how much, then each purchase on a
- * line of its own, which opens it and can be written off. More than three lines fold behind "Show
+ * "Owed back", kept small (issue 152): one line saying who owes how much and what they have Paid
+ * back this year, then each purchase on a line of its own with how long it has been owed, which
+ * opens it and can be written off. On a phone what is said of a purchase goes under its name. More than three lines fold behind "Show
  * all". What was written off this year is listed last, and can be undone while the month it was
  * written off in is running. Nothing when nobody owes, nothing waits and nothing was written off.
  */
@@ -58,6 +62,7 @@ export function OwedBackList({ today }: { today: string }) {
 	const writtenOff = (useQuery(owedBackWrittenOffQuery()).data ?? []).filter(
 		(item) => item.writtenOffOn?.slice(0, 4) === today.slice(0, 4),
 	);
+	const paidBack = useQuery(paidBackThisYearQuery()).data ?? [];
 	const writeOff = useWriteOffOwedBack();
 	const hash = useLocation({ select: (location) => location.hash });
 	// What the Parent chose; until they do, a few lines show and more than a few fold.
@@ -81,6 +86,12 @@ export function OwedBackList({ today }: { today: string }) {
 			{formatMoney(person.left)}
 		</>
 	);
+	const paidThisYear = (person: { who: string }) => {
+		const paid = paidBackInYear(paidBack, person.who, today as DayKey);
+		return paid > 0 ? (
+			<span data-testid="owed-back-paid-year"> · Paid back {formatMoney(paid)} this year</span>
+		) : null;
+	};
 	return (
 		<Section
 			id={OWED_BACK_LIST_ID}
@@ -94,7 +105,10 @@ export function OwedBackList({ today }: { today: string }) {
 				</h2>
 				<p className="min-w-0 flex-1 text-muted-foreground tabular-nums">
 					{one ? (
-						<span data-testid="owed-back-person">{owes(one)}</span>
+						<>
+							<span data-testid="owed-back-person">{owes(one)}</span>
+							{paidThisYear(one)}
+						</>
 					) : total > 0 ? (
 						`${formatMoney(total)} in all`
 					) : null}
@@ -127,8 +141,9 @@ export function OwedBackList({ today }: { today: string }) {
 				{people.map((person) => (
 					<div key={person.who} className="grid">
 						{one ? null : (
-							<p className="pt-1 text-muted-foreground tabular-nums" data-testid="owed-back-person">
-								{owes(person)}
+							<p className="pt-1 text-muted-foreground tabular-nums">
+								<span data-testid="owed-back-person">{owes(person)}</span>
+								{paidThisYear(person)}
 							</p>
 						)}
 						{shown ? (
@@ -137,28 +152,26 @@ export function OwedBackList({ today }: { today: string }) {
 									<li
 										key={item.id}
 										data-testid="owed-back-item"
-										className="flex min-w-0 items-baseline gap-2"
+										className="flex min-w-0 items-baseline gap-x-2 max-sm:flex-wrap"
 									>
 										<Link
 											to="/transactions/$month/$transactionId"
 											params={{ month: monthOfDay(item.date), transactionId: item.transactionId }}
-											className="min-w-0 truncate py-1 font-medium hover:underline max-sm:py-2"
+											className="min-w-0 truncate py-1 font-medium hover:underline max-sm:flex-1 max-sm:basis-0 max-sm:py-2"
 										>
 											{item.purchase ?? "A purchase"}
 										</Link>
-										<span className="shrink-0 text-muted-foreground tabular-nums">
-											<span className="max-sm:hidden">{dayName(item.date, today)}</span>
-											{item.paid > 0 ? (
-												<>
-													<span className="max-sm:hidden"> · </span>
-													{formatMoney(item.paid)} of {formatMoney(item.owed)} Paid back
-												</>
-											) : item.owed < item.purchaseAmount ? (
-												<>
-													<span className="max-sm:hidden"> · </span>
-													{formatMoney(item.owed)} of {formatMoney(item.purchaseAmount)}
-												</>
-											) : null}
+										{/* On a phone it goes under the name, which then has the line's room. */}
+										<span className="shrink-0 text-muted-foreground tabular-nums max-sm:order-last max-sm:-mt-2 max-sm:basis-full max-sm:pb-1.5">
+											<span className="max-sm:hidden">{dayName(item.date, today)} · </span>
+											<span data-testid="owed-back-age">
+												{owedBackAge(item.date, today as DayKey)}
+											</span>
+											{item.paid > 0
+												? ` · ${formatMoney(item.paid)} of ${formatMoney(item.owed)} Paid back`
+												: item.owed < item.purchaseAmount
+													? ` · ${formatMoney(item.owed)} of ${formatMoney(item.purchaseAmount)}`
+													: null}
 										</span>
 										<span className="ml-auto shrink-0 font-semibold tabular-nums">
 											{formatMoney(owedBackLeft(item))}

@@ -2,6 +2,7 @@ import {
 	confirmPaidBack,
 	forgetOwedBack,
 	loadOwedBack,
+	loadPaidBackBy,
 	loadUnmatchedPaidBack,
 	type OwedBackItem,
 	type OwedBackRemoveResult,
@@ -19,7 +20,14 @@ import {
 	undoOwedBackWriteOff,
 	writeOffOwedBack,
 } from "@noodle/db";
-import { dayKeyAt, MAX_CENTS, monthOfDay, OWED_BACK_NAME_MAX } from "@noodle/domain";
+import {
+	type DayKey,
+	dayKeyAt,
+	MAX_CENTS,
+	monthOfDay,
+	OWED_BACK_NAME_MAX,
+	type PaidBackBy,
+} from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { HouseholdChange } from "../household-changes";
@@ -53,6 +61,19 @@ export const getOwedBack = createServerFn({ method: "GET" })
 				...(data.transactionId ? { transactionId: data.transactionId } : {}),
 			}),
 	);
+
+/** What has been Paid back and matched so far this year, one per match, for the list's totals. */
+export const getPaidBackThisYear = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(({ context }): Promise<PaidBackBy[]> => {
+		const year = Number(dayKeyAt(new Date(), context.household.timeZone).slice(0, 4));
+		return loadPaidBackBy(
+			getDb(),
+			viewerOf(context),
+			`${year}-01-01` as DayKey,
+			`${year + 1}-01-01` as DayKey,
+		);
+	});
 
 /**
  * A Parent says someone's paying part of a purchase back: a name, or a Child, and how much (half

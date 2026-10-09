@@ -142,6 +142,14 @@ test("what is written off counts as spending this month in its Bucket, from the 
 	let list = await openList(page, now);
 	await expect(list.getByTestId("owed-back-person")).toHaveText("Casey owes $370");
 	await expect(list.getByTestId("owed-back-item")).toHaveCount(2);
+	// Each says how long it has been owed, from the month's first day, and Casey's $50 this year.
+	const days = new Date().getDate() - 1;
+	const age = days === 0 ? "today" : days === 1 ? "1 day" : `${days} days`;
+	await expect(list.getByTestId("owed-back-age")).toHaveText([age, age]);
+	await expect(
+		list.getByTestId("owed-back-item").filter({ hasText: "Hockey sticks" }),
+	).toContainText(`${age} · $50 of $120 Paid back`);
+	await expect(list.getByTestId("owed-back-paid-year")).toHaveText("· Paid back $50 this year");
 	await expect(list.getByTestId("owed-back-written-off")).toHaveCount(0);
 	await list.getByRole("button", { name: "Write off the $300 Casey owes for Hockey camp" }).click();
 	await expect(page.getByText("Written off. $300 counts as spending this month")).toBeVisible();
@@ -222,6 +230,11 @@ test("the Owed back list fits a phone with Write off on each line @phone", async
 			if (!edge || !name || !amount || !button) throw new Error("A line isn't drawn");
 			// The purchase can be read, the amount stands clear of the button, and nothing is cut off.
 			expect(name.width).toBeGreaterThanOrEqual(48);
+			// How long it has been owed, and the part, are under the name, inside the list.
+			const said = await row.getByTestId("owed-back-age").boundingBox();
+			if (!said) throw new Error("A line doesn't say how old it is");
+			expect(said.y).toBeGreaterThanOrEqual(name.y + name.height - 12);
+			await expect(row).toContainText(/ · \$\d+ of \$\d+/);
 			expect(button.x - (amount.x + amount.width)).toBeGreaterThanOrEqual(8);
 			expect(button.x + button.width).toBeLessThanOrEqual(edge.x + edge.width);
 			expect(button.height).toBeGreaterThanOrEqual(44);

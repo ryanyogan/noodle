@@ -13,6 +13,7 @@ import {
 	type OwedBack,
 	offerPaidBack,
 	owedBackPersonIn,
+	type PaidBackBy,
 	type PaidBackCheck,
 	type PaidBackMatch,
 	type PaidBackOffer,
@@ -139,6 +140,39 @@ export async function loadOwedBack(
 		.orderBy(transactions.date, owedBack.id);
 	// Dates are always written as DayKeys.
 	return rows as OwedBackItem[];
+}
+
+/**
+ * What has been Paid back and matched on days from `from` up to, not including, `until`, by the
+ * day the money arrived: one per match, with who owed it, on purchases `viewer` may see. The list
+ * sums it per person with paidBackInYear (@noodle/domain).
+ */
+export async function loadPaidBackBy(
+	db: Db,
+	viewer: Viewer,
+	from: DayKey,
+	until: DayKey,
+): Promise<PaidBackBy[]> {
+	const bucket = restoredBucket();
+	const rows = await db
+		.select({ who: owedBack.who, amount: paidBackMatches.amountCents, date: income.date })
+		.from(paidBackMatches)
+		.innerJoin(income, eq(income.id, paidBackMatches.incomeId))
+		.innerJoin(owedBack, eq(owedBack.id, paidBackMatches.owedBackId))
+		.innerJoin(transactions, eq(transactions.id, owedBack.transactionId))
+		.where(
+			and(
+				eq(paidBackMatches.householdId, viewer.householdId),
+				eq(owedBack.householdId, viewer.householdId),
+				visibleTo(viewer),
+				sql`not ${othersAllowance(viewer.memberId, bucket as unknown as string)}`,
+				gte(income.date, from),
+				lt(income.date, until),
+			),
+		)
+		.orderBy(income.date, paidBackMatches.id);
+	// Dates are always written as DayKeys.
+	return rows as PaidBackBy[];
 }
 
 export type OwedBackResult =
@@ -876,7 +910,8 @@ export async function loadPaidBackSpending(
 /**
  * What was Paid back into Commitments on days from `from` to `to` (inclusive), as charges in
  * reverse: one per match, with its purchase's ID. With them, marked `owed`, the Owed back part of
- * each payment on those days that never counts: one per item on the payment's day. And, marked
+ * each payment on those days that never counts: one per item on the payment's day, with what has
+ * been Paid back on it so far (`settled`). And, marked
  * `writeOff`, what a Parent wrote off on those days, which the Commitment took that day.
  */
 export async function loadPaidBackCharges(
@@ -914,6 +949,7 @@ export async function loadPaidBackCharges(
 			amount: sql<number>`-${owedBack.amountCents}`.as("amount"),
 			date: transactions.date,
 			who: owedBack.who,
+			settled: paidSql.as("settled"),
 			writtenOff: writtenOffSql.as("written_off"),
 		})
 		.from(owedBack)
@@ -955,9 +991,10 @@ export async function loadPaidBackCharges(
 	const refunds = await refundChargeRows(db, viewer, from, to);
 	return [
 		...rows,
-		...uncounted.map(({ splitId, writtenOff, ...row }) => ({
+		...uncounted.map(({ splitId, settled, writtenOff, ...row }) => ({
 			...row,
 			owed: true as const,
+			...(settled ? { settled } : {}),
 			...(writtenOff ? { writtenOff } : {}),
 			...(splitId ? { splitId } : {}),
 		})),

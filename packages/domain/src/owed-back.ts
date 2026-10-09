@@ -1,5 +1,5 @@
 import type { Cents } from "./money";
-import type { DayKey } from "./month";
+import { type DayKey, daysBetween } from "./month";
 
 // Paid back and Owed back (ADR-0058). Owed back is the part of a purchase someone outside the
 // Household's pool of money has said they'll pay back, and who: a name, not a Member. Paid back is
@@ -173,6 +173,26 @@ export function owedBackSummary(items: readonly OwedBack[]): { left: Cents; who:
 		left: people.reduce((sum, person) => sum + person.left, 0) as Cents,
 		who: people.map((person) => person.who),
 	};
+}
+
+/** How old an open item is, from its purchase's day: "today", "1 day", "32 days". */
+export function owedBackAge(date: DayKey, today: DayKey): string {
+	const days = Math.max(0, daysBetween(date, today));
+	return days === 0 ? "today" : days === 1 ? "1 day" : `${days} days`;
+}
+
+/** Money Paid back that settled something a person owed: one per match, on the day it arrived. */
+export type PaidBackBy = { who: string; amount: Cents; date: DayKey };
+
+/**
+ * What a person has Paid back so far in the year of `today`, by the day the money arrived.
+ * "casey" and "Casey" are one person, as on the list.
+ */
+export function paidBackInYear(paid: readonly PaidBackBy[], who: string, today: DayKey): Cents {
+	const year = today.slice(0, 4);
+	return paid
+		.filter((one) => personKey(one.who) === personKey(who) && one.date.slice(0, 4) === year)
+		.reduce((sum, one) => sum + one.amount, 0) as Cents;
 }
 
 const words = (text: string) =>

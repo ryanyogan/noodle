@@ -618,6 +618,34 @@ describe("monthState: the Owed back part of a purchase never counts (ADR-0058, r
 			owedBack: { amount: 60_000, who: ["Casey"] },
 		});
 		expect(state.commitments[0]?.paidBack).toBeUndefined();
+		expect(state.commitments[0]?.owedBack?.settled).toBeUndefined();
+	});
+
+	it("carries what has been Paid back of a Commitment's Owed back part, which moves nothing", () => {
+		const settled = monthState({
+			plan,
+			spending: [],
+			charges: state.commitments[0]
+				? [
+						{ commitmentId: state.commitments[0].id, amount: 120_000, date: "2026-10-03" },
+						{
+							commitmentId: state.commitments[0].id,
+							amount: -60_000,
+							date: "2026-10-03",
+							paidBack: true,
+							owed: true,
+							settled: 60_000,
+							who: "Casey",
+						},
+					]
+				: [],
+			asOf: "2026-10-20",
+		});
+		expect(settled.commitments[0]).toMatchObject({
+			actual: 60_000,
+			difference: 0,
+			owedBack: { amount: 60_000, who: ["Casey"], settled: 60_000 },
+		});
 	});
 
 	it("totals it for the month, and has none in a month without any", () => {

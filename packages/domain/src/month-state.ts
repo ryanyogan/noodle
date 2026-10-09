@@ -56,6 +56,8 @@ export type Charge = {
 	 * day, which never counts as spending (ADR-0058, revised 2026-10-08).
 	 */
 	owed?: true;
+	/** On one that is `owed`: what of it has been Paid back so far; absent when none has. */
+	settled?: Cents;
 	/** On one that is `owed`: what of it a Parent has written off, so it is owed no longer. */
 	writtenOff?: Cents;
 	/**
@@ -164,9 +166,10 @@ export type CommitmentState = PlanCommitment & {
 	paidBack?: { amount: Cents; who: string[]; refunded?: Cents };
 	/**
 	 * The Owed back part of this month's payments of it, which `actual` and `difference` leave out
-	 * (ADR-0058, revised 2026-10-08), and who owes it; absent when there is none.
+	 * (ADR-0058, revised 2026-10-08), who owes it, and what of it has been Paid back so far;
+	 * absent when there is none.
 	 */
-	owedBack?: { amount: Cents; who: string[] };
+	owedBack?: { amount: Cents; who: string[]; settled?: Cents };
 };
 
 const commitmentStatus = (difference: number, charges: number, due: number): CommitmentStatus =>
@@ -391,6 +394,7 @@ export function monthState({
 	// this month, which the Commitment took.
 	const noLongerOwed = new Map<string, Cents>();
 	const writtenOffByCommitment = new Map<string, Cents>();
+	const settledByCommitment = new Map<string, Cents>();
 	for (const charge of charges) {
 		if (monthOfDay(charge.date) !== plan.month) continue;
 		if (charge.paidBack && charge.owed) {
@@ -404,6 +408,11 @@ export function monthState({
 				if (!people.has(who.toLowerCase())) people.set(who.toLowerCase(), who);
 				owedBy.set(charge.commitmentId, people);
 			}
+			if (charge.settled)
+				settledByCommitment.set(
+					charge.commitmentId,
+					(settledByCommitment.get(charge.commitmentId) ?? 0) + charge.settled,
+				);
 			if (charge.writtenOff)
 				noLongerOwed.set(
 					charge.commitmentId,
@@ -480,6 +489,9 @@ export function monthState({
 							who: [...(owedBy.get(commitment.id)?.values() ?? [])].sort((a, b) =>
 								a.localeCompare(b),
 							),
+							...(settledByCommitment.get(commitment.id)
+								? { settled: settledByCommitment.get(commitment.id) }
+								: {}),
 						},
 					}
 				: {}),
