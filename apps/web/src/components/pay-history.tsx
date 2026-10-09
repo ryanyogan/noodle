@@ -1,14 +1,28 @@
-import { type MonthKey, PAY_HISTORY_RECENT } from "@noodle/domain";
+import {
+	type Cents,
+	type MonthKey,
+	PAY_HISTORY_RECENT,
+	type PlanScope,
+	planOnDiffers,
+} from "@noodle/domain";
+import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { toast } from "@noodle/ui/components/toast";
 import { useQuery } from "@tanstack/react-query";
+import { useHydrated } from "@tanstack/react-router";
 import { useId } from "react";
 import { formatMoney, formatWholeMoney, monthName, shortMonth } from "../format";
-import { payHistoryQuery, recentLabel, soFarText, yearLabel } from "../pay-history";
-import type { ParentPayHistory } from "../server/pay-history";
+import { payHistoryQuery, planOnText, recentLabel, soFarText, yearLabel } from "../pay-history";
+import { usePlanChange, withTakeHomePay } from "../plan-changes";
+import { useMonthState } from "../queries";
+import type { ParentPayHistory, PayHistoryRead } from "../server/pay-history";
+import { setTakeHomePay } from "../server/plan";
 
 // What a Parent's pay has been (issue 159, phase b; ADR-0067): for each Parent whose pay varies,
 // the last twelve months of their Income as a row of bars, with the average, the lowest month and
 // the highest. Only months that have ended count; the month being read is shown beside them.
+// Under the figures, what to plan on: the second-lowest month, and the Take-home pay it makes,
+// taken in one press and never on its own.
 
 const statLabel = "text-xs font-medium text-muted-foreground";
 const statValue = "text-base font-semibold tabular-nums";
@@ -17,12 +31,25 @@ const statNote = "text-xs text-muted-foreground";
 /** Each Parent whose pay varies, and what their pay has been. */
 export function PayHistories({ month }: { month: MonthKey }) {
 	const { data } = useQuery(payHistoryQuery(month));
-	return (data ?? []).map((parent) => (
-		<ParentPayHistoryCard key={parent.memberId} month={month} parent={parent} />
+	return (data?.parents ?? []).map((parent) => (
+		<ParentPayHistoryCard
+			key={parent.memberId}
+			month={month}
+			parent={parent}
+			suggested={data?.suggested ?? null}
+		/>
 	));
 }
 
-function ParentPayHistoryCard({ month, parent }: { month: MonthKey; parent: ParentPayHistory }) {
+function ParentPayHistoryCard({
+	month,
+	parent,
+	suggested,
+}: {
+	month: MonthKey;
+	parent: ParentPayHistory;
+	suggested: PayHistoryRead["suggested"];
+}) {
 	const id = useId();
 	const { history, name } = parent;
 	const top = Math.max(1, ...history.months.map((m) => m.total));
@@ -98,6 +125,9 @@ function ParentPayHistoryCard({ month, parent }: { month: MonthKey; parent: Pare
 						{soFarText(name, history.counted)}
 					</p>
 				) : null}
+				{parent.planOn && suggested ? (
+					<PlanOnOffer month={month} parent={parent} suggested={suggested} />
+				) : null}
 				<details className="text-sm">
 					<summary className="cursor-pointer text-muted-foreground">Each month’s figure</summary>
 					<ul className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-x-4 gap-y-1">
@@ -115,5 +145,82 @@ function ParentPayHistoryCard({ month, parent }: { month: MonthKey; parent: Pare
 				</details>
 			</Card>
 		</section>
+	);
+}
+
+/**
+ * "To plan on": the figure the history suggests for this Parent, why, and the Take-home pay it
+ * makes with everyone else's pay. One press takes it, from this month on, as a Plan change.
+ */
+function PlanOnOffer({
+	month,
+	parent,
+	suggested,
+}: {
+	month: MonthKey;
+	parent: ParentPayHistory;
+	suggested: NonNullable<PayHistoryRead["suggested"]>;
+}) {
+	const hydrated = useHydrated();
+	const state = useMonthState(month);
+	const change = usePlanChange(month, {
+		save: (data: { month: MonthKey; amountCents: number; scope: PlanScope }) =>
+			setTakeHomePay({ data }),
+		apply: withTakeHomePay,
+	});
+	if (!parent.planOn) return null;
+	const { takeHome, others } = suggested;
+	const baseline = state.baseline;
+	const use = (amountCents: Cents, back: Cents | null) =>
+		change.mutate(
+			{ month, amountCents, scope: "from-on" },
+			{
+				onSuccess: () =>
+					toast(`Take-home pay is ${formatMoney(amountCents)} from ${monthName(month)} on`, {
+						tone: "success",
+						undo: back === null ? undefined : () => use(back, null),
+					}),
+				onError: () =>
+					toast("Couldn’t change your take-home pay, so it’s as it was.", { tone: "error" }),
+			},
+		);
+	return (
+		<div data-testid="plan-on" className="grid gap-2 rounded-lg bg-surface-2 p-3 text-sm">
+			<p>
+				<span className="font-medium">
+					To plan on: <span className="tabular-nums">{formatMoney(parent.planOn.amount)}</span> a
+					month.
+				</span>{" "}
+				{planOnText(parent.name, parent.planOn)}
+			</p>
+			{planOnDiffers(takeHome, baseline) ? (
+				<>
+					<p className="text-muted-foreground">
+						{others > 0
+							? `With the rest of your Household’s pay (${formatMoney(others)}), that makes a take-home pay of ${formatMoney(takeHome)}.`
+							: `That makes a take-home pay of ${formatMoney(takeHome)}.`}{" "}
+						{baseline === null
+							? "Your Plan has none yet."
+							: `Your Plan counts on ${formatMoney(baseline)}.`}
+					</p>
+					{state.editable ? (
+						<div>
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={!hydrated || change.isPending}
+								onClick={() => use(takeHome, baseline)}
+							>
+								Use {formatMoney(takeHome)} as your take-home pay
+							</Button>
+						</div>
+					) : null}
+				</>
+			) : takeHome > 0 ? (
+				<p className="text-muted-foreground">
+					Your Plan’s take-home pay of {formatMoney(baseline ?? takeHome)} already counts on this.
+				</p>
+			) : null}
+		</div>
 	);
 }

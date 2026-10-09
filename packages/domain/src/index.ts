@@ -468,6 +468,7 @@ export {
 } from "./pairing";
 export * from "./pay-days";
 export * from "./pay-history";
+export * from "./pay-plan-on";
 export * from "./pay-range";
 export * from "./pay-to-come";
 export {

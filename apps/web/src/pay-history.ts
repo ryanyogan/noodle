@@ -1,5 +1,6 @@
-import { type MonthKey, PAY_HISTORY_RECENT, type PayHistory } from "@noodle/domain";
+import { type MonthKey, PAY_HISTORY_RECENT, type PayHistory, type PlanOn } from "@noodle/domain";
 import { queryOptions } from "@tanstack/react-query";
+import { formatMoney, monthName } from "./format";
 import { monthQuery } from "./queries";
 import { getPayHistory } from "./server/pay-history";
 
@@ -34,3 +35,16 @@ export const soFarText = (name: string, counted: number) =>
 		: `${monthsText(counted)} so far: Noodle has ${name}’s Income for ${
 				counted === 1 ? "one month that has" : `${counted} months that have`
 			} ended, and only those count.`;
+
+/**
+ * Why that figure, in words a Parent can check against the months shown: "In 11 of the last 12
+ * months Wren’s pay came to $3,800 or more. Only March ($0) was lower, and one month like that
+ * is left out."
+ */
+export function planOnText(name: string, suggestion: PlanOn): string {
+	const { amount, of, atLeast, below } = suggestion;
+	const months = of === 12 ? "the last 12 months" : `the ${of} months Noodle has`;
+	return below
+		? `In ${atLeast} of ${months} ${name}’s pay came to ${formatMoney(amount)} or more. Only ${monthName(below.month)} (${formatMoney(below.total)}) was lower, and one month like that is left out.`
+		: `In each of ${months} ${name}’s pay came to ${formatMoney(amount)} or more.`;
+}

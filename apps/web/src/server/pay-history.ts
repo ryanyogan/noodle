@@ -1,5 +1,15 @@
 import { loadMoneyIn, loadParentPay } from "@noodle/db";
-import { addMonths, PAY_HISTORY_MONTHS, type PayHistory, payHistory } from "@noodle/domain";
+import {
+	addMonths,
+	type Cents,
+	PAY_HISTORY_MONTHS,
+	type PayHistory,
+	type PlanOn,
+	payHistory,
+	payRanges,
+	planOn,
+	planOnTakeHome,
+} from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
@@ -10,7 +20,22 @@ import { monthKeySchema } from "./month";
 // itself it is the Household's: both Parents read it.
 
 /** One Parent whose pay varies, and their Income by month. */
-export type ParentPayHistory = { memberId: string; name: string; history: PayHistory };
+export type ParentPayHistory = {
+	memberId: string;
+	name: string;
+	history: PayHistory;
+	/** The pay to plan on that the history suggests; null with too few months. */
+	planOn: PlanOn | null;
+};
+
+export type PayHistoryRead = {
+	parents: ParentPayHistory[];
+	/**
+	 * The Take-home pay the suggestions make, with what everyone else's pay can be counted on for
+	 * (`others`); null when nothing is suggested.
+	 */
+	suggested: { takeHome: Cents; others: Cents } | null;
+};
 
 /**
  * The last twelve months of Income of each Parent who isn't on a salary, as `month` reads them.
@@ -19,7 +44,7 @@ export type ParentPayHistory = { memberId: string; name: string; history: PayHis
 export const getPayHistory = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ month: monthKeySchema }))
-	.handler(async ({ data, context }): Promise<ParentPayHistory[]> => {
+	.handler(async ({ data, context }): Promise<PayHistoryRead> => {
 		const db = getDb();
 		const [parents, lines] = await Promise.all([
 			loadParentPay(db, context.household.id),
@@ -29,12 +54,23 @@ export const getPayHistory = createServerFn({ method: "GET" })
 			}),
 		]);
 		const income = lines.filter((line) => line.kind === "income" && !line.needsReview);
-		return parents
+		const read = parents
 			.filter((parent) => parent.pay === null)
-			.map((parent) => ({
-				memberId: parent.memberId,
-				name: parent.name,
-				history: payHistory(income, parent.memberId, data.month),
-			}))
+			.map((parent) => {
+				const history = payHistory(income, parent.memberId, data.month);
+				return {
+					memberId: parent.memberId,
+					name: parent.name,
+					history,
+					planOn: planOn(history),
+				};
+			})
 			.filter(({ history }) => history.months.some((m) => m.total > 0));
+		const planOns = read.flatMap(({ memberId, planOn: one }) =>
+			one ? [{ memberId, amount: one.amount }] : [],
+		);
+		return {
+			parents: read,
+			suggested: planOns.length > 0 ? planOnTakeHome(planOns, payRanges(income, data.month)) : null,
+		};
 	});
