@@ -31,7 +31,7 @@ export function OwedBackApart({
 			.map((commitment) => ({
 				id: commitment.id,
 				name: commitment.name,
-				text: owedBackApartText(commitment.owedBack?.amount),
+				text: owedBackApartText(commitment.owedBack?.amount, commitment.owedBack?.settled),
 			})),
 	];
 	return (

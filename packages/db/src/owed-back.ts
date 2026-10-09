@@ -910,7 +910,8 @@ export async function loadPaidBackSpending(
 /**
  * What was Paid back into Commitments on days from `from` to `to` (inclusive), as charges in
  * reverse: one per match, with its purchase's ID. With them, marked `owed`, the Owed back part of
- * each payment on those days that never counts: one per item on the payment's day. And, marked
+ * each payment on those days that never counts: one per item on the payment's day, with what has
+ * been Paid back on it so far (`settled`). And, marked
  * `writeOff`, what a Parent wrote off on those days, which the Commitment took that day.
  */
 export async function loadPaidBackCharges(
@@ -948,6 +949,7 @@ export async function loadPaidBackCharges(
 			amount: sql<number>`-${owedBack.amountCents}`.as("amount"),
 			date: transactions.date,
 			who: owedBack.who,
+			settled: paidSql.as("settled"),
 			writtenOff: writtenOffSql.as("written_off"),
 		})
 		.from(owedBack)
@@ -989,9 +991,10 @@ export async function loadPaidBackCharges(
 	const refunds = await refundChargeRows(db, viewer, from, to);
 	return [
 		...rows,
-		...uncounted.map(({ splitId, writtenOff, ...row }) => ({
+		...uncounted.map(({ splitId, settled, writtenOff, ...row }) => ({
 			...row,
 			owed: true as const,
+			...(settled ? { settled } : {}),
 			...(writtenOff ? { writtenOff } : {}),
 			...(splitId ? { splitId } : {}),
 		})),

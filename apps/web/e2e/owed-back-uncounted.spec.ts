@@ -192,7 +192,7 @@ test("the part Owed back on this month’s purchases isn’t spending, the rows 
 	// Nothing in the Bucket, the Commitment or the month moved; the Plan says it has all come.
 	const after = await figures({
 		kids: "$300 owed back (all Paid back)",
-		tuition: "$600 owed back",
+		tuition: "$600 owed back (all Paid back)",
 	});
 	expect(after).toContain("$600 of $600 paid");
 	expect(after).toContain("$0 received");
