@@ -30,6 +30,9 @@ async function invite(email: string, inviteId = `invite-${email}`) {
 		inviterEmails: ["alex@example.com"],
 		tokenHash,
 		expiresAt: inviteExpiresAt(now),
+		// Sent at the test's own time: left out, the invite is stamped with today's date, and the
+		// resend tests fail once today is past the days they step forward to.
+		now,
 	});
 	expect(result.ok).toBe(true);
 	return { token, tokenHash, inviteId };
