@@ -27,7 +27,9 @@ A brand-new Household sees **Set up the Plan** here: a short list that takes you
 
 ## Income
 
-The Income page holds your **Take-home pay** and the income recorded for the month.
+The Income page starts with what has arrived this month, alongside the **Take-home pay** your Plan counts on. The difference is how much is left to reach your Plan, not a promise that another payment is coming.
+
+Each Parent has a card with their received income and either salary paychecks or **Pay to come**. The deposit list below lets you add income, change whose pay it is, or edit a payment. Expand **Other money in** for refunds and money paid back; expand **Pay history & planning** for past income and suggestions.
 
 Take-home pay is your usual monthly pay after taxes and deductions: what lands in your account. If someone's pay varies, enter the amount you can count on, the lowest it usually is. A better month then shows the difference as Extra income, and you decide where it goes. The Plan is never built on money that might not come.
 
@@ -39,7 +41,7 @@ To change it:
 4. Under **Applies to**, choose how far the change reaches.
 5. Save.
 
-In a low month, Noodle offers **Lower take-home pay to** the amount that arrived. That changes that one month only, and lowers its Free to Spend by the same amount. Noodle never lowers it by itself.
+In a low month, open **Pay history & planning** for Noodle’s offer to **Lower take-home pay to** the amount that arrived. That changes that one month only, and lowers its Free to Spend by the same amount. Noodle never lowers it by itself.
 
 ## How far a change reaches
 

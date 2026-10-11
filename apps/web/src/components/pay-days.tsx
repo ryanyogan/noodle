@@ -1,5 +1,7 @@
 import {
+	countsOn,
 	type MonthKey,
+	monthOfDay,
 	PAY_DAY_WINDOW_DAYS,
 	PAY_SCHEDULE_KINDS,
 	PAYCHECK_WITHIN,
@@ -9,6 +11,7 @@ import {
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
+import { Card } from "@noodle/ui/components/card";
 import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
@@ -21,6 +24,7 @@ import { Pencil } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ordinal } from "../commitments";
 import { formatMoney, formatMoneyInput, monthName, shortDay } from "../format";
+import { moneyInQuery } from "../money-in";
 import {
 	extraPayDayText,
 	formDays,
@@ -37,14 +41,14 @@ import {
 	scheduleOf,
 	useSetParentPay,
 } from "../pay-days";
+import { useMonthState } from "../queries";
 import { AmountInput } from "./goals";
-import { PayHistories } from "./pay-history";
 import { PayToCome } from "./pay-to-come";
 
-// "How you're paid" on Plan › Income (issue 156): each Parent on a salary or hourly, and a
-// salaried Parent's expected paychecks for the month, each read as in once Income that is their
-// pay has landed near its pay day. A paycheck counts in its pay day's month (ADR-0063); one the
-// rule had to leave in the month it landed is said under the list, with why.
+// Pay by person on Plan › Income: received totals beside salary paychecks or variable pay
+// still to come. Each salary paycheck reads as in once that Parent’s pay lands near its day.
+// A paycheck counts in its pay day’s month (ADR-0063); one the rule leaves in the month it
+// landed is said under the list, with why.
 
 const SALARY = "salary";
 const HOURLY = "hourly";
@@ -57,55 +61,87 @@ const dayChoices = Array.from({ length: 31 }, (_, i) => ({
 /** Each Parent and how they are paid, then the month's expected paychecks of those on a salary. */
 export function PayDays({ month }: { month: MonthKey }) {
 	const hydrated = useHydrated();
-	const { data: parents } = useQuery(payDaysQuery(month));
+	const payQuery = useQuery(payDaysQuery(month));
+	const parents = payQuery.data;
 	const [editing, setEditing] = useState<string | null>(null);
 	// Paychecks the rule is leaving in the month they landed in: read, so a reload still says them.
 	const { data: notMoved = [] } = useQuery(payDaysNotMovedQuery(month));
 	const edited = parents?.find((parent) => parent.memberId === editing);
-	const salaried = (parents ?? []).filter((parent) => parent.pay);
+	const state = useMonthState(month);
+	const moneyIn = useQuery(moneyInQuery(month));
+	const received = state.income.filter((entry) => monthOfDay(countsOn(entry)) === month);
+	const receivedBy = (memberId: string | null) =>
+		received.reduce((total, entry) => {
+			const line = moneyIn.data?.find((line) => line.id === entry.id);
+			return line && line.whosePay === memberId ? total + line.amount : total;
+		}, 0);
 	return (
-		<section aria-labelledby="how-paid" data-testid="pay-days" className="grid gap-5">
-			<div className="grid gap-1">
-				<h2 id="how-paid" className="text-lg font-semibold">
-					How you’re paid
-				</h2>
-				<p className="text-sm text-muted-foreground">
-					On a salary, Noodle lists the paychecks to expect each month, says which are in, and
-					counts each in its pay day’s month. Hourly pay, or pay that varies, counts as it arrives;
-					pay that’s earned and not in yet can be kept here as pay to come.
-				</p>
-			</div>
+		<section aria-label="Pay by person" data-testid="pay-days" className="grid gap-4">
 			{parents ? (
-				<List>
+				<div className="grid items-start gap-4 md:grid-cols-2">
 					{parents.map((parent) => (
-						<ListRow
-							key={parent.memberId}
-							data-testid="parent-pay"
-							title={parent.name}
-							meta={payText(parent.pay)}
-							trailing={
-								<Button
-									variant="ghost"
-									size="icon"
-									type="button"
-									disabled={!hydrated}
-									aria-label={`Edit how ${parent.name} is paid`}
-									onClick={() => setEditing(parent.memberId)}
-								>
-									<Pencil />
-								</Button>
-							}
-						/>
+						<Card key={parent.memberId} className="min-w-0" data-testid="person-income">
+							<div className="grid gap-3 p-(--card-pad)" data-testid="parent-pay">
+								<div className="flex items-start justify-between gap-3">
+									<div className="min-w-0">
+										<h3 className="break-words text-base font-semibold">
+											<span>{parent.name}</span>
+										</h3>
+										<p className="mt-0.5 text-xs text-muted-foreground">
+											{parent.pay ? "Salary" : "Variable pay"}
+										</p>
+									</div>
+									<Button
+										variant="ghost"
+										size="icon"
+										type="button"
+										disabled={!hydrated}
+										aria-label={`Edit how ${parent.name} is paid`}
+										onClick={() => setEditing(parent.memberId)}
+									>
+										<Pencil />
+									</Button>
+								</div>
+								<p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+									<span className="text-2xl font-semibold tracking-tight tabular-nums">
+										{moneyIn.data ? formatMoney(receivedBy(parent.memberId)) : "…"}
+									</span>
+									<span className="text-xs text-muted-foreground">received</span>
+								</p>
+							</div>
+							<div className="grid gap-4 border-t p-(--card-pad)">
+								{parent.pay ? <ExpectedPaychecks month={month} parent={parent} /> : null}
+								<PayToCome month={month} memberId={parent.memberId} />
+							</div>
+						</Card>
 					))}
-				</List>
+				</div>
+			) : payQuery.isError ? (
+				<p role="alert" className="text-sm">
+					Couldn’t load pay details.{" "}
+					<Button variant="ghost" size="sm" onClick={() => void payQuery.refetch()}>
+						Try again
+					</Button>
+				</p>
+			) : (
+				<p role="status" className="text-sm text-muted-foreground">
+					Loading pay details…
+				</p>
+			)}
+			{moneyIn.data && receivedBy(null) > 0 ? (
+				<p className="text-sm text-muted-foreground">
+					{formatMoney(receivedBy(null))} in other household income. You can choose whose pay it is
+					in the list below.
+				</p>
 			) : null}
-			{salaried.map((parent) => (
-				<ExpectedPaychecks key={parent.memberId} month={month} parent={parent} />
-			))}
-			{/* What a Parent whose pay varies has been paid, month by month (issue 159). */}
-			<PayHistories month={month} />
-			{/* What a Parent whose pay varies has earned that isn't in yet (issue 159). */}
-			<PayToCome month={month} />
+			{moneyIn.isError ? (
+				<p role="alert" className="text-sm text-muted-foreground">
+					Couldn’t load pay by person.{" "}
+					<Button variant="ghost" size="sm" onClick={() => void moneyIn.refetch()}>
+						Try again
+					</Button>
+				</p>
+			) : null}
 			{notMoved.length > 0 ? (
 				<section aria-labelledby="pay-not-moved" data-testid="pay-not-moved" className="grid gap-2">
 					<h3 id="pay-not-moved" className="text-sm font-medium">
@@ -127,8 +163,9 @@ export function PayDays({ month }: { month: MonthKey }) {
 					<SheetContent>
 						<SheetHeader
 							title={`How ${edited.name} is paid`}
-							description="On a salary, say what one paycheck usually is and when it’s due. A paycheck then counts in its pay day’s month; your take-home pay doesn’t change."
+							description="Set a salary schedule, or let income count whenever it arrives."
 						/>
+						<p className="mb-4 text-sm text-muted-foreground">{payText(edited.pay)}</p>
 						<ParentPayForm parent={edited} onDone={() => setEditing(null)} />
 					</SheetContent>
 				) : null}
@@ -142,13 +179,14 @@ function ExpectedPaychecks({ month, parent }: { month: MonthKey; parent: ParentP
 	const id = useId();
 	return (
 		<section aria-labelledby={`${id}-title`} className="grid gap-2">
-			<h3 id={`${id}-title`} className="text-sm font-medium">
-				{parent.name}’s paychecks in {monthName(month)}
-			</h3>
-			<List>
+			<h4 id={`${id}-title`} className="text-xs font-medium text-muted-foreground">
+				Paychecks in {monthName(month)}
+			</h4>
+			<ul className="divide-y">
 				{parent.payDays.map((paycheck) => (
 					<ListRow
 						key={paycheck.day}
+						className="px-0 py-2"
 						data-testid="expected-paycheck"
 						data-state={paycheck.state}
 						title={`Pay for ${shortDay(paycheck.day)}`}
@@ -157,7 +195,7 @@ function ExpectedPaychecks({ month, parent }: { month: MonthKey; parent: ParentP
 								{PAYCHECK_STATE_LABELS[paycheck.state]}
 							</Badge>
 						}
-						meta={paycheckMeta(paycheck, parent.name)}
+						meta={paycheck.state === "expected" ? undefined : paycheckMeta(paycheck, parent.name)}
 						trailing={
 							<span
 								className={
@@ -171,18 +209,22 @@ function ExpectedPaychecks({ month, parent }: { month: MonthKey; parent: ParentP
 						}
 					/>
 				))}
-			</List>
+			</ul>
 			{parent.pay && parent.payDays.length > usualPayDays(parent.pay.schedule) ? (
 				<p data-testid="extra-pay-day" className="text-sm">
 					{extraPayDayText(month, parent.payDays.length)}
 				</p>
 			) : null}
-			<p className="text-xs text-muted-foreground">
-				A pay day reads In once Income marked as {parent.name}’s pay, within{" "}
-				{formatMoney(PAYCHECK_WITHIN)} of the paycheck, lands up to {PAY_DAY_WINDOW_DAYS} days
-				either side of it, and that paycheck counts in its pay day’s month, whatever day the bank
-				posted it.
-			</p>
+			<details className="text-xs text-muted-foreground">
+				<summary className="cursor-pointer focus-visible:outline-2 focus-visible:outline-ring">
+					How paychecks match
+				</summary>
+				<p className="pt-2">
+					A deposit within {formatMoney(PAYCHECK_WITHIN)} of the usual paycheck and{" "}
+					{PAY_DAY_WINDOW_DAYS} days of its pay day is matched automatically. It counts in its pay
+					day’s month.
+				</p>
+			</details>
 		</section>
 	);
 }

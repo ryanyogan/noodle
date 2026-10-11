@@ -151,6 +151,7 @@ test("a Parent whose pay varies keeps pay that is earned and not in yet, and say
 	await expect(sheet).toBeHidden();
 	await expect(total(page)).toHaveText("Earned, not in yet: $600");
 
+	await section(page).locator("summary").filter({ hasText: "Arrived in" }).click();
 	// Undo: Larkspur waits again, and that line of Income is not offered for it a second time.
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await arrived(page)

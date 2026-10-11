@@ -135,38 +135,40 @@ export function MoneyInNotIncome({ month, today }: { month: MonthKey; today: str
 	return (
 		<>
 			{notCounted.length > 0 ? (
-				<Section aria-labelledby="money-in-not-counted">
-					<SectionHeader
-						id="money-in-not-counted"
-						title="Other money in"
-						count={notCounted.length}
-					/>
-					<p className="text-sm text-muted-foreground">
-						Refunds and money Paid back: not counted as Income. If one of them is pay, change what
-						it is.
-					</p>
-					<DataTable
-						label={`Money in that isn’t Income in ${monthName(month)}`}
-						columns={columnsFor({
-							accountOf,
-							total: sum(notCounted),
-							last: (line) => (
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon"
-									disabled={!hydrated}
-									aria-label={`Change what ${moneyInLabel(line)} is`}
-									onClick={() => setEditing(line)}
-								>
-									<Pencil className="size-4" />
-								</Button>
-							),
-						})}
-						data={notCounted}
-						getRowId={(line) => line.id}
-					/>
-				</Section>
+				<details className="border-t pt-4" data-testid="other-money-in">
+					<summary className="cursor-pointer text-sm focus-visible:outline-2 focus-visible:outline-ring">
+						<span className="font-medium">Other money in</span>
+						<span className="ml-2 text-muted-foreground">
+							{notCounted.length} · {formatMoney(sum(notCounted))}
+						</span>
+					</summary>
+					<Section aria-label="Other money in" className="mt-4">
+						<p className="text-sm text-muted-foreground">
+							Refunds and money paid back. These don’t count as income.
+						</p>
+						<DataTable
+							label={`Money in that isn’t Income in ${monthName(month)}`}
+							columns={columnsFor({
+								accountOf,
+								total: sum(notCounted),
+								last: (line) => (
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon"
+										disabled={!hydrated}
+										aria-label={`Change what ${moneyInLabel(line)} is`}
+										onClick={() => setEditing(line)}
+									>
+										<Pencil className="size-4" />
+									</Button>
+								),
+							})}
+							data={notCounted}
+							getRowId={(line) => line.id}
+						/>
+					</Section>
+				</details>
 			) : null}
 			{waiting.length > 0 ? (
 				<Section aria-labelledby="money-in-waiting">

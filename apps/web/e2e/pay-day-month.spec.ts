@@ -106,7 +106,7 @@ test("a paycheck posted on the last day of last month for the 1st is this month'
 	await expect(section(page).getByTestId("pay-not-moved")).toHaveCount(0);
 	// Last month no longer has it.
 	await page.goto(`/plan/${last}/income`);
-	await expect(page.getByRole("heading", { name: "Income this month" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Income so far" })).toBeVisible();
 	await expect(summary(page)).not.toContainText("$2,480.55");
 
 	// Transactions has it with this month too: Money in counts it and lists it, saying which pay
@@ -178,7 +178,7 @@ test("a paycheck posted on the last day of last month for the 1st is this month'
 	await expect(paychecks(page).nth(0)).toHaveAttribute("data-state", "in");
 	await expect(summary(page)).toContainText("$2,480.55");
 	await page.goto(`/plan/${last}/income`);
-	await expect(page.getByRole("heading", { name: "Income this month" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Income so far" })).toBeVisible();
 	await expect(summary(page)).not.toContainText("$2,480.55");
 	// This Month counts it too.
 	await page.goto(`/month/${month}`);

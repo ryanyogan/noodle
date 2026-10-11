@@ -32,13 +32,29 @@ import { AmountInput } from "./goals";
 // Pay to come on Plan › Income (issue 159, phase a; ADR-0066): under each Parent whose pay
 // varies, what they have earned that is not in yet, each with its expected day and said plainly
 // as late once that day has passed, and what arrived in the month. None of it is Income until it
-// lands; the page's three figures never read it.
+// lands; received totals never include it.
 
 /** Each Parent whose pay varies, or who still has some waiting, with their Pay to come. */
-export function PayToCome({ month }: { month: MonthKey }) {
-	const { data } = useQuery(payToComeQuery(month));
-	if (!data) return null;
+export function PayToCome({ month, memberId }: { month: MonthKey; memberId?: string }) {
+	const query = useQuery(payToComeQuery(month));
+	const { data } = query;
+	if (query.isError)
+		return (
+			<p role="alert" className="text-sm">
+				Couldn’t load pay to come.{" "}
+				<Button variant="ghost" size="sm" onClick={() => void query.refetch()}>
+					Try again
+				</Button>
+			</p>
+		);
+	if (!data)
+		return (
+			<p role="status" className="text-xs text-muted-foreground">
+				Loading pay to come…
+			</p>
+		);
 	return data.parents
+		.filter((parent) => !memberId || parent.memberId === memberId)
 		.filter((parent) => parent.varies || parent.waiting.length > 0 || parent.arrived.length > 0)
 		.map((parent) => (
 			<ParentPayToComeList key={parent.memberId} month={month} parent={parent} names={data.names} />
@@ -62,12 +78,11 @@ function ParentPayToComeList({
 	const edited = parent.waiting.find((pay) => pay.id === open);
 	return (
 		<section aria-labelledby={`${id}-title`} data-testid="pay-to-come" className="grid gap-2">
-			<h3 id={`${id}-title`} className="text-sm font-medium">
-				{parent.name}’s pay to come
-			</h3>
+			<h4 id={`${id}-title`} className="text-xs font-medium text-muted-foreground">
+				Pay to come
+			</h4>
 			<p className="text-xs text-muted-foreground">
-				Pay {parent.name} has earned that isn’t in yet. It counts as Income in the month it arrives,
-				not before, so it isn’t in your take-home pay, Extra income or Free to Spend.
+				Unpaid work counts as income when the payment arrives.
 			</p>
 			{parent.waiting.length > 0 ? (
 				<>
@@ -75,12 +90,13 @@ function ParentPayToComeList({
 						Earned, not in yet:{" "}
 						<span className="font-semibold tabular-nums">{formatMoney(parent.total)}</span>
 					</p>
-					<List>
+					<ul className="divide-y">
 						{parent.waiting.map((pay) => {
 							const [offer] = pay.offers;
 							return (
 								<ListRow
 									key={pay.id}
+									className="px-0 py-2"
 									data-testid="pay-waiting"
 									data-late={pay.lateBy !== null || undefined}
 									title={pay.from}
@@ -155,16 +171,16 @@ function ParentPayToComeList({
 								/>
 							);
 						})}
-					</List>
+					</ul>
 				</>
 			) : (
 				<p className="text-sm text-muted-foreground">Nothing earned is waiting to come in.</p>
 			)}
 			{parent.arrived.length > 0 ? (
-				<>
-					<h4 className="pt-1 text-xs font-medium text-muted-foreground">
+				<details className="text-xs text-muted-foreground">
+					<summary className="cursor-pointer py-2 focus-visible:outline-2 focus-visible:outline-ring">
 						Arrived in {monthName(month)}
-					</h4>
+					</summary>
 					<List>
 						{parent.arrived.map((arrival) => (
 							<ListRow
@@ -198,7 +214,7 @@ function ParentPayToComeList({
 							/>
 						))}
 					</List>
-				</>
+				</details>
 			) : null}
 			{say.isError ? (
 				<FormError>We couldn’t save that, so nothing has changed. Try again.</FormError>

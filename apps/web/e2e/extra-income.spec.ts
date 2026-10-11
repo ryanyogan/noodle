@@ -179,6 +179,8 @@ test("a low month: take-home pay is lowered to what came in, for this month only
 	await page.goto(`/plan/${month}/income`);
 	const takeHomePay = page.getByTestId("take-home-pay");
 	const lower = page.getByRole("button", { name: "Lower take-home pay to $4,400" });
+	// The offer is under Pay history & planning, which starts closed.
+	await page.getByTestId("income-planning").locator("summary").first().click();
 	await expect(lower).toHaveCount(0);
 	await addIncome(page, "4,400", "Paychecks");
 	await expect(

@@ -36,6 +36,7 @@ test("income includes deposits of every kind and can count them as income", asyn
 	await page.goto(`/plan/${month}/income`);
 	const table = page.getByRole("table", { name: /^Income in/ });
 	const summary = page.getByTestId("income-summary");
+	await page.getByTestId("other-money-in").locator("summary").click();
 	const notCounted = page.getByRole("region", { name: "Other money in" });
 	const waiting = page.getByRole("region", { name: "Waiting in Review" });
 	// Each deposit is on the page once, under what it counts as (issue 145).
@@ -71,6 +72,7 @@ test("income includes deposits of every kind and can count them as income", asyn
 	await expect(summary).toContainText("$125");
 	await expect(notCounted).toContainText("$125");
 	await page.reload();
+	await page.getByTestId("other-money-in").locator("summary").click();
 	await expect(table).toContainText("Returned deposit");
 	await expect(notCounted.getByRole("button")).toHaveCount(1);
 	await once("Returned deposit");

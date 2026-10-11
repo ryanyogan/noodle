@@ -69,7 +69,7 @@ async function upload(
 	await expect(toast(page, file).first()).toBeVisible();
 }
 
-test("money in is named in Review with whose pay and its Account, and Plan › Income says a Parent’s range", async ({
+test("money in is named in Review with whose pay and its Account, and Plan › Income says what has come in for that Parent", async ({
 	browser,
 }) => {
 	test.slow();
@@ -166,10 +166,11 @@ test("money in is named in Review with whose pay and its Account, and Plan › I
 		timeout: 30_000,
 	});
 
-	// Three full months of it, so the range is said, and its low end is offered to count on.
-	const totals = income(page).getByRole("region", { name: "Whose pay" });
-	await expect(totals).toContainText("$2,140 so far · usually $2,100–$2,900");
-	// The offer sits with the Take-home pay, above the Income list.
+	// What has come in is on this Parent's card; with three full months of it, the low end is
+	// offered to count on under Pay history & planning.
+	const card = page.getByTestId("person-income").filter({ hasText: name });
+	await expect(card).toContainText("$2,140");
+	await page.getByTestId("income-planning").locator("summary").first().click();
 	await page.getByRole("button", { name: "Use $4,600 as what you can count on" }).click();
 	await expect(toast(page, /^Take-home pay is \$4,600 from /)).toBeVisible();
 	await expect(page.getByTestId("take-home-pay")).toContainText("$4,600");
@@ -185,7 +186,7 @@ test("money in is named in Review with whose pay and its Account, and Plan › I
 		name,
 		{ timeout: 30_000 },
 	);
-	await expect(totals).toContainText("$2,640 so far");
+	await expect(card).toContainText("$2,640");
 	await page.context().close();
 });
 

@@ -7,7 +7,6 @@ import {
 	MONEY_IN_KINDS,
 	type MoneyInKind,
 	type MonthKey,
-	type PayRange,
 	type PlanScope,
 	parseDollars,
 } from "@noodle/domain";
@@ -24,7 +23,6 @@ import {
 } from "@noodle/ui/components/dropdown-menu";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
-import { List, ListRow } from "@noodle/ui/components/list";
 import { Money } from "@noodle/ui/components/money";
 import { OptionSelect } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
@@ -51,8 +49,7 @@ import { AmountInput } from "./goals";
 import { useParents } from "./whose-pay";
 
 // Plan › Income as a table a Parent works in (issue 133, ADR-0051, ADR-0057): Date · From ·
-// Whose pay · Account · Amount, a total per Parent with the range of one whose pay varies, and
-// an Edit sheet. Whose pay, the note and the kind can always be changed; amount and date only on
+// Whose pay · Account · Amount and an Edit sheet. Whose pay, the note and the kind can always be changed; amount and date only on
 // Income typed in by hand. Every edit is made on the line's version and waits its turn in the
 // outbox (ADR-0041, ADR-0056).
 
@@ -71,10 +68,6 @@ const whoChoices = (parents: Parent[]) => [
 	...parents.map((parent) => ({ value: parent.id, label: parent.name })),
 	{ value: HOUSEHOLD, label: HOUSEHOLD_LABEL },
 ];
-
-/** "$1,840 so far · usually $2,100–$2,900" for a Parent whose pay varies. */
-export const payRangeText = (soFar: Cents, usual: NonNullable<PayRange["usual"]>) =>
-	`${formatMoney(soFar)} so far · usually ${formatMoney(usual.low)}–${formatMoney(usual.high)}`;
 
 /** On a paycheck that landed on another day than the pay day it counts on (ADR-0063). */
 const payFor = (payDay: string) => `pay for ${shortDay(payDay)}`;
@@ -133,7 +126,7 @@ function useWhosePay(month: MonthKey, parents: Parent[]) {
 	return { set, remember, edit };
 }
 
-/** The month's Income as a table, with a total per Parent under it. */
+/** Received deposits and their edits. Person totals live with their pay schedules. */
 export function IncomeTable({
 	month,
 	income,
@@ -145,7 +138,6 @@ export function IncomeTable({
 	const parents = useParents();
 	const { accounts } = useGoals();
 	const { data: lines } = useQuery(moneyInQuery(month));
-	const { data: ranges } = useQuery(payRangesQuery(month));
 	const whose = useWhosePay(month, parents);
 	const [editing, setEditing] = useState<string | null>(null);
 
@@ -230,6 +222,7 @@ export function IncomeTable({
 				row.line ? (
 					<OptionSelect
 						size="sm"
+						className="border-transparent bg-transparent shadow-none hover:bg-surface-2"
 						aria-label={`Whose pay is ${formatMoney(row.amount)} from ${row.note ?? "Income"}`}
 						value={row.line.whosePay ?? HOUSEHOLD}
 						choices={choices}
@@ -323,7 +316,6 @@ export function IncomeTable({
 				data={rows}
 				getRowId={(row) => row.id}
 			/>
-			<WhosePayTotals rows={rows} parents={parents} ranges={ranges ?? []} />
 			<Sheet open={open !== null} onOpenChange={(next) => (next ? null : setEditing(null))}>
 				{open ? (
 					<SheetContent>
@@ -347,58 +339,6 @@ export function IncomeTable({
 				) : null}
 			</Sheet>
 		</div>
-	);
-}
-
-/** What each Parent (and the Household) brought in this month; a varying pay says its range. */
-function WhosePayTotals({
-	rows,
-	parents,
-	ranges,
-}: {
-	rows: Row[];
-	parents: Parent[];
-	ranges: PayRange[];
-}) {
-	const totals = new Map<string | null, number>();
-	for (const row of rows) {
-		const who = row.line?.whosePay ?? null;
-		totals.set(who, (totals.get(who) ?? 0) + row.amount);
-	}
-	// A Parent with nothing in yet this month still shows, when their pay usually varies.
-	for (const range of ranges)
-		if (range.varies && !totals.has(range.whosePay)) totals.set(range.whosePay, 0);
-	const order = [...parents.map((parent) => parent.id), null].filter((who) => totals.has(who));
-	// One party and no usual range would only repeat the Income so far, said at the top of the
-	// page (issue 145): the split is drawn when it says something the total doesn't.
-	const says =
-		order.length > 1 || order.some((who) => ranges.find((range) => range.whosePay === who)?.varies);
-	if (!says) return null;
-	return (
-		<section aria-label="Whose pay" className="grid gap-2">
-			<List>
-				{order.map((who) => {
-					const soFar = (totals.get(who) ?? 0) as Cents;
-					const range = ranges.find((candidate) => candidate.whosePay === who);
-					return (
-						<ListRow
-							key={who ?? "household"}
-							title={who === null ? HOUSEHOLD_LABEL : `${whoLabel(parents, who)}’s pay`}
-							meta={
-								range?.varies && range.usual
-									? payRangeText(soFar, range.usual)
-									: who === null
-										? "Interest, a tax refund, or pay nobody has said is theirs"
-										: undefined
-							}
-							trailing={
-								<span className="text-sm font-semibold tabular-nums">{formatMoney(soFar)}</span>
-							}
-						/>
-					);
-				})}
-			</List>
-		</section>
 	);
 }
 

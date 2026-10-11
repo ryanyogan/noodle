@@ -63,7 +63,7 @@ Open the line's actions on the Income page.
 
 ## Pay days
 
-On **Plan**, then **Income**, under **How you're paid**, each Parent says how they are paid: on a salary, with what one paycheck usually is and when it is due, or hourly, which is nothing to set.
+On **Plan**, then **Income**, use the edit button on a Parent’s card to say how they are paid: on a salary, with what one paycheck usually is and when it is due, or hourly or variable pay, which needs no schedule.
 
 - A salary is paid twice a month on two days, monthly on one, or every two weeks or weekly. For every two weeks or weekly, pick any one pay day and Noodle counts the rest from it.
 - Each month lists the paychecks to expect, one per pay day. A pay day reads **In** once Income that is that Parent's pay lands within five days of it, with what came and the day it posted.
@@ -73,7 +73,9 @@ On **Plan**, then **Income**, under **How you're paid**, each Parent says how th
 
 ## Pay that varies
 
-When a Parent's pay varies, the Income page shows its range over the last three full months, like "$1,800 so far · usually $2,100–$2,900". The Plan still counts on the low end. When the low end moves, Noodle offers **Use $2,300 as what you can count on**, with the new figure.
+A Parent with variable pay sees what has arrived and **Pay to come** together on their card. Use **Add pay to come** for work already earned but not paid: enter the client, amount and an expected date if you know it. It counts as income only when it arrives.
+
+Open **Pay history & planning** to see past income, averages and a suggested amount to plan on. With at least six completed months, Noodle uses the second-lowest month so one unusually low month does not set the whole Plan. With less history, a suggestion uses the lowest of the last three full months. Any suggestion changes the household’s take-home pay only when you choose to use it.
 
 ## Good to know
 

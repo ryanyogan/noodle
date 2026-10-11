@@ -63,7 +63,7 @@ test("a Parent on a salary sees a paycheck for each pay day, In once their pay h
 	// Hourly, or pay that varies, until a Parent says: nothing is listed and nothing else changes.
 	const row = section(page).getByTestId("parent-pay");
 	await expect(row).toHaveCount(1, clientRendered);
-	await expect(row).toContainText("Hourly, or pay that varies");
+	await expect(row).toContainText("Variable pay");
 	await expect(paychecks(page)).toHaveCount(0);
 	const name = ((await row.locator("span").first().textContent()) ?? "").trim();
 	expect(name).not.toBe("");
@@ -82,9 +82,7 @@ test("a Parent on a salary sees a paycheck for each pay day, In once their pay h
 	await sheet.getByRole("button", { name: "Save" }).click();
 	await expect(sheet).toBeHidden();
 	await expect(toast(page, `${name} is paid a salary: $2,500 a paycheck`)).toBeVisible();
-	await expect(row).toContainText(
-		"Salary · $2,500 a paycheck · Twice a month, on the 1st and the 15th",
-	);
+	await expect(row).toContainText("Salary");
 
 	// Two expected paychecks, neither in: no Income is this Parent's pay yet.
 	const first = `${month}-01`;
@@ -129,10 +127,10 @@ test("a Parent on a salary sees a paycheck for each pay day, In once their pay h
 	await choose(page, sheet, "Paid", "Hourly, or pay that varies");
 	await sheet.getByRole("button", { name: "Save" }).click();
 	await expect(sheet).toBeHidden();
-	await expect(row).toContainText("Hourly, or pay that varies");
+	await expect(row).toContainText("Variable pay");
 	await expect(paychecks(page)).toHaveCount(0);
 	await page.reload();
-	await expect(row).toContainText("Hourly, or pay that varies");
+	await expect(row).toContainText("Variable pay");
 	await expect(paychecks(page)).toHaveCount(0);
 });
 
@@ -156,7 +154,9 @@ test("monthly pay on the 31st is listed on a shorter month's last day", async ({
 	).toBeVisible();
 	await sheet.getByRole("button", { name: "Save" }).click();
 	await expect(sheet).toBeHidden();
-	await expect(row).toContainText("Salary · $4,000 a paycheck · Monthly, on the 31st");
+	await row.getByRole("button").click();
+	await expect(sheet).toContainText("Salary · $4,000 a paycheck · Monthly, on the 31st");
+	await page.keyboard.press("Escape");
 
 	const [year, monthNumber] = month.split("-").map(Number);
 	const last = new Date(Date.UTC(year ?? 1970, monthNumber ?? 1, 0)).toISOString().slice(0, 10);
@@ -194,9 +194,11 @@ test("pay every two weeks or weekly is counted from one pay day, and a month wit
 		weekday: "long",
 		timeZone: "UTC",
 	});
-	await expect(row).toContainText(
+	await row.getByRole("button").click();
+	await expect(sheet).toContainText(
 		`Salary · $1,800 a paycheck · Every two weeks, on a ${weekday}, counted from ${shortDay(first)}`,
 	);
+	await page.keyboard.press("Escape");
 	const [year, monthNumber] = month.split("-").map(Number);
 	const days = new Date(Date.UTC(year ?? 1970, monthNumber ?? 1, 0)).getUTCDate();
 	const twoWeekly = days >= 29 ? 3 : 2;
@@ -215,7 +217,9 @@ test("pay every two weeks or weekly is counted from one pay day, and a month wit
 	await choose(page, sheet, "How often", "Weekly");
 	await sheet.getByRole("button", { name: "Save" }).click();
 	await expect(sheet).toBeHidden();
-	await expect(row).toContainText(`Weekly, on ${weekday}s`);
+	await row.getByRole("button").click();
+	await expect(sheet).toContainText(`Weekly, on ${weekday}s`);
+	await page.keyboard.press("Escape");
 	await expect(paychecks(page)).toHaveCount(days >= 29 ? 5 : 4);
 	await expect(paychecks(page).nth(1)).toContainText(`Pay for ${shortDay(`${month}-08`)}`);
 

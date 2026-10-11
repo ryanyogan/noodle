@@ -57,6 +57,7 @@ test("a Parent whose pay varies sees what it has been, takes what to plan on, an
 		),
 	);
 	await page.goto(`/plan/${month}/income`);
+	await page.getByTestId("income-planning").locator("summary").first().click();
 
 	// Twelve months and this one as bars, with the averages, the lowest and the highest.
 	await expect(history(page)).toHaveCount(1, clientRendered);
@@ -145,6 +146,7 @@ test("with three months of pay it says so, and suggests nothing yet", async ({ b
 		),
 	);
 	await page.goto(`/plan/${month}/income`);
+	await page.getByTestId("income-planning").locator("summary").first().click();
 	await expect(history(page)).toHaveCount(1, clientRendered);
 	await expect(history(page).locator('[data-testid="pay-month"][data-counted]')).toHaveCount(3);
 	await expect(history(page).getByTestId("pay-average-recent")).toHaveText(
