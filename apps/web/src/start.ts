@@ -13,7 +13,8 @@ const clerk = clerkMiddleware();
 // The Docs' own pages (issue 126) are public and built ahead of time, the same HTML for everyone,
 // with no Clerk keys at hand: a request for exactly one of them (docs-path.ts decides, and says no
 // to everything it doesn't recognise) goes on without Clerk. Every other request, and so every
-// page and server function of the app, goes through Clerk as before.
+// page and server function of the app, goes through Clerk as before. The casts reach into the
+// middleware's own shape: check this still holds on a Clerk or TanStack Start upgrade.
 const clerkExceptDocs = createMiddleware().server((ctx) =>
 	isDocsPath(new URL(ctx.request.url).pathname)
 		? ctx.next()
